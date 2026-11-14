@@ -1,6 +1,7 @@
 /*
  * crypto.c — `std.crypto`'s built-ins: SHA-256,
- * Ed25519, random bytes, constant-time comparison and HKDF, through the system's
+ * Ed25519, random bytes, constant-time comparison, HKDF, ChaCha20-Poly1305
+ * and X25519, through the system's
  * OpenSSL 3. Appended to the runtime only for programs that load
  * `std.crypto` (they link -lcrypto); every other program never sees it.
  *
@@ -28,7 +29,15 @@ enum {
     CRYPTO_DIGEST = 32,
     CRYPTO_MAX_RANDOM = 1048576,
     CRYPTO_MAX_HKDF = 255 * CRYPTO_DIGEST,
+    CRYPTO_NONCE = 12,
+    CRYPTO_TAG = 16,
+    CRYPTO_MAX_SEAL = 1073741824,
 };
+
+/* Fixed messages `std.crypto` turns into their own `CryptoError` variants,
+ * so a caller can tell tampering or a bad peer key from OpenSSL failing. */
+static const char CRYPTO_NOT_AUTHENTIC[] = "not authentic";
+static const char CRYPTO_LOW_ORDER[] = "low order";
 
 /* OpenSSL's reason for the last failure (the queue then cleared), or `fallback`. */
 static int32_t crypto_error(LughaString **error, const char *fallback) {
@@ -271,4 +280,171 @@ int32_t lugha_rt_crypto_hkdf(const LughaArray *key, const LughaArray *salt,
     }
     OPENSSL_clear_free(okm, (size_t)length);
     return ok ? 1 : crypto_error(error, "key derivation failed");
+}
+
+/* A ChaCha20-Poly1305 context keyed and with its nonce set, for sealing
+ * (`encrypt` 1) or opening (0); NULL when OpenSSL fails. */
+static EVP_CIPHER_CTX *crypto_aead(const LughaArray *key, const LughaArray *nonce, int encrypt) {
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    if (ctx == NULL ||
+        EVP_CipherInit_ex(ctx, EVP_chacha20_poly1305(), NULL, NULL, NULL, encrypt) != 1 ||
+        EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, CRYPTO_NONCE, NULL) != 1 ||
+        EVP_CipherInit_ex(ctx, NULL, NULL, key->elems, nonce->elems, encrypt) != 1) {
+        EVP_CIPHER_CTX_free(ctx);
+        return NULL;
+    }
+    return ctx;
+}
+
+/* Feeds `len` bytes (associated data when `into` is NULL); 1 on success. An
+ * empty input is skipped: there is nothing to feed. */
+static int crypto_feed(EVP_CIPHER_CTX *ctx, unsigned char *into, const unsigned char *bytes,
+                       int64_t len) {
+    if (len == 0) {
+        return 1;
+    }
+    int n = 0;
+    return EVP_CipherUpdate(ctx, into, &n, bytes, (int)len) == 1 && (into == NULL || n == (int)len);
+}
+
+/* The checks both directions share: key, nonce and size. */
+static const char *crypto_aead_lengths(const LughaArray *key, const LughaArray *nonce,
+                                       const LughaArray *data, const LughaArray *aad) {
+    if (key->len != CRYPTO_KEY) {
+        return "key must be 32 bytes";
+    }
+    if (nonce->len != CRYPTO_NONCE) {
+        return "nonce must be 12 bytes";
+    }
+    if (data->len > CRYPTO_MAX_SEAL || aad->len > CRYPTO_MAX_SEAL) {
+        return "at most 1073741824 bytes can be sealed";
+    }
+    return NULL;
+}
+
+/* `$os.crypto_seal(key, nonce, plaintext, aad)`: RFC 8439's AEAD, the
+ * ciphertext with the 16-byte tag appended. */
+int32_t lugha_rt_crypto_seal(const LughaArray *key, const LughaArray *nonce,
+                             const LughaArray *plain, const LughaArray *aad, LughaArray **out,
+                             LughaString **error) {
+    const char *wrong = crypto_aead_lengths(key, nonce, plain, aad);
+    if (wrong != NULL) {
+        return net_error(error, wrong);
+    }
+    ERR_clear_error();
+    // Ciphertext and tag aren't secret: collected memory is fine.
+    unsigned char *sealed = lugha_rt_alloc(plain->len + CRYPTO_TAG);
+    EVP_CIPHER_CTX *ctx = crypto_aead(key, nonce, 1);
+    int n = 0;
+    int ok = ctx != NULL && crypto_feed(ctx, NULL, aad->elems, aad->len) &&
+             crypto_feed(ctx, sealed, plain->elems, plain->len) &&
+             EVP_EncryptFinal_ex(ctx, sealed + plain->len, &n) == 1 &&
+             EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, CRYPTO_TAG,
+                                 sealed + plain->len) == 1;
+    // Freeing the context clears OpenSSL's copy of the key.
+    EVP_CIPHER_CTX_free(ctx);
+    if (!ok) {
+        return crypto_error(error, "sealing failed");
+    }
+    *out = bytes_of(sealed, plain->len + CRYPTO_TAG);
+    return 1;
+}
+
+/* `$os.crypto_open(key, nonce, sealed, aad)`: the plaintext, only once the
+ * tag matches; a wrong tag is `CRYPTO_NOT_AUTHENTIC` and nothing else. */
+int32_t lugha_rt_crypto_open(const LughaArray *key, const LughaArray *nonce,
+                             const LughaArray *sealed, const LughaArray *aad, LughaArray **out,
+                             LughaString **error) {
+    const char *wrong = crypto_aead_lengths(key, nonce, sealed, aad);
+    if (wrong != NULL) {
+        return net_error(error, wrong);
+    }
+    if (sealed->len < CRYPTO_TAG) {
+        return net_error(error, "sealed bytes must be at least 16");
+    }
+    ERR_clear_error();
+    int64_t len = sealed->len - CRYPTO_TAG;
+    // OpenSSL's buffer rather than the collector's: plaintext from a
+    // forged input must never reach Lugha, so it is wiped on every path.
+    unsigned char *plain = OPENSSL_malloc((size_t)(len > 0 ? len : 1));
+    unsigned char tag[CRYPTO_TAG];
+    memcpy(tag, sealed->elems + len, CRYPTO_TAG);
+    EVP_CIPHER_CTX *ctx = plain == NULL ? NULL : crypto_aead(key, nonce, 0);
+    int ready = ctx != NULL && crypto_feed(ctx, NULL, aad->elems, aad->len) &&
+                crypto_feed(ctx, plain, sealed->elems, len) &&
+                EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, CRYPTO_TAG, tag) == 1;
+    int n = 0;
+    // Every step before the tag check succeeded, so a failing final step
+    // is the tag not matching.
+    int authentic = ready && EVP_DecryptFinal_ex(ctx, plain + len, &n) == 1;
+    EVP_CIPHER_CTX_free(ctx);
+    if (authentic) {
+        *out = bytes_of(plain, len);
+    }
+    OPENSSL_clear_free(plain, (size_t)(len > 0 ? len : 1));
+    if (!ready) {
+        return crypto_error(error, "opening failed");
+    }
+    if (!authentic) {
+        ERR_clear_error();
+        return net_error(error, CRYPTO_NOT_AUTHENTIC);
+    }
+    return 1;
+}
+
+/* `$os.crypto_x25519_public(secret)`: RFC 7748's public key of 32 secret
+ * bytes (OpenSSL clamps them, so any 32 bytes are a secret). */
+int32_t lugha_rt_crypto_x25519_public(const LughaArray *secret, LughaArray **out,
+                                      LughaString **error) {
+    if (secret->len != CRYPTO_KEY) {
+        return net_error(error, "secret key must be 32 bytes");
+    }
+    ERR_clear_error();
+    EVP_PKEY *key = EVP_PKEY_new_raw_private_key(EVP_PKEY_X25519, NULL, secret->elems, CRYPTO_KEY);
+    unsigned char pub[CRYPTO_KEY];
+    size_t len = sizeof pub;
+    int ok = key != NULL && EVP_PKEY_get_raw_public_key(key, pub, &len) == 1 &&
+             len == CRYPTO_KEY;
+    EVP_PKEY_free(key);
+    if (!ok) {
+        return crypto_error(error, "can't derive the public key");
+    }
+    *out = bytes_of(pub, CRYPTO_KEY);
+    return 1;
+}
+
+/* `$os.crypto_x25519_shared(secret, peer)`: the 32-byte shared secret; an
+ * all-zero one (a low-order peer key) is `CRYPTO_LOW_ORDER`. */
+int32_t lugha_rt_crypto_x25519_shared(const LughaArray *secret, const LughaArray *peer,
+                                      LughaArray **out, LughaString **error) {
+    if (secret->len != CRYPTO_KEY || peer->len != CRYPTO_KEY) {
+        return net_error(error, "X25519 keys must be 32 bytes");
+    }
+    ERR_clear_error();
+    EVP_PKEY *mine = EVP_PKEY_new_raw_private_key(EVP_PKEY_X25519, NULL, secret->elems, CRYPTO_KEY);
+    EVP_PKEY *theirs = EVP_PKEY_new_raw_public_key(EVP_PKEY_X25519, NULL, peer->elems, CRYPTO_KEY);
+    EVP_PKEY_CTX *ctx = mine == NULL ? NULL : EVP_PKEY_CTX_new(mine, NULL);
+    int ready = ctx != NULL && theirs != NULL && EVP_PKEY_derive_init(ctx) == 1 &&
+                EVP_PKEY_derive_set_peer(ctx, theirs) == 1;
+    unsigned char shared[CRYPTO_KEY];
+    size_t len = sizeof shared;
+    int derived = ready && EVP_PKEY_derive(ctx, shared, &len) == 1 && len == CRYPTO_KEY;
+    EVP_PKEY_CTX_free(ctx);
+    EVP_PKEY_free(theirs);
+    EVP_PKEY_free(mine);
+    if (!ready) {
+        OPENSSL_cleanse(shared, sizeof shared);
+        return crypto_error(error, "key exchange failed");
+    }
+    static const unsigned char zeros[CRYPTO_KEY];
+    // OpenSSL 3 refuses an all-zero result itself (the only way deriving
+    // fails once the keys are read); the comparison catches it either way.
+    if (!derived || CRYPTO_memcmp(shared, zeros, CRYPTO_KEY) == 0) {
+        OPENSSL_cleanse(shared, sizeof shared);
+        ERR_clear_error();
+        return net_error(error, CRYPTO_LOW_ORDER);
+    }
+    *out = bytes_of(shared, CRYPTO_KEY);
+    OPENSSL_cleanse(shared, sizeof shared);
+    return 1;
 }

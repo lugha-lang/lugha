@@ -1,10 +1,11 @@
 /**
- * std.crypto: SHA-256, Ed25519 signatures (RFC 8032), random bytes and
- * constant-time comparison, through the system's OpenSSL 3. Keys,
- * signatures and digests are plain bytes: a 32-byte secret seed, a 32-byte
- * public key, a 64-byte signature, a 32-byte digest. Nothing here panics on
- * any input; mistakes come back as `CryptoError` (or `false`, from
- * `ed25519_verify` and `equal`).
+ * std.crypto: SHA-256, Ed25519 signatures (RFC 8032), random bytes,
+ * constant-time comparison, HKDF-SHA256 (RFC 5869), ChaCha20-Poly1305
+ * sealing (RFC 8439) and X25519 key exchange (RFC 7748), through the
+ * system's OpenSSL 3. Keys, signatures and digests are plain bytes: a
+ * 32-byte secret seed, a 32-byte public key, a 64-byte signature, a 32-byte
+ * digest. Nothing here panics on any input; mistakes come back as
+ * `CryptoError` (or `false`, from `ed25519_verify` and `equal`).
  *
  * Secrets: the C side wipes its own copies, and OpenSSL clears its key
  * objects. A secret seed handed to your program, and every copy you make of
@@ -20,6 +21,13 @@ public enum CryptoError {
     BadLength(string, i64, i64),
     /** OpenSSL failed, with its reason. */
     OpenSsl(string),
+    /**
+     * Opening refused sealed bytes: they, their nonce or their associated
+     * data were changed, or the key is wrong. No plaintext comes back.
+     */
+    NotAuthentic,
+    /** A key that mustn't be used, and why: a low-order X25519 peer key. */
+    BadKey(string),
 }
 
 impl CryptoError {
@@ -28,6 +36,8 @@ impl CryptoError {
         match self {
             BadLength(what, wanted, given) => "{what}: wanted {wanted} bytes, got {given}",
             OpenSsl(reason) => "OpenSSL: {reason}",
+            NotAuthentic => "the sealed bytes don't match their key, nonce and associated data",
+            BadKey(why) => "bad key: {why}",
         }
     }
 }
@@ -146,7 +156,99 @@ public fun hkdf_sha256(key: u8[], salt: u8[], info: u8[], length: i64): Result<u
     $os.crypto_hkdf(key, salt, info, length).map_err(failed)
 }
 
-fun failed(reason: string): CryptoError = CryptoError.OpenSsl(reason);
+/**
+ * Seals bytes with ChaCha20-Poly1305 (RFC 8439): encrypts `plaintext` and
+ * authenticates it together with `aad`, which is sent as it is. Never seal
+ * two messages with the same key and nonce: that reveals both. A nonce from
+ * `random_bytes(12)` is safe for up to about 4 billion messages per key.
+ * @param key 32 secret bytes
+ * @param nonce 12 bytes, never used before with this key
+ * @param plaintext what to seal, at most 1073741824 bytes
+ * @param aad associated data: authenticated, not encrypted; may be empty
+ * @returns the ciphertext with the 16-byte tag appended
+ */
+public fun chacha20poly1305_seal(key: u8[], nonce: u8[], plaintext: u8[], aad: u8[]): Result<u8[], CryptoError> {
+    sized(key, "key", 32)?;
+    sized(nonce, "nonce", 12)?;
+    at_most(plaintext, "plaintext")?;
+    at_most(aad, "associated data")?;
+    $os.crypto_seal(key, nonce, plaintext, aad).map_err(failed)
+}
+
+/**
+ * Opens what `chacha20poly1305_seal` sealed: the plaintext if the tag
+ * matches `key`, `nonce` and `aad`, otherwise `NotAuthentic` and no
+ * plaintext at all.
+ * @param key the 32 bytes it was sealed with
+ * @param nonce the 12 bytes it was sealed with
+ * @param sealed ciphertext then tag: at least 16 bytes
+ * @param aad the associated data it was sealed with
+ */
+public fun chacha20poly1305_open(key: u8[], nonce: u8[], sealed: u8[], aad: u8[]): Result<u8[], CryptoError> {
+    sized(key, "key", 32)?;
+    sized(nonce, "nonce", 12)?;
+    if sealed.len < 16 {
+        return Err(CryptoError.BadLength("sealed bytes (at least)", 16, sealed.len));
+    }
+    at_most(sealed, "sealed bytes")?;
+    at_most(aad, "associated data")?;
+    $os.crypto_open(key, nonce, sealed, aad).map_err(failed)
+}
+
+/**
+ * A new X25519 key pair from OpenSSL's random generator.
+ * @returns `(secret, key)`: 32 secret bytes and the 32-byte public key
+ */
+public fun x25519_keypair(): Result<(u8[], u8[]), CryptoError> {
+    let secret = $os.crypto_seed().map_err(failed)?;
+    let key = x25519_public(secret)?;
+    Ok((secret, key))
+}
+
+/**
+ * The X25519 public key of a secret (any 32 bytes are one).
+ * @param secret 32 secret bytes
+ * @returns the 32-byte public key
+ */
+public fun x25519_public(secret: u8[]): Result<u8[], CryptoError> {
+    sized(secret, "secret key", 32)?;
+    $os.crypto_x25519_public(secret).map_err(failed)
+}
+
+/**
+ * The secret two X25519 key pairs share (RFC 7748): `x25519_shared(a, B)`
+ * equals `x25519_shared(b, A)`. Derive keys from it with `hkdf_sha256`
+ * rather than using it as a key itself. A low-order peer key, which would
+ * make the result all zeros, is `BadKey`.
+ * @param secret your 32 secret bytes
+ * @param peer_public the other side's 32-byte public key
+ * @returns 32 shared bytes
+ */
+public fun x25519_shared(secret: u8[], peer_public: u8[]): Result<u8[], CryptoError> {
+    sized(secret, "secret key", 32)?;
+    sized(peer_public, "peer public key", 32)?;
+    $os.crypto_x25519_shared(secret, peer_public).map_err(failed)
+}
+
+// The runtime's fixed messages for a wrong tag and a low-order peer key
+// become their own variants; every other message is OpenSSL's.
+fun failed(reason: string): CryptoError {
+    if reason == "not authentic" {
+        CryptoError.NotAuthentic
+    } else if reason == "low order" {
+        CryptoError.BadKey("the peer's public key has low order")
+    } else {
+        CryptoError.OpenSsl(reason)
+    }
+}
+
+fun at_most(bytes: u8[], what: string): Result<(), CryptoError> {
+    if bytes.len <= 1073741824 {
+        Ok(())
+    } else {
+        Err(CryptoError.BadLength("{what} (at most)", 1073741824, bytes.len))
+    }
+}
 
 fun sized(bytes: u8[], what: string, wanted: i64): Result<(), CryptoError> {
     if bytes.len == wanted { Ok(()) } else { Err(CryptoError.BadLength(what, wanted, bytes.len)) }

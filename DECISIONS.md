@@ -2242,6 +2242,16 @@ Printing sites and `==` reach a type's own plain `show`/`eq` too (`show_instance
 
 **Why:** numeric code (vectors, matrices, `NdArray`) needs `v * w` and `v * 2.0` together and a scalar on the left; exact matching and the one-candidate literal rule keep out what makes overloading hated (ranking, slow inference, an added overload silently changing an existing call), and the owner rule keeps packages from colliding.
 
+### 219. Sealing and key exchange in `std.crypto` — milestone 160 (PRP-192)
+
+**Decision:** approved by the user (2026-11-15), from rapidkoi's sync request. ChaCha20-Poly1305 (RFC 8439) and X25519 (RFC 7748) through OpenSSL 3.0's EVP, so the OpenSSL floor doesn't move.
+- `chacha20poly1305_seal(key, nonce, plaintext, aad)` gives ciphertext then tag; `chacha20poly1305_open` gives the plaintext only once the tag matches: it decrypts into an OpenSSL buffer, wiped on every path, and copies out after `EVP_DecryptFinal_ex` succeeds. The caller picks the 12-byte nonce; no random-nonce helper, no XChaCha20 (OpenSSL has none). Inputs up to 1 GiB (OpenSSL's update calls take `int`).
+- `x25519_keypair`, `x25519_public`, `x25519_shared`: an all-zero shared secret (a low-order peer key) is refused, checked in C as well as by OpenSSL.
+- `CryptoError` gains `NotAuthentic` and `BadKey(why)` so a caller can tell tampering from OpenSSL failing (breaking for exhaustive matches). The runtime reports them with fixed messages that `std.crypto` maps to the variants.
+- Not: HPKE (needs OpenSSL 3.2 or a composition in `std`, waiting on whether to raise the floor), AES-GCM, streaming encryption.
+
+**Why:** rapidkoi's sync seals everything the Pond stores and pairs devices over an X25519 channel. Both primitives exist in every OpenSSL 3, and a distinct error for a forged input keeps callers from treating an attack as an internal failure.
+
 ## OPEN — Requires human input before implementation
 
 None.

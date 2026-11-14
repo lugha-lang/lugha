@@ -130,6 +130,11 @@ pub fn os_signature(op: &str) -> Option<(Vec<Type>, Type)> {
         "crypto_random" => (vec![Type::I64], result(bytes())),
         "crypto_equal" => (vec![bytes(), bytes()], Type::I64),
         "crypto_hkdf" => (vec![bytes(), bytes(), bytes(), Type::I64], result(bytes())),
+        "crypto_seal" | "crypto_open" => {
+            (vec![bytes(), bytes(), bytes(), bytes()], result(bytes()))
+        }
+        "crypto_x25519_public" => (vec![bytes()], result(bytes())),
+        "crypto_x25519_shared" => (vec![bytes(), bytes()], result(bytes())),
         _ => return None,
     })
 }

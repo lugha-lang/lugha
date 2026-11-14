@@ -339,6 +339,8 @@ After discovery (PRP-172): Lugha meets metaprogramming needs with targeted featu
 
 **Arithmetic between different types** (milestones 158–159, PRP-191, from asking whether `2.0 * v` could work): the user weighed `r*` methods, Rust's overloading and its orphan rule, and chose operator-only overloading by exact type: several `add`…`rem` per type, one per right-hand type, a literal fitting exactly one (E0457), explicit calls choosing alike, bounds unchanged; and `impl f64 { … }` / `impl shapes.W { … }` only beside the right-hand type (E0458), so each pair of types has one owner; tags `m158`, `m159`.
 
+**Sealing and key exchange** (milestone 160, PRP-192, from rapidkoi's sync request): `chacha20poly1305_seal`/`_open` (caller's 12-byte nonce, tag appended, no plaintext unless the tag matches) and `x25519_keypair`/`_public`/`_shared` (a low-order peer key refused) in `std.crypto`, on any OpenSSL 3; `CryptoError` gains `NotAuthentic` and `BadKey(why)`; no HPKE yet; tag `m160` after the user's review.
+
 ## Changes by section
 
 - **§2:** keywords `spawn`, `select`; `after` and `default` contextual at the start of a `select` arm.

@@ -9,6 +9,7 @@ What's next. Shipped work is in CHANGELOG.md (and the spec's §11 milestone tabl
 
 ## Language and library
 
+- [ ] **Rapidkoi's sync, the rest:** mutual TLS accepting a peer by its Ed25519 key, from keys in memory (`std.tls`); UDP and multicast (`std.net`); HPKE in `std.crypto` if the OpenSSL floor rises to 3.2. Each needs the user's security review.
 - [ ] **JSON, later:** per-field options (renaming, skipping, defaults), an `@json` attribute, base64 bytes.
 - [ ] **Boxes and bytes** (v16 §12): editing a box in place (`r.with`); a bounds-checked byte buffer.
 - [ ] **`std.process`:** streaming pipes to a running child and timeouts (found with oyster). Needs the user's security review.

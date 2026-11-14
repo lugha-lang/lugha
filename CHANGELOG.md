@@ -8,6 +8,9 @@ Never deleted. Older entries are never modified.
 
 ## [Unreleased]
 
+### Breaking
+- `crypto.CryptoError` has two new variants, `NotAuthentic` and `BadKey(string)`: a `match` naming every variant must add them.
+
 ### Fixed
 - Writing inside a map entry (`m["a"].x = 5`, `n["a"][0] = 3`, `n["a"].push(4)`, `swap(n["a"], …)`, `for x of mut n["a"]`) crashed lughac in codegen; it is now E0502, as for an element a type's `index` returned, with help that copies the entry out and writes it back. `for x of mut g[i]` through `index` is E0502 too. The E0404 help for `m[k] += v` and `a[i] += v` quotes the program's own element and value.
 
@@ -17,6 +20,7 @@ Never deleted. Older entries are never modified.
 - A command whose output can't be written exits 2 (core decision 217): `lughac build --emit=ir > out.ll` on a full disk printed nothing and exited 0; it now says `error: cannot write the output: …`. A reader that stops early (`lughac spec | head`) is still a success. Every place lughac ignores an error now has a comment saying why that's safe.
 
 ### Added
+- Sealing and key exchange in `std.crypto` (milestone 160, PRP-192): `chacha20poly1305_seal(key, nonce, plaintext, aad)` and `chacha20poly1305_open(…)` (RFC 8439; the 16-byte tag appended, no plaintext unless the tag matches) and `x25519_keypair()`, `x25519_public(secret)`, `x25519_shared(secret, peer_public)` (RFC 7748; a low-order peer key refused), on any OpenSSL 3. Tested against the RFCs' vectors in `tests/crypto_seal.rs`.
 - Arithmetic between different types (milestones 158 and 159, PRP-191): a type may declare `add`, `sub`, `mul`, `div` and `rem` once per right-hand type, so a vector has both `v * w` and `v * 2.0`; the operand picks by its exact type, `v.mul(2.0)` and `v *= 2.0` choose the same way, and a literal fitting more than one is E0457. `impl f64 { fun mul(self, v: V): V }` makes `2.0 * v`, and `impl shapes.W { … }` makes `w * v`, allowed only in the module that declares the right-hand type (E0458). `T: Mul` still means `T * T`; an interface's `mul` takes whichever overload fits. Types with one method per operator keep their symbols.
 - `for x of mut g[i]`, `swap(g[i], b)` and `out g[i]` through a type's `index` (milestone 157, PRP-190): each works on a copy of the element handed back to `set_index`; the loop hands it back on every way out (its end, `break`, `continue`, `return`, `?`) as a `defer` around it would, and changing `g` in its body is E0507. These were the last E0502s for writes through `index`.
 - Read-modify-write through `[ ]` (milestone 156, PRP-189): a map's entry is a place, changed where it is — `counts[w] += 1`, `groups[k].push(x)`, `ps[k].x = 7`, `swap(m[a], m[b])`, `for x of mut m[k]` — with no copy of the entry, so pushing into entries stays linear; a missing key panics `no key … in the map`, as a read does. On a type with `index` and `set_index`, `g[i] += v`, `g[i].x = v`, `g[i][j] = v` and `g[i].push(x)` read the element, change the copy and hand it back, nesting in any order (`m[k][i] += 1` on a map of grids), each index evaluated once. These were E0404 and E0502; `swap` and `for … of mut` through `index` stay E0502. Generated code is unchanged for other programs; IR value names that carry expression ids and prelude line numbers in panic locations shift.
