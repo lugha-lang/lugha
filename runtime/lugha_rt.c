@@ -26,6 +26,8 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <net/if.h>
+#include <ifaddrs.h>
 /* bdwgc's own layout: lughac passes `-isystem` its include folder. */
 #include <gc.h>
 #include <gc_mark.h>

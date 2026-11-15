@@ -27,7 +27,7 @@ pub use self::inputs::{Plan, PlanError};
 
 /// The runtime's source files, in the order they are joined: the core first,
 /// since it holds every `#include`, then the fragments that rely on it.
-pub const RUNTIME_PARTS: [(&str, &str); 22] = [
+pub const RUNTIME_PARTS: [(&str, &str); 23] = [
     ("lugha_rt.c", include_str!("../../runtime/lugha_rt.c")),
     ("stack.c", include_str!("../../runtime/stack.c")),
     ("print.c", include_str!("../../runtime/print.c")),
@@ -50,10 +50,11 @@ pub const RUNTIME_PARTS: [(&str, &str); 22] = [
     ("cmem.c", include_str!("../../runtime/cmem.c")),
     ("net.c", include_str!("../../runtime/net.c")),
     ("resolve.c", include_str!("../../runtime/resolve.c")),
+    ("udp.c", include_str!("../../runtime/udp.c")),
 ];
 
 /// Every runtime function codegen may call; `lugha_rt.c` defines them all.
-pub const RUNTIME_SYMBOLS: [&str; 100] = [
+pub const RUNTIME_SYMBOLS: [&str; 107] = [
     "lugha_rt_init",
     "lugha_rt_read_line",
     "lugha_rt_read_file",
@@ -145,6 +146,13 @@ pub const RUNTIME_SYMBOLS: [&str; 100] = [
     "lugha_rt_net_listen",
     "lugha_rt_net_connect",
     "lugha_rt_net_resolve",
+    "lugha_rt_udp_bind",
+    "lugha_rt_udp_send",
+    "lugha_rt_udp_recv",
+    "lugha_rt_udp_group",
+    "lugha_rt_udp_option",
+    "lugha_rt_udp_multicast_if",
+    "lugha_rt_net_interfaces",
     "lugha_rt_net_accept",
     "lugha_rt_net_read",
     "lugha_rt_net_write",
@@ -181,6 +189,7 @@ pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/cmem.c"),
     include_str!("../../runtime/net.c"),
     include_str!("../../runtime/resolve.c"),
+    include_str!("../../runtime/udp.c"),
 );
 
 /// Links `objects` and the runtime into the executable `output`.

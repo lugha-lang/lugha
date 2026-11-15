@@ -21,6 +21,7 @@ impl<'ctx> Lowerer<'ctx> {
         Ok(match op {
             // `std.net`.
             _ if op.starts_with("net_")
+                || op.starts_with("udp_")
                 || op.starts_with("tls_")
                 || op.starts_with("crypto_")
                 || op.starts_with("file_")

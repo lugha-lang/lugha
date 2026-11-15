@@ -26,6 +26,7 @@ Oct 16, 2026 · @kithinji
 - JSON in `std.http` (milestone 138): `req.json()`, `res.json()`, `post_json(url, v)`, and `http.json(status, v)` taking a `json.Value` instead of text.
 - `std.json` (milestone 137; standard library): strict RFC 8259 JSON parsing and writing in Lugha — exact `i64` integers, keys in order, duplicate keys refused, limits for hostile input.
 - `net.resolve` and `tls.Options.address` (milestone 121): every address a name resolves to, and a connection to a chosen IP address that still verifies the name (in `std.tls` and `std.http`), against DNS rebinding.
+- UDP in `std.net` (milestone 163): `udp_bind`, `udp_bind_shared`, `send_to`, `recv_from`, multicast groups and options, and `interfaces()`.
 - HPKE in `std.crypto` (milestone 162): `hpke_seal(public, info, plaintext, aad)` and `hpke_open(secret, info, sealed, aad)`, sealing to an X25519 public key (RFC 9180, base mode, one suite).
 - TLS by key (milestone 161; standard library, E0332): `tls.listen_keys`, `tls.connect_keys`, `Conn.peer_key()` and `Listener.set_accept` — mutual TLS 1.3 where each side proves an Ed25519 key from the other's list (raw public keys, RFC 7250), with no certificates. Programs loading `std.tls`, `std.http` or `std.crypto` need OpenSSL 3.2 or newer.
 - Sealing and key exchange in `std.crypto` (milestone 160): ChaCha20-Poly1305 (RFC 8439) and X25519 (RFC 7748); `CryptoError` gains `NotAuthentic` and `BadKey`.
@@ -53,7 +54,7 @@ Oct 16, 2026 · @kithinji
 - `std.crypto` (milestone 113; standard library): SHA-256 (one-shot and streamed), Ed25519 keys, signing and verifying, secure random bytes and constant-time comparison, over the system's OpenSSL 3.
 - TLS (milestone 112; standard library, E0332): `std.tls` over the system's OpenSSL 3 with always-on verification, and `https://` in `std.http` (`serve_tls`, `request_tls`).
 - `std.http` (milestone 111; standard library): an HTTP/1.1 server with strict limits and a client, in Lugha over `std.net`; a literal `if` branch takes a typed sibling's type (`if c { b - 1 } else { 255 }` with `b: u8`).
-- `std.net` (milestone 110; sections 7, standard library): TCP listeners and connections whose waits pause only their green thread, through `epoll`; timeouts; no UDP yet.
+- `std.net` (milestone 110; sections 7, standard library): TCP listeners and connections whose waits pause only their green thread, through `epoll`; timeouts; UDP since milestone 163.
 - Global constants (milestone 109; sections 2, 3, 6, 8): `[private | public] const NAME: T = value;` — constant expressions only (E0445; any pure expression since milestone 147), in any order without cycles (E0446), evaluated once before `main`; no mutable statics. `const` is a keyword.
 - A float's raw bits (milestone 108; section 4): `x.to_bits()` (`f64` → `u64`, `f32` → `u32`) and `f64.from_bits(b)` / `f32.from_bits(b)`, exactly the IEEE 754 bits.
 - The unit type `()` replaces `void` (milestone 107; sections 3, 4, 6): a type and its one value, held anywhere a value is (`Result<(), E>`, `Chan<()>`); E0407 is retired; W0106 warns on `let x = log();`.
@@ -1318,7 +1319,7 @@ An integer goes to a float function through a cast: `math.sqrt(n as f64)`; `math
 
 `Civil { year, month, day, weekday, hour, minute, second, ms }`, every field `public` and `i64`, is a date on the proleptic Gregorian calendar (year 0 is 1 BC) and a time of day: month 1–12, day 1–31, weekday 1 (Monday) to 7 (Sunday) as in ISO 8601, hour 0–23, minute and second 0–59 (no leap seconds), ms 0–999. Offsets are in seconds, as the system gives them, so historical offsets that aren't whole minutes round-trip. A `TimeError { message }` (printing as its message) is an offset beyond ±26 hours, a field out of its range or a date that doesn't exist (`no day 31 in month 2 of 2026`), a moment past `i64`, or one the system can't give a local time for. Nothing panics on any input: `civil(i64.MIN, 0)` is `-292275055-05-16 16:47:04.192`.
 
-`std.net` (v17, milestone 110). TCP sockets. Waiting pauses only the waiting green thread (above). Addresses are `"host:port"` or `"[v6]:port"`; port `0` listens on any free port. Names resolve through the system's resolver, which blocks the OS thread while it looks one up. Failures are `Err` with a reason (the system's message, `"closed"`, `"timed out"`); nothing here panics. `Listener` and `Conn` share their socket between copies, so closing one copy closes them all; closing twice is harmless; the collector never closes a socket, so an unclosed one stays open until the program exits.
+`std.net` (v17, milestone 110). TCP sockets; UDP sockets, multicast and network interfaces (milestone 163, below). Waiting pauses only the waiting green thread (above). Addresses are `"host:port"` or `"[v6]:port"`; port `0` listens on any free port. Names resolve through the system's resolver, which blocks the OS thread while it looks one up. Failures are `Err` with a reason (the system's message, `"closed"`, `"timed out"`); nothing here panics. `Listener` and `Conn` share their socket between copies, so closing one copy closes them all; closing twice is harmless; the collector never closes a socket, so an unclosed one stays open until the program exits.
 
 | Function or method | Effect |
 | --- | --- |
@@ -1331,6 +1332,20 @@ An integer goes to a float function through a cast: `math.sqrt(n as f64)`; `math
 | `c.read(max: i64): Result<u8[], string>` | what has arrived, 1 to `max` bytes (`max` from 1 to 16777216), waiting for some; `[]` once the other end has finished |
 | `c.write(bytes: u8[]): Result<(), string>` | every byte, waiting while the connection is full; a closed peer is `Err`, never a signal |
 | `l.close()`, `c.close()` | closes the socket |
+
+**UDP** (milestone 163). `udp_bind(addr): Result<Udp, string>` binds a UDP socket (`"0.0.0.0:0"`, `"[::]:5353"`) that no other socket may share; `udp_bind_shared(addr)` sets `SO_REUSEADDR` and `SO_REUSEPORT` first, so sockets that also share may bind the same port (mDNS's 5353 beside Avahi). Sharing is a separate function because other programs of the same user can then bind the port and receive its unicast datagrams. A `Udp` shares its socket between copies, like `Conn`; waits park only their green thread, and `set_timeout(ms)` makes `send_to` and `recv_from` give `Err("timed out")`. A socket hears only the multicast groups it joined itself (Linux's `IP_MULTICAST_ALL` is turned off), so `leave` stops it.
+
+| Method or function | Effect |
+| --- | --- |
+| `u.send_to(bytes, addr): Result<(), string>` | one datagram (may be empty) to an IP address and port (`"192.168.1.20:5353"`, `"[ff02::fb%eth0]:5353"`); a name is `Err("address must be an IP address with a port: …")`, since looking one up would block the thread |
+| `u.recv_from(max): Result<(u8[], string), string>` | the next datagram and its sender as `ip:port` (`[ip%interface]:port` for IPv6), waiting for one; `max` from 1 to 65536; a longer datagram is `Err("datagram of N bytes is longer than max")` and is lost, never cut short. A sender's address can be forged |
+| `u.join(group, iface)`, `u.leave(group, iface)` | joins or leaves a multicast group on an interface named `iface` (`""` for the system's choice); an IPv4 group needs an IPv4 socket and an IPv6 group an IPv6 one; not a multicast address, or no such interface, is `Err` |
+| `u.set_multicast_ttl(ttl)` | routers multicast sent from here may cross (IPv6's hop limit), 1 to 255 |
+| `u.set_multicast_loop(on)`, `u.set_multicast_interface(iface)` | whether multicast sent here reaches this machine's sockets; which interface it leaves by |
+| `u.addr()`, `u.set_timeout(ms)`, `u.close()` | as `Conn`'s |
+| `interfaces(): Result<Interface[], string>` | the machine's interfaces, each once: `Interface { name, index, up, multicast, addresses }`, addresses as text (link-local IPv6 with `%name`) |
+
+No broadcast, connected UDP sockets, source-specific multicast or mDNS.
 
 `std.tls` (v17, milestone 112). TLS through the system's OpenSSL (3.2 or newer since milestone 161), linked only into programs that load `std.tls` (directly or through `std.http`); building one without `libssl-dev` is E0332. Certificates are always verified — the chain against the system's trusted roots and the host name (or IP address) — and nothing turns that off; `Options { ca_file, timeout_ms, address }` (`options()` for the defaults) adds a PEM file of certificates to trust; `address` (milestone 121), when not `""`, is an IP address (`"127.0.0.1"`, `"::1"`; anything else is `Err("address must be an IP address: …")`) that `connect_with(addr, opts)` connects to at `addr`'s port instead of resolving `addr`'s host, which is still sent as SNI and must still be named by the certificate — like curl's `--resolve`: resolve once with `net.resolve`, check the addresses, connect to the one checked. TLS 1.2 is the oldest version spoken. `connect(addr)`, `connect_with(addr, opts)` and `listen(addr, cert_file, key_file)` give a `Conn` or `Listener` with `std.net`'s methods and errors (`accept` runs the handshake, which only the accepting thread waits for; `close` sends `close_notify`); a verification failure is `Err("certificate verify failed: …")` with OpenSSL's reason. Waits park only their green thread. A peer closing without `close_notify` reads as the end of the stream. OpenSSL's objects live outside the collector and are freed by `close`. No client certificates or session resumption.
 
@@ -3971,6 +3986,7 @@ The spec is implemented in five milestones, each ending in a program that runs. 
 | 160 | Sealing and key exchange (v17) | `crypto.chacha20poly1305_seal`/`_open`, `x25519_keypair`/`_public`/`_shared`; `CryptoError.NotAuthentic`, `BadKey` | `tests/crypto_seal.rs` (done) |
 | 161 | TLS by key (v17) | `tls.listen_keys`, `connect_keys`, `Conn.peer_key`, `Listener.set_accept`: mutual TLS 1.3 with raw Ed25519 keys; OpenSSL 3.2 the floor | `tests/tls_keys.rs` (done) |
 | 162 | HPKE (v17) | `crypto.hpke_seal`, `hpke_open`: RFC 9180 base mode, X25519/HKDF-SHA256/ChaCha20-Poly1305 | `tests/crypto_seal.rs` (done) |
+| 163 | UDP (v17) | `net.udp_bind`, `udp_bind_shared`, `send_to`, `recv_from`, `join`/`leave`, multicast options, `interfaces()` | `tests/udp.rs` (done) |
 
 In milestones 1 and 2, every value can be treated as `i64`, so codegen can start before the type checker exists. Until milestone 4 provides `lugha_rt_panic`, integer `+`, `-` and `*` wrap, and `/` and `%` stop the program with a trap on a zero divisor or `MIN / -1`. Milestone 3 then replaces that assumption with real types. The process exit code is the low 8 bits of `main`'s result, so milestone tests use results below 256.
 

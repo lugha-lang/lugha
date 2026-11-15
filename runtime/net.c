@@ -96,9 +96,10 @@ static int64_t net_deadline(int64_t timeout_ms) {
     return now_ns() + ns;
 }
 
-/* `addr` ("host:port", "[ipv6-address]:port") resolved; 0 and a message
- * when it can't be. The list is freed by the caller. */
-static const char *net_resolve(const LughaString *addr, int passive, struct addrinfo **out) {
+/* `addr` ("host:port", "[ipv6-address]:port") resolved with `getaddrinfo`
+ * flags `flags` (`AI_PASSIVE` to listen, `AI_NUMERICHOST` for no lookup);
+ * a message when it can't be. The list is freed by the caller. */
+static const char *net_resolve(const LughaString *addr, int flags, struct addrinfo **out) {
     if (memchr(addr->bytes, 0, (size_t)addr->len) != NULL) {
         return "address contains a NUL byte";
     }
@@ -128,7 +129,7 @@ static const char *net_resolve(const LughaString *addr, int passive, struct addr
         return "port must be a number from 0 to 65535";
     }
     struct addrinfo hints = {.ai_family = AF_UNSPEC, .ai_socktype = SOCK_STREAM};
-    hints.ai_flags = passive ? AI_PASSIVE : 0;
+    hints.ai_flags = flags;
     int code = getaddrinfo(name, port, &hints, out);
     return code == 0 ? NULL : gai_strerror(code);
 }
@@ -140,7 +141,7 @@ static int net_socket(const struct addrinfo *a) {
 /* `$os.net_listen(addr)`: 1 and a listening socket, or 0 and a message. */
 int32_t lugha_rt_net_listen(const LughaString *addr, int64_t *fd, LughaString **error) {
     struct addrinfo *list = NULL;
-    const char *problem = net_resolve(addr, 1, &list);
+    const char *problem = net_resolve(addr, AI_PASSIVE, &list);
     if (problem != NULL) {
         return net_error(error, problem);
     }

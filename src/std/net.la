@@ -1,8 +1,12 @@
 /**
- * std.net: TCP sockets. Waiting to accept, connect, read or write
+ * std.net: TCP and UDP sockets, multicast, and the machine's network
+ * interfaces. Waiting to accept, connect, read, write, send or receive
  * pauses only the green thread that waits: the others keep running, so one
  * program serves many connections on its one OS thread. Name lookup
  * (`example.com:80`) does block the thread while it runs.
+ *
+ * A UDP datagram's sender address can be forged: check what it says before
+ * trusting it.
  *
  * Close what you open: the collector never closes a socket, so one left open
  * stays open until the program exits. Listen on `127.0.0.1` unless other
@@ -160,4 +164,187 @@ fun shut(fd: Ref<i64>) {
         $os.net_close(open);
         fd.set(-1);
     }
+}
+
+/**
+ * A UDP socket: `net.udp_bind(addr)` or `net.udp_bind_shared(addr)`.
+ * Copies share it; `close` closes every copy.
+ */
+public struct Udp {
+    fd: Ref<i64>,
+    timeout: Ref<i64>,
+}
+
+/**
+ * A UDP socket bound to an address: `"0.0.0.0:0"` for any free port on
+ * every IPv4 interface, `"[::]:5353"` for IPv6. No other socket may bind
+ * the same port.
+ * @param addr host:port
+ */
+public fun udp_bind(addr: string): Result<Udp, string> = udp_open(addr, 0);
+
+/**
+ * `udp_bind`, sharing the port with other sockets that also share it (as
+ * mDNS's 5353 is shared with the system's Avahi). Other programs of the
+ * same user can then bind the port too, and may receive datagrams sent to
+ * it: share only where a protocol needs it.
+ * @param addr host:port
+ */
+public fun udp_bind_shared(addr: string): Result<Udp, string> = udp_open(addr, 1);
+
+fun udp_open(addr: string, shared: i64): Result<Udp, string> {
+    let fd = $os.udp_bind(addr, shared)?;
+    Ok(Udp { fd: Ref.new(fd), timeout: Ref.new(0) })
+}
+
+impl Udp {
+    /**
+     * Sends one datagram (it may be lost, repeated or reordered on the way).
+     * @param bytes what to send; may be empty
+     * @param addr an IP address and port, `"192.168.1.20:5353"`, `"[ff02::fb%eth0]:5353"`: never a name, which would block the thread to look up (`net.resolve` first)
+     */
+    public fun send_to(self, bytes: u8[], addr: string): Result<(), string> {
+        let fd = self.fd.get();
+        if fd < 0 {
+            return Err("closed");
+        }
+        $os.udp_send(fd, bytes, addr, self.timeout.get())?;
+        Ok(())
+    }
+
+    /**
+     * The next datagram and who sent it, waiting for one if none has come.
+     * @param max the longest datagram wanted, from 1 to 65536; a longer one is `Err` and is lost
+     * @returns the bytes and the sender as `ip:port` (`[ip%interface]:port` for IPv6)
+     */
+    public fun recv_from(self, max: i64): Result<(u8[], string), string> {
+        let fd = self.fd.get();
+        if fd < 0 {
+            return Err("closed");
+        }
+        $os.udp_recv(fd, max, self.timeout.get())
+    }
+
+    /**
+     * Joins a multicast group, to receive what is sent to it.
+     * @param group an IPv4 group for an IPv4 socket (`"224.0.0.251"`), an IPv6 one for an IPv6 socket (`"ff02::fb"`)
+     * @param iface the interface's name (`"eth0"`), or `""` for the system's choice
+     */
+    public fun join(self, group: string, iface: string): Result<(), string> = self.group(group, iface, 1);
+
+    /**
+     * Leaves a multicast group joined with `join`.
+     * @param group the group
+     * @param iface the interface it was joined on
+     */
+    public fun leave(self, group: string, iface: string): Result<(), string> = self.group(group, iface, 0);
+
+    fun group(self, group: string, iface: string, join: i64): Result<(), string> {
+        let fd = self.fd.get();
+        if fd < 0 {
+            return Err("closed");
+        }
+        $os.udp_group(fd, group, iface, join)?;
+        Ok(())
+    }
+
+    /**
+     * How many routers multicast sent from here may cross (IPv6's hop limit); `1` keeps it on the local network, the default.
+     * @param ttl from 1 to 255
+     */
+    public fun set_multicast_ttl(self, ttl: i64): Result<(), string> {
+        if ttl < 1 || ttl > 255 {
+            return Err("TTL must be from 1 to 255");
+        }
+        self.option(0, ttl)
+    }
+
+    /**
+     * Whether multicast sent from here also reaches sockets on this machine (on by default).
+     * @param on loop back or not
+     */
+    public fun set_multicast_loop(self, on: bool): Result<(), string> = self.option(1, if on { 1 } else { 0 });
+
+    fun option(self, which: i64, value: i64): Result<(), string> {
+        let fd = self.fd.get();
+        if fd < 0 {
+            return Err("closed");
+        }
+        $os.udp_option(fd, which, value)?;
+        Ok(())
+    }
+
+    /**
+     * Which interface multicast sent from here leaves by.
+     * @param iface its name, or `""` for the system's choice
+     */
+    public fun set_multicast_interface(self, iface: string): Result<(), string> {
+        let fd = self.fd.get();
+        if fd < 0 {
+            return Err("closed");
+        }
+        $os.udp_multicast_if(fd, iface)?;
+        Ok(())
+    }
+
+    /** How long `send_to` and `recv_from` wait, in milliseconds; `0` waits forever. */
+    public fun set_timeout(self, ms: i64) {
+        self.timeout.set(ms);
+    }
+
+    /** The address it is bound to, as `host:port`; `""` once closed. */
+    public fun addr(self): string = name(self.fd.get(), 0);
+
+    /** Closes it, and every copy. Closing twice is fine. */
+    public fun close(self) {
+        shut(self.fd);
+    }
+}
+
+/** A network interface of this machine. */
+public struct Interface {
+    /** Its name: `"lo"`, `"eth0"`, `"wlan0"`. */
+    public name: string,
+    /** The system's number for it (from 1). */
+    public index: i64,
+    /** Whether it is up. */
+    public up: bool,
+    /** Whether it can send and receive multicast. */
+    public multicast: bool,
+    /** Its IPv4 and IPv6 addresses as text; link-local IPv6 ones carry `%name`. */
+    public addresses: string[],
+}
+
+/**
+ * This machine's network interfaces, each once, in the system's order.
+ * @returns the interfaces, or `Err` with the reason
+ */
+public fun interfaces(): Result<Interface[], string> {
+    let mut out: Interface[] = [];
+    for line of $os.net_interfaces()?.split("\n") {
+        let parts = line.split("\t");
+        if parts.len != 5 {
+            continue;
+        }
+        let mut found = false;
+        for i in 0..out.len {
+            if out[i].name == parts[0] {
+                found = true;
+                if parts[4] != "" {
+                    out[i].addresses.push(parts[4]);
+                }
+            }
+        }
+        if !found {
+            let addresses: string[] = if parts[4] == "" { [] } else { [parts[4]] };
+            out.push(Interface {
+                name: parts[0],
+                index: parse_i64(parts[1]).unwrap_or(0),
+                up: parts[2] == "1",
+                multicast: parts[3] == "1",
+                addresses: addresses,
+            });
+        }
+    }
+    Ok(out)
 }

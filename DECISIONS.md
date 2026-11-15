@@ -2272,6 +2272,18 @@ Printing sites and `==` reach a type's own plain `show`/`eq` too (`show_instance
 
 **Why:** rapidkoi's old device seals the master secret to a new device's key when pairing; HPKE in `std` means apps don't compose X25519, HKDF and AEAD by hand.
 
+### 222. UDP in `std.net` — milestone 163 (PRP-195)
+
+**Decision:** approved by the user (2026-11-15). A `Udp` socket like `Conn` (fd and timeout in `Ref`s, explicit `close`), its waits parked through `wait_fd`:
+- `udp_bind` shares nothing; `udp_bind_shared` sets `SO_REUSEADDR` and `SO_REUSEPORT`, because a shared port lets another program of the same user receive this one's unicast datagrams, so sharing is visible in the code.
+- `send_to` takes IP literals only (`net_resolve` with `AI_NUMERICHOST`): a lookup per datagram would block the thread.
+- `recv_from(max)`: `max` ≤ 65536; `MSG_TRUNC` gives a datagram's real length, and a longer one is `Err`, never cut short. The datagram and its sender come back as a `(u8[], string)` tuple C fills in through the out-slot (codegen's `out_slot` now zero-fills any type).
+- Multicast membership is per socket: `IP_MULTICAST_ALL` (and `IPV6_MULTICAST_ALL` where the kernel has it) is turned off at bind, found while building, since Linux otherwise delivers to a wildcard-bound socket every group any socket on the machine joined and `leave` did nothing.
+- `interfaces()` from `getifaddrs`, as tab-separated lines parsed in Lugha. C in a new core fragment, `runtime/udp.c`.
+- Not: broadcast, connected UDP, source-specific multicast, mDNS.
+
+**Why:** rapidkoi's devices find each other on the local network by announcing a tag over multicast, on mDNS's port or their own.
+
 ## OPEN — Requires human input before implementation
 
 None.

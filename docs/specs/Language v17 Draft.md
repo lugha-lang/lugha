@@ -345,6 +345,8 @@ After discovery (PRP-172): Lugha meets metaprogramming needs with targeted featu
 
 **HPKE** (milestone 162, PRP-194, from rapidkoi's sync request): `hpke_seal`/`hpke_open` in `std.crypto` over OpenSSL 3.2's `OSSL_HPKE_*`: one suite (DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, ChaCha20-Poly1305), base mode, single-shot, one blob `enc ‖ ct`; low-order keys `BadKey`, mismatches `NotAuthentic`; no empty plaintext (OpenSSL refuses it); tag `m162` after the user's review.
 
+**UDP** (milestone 163, PRP-195, from rapidkoi's sync request): `Udp` from `udp_bind`/`udp_bind_shared` (`SO_REUSEADDR` + `SO_REUSEPORT` only when asked), `send_to` to IP literals only, `recv_from` up to 65536 bytes with the sender (an oversized datagram is `Err`), `join`/`leave` per interface with per-socket membership (`IP_MULTICAST_ALL` off), TTL, loop and sending interface, `interfaces()`; waits park one green thread; tag `m163` after the user's review.
+
 ## Changes by section
 
 - **§2:** keywords `spawn`, `select`; `after` and `default` contextual at the start of a `select` arm.

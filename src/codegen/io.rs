@@ -187,13 +187,11 @@ impl<'ctx> Lowerer<'ctx> {
         }
     }
 
-    /// A stack slot for a runtime out-parameter, cleared first.
+    /// A stack slot for a runtime out-parameter, cleared first. Any type:
+    /// a tuple of pointers is a struct C fills in field by field.
     pub(super) fn out_slot(&mut self, ty: &Type) -> PointerValue<'ctx> {
         let slot = self.entry_alloca(ty, "out");
-        let zero: BasicValueEnum = match llvm_type(self.context, ty) {
-            inkwell::types::BasicTypeEnum::PointerType(t) => t.const_null().into(),
-            other => other.into_int_type().const_zero().into(),
-        };
+        let zero: BasicValueEnum = llvm_type(self.context, ty).const_zero();
         self.builder.build_store(slot, zero).expect(POSITIONED);
         slot
     }

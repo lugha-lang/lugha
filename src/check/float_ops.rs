@@ -100,6 +100,27 @@ pub fn os_signature(op: &str) -> Option<(Vec<Type>, Type)> {
         "net_close" => (vec![Type::I64], Type::Unit),
         "net_name" => (vec![Type::I64, Type::I64], result(Type::String)),
         "net_resolve" => (vec![Type::String, Type::I64], result(Type::String)),
+        // UDP: sockets as `i64` descriptors, as TCP's; a datagram and its
+        // sender as a `(u8[], string)` tuple C fills in.
+        "udp_bind" => (vec![Type::String, Type::I64], result(Type::I64)),
+        "udp_send" => (
+            vec![Type::I64, bytes(), Type::String, Type::I64],
+            result(Type::I64),
+        ),
+        "udp_recv" => (
+            vec![Type::I64, Type::I64, Type::I64],
+            result(Type::Struct(
+                format!("{}2", super::tuples::TUPLE),
+                vec![bytes(), Type::String],
+            )),
+        ),
+        "udp_group" => (
+            vec![Type::I64, Type::String, Type::String, Type::I64],
+            result(Type::I64),
+        ),
+        "udp_option" => (vec![Type::I64, Type::I64, Type::I64], result(Type::I64)),
+        "udp_multicast_if" => (vec![Type::I64, Type::String], result(Type::I64)),
+        "net_interfaces" => (Vec::new(), result(Type::String)),
         // `std.tls`: connections and listeners as `i64` handles.
         "tls_connect" => (
             vec![Type::String, Type::String, Type::String, Type::I64],
