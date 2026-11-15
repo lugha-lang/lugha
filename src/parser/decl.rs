@@ -199,7 +199,7 @@ impl Parser<'_> {
         let starts_receiver = self.at(&TokenKind::SelfKw)
             || (self.at(&TokenKind::Mut) && self.peek_at(1) == &TokenKind::SelfKw);
         if !starts_receiver {
-            let params = self.comma_list(open, TokenKind::RParen, |p| p.param("parameter name"))?;
+            let params = self.comma_list(open, TokenKind::RParen, |p| p.fun_param())?;
             return Ok((None, params));
         }
         let start = self.span().start;
@@ -216,7 +216,7 @@ impl Parser<'_> {
             self.error(diagnostic);
         }
         let params = if self.eat(&TokenKind::Comma) {
-            self.comma_list(open, TokenKind::RParen, |p| p.param("parameter name"))?
+            self.comma_list(open, TokenKind::RParen, |p| p.fun_param())?
         } else {
             self.close(open, &TokenKind::RParen)?;
             Vec::new()

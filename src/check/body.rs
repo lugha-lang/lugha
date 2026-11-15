@@ -46,7 +46,12 @@ impl Checker {
             );
         }
         for (param, ty) in f.params.iter().zip(params) {
-            self.declare(&param.name, ty, Binding::Param);
+            // A `mut` parameter is the caller's place, as `mut self` is.
+            let binding = match param.mode {
+                Some((crate::ast::PassMode::Mut, _)) => Binding::SelfMut,
+                _ => Binding::Param,
+            };
+            self.declare(&param.name, ty, binding);
         }
         let expect = (ret != Type::Unit).then(|| Expect::of(ret.clone()));
         let body = self.block(&f.body, expect.as_ref());

@@ -166,7 +166,7 @@ impl Display for Circle {
 **Rules**
 
 1. `interface Eq { fun eq(self, other: Self): bool; }` defines `==`, `!=` and `assert_eq`, and the bound `T: Eq`. [EQ-01]
-2. `interface Key: Eq { fun hash(self, h: mut Hasher); }` is required of map keys and set elements. Its law: if `a == b` then their hashes are equal, and every value equals itself. [EQ-02, EQ-11]
+2. `interface Key: Eq { fun hash(self, mut h: Hasher); }` is required of map keys and set elements. Its law: if `a == b` then their hashes are equal, and every value equals itself. [EQ-02, EQ-11]
 3. `with Key` implies `with Eq`. [EQ-03]
 4. Floats implement `Eq`, with IEEE rules (`NaN != NaN`), but not `Key`. [EQ-04]
 5. Built-in implementations: integers, `bool`, `char` and `string` are `Eq` and `Key`; floats are `Eq` only; arrays, tuples, `Option`, `Result`, `Map` and `Set` are `Eq` or `Key` when their parts are; C handles (`extern type`, `CPtr`) are `Eq` and `Key` by address; `Ref`, tasks, channel ends, actor handles, functions and interface values are neither, and identity is `a.is(b)` where it exists. [EQ-06]
@@ -188,7 +188,7 @@ impl Eq for Email {
         self.address.to_lower() == other.address.to_lower();
 }
 impl Key for Email {
-    fun hash(self, h: mut Hasher) { h.add(self.address.to_lower()); }
+    fun hash(self, mut h: Hasher) { h.add(self.address.to_lower()); }
 }
 
 @test

@@ -242,6 +242,7 @@ impl Checker {
             && !self.no_change_inside(&[base], receiver, mark)
         {
             self.no_alias(base, args);
+            self.mut_receiver_alias(base, args);
         }
         ret
     }
@@ -278,7 +279,7 @@ impl Checker {
     /// Whether `e`'s value is passed as a pointer to its storage: anything
     /// but numbers, `bool`, `char`, strings and function values. A type
     /// parameter may be a struct, so it counts.
-    fn by_pointer(&self, e: &Expr) -> bool {
+    pub(super) fn by_pointer(&self, e: &Expr) -> bool {
         let ty = self.types[e.id.0 as usize].as_ref();
         ty.is_some_and(|t| {
             matches!(

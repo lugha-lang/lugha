@@ -1,0 +1,33 @@
+error[E0439]: an actor's message can't take a `mut` parameter: messages carry values
+  --> tests/programs/functions/mut_params/not_here.la:6:34
+  |
+6 | actor A { x: i64, fun take(self, mut n: i64) {} }
+  |                                  ^^^
+  |
+  = help: an actor is started with `spawn` and reached only through its methods; what crosses its boundary is copied and may hold no `Ref`
+
+error[E0438]: `spawn` of a call that changes its receiver or a `mut` argument: the new thread would change its own copy
+   --> tests/programs/functions/mut_params/not_here.la:14:19
+   |
+14 |     let t = spawn bump(mut x);
+   |                   ^^^^^^^^^^^
+   |
+   = help: nobody would see the change; send the new value back through a channel, or keep it in a `Ref`
+
+error[E0406]: `bump` can't be used as a value
+   --> tests/programs/functions/mut_params/not_here.la:15:13
+   |
+15 |     let f = bump;
+   |             ^^^^
+   |
+   = help: a function with a `mut` parameter can't be a value: wrap the call in a closure that returns the changed value
+
+error[E0422]: `impl Grow for G` doesn't match `Grow`
+   --> tests/programs/functions/mut_params/not_here.la:10:6
+   |
+10 | impl Grow for G { fun grow(self, n: i64) {} }
+   |      ^^^^
+   |
+   = help: `grow` should be `fun grow(self, mut i64)`
+
+For more about E0439, E0438, E0406 and E0422, run `lughac explain <code>`.

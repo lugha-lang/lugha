@@ -10,7 +10,7 @@ use super::externs::{converts_from_c, is_nullable_handle};
 use super::lower::{Lowerer, POSITIONED};
 use super::scope::{Local, Scopes};
 use super::value::{Value, is_aggregate};
-use crate::ast::{Expr, ExprKind, FunDecl};
+use crate::ast::{Expr, ExprKind, FunDecl, PassMode};
 use crate::check::{CParam, Type, qualify};
 
 /// A declared function.
@@ -102,8 +102,10 @@ impl<'ctx> Lowerer<'ctx> {
                 .get_nth_param(index)
                 .expect("declared with these parameters");
             // A struct arrives as a pointer to the caller's storage, which
-            // serves as its slot: parameters are immutable.
-            let ptr = if is_aggregate(ty) {
+            // serves as its slot: parameters are immutable. A `mut` one is
+            // the caller's place itself.
+            let by_place = matches!(param.mode, Some((crate::ast::PassMode::Mut, _)));
+            let ptr = if by_place || is_aggregate(ty) {
                 arg.into_pointer_value()
             } else {
                 let ptr = self.entry_alloca(ty, &param.name.name);
@@ -318,6 +320,11 @@ impl<'ctx> Lowerer<'ctx> {
     ) -> Result<Vec<BasicMetadataValueEnum<'ctx>>, CodegenError> {
         let mut values: Vec<BasicMetadataValueEnum> = Vec::with_capacity(args.len());
         for (arg, ty) in args.iter().zip(params) {
+            // `mut place`: the place's address, which the callee changes.
+            if !is_extern && let ExprKind::Pass(PassMode::Mut, place) = &arg.kind {
+                values.push(self.mut_place(place)?.into());
+                continue;
+            }
             let value = self.get(arg, ty)?;
             let value = if is_extern && *ty == Type::String {
                 self.c_string(value)

@@ -156,6 +156,8 @@ pub(super) enum PlaceUse<'a> {
     Receiver(&'a str),
     /// An argument of `swap`.
     Swap,
+    /// `mut place`, an argument for a `mut` parameter.
+    MutArg,
 }
 
 /// The variable at the root of a place chain, if the chain is rooted in one.

@@ -1,0 +1,11 @@
+error[E0501]: cannot pass `fixed` as `mut`: it is not mutable
+  --> tests/programs/functions/mut_params/e0501.la:6:14
+  |
+5 |     let fixed = 1;
+  |         ----- declared here
+6 |     bump(mut fixed);
+  |              ^^^^^
+  |
+  = help: make it mutable: `let mut fixed`
+
+For more about E0501, run `lughac explain E0501`.

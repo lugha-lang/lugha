@@ -126,6 +126,7 @@ impl Checker {
                     name: name.to_string(),
                     receiver: m.receiver,
                     params: m.params.iter().map(|t| subst(t, outer, args)).collect(),
+                    muts: m.muts.clone(),
                     ret: subst(&m.ret, outer, args),
                     span: m.span,
                     default: None,

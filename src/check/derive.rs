@@ -403,6 +403,7 @@ impl Checker {
             let method = Method {
                 receiver,
                 params,
+                muts: super::muts_of(&f.params),
                 ret,
                 span: f.name.span,
                 generics: generics.clone(),

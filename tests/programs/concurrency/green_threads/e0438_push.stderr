@@ -1,4 +1,4 @@
-error[E0438]: `spawn` of a call that changes its receiver: the new thread would change its own copy
+error[E0438]: `spawn` of a call that changes its receiver or a `mut` argument: the new thread would change its own copy
   --> tests/programs/concurrency/green_threads/e0438_push.la:3:11
   |
 3 |     spawn xs.push(3);

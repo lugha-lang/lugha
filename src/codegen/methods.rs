@@ -59,7 +59,12 @@ impl<'ctx> Lowerer<'ctx> {
                 let ptr = self.context.ptr_type(Default::default());
                 let mut types: Vec<BasicMetadataTypeEnum> =
                     f.receiver.iter().map(|_| ptr.into()).collect();
-                types.extend(params.iter().map(|ty| self.param_type(ty)));
+                types.extend(
+                    f.params
+                        .iter()
+                        .zip(&params)
+                        .map(|(p, ty)| self.arg_type(p, ty)),
+                );
                 let fn_type = match &ret {
                     Some(ty) => llvm_type(self.context, ty).fn_type(&types, false),
                     None => self.context.void_type().fn_type(&types, false),

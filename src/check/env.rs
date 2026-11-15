@@ -149,9 +149,15 @@ impl Checker {
                 self.register_item(&key, visibility);
                 let sig = super::Sig::of(&generics, 0, None, (declared, &params), &ret_type);
                 self.hover.signatures.insert(name.span, sig);
+                // An extern's modes are its `c_params`.
+                let muts = match is_extern {
+                    true => Vec::new(),
+                    false => super::muts_of(declared),
+                };
                 let signature = Signature {
                     generics,
                     params,
+                    muts,
                     ret: ret_type,
                     span: name.span,
                     is_extern,

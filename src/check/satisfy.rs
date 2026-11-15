@@ -73,6 +73,7 @@ impl Checker {
         Some(Method {
             receiver: req.receiver,
             params: req.params,
+            muts: req.muts,
             ret: req.ret,
             span: req.span,
             generics: Vec::new(),
@@ -194,6 +195,7 @@ impl Checker {
             name: req.name.clone(),
             receiver: m.receiver,
             params: m.params.iter().map(|t| subst(t, outer, args)).collect(),
+            muts: m.muts.clone(),
             ret: subst(&m.ret, outer, args),
             span: m.span,
             default: None,
@@ -209,7 +211,12 @@ impl Checker {
 /// `fun area(self): f64`, as an interface declares it.
 pub(super) fn shown(req: &Requirement) -> String {
     let receiver = req.receiver.map(|m| if m { "mut self" } else { "self" });
-    let params = req.params.iter().map(Type::to_string);
+    let params = req.params.iter().enumerate().map(|(i, t)| {
+        match req.muts.get(i).copied().unwrap_or(false) {
+            true => format!("mut {t}"),
+            false => t.to_string(),
+        }
+    });
     let list: Vec<String> = receiver
         .map(String::from)
         .into_iter()

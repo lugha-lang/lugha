@@ -34,7 +34,7 @@ The draft must cite every `approved` line exactly once as a rule, and contain no
 ## EQ — equality, keys, order
 
 - EQ-01 approved — `interface Eq { fun eq(self, other: Self): bool; }`, used by `==`, `!=`, `assert_eq`, `T: Eq`.
-- EQ-02 approved — `interface Key: Eq { fun hash(self, h: mut Hasher); }`, required for map keys and set elements. Law: `a == b` implies equal hashes, and every value equals itself.
+- EQ-02 approved — `interface Key: Eq { fun hash(self, mut h: Hasher); }`, required for map keys and set elements. Law: `a == b` implies equal hashes, and every value equals itself.
 - EQ-03 approved — `with Key` implies `with Eq`.
 - EQ-04 approved — Floats implement `Eq` (IEEE: `NaN != NaN`) but not `Key`. Retires E0441.
 - EQ-05 approved — E0454 retired: `Key` requires `Eq`.
@@ -333,6 +333,7 @@ The draft must cite every `approved` line exactly once as a rule, and contain no
 - SUP-23 — Sending a large value to another task costing one count; marking only the object that crosses → MEM-02.
 - SUP-24 — Process lockdown containing C to the narrowed capabilities → SEC-05 (to the kinds `main` declared).
 - SUP-25 — Unwinding as phase 3, before the memory model is settled → ORD-03.
+- SUP-26 — `h: mut Hasher`, the `mut` after the colon → `mut h: Hasher`, as externs and `mut self` write it (PRP-198).
 
 ## TODO.md items this resolves
 

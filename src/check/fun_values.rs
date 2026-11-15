@@ -25,6 +25,12 @@ impl Checker {
             self.report(errors::not_value(&name, at.span, help));
             return Type::Error;
         }
+        // A function type can't say which parameters are `mut`.
+        if !sig.muts.is_empty() {
+            let help = "a function with a `mut` parameter can't be a value: wrap the call in a closure that returns the changed value";
+            self.report(errors::not_value(&name, at.span, help));
+            return Type::Error;
+        }
         let (generics, params, ret) = (sig.generics.clone(), sig.params.clone(), sig.ret.clone());
         self.not_a_test(key, at.span);
         self.callees.insert(at.id, key.to_string());

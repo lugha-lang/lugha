@@ -67,6 +67,16 @@ impl<'ctx> Lowerer<'ctx> {
 
     /// The address, type and element-ness of `place` with the indexes of
     /// `plan`, every array on the way made unique.
+    /// The address of `place`, a `mut` argument, ready for the callee to
+    /// change: arrays on the way made unique, as for an assignment.
+    pub(super) fn mut_place(
+        &mut self,
+        place: &Expr,
+    ) -> Result<inkwell::values::PointerValue<'ctx>, CodegenError> {
+        let plan = self.place_plan(place)?;
+        Ok(self.place_commit(place, &plan).0)
+    }
+
     pub(super) fn place_commit(
         &mut self,
         place: &Expr,

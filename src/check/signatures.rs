@@ -34,9 +34,13 @@ impl Sig {
             generics: generics.iter().map(|g| g.name.clone()).collect(),
             outer,
             receiver,
+            // A `mut` parameter shows its `mut`, as it is written.
             params: declared
                 .iter()
-                .map(|p| p.name.name.clone())
+                .map(|p| match p.mode {
+                    Some((crate::ast::PassMode::Mut, _)) => format!("mut {}", p.name.name),
+                    _ => p.name.name.clone(),
+                })
                 .zip(params.iter().cloned())
                 .collect(),
             ret: ret.clone(),

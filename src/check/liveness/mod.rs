@@ -184,7 +184,12 @@ impl Walk<'_> {
             .iter()
             .map(|r| (!r.mutable).then_some(r.span))
             .collect();
-        params.extend(f.params.iter().map(|p| Some(p.name.span)));
+        // A `mut` parameter is its caller's place, never moved from, as
+        // `mut self` isn't.
+        params.extend(f.params.iter().map(|p| {
+            let mutable = matches!(p.mode, Some((crate::ast::PassMode::Mut, _)));
+            (!mutable).then_some(p.name.span)
+        }));
         let kept = vec![false; params.len()];
         self.frame = Some(Frame {
             params,

@@ -21,6 +21,8 @@ pub(super) struct Requirement {
     pub span: Span,
     /// The interface's key if the item has a default body.
     pub default: Option<String>,
+    /// Which of `params` are `mut`; empty when none is.
+    pub muts: Vec<bool>,
 }
 
 impl Requirement {
@@ -28,7 +30,20 @@ impl Requirement {
     pub(super) fn same(&self, other: &Requirement) -> bool {
         (&self.name, self.receiver, &self.params, &self.ret)
             == (&other.name, other.receiver, &other.params, &other.ret)
+            && same_muts(&self.muts, &other.muts)
     }
+}
+
+/// True if two lists of `mut` flags agree, an empty list meaning none.
+pub(super) fn same_muts(a: &[bool], b: &[bool]) -> bool {
+    let set = |m: &[bool]| {
+        m.iter()
+            .enumerate()
+            .filter(|(_, b)| **b)
+            .map(|(i, _)| i)
+            .collect::<Vec<_>>()
+    };
+    set(a) == set(b)
 }
 
 /// A declared interface.
@@ -132,6 +147,7 @@ impl Checker {
                     name: name.clone(),
                     receiver: it.receiver.map(|r| r.mutable),
                     params,
+                    muts: super::muts_of(&it.params),
                     ret,
                     span: it.name.span,
                     default: it.default.as_ref().map(|_| key.clone()),

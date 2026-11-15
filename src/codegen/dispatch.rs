@@ -113,7 +113,12 @@ impl<'ctx> Lowerer<'ctx> {
         values.extend(arguments);
         let ptr = self.context.ptr_type(Default::default());
         let mut types: Vec<BasicMetadataTypeEnum> = vec![ptr.into()];
-        types.extend(method.params.iter().map(|p| self.param_type(p)));
+        // A `mut` argument (the checker matched it to a `mut` parameter) is
+        // a pointer to its place.
+        types.extend(args.iter().zip(&method.params).map(|(a, p)| match &a.kind {
+            crate::ast::ExprKind::Pass(crate::ast::PassMode::Mut, _) => ptr.into(),
+            _ => self.param_type(p),
+        }));
         let fn_type = match &method.ret {
             Type::Unit => self.context.void_type().fn_type(&types, false),
             ret => llvm_type(self.context, ret).fn_type(&types, false),

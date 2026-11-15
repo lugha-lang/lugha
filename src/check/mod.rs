@@ -80,6 +80,8 @@ mod members;
 mod method_calls;
 mod methods;
 mod modules;
+mod mut_params;
+use mut_params::muts_of;
 mod named_imports;
 mod numbers;
 mod operators;
@@ -274,6 +276,8 @@ pub(super) struct Signature {
     pub is_extern: bool,
     /// A `@test` function: nothing may call it.
     pub test: bool,
+    /// Which of `params` are `mut`; empty when none is, and for externs.
+    pub muts: Vec<bool>,
 }
 
 /// A local variable or parameter.
@@ -295,7 +299,8 @@ pub(super) enum Binding {
     LoopVar,
     /// A `match` payload binding: immutable and borrowed.
     Pattern,
-    /// `mut self`: assignable, but the caller's data, so never moved from.
+    /// `mut self` or a `mut` parameter: assignable, but the caller's
+    /// data, so never moved from.
     SelfMut,
 }
 

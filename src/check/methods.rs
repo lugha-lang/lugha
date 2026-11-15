@@ -24,6 +24,8 @@ pub(super) struct Method {
     /// `Type.name` (`Stack.push`; empty for array built-ins), the body's key
     /// in the instance list.
     pub key: String,
+    /// Which of `params` are `mut`; empty when none is.
+    pub muts: Vec<bool>,
 }
 
 /// Methods by type name, then method name.
@@ -119,6 +121,7 @@ impl Checker {
                 let method = Method {
                     receiver: f.receiver.map(|r| r.mutable),
                     params,
+                    muts: super::muts_of(&f.params),
                     ret,
                     span: f.name.span,
                     generics: self.type_params.clone(),

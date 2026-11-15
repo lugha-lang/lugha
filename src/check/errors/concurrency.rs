@@ -7,7 +7,7 @@ use crate::span::Span;
 pub(in crate::check) fn spawn_changes_copy(span: Span) -> Diagnostic {
     Diagnostic::error(
         "E0438",
-        "`spawn` of a call that changes its receiver: the new thread would change its own copy",
+        "`spawn` of a call that changes its receiver or a `mut` argument: the new thread would change its own copy",
         span,
     )
     .with_help(

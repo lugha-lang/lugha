@@ -27,11 +27,7 @@ impl Checker {
                 Type::Error
             };
         }
-        let inputs: Vec<_> = args
-            .iter()
-            .zip(&m.params)
-            .map(|(a, t)| (a, Expect::of(t.clone())))
-            .collect();
+        let (inputs, passed) = self.mut_inputs(&m.muts, args, &m.params);
         let bound = m
             .generics
             .iter()
@@ -40,6 +36,7 @@ impl Checker {
             .collect();
         match self.infer(call, &m.generics, bound, Some((&m.ret, expect)), &inputs) {
             Some(targs) => {
+                self.settle_mut(&passed, args, (&m.params, &m.generics, &targs));
                 self.used(call, &m.key, &targs);
                 subst(&m.ret, &m.generics, &targs)
             }

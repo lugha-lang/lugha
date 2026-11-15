@@ -1,0 +1,7 @@
+// Only a mutable place can be passed as `mut`.
+fun bump(mut n: i64) { n += 1; }
+
+fun main() {
+    let fixed = 1;
+    bump(mut fixed);
+}

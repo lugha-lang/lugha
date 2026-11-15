@@ -12,8 +12,9 @@ use crate::span::Span;
 
 /// E0443: a mode where the extern's parameter has another, or none.
 pub(super) fn misplaced(at: Span) -> Diagnostic {
-    Diagnostic::error("E0443", "this parameter isn't `out`, `ptr` or `mut`", at)
-        .with_help("`out`, `ptr` and `mut` are only for an extern's parameters of that mode: pass the value itself")
+    Diagnostic::error("E0443", "this parameter isn't `out`, `ptr` or `mut`", at).with_help(
+        "`out` and `ptr` are only for an extern's parameters of that mode, `mut` for a `mut` parameter: pass the value itself",
+    )
 }
 
 /// E0409: a string passed by address.

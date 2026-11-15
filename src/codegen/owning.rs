@@ -113,6 +113,11 @@ impl<'ctx> Lowerer<'ctx> {
     ) -> Result<Vec<BasicMetadataValueEnum<'ctx>>, CodegenError> {
         let mut values: Vec<BasicMetadataValueEnum> = Vec::with_capacity(args.len());
         for (i, (arg, ty)) in args.iter().zip(params).enumerate() {
+            // `mut place`: the place's address, never kept.
+            if let crate::ast::ExprKind::Pass(crate::ast::PassMode::Mut, place) = &arg.kind {
+                values.push(self.mut_place(place)?.into());
+                continue;
+            }
             let value = self.get(arg, ty)?;
             let value = if kept.get(i).copied().unwrap_or(false) {
                 self.protect(arg, value, ty)

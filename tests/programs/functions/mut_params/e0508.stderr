@@ -1,0 +1,27 @@
+error[E0508]: cannot pass `p` as `mut` and also as another argument
+   --> tests/programs/functions/mut_params/e0508.la:10:14
+   |
+10 |     both(mut p, mut p);
+   |              ^      - `p` is passed here too
+   |
+   = help: copy it first: `let w = p;` and pass `w`
+
+error[E0508]: cannot pass `p` as `mut` and also as another argument
+   --> tests/programs/functions/mut_params/e0508.la:11:14
+   |
+11 |     read(mut p, p);
+   |              ^  - `p` is passed here too
+   |
+   = help: copy it first: `let w = p;` and pass `w`
+
+error[E0508]: cannot pass `p` to a `mut self` method called on `p`
+   --> tests/programs/functions/mut_params/e0508.la:12:15
+   |
+12 |     p.eat(mut p.x);
+   |     -         ^^^
+   |     |
+   |     `p` is edited by this call
+   |
+   = help: copy it first: `let w = p;` and pass `w`
+
+For more about E0508, run `lughac explain E0508`.

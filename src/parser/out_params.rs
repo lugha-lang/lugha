@@ -49,14 +49,41 @@ impl Parser<'_> {
         Ok(param)
     }
 
+    /// A function's, method's or interface item's parameter: `[mut] name:
+    /// T`, a `mut` one changing its caller's place. `out` and `ptr` are
+    /// an extern's only (E0201).
+    pub(super) fn fun_param(&mut self) -> PResult<Param> {
+        let mode = match self.peek() {
+            TokenKind::Mut if matches!(self.peek_at(1), TokenKind::Ident(_)) => {
+                Some((PassMode::Mut, self.bump()))
+            }
+            _ => None,
+        };
+        let mut param = self.param("parameter name")?;
+        param.mode = mode;
+        Ok(param)
+    }
+
     /// `out`, `ptr` or `mut` before a parameter that isn't an extern's:
     /// E0201, and the parameter is read as if it weren't there.
     pub(super) fn misplaced_out(&mut self) {
         if let Some((mode, at)) = self.mode_word(false) {
-            let message = format!("only an `extern fun`'s parameters can be `{}`", mode.word());
-            let d = Diagnostic::error("E0201", message, at).with_help(
-                "a Lugha function returns its results; these are for C's pointer parameters",
-            );
+            let d = match mode {
+                PassMode::Mut => Diagnostic::error(
+                    "E0201",
+                    "only a function's or method's parameters can be `mut`",
+                    at,
+                )
+                .with_help("a field or a closure's parameter is a value of its own"),
+                _ => Diagnostic::error(
+                    "E0201",
+                    format!("only an `extern fun`'s parameters can be `{}`", mode.word()),
+                    at,
+                )
+                .with_help(
+                    "a Lugha function returns its results; these are for C's pointer parameters",
+                ),
+            };
             self.error(d);
         }
     }
@@ -112,5 +139,14 @@ mod tests {
     #[test]
     fn out_on_a_lugha_parameter_is_e0201() {
         assert_eq!(errors("fun f(out n: u64) {}"), [("E0201", "out")]);
+    }
+
+    #[test]
+    fn mut_on_a_lugha_parameter_is_kept_but_not_on_a_field() {
+        assert_eq!(
+            program("fun f(mut n: u64, m: u64) { f(mut x, 1); }"),
+            "(fun f ((mut n u64) (m u64)) void (block (; (call f (mut x) 1))))"
+        );
+        assert_eq!(errors("struct S { mut n: u64 }"), [("E0201", "mut")]);
     }
 }

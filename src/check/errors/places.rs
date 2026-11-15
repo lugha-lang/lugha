@@ -128,6 +128,18 @@ pub(in crate::check) fn mut_self_alias(name: &str, span: Span, receiver: Span) -
     .with_help(format!("copy it first: `let w = {name};` and pass `w`"))
 }
 
+/// E0508: the `mut` argument `name` (at `span`) is also another argument
+/// of the same call (at `other`).
+pub(in crate::check) fn mut_arg_alias(name: &str, span: Span, other: Span) -> Diagnostic {
+    Diagnostic::error(
+        "E0508",
+        format!("cannot pass `{name}` as `mut` and also as another argument"),
+        span,
+    )
+    .with_label(other, format!("`{name}` is passed here too"))
+    .with_help(format!("copy it first: `let w = {name};` and pass `w`"))
+}
+
 /// A place diagnostic reworded for what the place was used for; the
 /// builders above use the assignment wording.
 pub(in crate::check) fn for_use(mut d: Diagnostic, name: &str, place_use: PlaceUse) -> Diagnostic {
@@ -142,6 +154,16 @@ pub(in crate::check) fn for_use(mut d: Diagnostic, name: &str, place_use: PlaceU
         (PlaceUse::Swap, "E0507") => format!("cannot swap `{name}` while iterating over it"),
         (PlaceUse::Swap, "E0506") => {
             "cannot swap inside a string: strings are immutable".to_string()
+        }
+        (PlaceUse::MutArg, "E0501") => format!("cannot pass `{name}` as `mut`: it is not mutable"),
+        (PlaceUse::MutArg, "E0507") => {
+            format!("cannot pass `{name}` as `mut` while iterating over it")
+        }
+        (PlaceUse::MutArg, "E0502") => {
+            d.help.get_or_insert_with(|| {
+                "only a variable, field or element can be passed as `mut`".into()
+            });
+            "cannot pass this expression as `mut`".to_string()
         }
         (PlaceUse::Swap, "E0502") => {
             // A help that says how to reach the place is kept.
@@ -166,6 +188,7 @@ pub(in crate::check) fn changed_while_writing(
         PlaceUse::Assign => "assigning to".to_string(),
         PlaceUse::Receiver(m) => format!("calling `{m}` on"),
         PlaceUse::Swap => "swapping".to_string(),
+        PlaceUse::MutArg => "passing as `mut`".to_string(),
     };
     Diagnostic::error(
         "E0510",

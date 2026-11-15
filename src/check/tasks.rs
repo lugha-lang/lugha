@@ -94,9 +94,17 @@ impl Checker {
     /// The call's span if it changes its receiver: `push`, `pop` or
     /// `clear` on an array, a `mut self` method, or `swap`.
     fn changes_receiver(&self, call: &Expr) -> Option<Span> {
-        let ExprKind::Call(callee, _) = &call.kind else {
+        let ExprKind::Call(callee, args) = &call.kind else {
             return None;
         };
+        // `spawn bump(mut c)`: the green thread would change `c` through a
+        // copy of its place.
+        if args
+            .iter()
+            .any(|a| matches!(a.kind, ExprKind::Pass(crate::ast::PassMode::Mut, _)))
+        {
+            return Some(call.span);
+        }
         let changes = match &callee.kind {
             ExprKind::Name(name) => name == "swap" && self.local(name).is_none(),
             ExprKind::Field(base, name) => match self.types[base.id.0 as usize].as_ref() {

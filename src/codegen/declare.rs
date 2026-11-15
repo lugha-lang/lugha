@@ -12,7 +12,7 @@ use super::c_calls::{CKind, has_struct};
 use super::function::Signature;
 use super::lower::Lowerer;
 use super::value::{is_aggregate, llvm_type};
-use crate::ast::Item;
+use crate::ast::{Item, Param, PassMode};
 use crate::check::CParam;
 use crate::check::{Type, Unit, qualify, symbol};
 
@@ -68,6 +68,7 @@ impl<'ctx> Lowerer<'ctx> {
                 | Item::ExternType(_) => continue,
             };
             let key = qualify(unit.path, name);
+            let declared = params;
             // An extern's `data` and `release` aren't written by callers:
             // its written parameters are the plan's values and callbacks.
             let plan = self.c_params.get(&key).cloned();
@@ -86,7 +87,8 @@ impl<'ctx> Lowerer<'ctx> {
                 Some(plan) => self.c_param_types(plan, &params),
                 None => params
                     .iter()
-                    .map(|ty| (self.param_type(ty), Some(ty.clone())))
+                    .zip(declared)
+                    .map(|(ty, p)| (self.arg_type(p, ty), Some(ty.clone())))
                     .collect(),
             };
             let param_types: Vec<BasicMetadataTypeEnum> =
@@ -150,6 +152,15 @@ impl<'ctx> Lowerer<'ctx> {
     }
 
     /// A struct parameter is a pointer to the caller's storage.
+    /// The LLVM type of Lugha parameter `p` of type `ty`: a `mut` one is a
+    /// pointer to its caller's place.
+    pub(super) fn arg_type(&self, p: &Param, ty: &Type) -> BasicMetadataTypeEnum<'ctx> {
+        match p.mode {
+            Some((PassMode::Mut, _)) => self.context.ptr_type(Default::default()).into(),
+            _ => self.param_type(ty),
+        }
+    }
+
     pub(super) fn param_type(&self, ty: &Type) -> BasicMetadataTypeEnum<'ctx> {
         match ty {
             ty if is_aggregate(ty) => self.context.ptr_type(Default::default()).into(),

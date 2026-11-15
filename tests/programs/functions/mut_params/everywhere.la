@@ -1,0 +1,45 @@
+// `mut` parameters through interfaces (a bound, a default, an interface
+// value, a qualified call), methods and generics; copies made before a
+// change keep their value.
+interface Sink {
+    fun put(self, mut out: string[], x: i64);
+    fun twice(self, mut out: string[], x: i64) { self.put(mut out, x); self.put(mut out, x); }
+}
+struct Shout {}
+impl Sink for Shout {
+    fun put(self, mut out: string[], x: i64) { out.push("{x}!"); }
+}
+struct Box { items: i64[] }
+impl Box {
+    fun add_to(self, mut total: i64) { for x of self.items { total += x; } }
+    fun grab(mut self, mut from: i64[]) { self.items.push(from.pop().unwrap()); }
+}
+fun swap_ends<T>(mut xs: T[]) {
+    let first = xs[0];
+    xs[0] = xs[xs.len - 1];
+    xs[xs.len - 1] = first;
+}
+fun feed<S: Sink>(s: S, mut out: string[]) { s.put(mut out, 1); s.twice(mut out, 2); }
+fun via(s: Sink, mut out: string[]) { s.put(mut out, 3); s.twice(mut out, 4); }
+fun main() {
+    let mut out: string[] = [];
+    feed(Shout {}, mut out);
+    via(Shout {}, mut out);
+    Sink.put(Shout {}, mut out, 5);
+    println(out);
+    let mut b = Box { items: [1, 2] };
+    let mut t = 10;
+    b.add_to(mut t);
+    let mut src = [7, 8];
+    b.grab(mut src);
+    println(t);
+    println(b.items);
+    println(src);
+    let mut names = ["a", "b", "c"];
+    swap_ends(mut names);
+    println(names);
+    let copy = names;
+    swap_ends(mut names);
+    println(copy);
+    println(names);
+}

@@ -1,6 +1,6 @@
 ## FEATURE: `mut` parameters for Lugha functions: a function changes its caller's variable in place; milestone 166, in v18's Phase 1 ahead of `Eq`/`Key`.
 
-**Status:** proposed 2026-11-15. Waiting for approval.
+**Status:** proposed 2026-11-15. Approved 2026-11-15.
 
 ## OBJECTIVE
 ```lugha

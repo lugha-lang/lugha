@@ -1,0 +1,28 @@
+// A `mut` parameter changes its caller's place: a struct, an array, a
+// number, a field.
+struct Counter { n: i64 }
+
+fun bump(mut c: Counter, by: i64) {
+    c.n = c.n + by;
+}
+
+fun fill(mut buf: string[], word: string, times: i64) {
+    for _ in 0..times { buf.push(word); }
+}
+
+fun inc(mut n: i64) { n = n + 1; }
+
+fun main() {
+    let mut c = Counter { n: 0 };
+    bump(mut c, 2);
+    bump(mut c, 3);
+    println(c.n);
+    let mut words: string[] = [];
+    fill(mut words, "hi", 2);
+    println(words);
+    let mut k = 5;
+    inc(mut k);
+    inc(mut c.n);
+    println(k);
+    println(c.n);
+}

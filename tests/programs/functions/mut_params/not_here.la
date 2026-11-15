@@ -1,0 +1,16 @@
+// What can't take a `mut` argument or parameter: a spawned call, an
+// actor's message, a function value; and an `impl` must match its
+// interface's `mut`.
+fun bump(mut n: i64) { n += 1; }
+
+actor A { x: i64, fun take(self, mut n: i64) {} }
+
+interface Grow { fun grow(self, mut n: i64); }
+struct G {}
+impl Grow for G { fun grow(self, n: i64) {} }
+
+fun main() {
+    let mut x = 1;
+    let t = spawn bump(mut x);
+    let f = bump;
+}

@@ -402,7 +402,8 @@ impl Checker {
 /// True if method `m` has exactly the signature `req` asks for, both in
 /// the block's type parameters.
 fn offers(m: &Method, req: &Requirement) -> bool {
-    m.generics.len() == m.outer
+    super::interfaces::same_muts(&m.muts, &req.muts)
+        && m.generics.len() == m.outer
         && m.receiver == req.receiver
         && m.params == req.params
         && m.ret == req.ret

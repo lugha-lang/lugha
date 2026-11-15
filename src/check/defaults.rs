@@ -33,6 +33,7 @@ impl Checker {
             let method = Method {
                 receiver: r.receiver,
                 params: r.params.clone(),
+                muts: r.muts.clone(),
                 ret: r.ret.clone(),
                 span: r.span,
                 generics: [

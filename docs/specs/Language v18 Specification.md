@@ -15,6 +15,8 @@ Nov 15, 2026 · @kithinji
 
 - Deriving on request: a struct or enum meets a derivable interface only when it asks, `struct Site { … } with json.Json` or `impl json.Json for Site = derive;`, or implements it by hand, `impl json.Json for Site { … }`, which replaces the blocks (E0463 for both). A listed interface needs a block for the type's kind (E0462); its fields are checked at the declaration (E0450, E0451). `json.Json` gains a public item, `missing(path, field)`, what an absent field of the type decodes to, with a default; interfaces' associated functions may now have default bodies (milestone 165; sections 3, 4).
 
+- `mut` parameters: `fun bump(mut c: Counter)` changes its caller's place, called as `bump(mut c)`; marked at both ends (E0443), only mutable places (E0501), no aliasing within a call (E0508), not through `spawn`, actor messages or function values (milestone 166; sections 3, 4, 5).
+
 **Breaking:** a struct or enum encoded, decoded or otherwise used through a derivable interface needs `with I` (milestone 165); a type's own `to_json` or `show` no longer replaces a derived item. A type that met an interface by its methods needs `impl I for T`; methods that implement an interface move from `impl T { … }` into it. A number, string or array converted to a program's interface (`let x: Any = 1;`) is E0422 until built-in types can implement interfaces.
 
 **Changes in v17 since v16** (milestones 91–163):
@@ -407,7 +409,7 @@ iface_item   = "fun" IDENT "(" [ receiver [ "," params ] | params ] ")" [ ":" ty
 receiver     = [ "mut" ] "self" ;
 variant      = IDENT [ "(" type { "," type } [ "," ] ")" ] ;
 params       = param { "," param } [ "," ] ;
-param        = [ "out" | "ptr" | "mut" ] IDENT ":" type ;   (* an extern's only, v17 *)
+param        = [ "out" | "ptr" | "mut" ] IDENT ":" type ;   (* "out" and "ptr" an extern's only (v17); "mut" an extern's, a function's or a method's (v18) *)
 
 type         = base_type { "[" "]" } ;
 base_type    = "i32" | "i64" | "u8" | "f64" | "bool" | "string"
@@ -885,6 +887,8 @@ Strings are bytes: every position is a byte offset, and `slice` can cut a multi-
 **Generic recursion.** A generic struct or enum may contain itself only with its own parameters unchanged: `enum List<T> { Nil, Cons(T, List<T>) }` is fine, and the indirect-slot rule (section 7) applies to each instance. Instantiation must end: a program whose instances nest more than 64 deep, such as `f<T>` calling `f<T[]>` or a `struct S<T>` holding `S<T[]>`, is E0420. Recursion at the same arguments (`count<T>` calling `count<T>`) never counts. Generic code copies exactly where concrete code would, because each instance is concrete (Array copies, above).
 
 **Mutability.** Bindings are immutable by default. Assigning to any place requires the variable at its root to be declared `let mut`. That covers the variable itself, a field (`p.x = 1.0`), an element (`xs[0] = 1`) and any chain of these (`shapes[i].pts[j].x = 2.0`), and both places of a `swap` (section 5). Because every variable owns its data, a variable declared without `mut` never changes after it is initialized.
+
+**`mut` parameters** (v18). `fun bump(mut c: Counter, by: i64) { c.n = c.n + by; }` changes its caller's place: the call writes `bump(mut c, 2)`, and `c` is changed when the call returns. Inside the function a `mut` parameter is assignable, like `mut self`; any other use (returning it, storing it, capturing it) reads a copy, so the caller's place never escapes the call. The argument must be written `mut` exactly where the parameter is (E0443), be a mutable place: a `let mut` variable, a `mut` parameter, `mut self`, or a field or element of one (E0501, E0502), and have exactly the parameter's type (E0403); no other argument of the call may be the same place, overlap it, or (for a value passed by pointer) be rooted in it, and a `mut self` call's argument may not be rooted in its receiver (E0508). A number or string read out of it is a fresh value. Functions, methods, interface items, `impl` blocks and default bodies may have `mut` parameters, and an `impl` must have them where its interface does (E0422); they are passed by pointer through direct calls, bounds and interface values. A `spawn` of a call with a `mut` argument is E0438, an actor's message with a `mut` parameter E0439, and a function with one can't be a value (E0406), since function types can't spell `mut`; closures take none (E0209). An extern's `mut` parameters are C's pointers (section 8).
 
 ## 5. Expressions and statements
 
@@ -1891,7 +1895,7 @@ Name and type errors, reported by the checker:
 | E0403 | Type mismatch | `let n: i32 = ok;` where `ok` is `bool`; `if`/`else` of different types |
 | E0404 | Operator applied to invalid operand types | `r == s` on boxes, with help; `a < b` on a struct without a `cmp` of the right shape; `true + 1`, `-u` where `u` is `u8`, `u16`, `u32` or `u64`; `a == b` on a `T` without `Eq` (with help to declare it); `s + 1` where `s`'s type has no `add` of the operator shape, `a + a` on a `T` without `Add` or `Num` |
 | E0405 | Wrong number of arguments | `add(1)` for `fun add(a: i64, b: i64)` |
-| E0406 | Not a function, or something that can't be a value | `let step = 2; step(1);`; `let a = Circle.area;` (a method), `let p = println;`, an extern |
+| E0406 | Not a function, or something that can't be a value | `let f = bump;` for a function with a `mut` parameter (v18); `let step = 2; step(1);`; `let a = Circle.area;` (a method), `let p = println;`, an extern |
 | E0407 | Retired in v17 (was: `void` used as a value, before `()` was one); never reported, never reused | |
 | E0410 | No such field | `s.size` on a `string`; `(5).len`; `p.z` or `Point { z: 1.0 }` on a `Point` without `z` |
 | E0411 | Not indexable or not iterable | `n[0]` where `n` is an `i64`; `p[0]` or `p[0] = 1` where `p`'s type has no `index` or `set_index` of the indexing shape; `for c of 5`; a `for … of` over a type whose `next` isn't `fun next(mut self): Option<T>` |
@@ -1915,12 +1919,12 @@ Name and type errors, reported by the checker:
 | E0434 | A misused test | `@test fun t(n: i64) {}`, `@test fun t(): i64 = 1;`, a generic test; calling a test or using it as a value |
 | E0435 | A malformed callback declaration | `extern fun f(cb: fun(i64), u: data);` (nothing takes `data`); `extern fun f(cb: fun(data));` (no `data` parameter); `release` without `data`; `fun f(x: data)` outside an extern |
 | E0436 | A function with captures passed to a callback without `data` | `sort(xs, fun(a, b) = a * k < b)` where `sort`'s comparator is `fun(i64, i64): i32` |
-| E0439 | An actor used against its rules | `c.count` through a handle; `Counter { count: 0 }` outside `spawn`; `actor A<T>`; `fun stop(self)` in an actor; a `Ref`, function or interface type in an actor's field, parameter or result |
-| E0438 | A `spawn` that changes a copy, or a malformed `select` | `spawn xs.push(1)`, `spawn p.bump()` with `mut self`; `select { default => 1 }`; two `default`s or `after`s; `after` with `default`; `m = s.recv()` with `s` not a `Chan` |
+| E0439 | An actor used against its rules | `c.count` through a handle; a message's `mut` parameter (v18); `Counter { count: 0 }` outside `spawn`; `actor A<T>`; `fun stop(self)` in an actor; a `Ref`, function or interface type in an actor's field, parameter or result |
+| E0438 | A `spawn` that changes a copy, or a malformed `select` | `spawn xs.push(1)`, `spawn bump(mut c)` (v18), `spawn p.bump()` with `mut self`; `select { default => 1 }`; two `default`s or `after`s; `after` with `default`; `m = s.recv()` with `s` not a `Chan` |
 | E0440 | `..base` of another type | `P { x: 1.0, ..q }` where `q` is a `Q` |
 | E0441 | A float as a map key or set value | `#{1.5: "a"}`; `Set<f64>`; `Map<(i64, f64), i64>` |
 | E0442 | `for … of mut` over a map or set | `for (k, v) of mut m { … }` |
-| E0443 | `out` missing or misplaced in a call | `get_fuel(ctx, fuel)` for `out fuel: u64`; `put(out n)` where `n` isn't `out` |
+| E0443 | `out` or `mut` missing or misplaced in a call | `bump(c)` for `mut c: Counter` (v18); `get_fuel(ctx, fuel)` for `out fuel: u64`; `put(out n)` where `n` isn't `out` |
 | E0444 | A union literal writing other than one field | `U { a: 1, b: 2.0 }`; `U {}` |
 | E0445 | Not a constant | a call, closure, `if`, block, interpolation or `#{…}` in a constant's value; a constant of type `Ref<T>`, a function, a task, a channel, an actor, a handle, a map or a set |
 | E0446 | A constant that depends on itself | `const A: i64 = B; const B: i64 = A;` |
@@ -1956,7 +1960,7 @@ Name and type errors, reported by the checker:
 | E0505 | Block-like statement with a discarded value | `if big { 100 } else { 1 }` followed by more statements |
 | E0506 | Assignment into a string | `s[0] = 104;`, `s.len = 2;`, `for b of mut s` — strings are immutable (§4) |
 | E0507 | Assignment to the array being iterated | `for x of xs { xs[0] = x; }`, or a `mut self` call or `swap` on it; `it.next()` inside `for n of mut it` |
-| E0508 | Argument aliases a `mut self` receiver | `v.add(v)` where `add` takes `mut self`; `v.add(v.inner)`, `g.set(if c { g.vals } else { h })` |
+| E0508 | An argument aliases a `mut self` receiver or a `mut` argument | `v.add(v)` where `add` takes `mut self`; `v.add(v.inner)`, `g.set(if c { g.vals } else { h })`; `both(mut a, mut a)`, `f(mut a, a)`, `p.eat(mut p.x)` (v18) |
 | E0509 | A place swapped with a part of itself | `swap(n, n.kids[0])` |
 | E0510 | A statement changes what contains the place it writes | `xs[0] = { xs.push(2); 9 };`; for a `mut self` receiver only across an index, `gs[0].f(gs.clear())` (§5) |
 | E0511 | Changing a variable a closure captured | `let inc = fun() { count += 1; };` |
@@ -4014,6 +4018,7 @@ The spec is implemented in five milestones, each ending in a program that runs. 
 | 163 | UDP (v17) | `net.udp_bind`, `udp_bind_shared`, `send_to`, `recv_from`, `join`/`leave`, multicast options, `interfaces()` | `tests/udp.rs` (done) |
 | 164 | Nominal interfaces (v18) | `impl I for T`, qualified calls `I.m(x)`, E0459–E0461; E0430 retired | `tests/programs/interfaces/nominal` (done) |
 | 165 | Deriving on request (v18) | `with I, J`, `impl I for T = derive;`, hand-written impls of derivable interfaces, `json.Json`'s `missing`, defaults on associated functions, E0462–E0463 | `tests/programs/derive/with` (done) |
+| 166 | `mut` parameters (v18) | `fun f(mut x: T)`, `f(mut place)`, through bounds and interface values; E0443 and E0508 widened | `tests/programs/functions/mut_params` (done) |
 
 In milestones 1 and 2, every value can be treated as `i64`, so codegen can start before the type checker exists. Until milestone 4 provides `lugha_rt_panic`, integer `+`, `-` and `*` wrap, and `/` and `%` stop the program with a trap on a zero divisor or `MIN / -1`. Milestone 3 then replaces that assumption with real types. The process exit code is the low 8 bits of `main`'s result, so milestone tests use results below 256.
 

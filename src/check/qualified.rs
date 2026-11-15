@@ -156,6 +156,7 @@ impl Checker {
         Method {
             receiver: req.receiver,
             params: req.params,
+            muts: req.muts,
             ret: req.ret,
             span: req.span,
             generics: Vec::new(),

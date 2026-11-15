@@ -75,6 +75,7 @@ pub(super) fn builtin(receiver: &Type, name: &str) -> Option<Method> {
     Some(Method {
         receiver: Some(mutable),
         params,
+        muts: Vec::new(),
         ret,
         span: Span::new(0, 0),
         generics: Vec::new(),

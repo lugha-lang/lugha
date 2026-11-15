@@ -93,6 +93,7 @@ impl Checker {
         let signature = &self.functions[key];
         let (params, ret) = (signature.params.clone(), signature.ret.clone());
         let generics = signature.generics.clone();
+        let (muts, is_extern) = (signature.muts.clone(), signature.is_extern);
         let name = key.rsplit('.').next().unwrap_or(key);
         if args.len() != params.len() {
             self.report(errors::arity(name, params.len(), args.len(), call.span));
@@ -103,7 +104,10 @@ impl Checker {
                 Type::Error
             };
         }
-        let inputs = self.extern_inputs(key, args, params);
+        let (inputs, passed) = match is_extern {
+            true => (self.extern_inputs(key, args, params.clone()), Vec::new()),
+            false => self.mut_inputs(&muts, args, &params),
+        };
         match self.infer(
             call,
             &generics,
@@ -112,6 +116,7 @@ impl Checker {
             &inputs,
         ) {
             Some(targs) => {
+                self.settle_mut(&passed, args, (&params, &generics, &targs));
                 self.used(call, key, &targs);
                 self.static_callbacks(key, args);
                 subst(&ret, &generics, &targs)

@@ -159,6 +159,12 @@ impl Checker {
                             continue;
                         }
                         for (param, ty) in f.params.iter().zip(&m.params) {
+                            // A message carries values, never a sender's place.
+                            if let Some((crate::ast::PassMode::Mut, at)) = param.mode {
+                                let message = "an actor's message can't take a `mut` parameter: messages carry values";
+                                self.report(errors::actor_misuse(message, at));
+                                continue;
+                            }
                             self.shares_nothing(&key, ty, param.ty.span);
                         }
                         if let Some(written) = &f.ret {

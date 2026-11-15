@@ -1,0 +1,11 @@
+// A `mut` argument isn't handed over on its last use, and a `mut`
+// parameter's last use isn't a move: both are the caller's place.
+fun keep(mut xs: i64[]): i64[] = xs;
+
+fun main() {
+    let mut ys = [1];
+    let zs = keep(mut ys);
+    ys.push(2);
+    println(ys);
+    println(zs);
+}

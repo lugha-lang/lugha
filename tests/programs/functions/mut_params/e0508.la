@@ -1,0 +1,13 @@
+// One place can't be a `mut` argument and another argument of the same
+// call, nor the receiver of a `mut self` call.
+struct P { x: i64 }
+impl P { fun eat(mut self, mut n: i64) { n += self.x; } }
+fun both(mut a: P, mut b: P) {}
+fun read(mut a: P, b: P) {}
+
+fun main() {
+    let mut p = P { x: 1 };
+    both(mut p, mut p);
+    read(mut p, p);
+    p.eat(mut p.x);
+}
