@@ -1,0 +1,11 @@
+// `kb`, `mb` and `gb` on each integer type wide enough for a kilobyte.
+fun main() {
+    let a: i16 = 3;
+    let b: i32 = 2;
+    let c: u16 = 1;
+    let d: u32 = 4;
+    let e: u64 = 5;
+    println("{a.kb()} {b.mb()} {c.kb()} {d.mb()} {e.gb()}");
+    let pages = 3;
+    println((pages * 4).kb() + 1.mb());
+}

@@ -1,6 +1,6 @@
 ## FEATURE: Sizes in bytes: `8.kb()`, `64.mb()`, `1.gb()` on integers, in powers of 1024; milestone 174, in v18's Phase 1.
 
-**Status:** proposed 2026-11-16.
+**Status:** proposed 2026-11-16. Approved 2026-11-16.
 
 ## OBJECTIVE
 ```lugha
@@ -38,11 +38,15 @@ fun main() {
 - Sizes as a type (`Bytes`): a plain integer, as the draft says.
 
 ## TESTS
-- [ ] `tests/programs/numbers/sizes/`: the OBJECTIVE (its overflow panic as a `.stderr`), every integer type once, and chains (`(n * 4).kb()`).
-- [ ] Unit test: the result type follows the receiver.
-- [ ] `cargo test --lib`, `--test programs`, `--test spec`.
+- [x] `tests/programs/numbers/sizes/`: the OBJECTIVE (its overflow panic as a `.stderr`), every integer type once, and chains (`(n * 4).kb()`).
+- [x] Unit test: the result type follows the receiver.
+- [x] `cargo test --lib`, `--test programs`, `--test spec`.
 
 ## ACCEPTANCE
-- [ ] The OBJECTIVE prints and panics as shown.
-- [ ] `cargo test --lib` and the touched integration tests pass; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
-- [ ] Spec and CHANGELOG updated.
+- [x] The OBJECTIVE prints and panics as shown.
+- [x] `cargo test --lib` and the touched integration tests pass; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
+- [x] Spec and CHANGELOG updated.
+
+## CHANGES DURING THE BUILD
+- **Not on `i8` or `u8`:** `1024` doesn't fit either, so even `1.kb()` couldn't exist; `n.kb()` there is E0415. Decision 1's "every integer type" is the six from `i16` and `u16` up.
+

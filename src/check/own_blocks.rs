@@ -106,6 +106,13 @@ mod tests {
             ty("let a = ['a'].map(fun(c: char): char = c.to_upper());", "a"),
             Type::Array(Box::new(Type::Char))
         );
+        // Sizes keep their receiver's type.
+        assert_eq!(ty("let a = 8.kb();", "a"), Type::I64);
+        assert_eq!(ty("let n: u32 = 2; let a = n.mb();", "a"), Type::U32);
+        assert_eq!(
+            errors("fun main() { let n: u8 = 1; let a = n.kb(); }")[0].0,
+            "E0415"
+        );
         // The compiler's built-ins come first; a block's bounds are the call's.
         assert_eq!(
             ty("let mut xs = [1]; xs.push(2); let a = xs.pop();", "a"),

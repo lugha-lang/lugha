@@ -157,3 +157,61 @@ impl<T: Ord> T[] {
         xs.sort_by(fun(a: T, b: T): bool = a < b)
     }
 }
+
+// Sizes in bytes, counted in powers of 1024: `64.mb()`. Each keeps the
+// receiver's type, and too big a size overflows as `*` does; `i8` and
+// `u8` can't hold even one kilobyte, so they have none.
+
+impl i16 {
+    /** `self` kilobytes in bytes: `self * 1024`. */
+    fun kb(self): i16 = self * 1024;
+    /** `self` megabytes in bytes: `self * 1024 * 1024`. */
+    fun mb(self): i16 = self * 1024 * 1024;
+    /** `self` gigabytes in bytes: `self * 1024 * 1024 * 1024`. */
+    fun gb(self): i16 = self * 1024 * 1024 * 1024;
+}
+
+impl i32 {
+    /** `self` kilobytes in bytes: `self * 1024`. */
+    fun kb(self): i32 = self * 1024;
+    /** `self` megabytes in bytes: `self * 1024 * 1024`. */
+    fun mb(self): i32 = self * 1024 * 1024;
+    /** `self` gigabytes in bytes: `self * 1024 * 1024 * 1024`. */
+    fun gb(self): i32 = self * 1024 * 1024 * 1024;
+}
+
+impl i64 {
+    /** `self` kilobytes in bytes: `self * 1024`. */
+    fun kb(self): i64 = self * 1024;
+    /** `self` megabytes in bytes: `self * 1024 * 1024`. */
+    fun mb(self): i64 = self * 1024 * 1024;
+    /** `self` gigabytes in bytes: `self * 1024 * 1024 * 1024`. */
+    fun gb(self): i64 = self * 1024 * 1024 * 1024;
+}
+
+impl u16 {
+    /** `self` kilobytes in bytes: `self * 1024`. */
+    fun kb(self): u16 = self * 1024;
+    /** `self` megabytes in bytes: `self * 1024 * 1024`. */
+    fun mb(self): u16 = self * 1024 * 1024;
+    /** `self` gigabytes in bytes: `self * 1024 * 1024 * 1024`. */
+    fun gb(self): u16 = self * 1024 * 1024 * 1024;
+}
+
+impl u32 {
+    /** `self` kilobytes in bytes: `self * 1024`. */
+    fun kb(self): u32 = self * 1024;
+    /** `self` megabytes in bytes: `self * 1024 * 1024`. */
+    fun mb(self): u32 = self * 1024 * 1024;
+    /** `self` gigabytes in bytes: `self * 1024 * 1024 * 1024`. */
+    fun gb(self): u32 = self * 1024 * 1024 * 1024;
+}
+
+impl u64 {
+    /** `self` kilobytes in bytes: `self * 1024`. */
+    fun kb(self): u64 = self * 1024;
+    /** `self` megabytes in bytes: `self * 1024 * 1024`. */
+    fun mb(self): u64 = self * 1024 * 1024;
+    /** `self` gigabytes in bytes: `self * 1024 * 1024 * 1024`. */
+    fun gb(self): u64 = self * 1024 * 1024 * 1024;
+}
