@@ -68,6 +68,20 @@ pub fn find<'a>(
         .find(|e| e.key == key && e.args_at(targs) == args)
 }
 
+/// True for the prelude's operator interfaces, `Add` … `Neg`: block
+/// interfaces whose blocks may return any type, the operator's result.
+pub fn is_operator(key: &str) -> bool {
+    matches!(
+        key,
+        "$prelude.Add"
+            | "$prelude.Sub"
+            | "$prelude.Mul"
+            | "$prelude.Div"
+            | "$prelude.Rem"
+            | "$prelude.Neg"
+    )
+}
+
 /// The module part of an item's key: `geo` for `geo.Circle`, `""` for an
 /// item of the main file.
 fn module_of(key: &str) -> &str {
@@ -116,13 +130,14 @@ impl Checker {
                 super::derive::DISPLAY,
             ]
             .contains(&key)
+            || is_operator(key)
     }
 
     /// True for an interface a type meets only through `impl I for T`:
     /// `Display`, and any but the prelude's and the derivable ones, which
     /// the compiler still finds by their methods' names.
     pub(super) fn nominal(&self, key: &str) -> bool {
-        (module_of(key) != "$prelude" || key == super::derive::DISPLAY)
+        (module_of(key) != "$prelude" || key == super::derive::DISPLAY || is_operator(key))
             && !self.derives.derivable(key)
     }
 
@@ -163,21 +178,32 @@ impl Checker {
             self.report(errors::misplaced_impl(written, why, b.span));
             return false;
         }
+        let saved = std::mem::replace(&mut self.type_params, outer.to_vec());
+        self.bound_args(&key, b);
+        // `Self` in a default is the block's type, at its parameters.
+        let me = with_args(ty, params(outer));
+        let applied = self.applied_bound(key.clone(), b).map(|a| a.with_self(&me));
+        self.type_params = saved;
+        let Some(applied) = applied else {
+            return false;
+        };
         let here = self.module.join(".");
-        if module_of(&key) != here && module_of(owner) != here {
+        // An operator's block may live with its right-hand type too.
+        let mut named = Vec::new();
+        if is_operator(&key) {
+            let types = applied.args.iter();
+            types.for_each(|a| super::builtin_impls::program_types(a, &mut named));
+        }
+        let home = module_of(&key) == here
+            || module_of(owner) == here
+            || named.iter().any(|n| module_of(n) == here);
+        if !home {
             let why = format!(
                 "must be written in the module that declares `{written}` or the one that declares `{ty}`"
             );
             self.report(errors::misplaced_impl(written, why, i.span));
             return false;
         }
-        let saved = std::mem::replace(&mut self.type_params, outer.to_vec());
-        self.bound_args(&key, b);
-        let applied = self.applied_bound(key.clone(), b);
-        self.type_params = saved;
-        let Some(applied) = applied else {
-            return false;
-        };
         // `impl I for T = derive;` asks for the derive blocks instead
         // (`check::derive_with`).
         if i.derive {
@@ -242,7 +268,7 @@ impl Checker {
             {
                 None if req.default.is_some() => {}
                 None => problems.push(format!("no method `{}`", req.name)),
-                Some(m) if !offers(m, req) => {
+                Some(m) if !offers(m, req, is_operator(&entry.key)) => {
                     problems.push(format!("`{}` should be `{}`", req.name, shown(req)));
                 }
                 Some(_) => {}
@@ -414,11 +440,12 @@ impl Checker {
 }
 
 /// True if method `m` has exactly the signature `req` asks for, both in
-/// the block's type parameters.
-fn offers(m: &Method, req: &Requirement) -> bool {
+/// the block's type parameters; with `any_result`, an operator's, any
+/// result but `()`.
+fn offers(m: &Method, req: &Requirement, any_result: bool) -> bool {
     super::interfaces::same_muts(&m.muts, &req.muts)
         && m.generics.len() == m.outer
         && m.receiver == req.receiver
         && m.params == req.params
-        && m.ret == req.ret
+        && (m.ret == req.ret || (any_result && m.ret != Type::Unit))
 }

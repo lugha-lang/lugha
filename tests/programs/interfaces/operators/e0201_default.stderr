@@ -1,0 +1,7 @@
+error[E0201]: expected `=` and a default, as the parameters before it have, found `>`
+  --> tests/programs/interfaces/operators/e0201_default.la:2:26
+  |
+2 | interface Pair<A = i64, B> {
+  |                          ^
+
+For more about E0201, run `lughac explain E0201`.

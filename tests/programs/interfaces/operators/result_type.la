@@ -1,0 +1,17 @@
+// A block's result is its own, but a bound promises the type back: a
+// `Mul<f64>` giving another type doesn't meet `T: Mul<f64>`.
+struct Meters { m: f64 }
+
+struct Area { a: f64 }
+
+impl Mul<Meters> for Meters {
+    fun mul(self, o: Meters): Area = Area { a: self.m * o.m };
+}
+
+fun square<T: Mul>(x: T): T = x * x;
+
+fun main() {
+    let a = Meters { m: 3.0 } * Meters { m: 2.0 };
+    println(a.a);
+    let b = square(Meters { m: 1.0 });
+}

@@ -160,8 +160,7 @@ impl Checker {
             .into_iter()
             .flatten()
             .map(|(name, m)| Member {
-                // Each of several `mul`s is listed as `mul`, with its own header.
-                name: crate::modules::overloads::written_name(name).to_string(),
+                name: crate::modules::impls::item_name(name).to_string(),
                 kind: if m.receiver.is_some() {
                     MemberKind::Method
                 } else {

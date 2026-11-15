@@ -338,6 +338,28 @@ impl Printer<'_> {
         text(format!("{}({})", self.ident(&v.name), types.join(", ")))
     }
 
+    /// An interface's parameters with their defaults: `<R = Self>`.
+    fn interface_params(&self, i: &InterfaceDecl) -> String {
+        let plain = self.type_params(&i.type_params);
+        if i.defaults.iter().all(Option::is_none) {
+            return plain;
+        }
+        let shown: Vec<String> = i
+            .type_params
+            .iter()
+            .zip(&i.defaults)
+            .map(|(p, d)| {
+                let one = self.type_params(std::slice::from_ref(p));
+                let one = &one[1..one.len() - 1];
+                match d {
+                    Some(t) => format!("{one} = {}", self.ty(t)),
+                    None => one.to_string(),
+                }
+            })
+            .collect();
+        format!("<{}>", shown.join(", "))
+    }
+
     fn interface(&mut self, i: &InterfaceDecl) -> Doc {
         let extends = if i.extends.is_empty() {
             String::new()
@@ -349,7 +371,7 @@ impl Printer<'_> {
             "{}interface {}{}{extends} ",
             visibility(i.visibility),
             self.ident(&i.name),
-            self.type_params(&i.type_params)
+            self.interface_params(i)
         );
         let inner = self.inner(i.name.span.end, i.span);
         let body = self.sequence(inner, &i.items, |_, m| m.span, |_| "", |p, m| p.required(m));

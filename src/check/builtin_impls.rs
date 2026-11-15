@@ -7,7 +7,8 @@
 //! the module of a program type the block's type is built from.
 
 use super::applied::Applied;
-use super::derive::{Block, Covers, block_type, label, names, overlap};
+use super::derive::{Block, Covers};
+use super::derive_match::{block_type, label, names, overlap};
 use super::methods::Method;
 use super::{Checker, Type, errors};
 use crate::ast::{AppliedType, Expr, Ident, ImplDecl, Item, Program, TypeKind};
@@ -36,7 +37,7 @@ fn params_in(ty: &Type, out: &mut Vec<String>) {
 }
 
 /// The keys of the program's own structs, enums and extern types in `ty`.
-fn program_types(ty: &Type, out: &mut Vec<String>) {
+pub(super) fn program_types(ty: &Type, out: &mut Vec<String>) {
     match ty {
         Type::Struct(k, args) | Type::Enum(k, args) => {
             if !k.starts_with('$') {
@@ -158,22 +159,30 @@ impl Checker {
             self.report(errors::misplaced_impl(written, why, b.span));
             return;
         }
+        self.bound_args(&key, b);
+        let Some(applied) = self.applied_bound(key.clone(), b).map(|a| a.with_self(&ty)) else {
+            return;
+        };
         let mut owners = Vec::new();
         program_types(&ty, &mut owners);
+        // An operator's block may live with its right-hand type:
+        // `impl Mul<Vec2> for f64` in `Vec2`'s module.
+        if super::impls::is_operator(&key) {
+            applied
+                .args
+                .iter()
+                .for_each(|a| program_types(a, &mut owners));
+        }
         if module_of(&key) != here && !owners.iter().any(|o| module_of(o) == here) {
             let why = match owners.is_empty() {
                 true => format!("must be written in the module that declares `{written}`"),
                 false => format!(
-                    "must be written in the module that declares `{written}` or a type in `{ty}`"
+                    "must be written in the module that declares `{written}` or a type it names"
                 ),
             };
             self.report(errors::misplaced_impl(written, why, i.span));
             return;
         }
-        self.bound_args(&key, b);
-        let Some(applied) = self.applied_bound(key.clone(), b) else {
-            return;
-        };
         let covers = Covers::Type(ty.clone());
         let mut owner = super::qualify(&self.module, &format!("{}@{}", i.tag, label(&covers)));
         if self.derives.blocks.iter().any(|b| b.owner == owner) {
@@ -189,8 +198,16 @@ impl Checker {
             args: applied.args.clone(),
             items: Vec::new(),
         };
+        // Blocks overlap when one type and one argument list could meet both.
         let first = self.derives.blocks.iter().find(|o| {
+            let args = o.args.len() != block.args.len()
+                || o.args.is_empty()
+                || o.args
+                    .iter()
+                    .zip(&block.args)
+                    .all(|(x, y)| overlap(x, y, &names(o), &names(&block)));
             o.interface == key
+                && args
                 && matches!(&o.covers, Covers::Type(x) if overlap(x, &ty, &names(o), &names(&block)))
         });
         if let Some(first) = first {
@@ -210,7 +227,9 @@ impl Checker {
                 problems.push(format!("`{name}` isn't an item of `{applied}`"));
                 continue;
             };
-            if req.receiver != receiver || req.params != params || req.ret != ret {
+            // An operator's block gives its own result.
+            let result = req.ret == ret || (super::impls::is_operator(&key) && ret != Type::Unit);
+            if req.receiver != receiver || req.params != params || !result {
                 problems.push(format!(
                     "`{name}` should be `{}`",
                     super::satisfy::shown(req)
@@ -311,6 +330,16 @@ impl Checker {
     /// The written or derived block of `interface` covering built-in type
     /// `ty`, if any.
     pub(super) fn builtin_block(&self, interface: &str, ty: &Type) -> Option<(Block, Vec<Type>)> {
+        self.builtin_block_at(interface, None, ty)
+    }
+
+    /// `builtin_block`, through the block whose interface arguments are `at`.
+    pub(super) fn builtin_block_at(
+        &self,
+        interface: &str,
+        at: Option<&[Type]>,
+        ty: &Type,
+    ) -> Option<(Block, Vec<Type>)> {
         if matches!(
             ty,
             Type::Struct(..) | Type::Enum(..) | Type::Handle(_) | Type::Param(_)
@@ -319,20 +348,27 @@ impl Checker {
         {
             return None;
         }
-        let (block, args) = self.derives.find(interface, ty, |_| false)?;
+        let (block, args) = self.derives.find_at(interface, at, ty, |_| false)?;
         matches!(block.covers, Covers::Type(_)).then(|| (block.clone(), args))
     }
 
     /// True if built-in type `ty` implements `interface` through a block.
     pub(super) fn builtin_implements(&self, ty: &Type, interface: &Applied) -> bool {
-        self.builtin_block(&interface.key, ty)
-            .is_some_and(|(b, args)| {
-                b.args.is_empty()
-                    || b.args
-                        .iter()
-                        .map(|a| super::generics::subst(a, &b.generics, &args))
-                        .eq(interface.args.iter().cloned())
-            })
+        let at = (!interface.args.is_empty()).then_some(interface.args.as_slice());
+        let Some((block, args)) = self.builtin_block_at(&interface.key, at, ty) else {
+            return false;
+        };
+        // An operator's block keeps a bound's promise only when it gives `ty` back.
+        if super::impls::is_operator(&interface.key) {
+            let name = self.interfaces[&interface.key].items[0].name.clone();
+            let ret = self
+                .methods
+                .get(&block.owner)
+                .and_then(|m| m.get(&name))
+                .map(|m| super::generics::subst(&m.ret, &block.generics, &args));
+            return ret.as_ref() == Some(ty);
+        }
+        true
     }
 
     /// The interface `block` gives built-in type `ty` at `args`, the
@@ -420,17 +456,22 @@ impl Checker {
             .into_iter()
             .find(|r| r.name == name)
             .expect("the block's interface declares the item");
-        // Go to definition leads to the block's method.
-        let span = self
-            .methods
-            .get(&block.owner)
-            .and_then(|m| m.get(name))
-            .map_or(req.span, |m| m.span);
+        // Go to definition leads to the block's method, whose result is
+        // the call's (an operator's block gives its own).
+        let own = self.methods.get(&block.owner).and_then(|m| m.get(name));
+        let span = own.map_or(req.span, |m| m.span);
+        let ret = own.map_or(req.ret, |m| {
+            super::generics::subst(&m.ret, &block.generics, args)
+        });
+        // Codegen picks the block by its arguments, of which there may be several.
+        if !applied.args.is_empty() {
+            self.nominal_calls.insert(call.id, applied.clone());
+        }
         Method {
             receiver: req.receiver,
             params: req.params,
             muts: req.muts,
-            ret: req.ret,
+            ret,
             span,
             generics: Vec::new(),
             outer: 0,

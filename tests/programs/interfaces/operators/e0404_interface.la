@@ -1,0 +1,15 @@
+// An interface value has no operator blocks: call its method.
+interface Scaled {
+    fun mul(self, k: f64): Scaled;
+}
+
+struct Len { m: f64 }
+
+impl Scaled for Len {
+    fun mul(self, k: f64): Scaled = Len { m: self.m * k };
+}
+
+fun main() {
+    let s: Scaled = Len { m: 1.5 };
+    let t = s * 2.0;
+}

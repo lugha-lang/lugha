@@ -275,6 +275,8 @@ struct M { k: i64 }
 impl Make for M { fun make(self, n: i64): P = P { x: n * self.k, y: 1 }; }
 impl P {
     fun flip(self): P = P { x: self.y, y: self.x };
+}
+impl Add for P {
     fun add(self, o: P): P = P { x: self.x + o.x, y: self.y + o.y };
 }
 fun direct(n: i64): P = P { x: n, y: n + 1 };

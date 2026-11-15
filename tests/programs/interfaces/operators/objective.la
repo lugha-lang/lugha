@@ -1,0 +1,33 @@
+// Operators through generic interfaces: `impl Mul<f64> for Vec2`, a number
+// on the left through `impl Mul<Vec2> for f64`, the result from the block,
+// bounds, compound assignment and qualified calls.
+struct Vec2 { x: f64, y: f64 } with Eq
+
+impl Add for Vec2 {                                  // `Add` is `Add<Vec2>`: Vec2 + Vec2
+    fun add(self, o: Vec2): Vec2 = Vec2 { x: self.x + o.x, y: self.y + o.y };
+}
+
+impl Mul<f64> for Vec2 {                             // Vec2 * f64
+    fun mul(self, k: f64): Vec2 = Vec2 { x: self.x * k, y: self.y * k };
+}
+
+impl Mul<Vec2> for f64 {                             // f64 * Vec2, in Vec2's module; its result is a Vec2
+    fun mul(self, v: Vec2): Vec2 = v * self;
+}
+
+impl Neg for Vec2 {
+    fun neg(self): Vec2 = Vec2 { x: -self.x, y: -self.y };
+}
+
+fun twice<T: Add>(x: T): T = x + x;                  // T + T gives T
+fun scaled<T: Mul<f64>>(x: T): T = x * 2.0;
+
+fun main() {
+    let v = Vec2 { x: 1.0, y: 2.0 };
+    let w = 2.0 * v + v * 0.5;
+    println((-w).debug());                           // Vec2 { x: -2.5, y: -5.0 }
+    let mut u = v;
+    u *= 3.0;
+    println("{u.x} {twice(v).y} {scaled(v).x} {twice(5)}");   // 3.0 4.0 2.0 10
+    println(Mul.mul(v, 2.0).y);                      // 4.0
+}

@@ -10,6 +10,7 @@
 use std::collections::HashMap;
 
 use super::applied::Applied;
+use super::derive_match::{block_type, label, matches, names, overlap};
 use super::generics::{Bounds, Generic};
 use super::instances::Instance;
 use super::methods::Method;
@@ -140,16 +141,68 @@ impl Derives {
         ty: &Type,
         holds_union: impl Fn(&str) -> bool,
     ) -> Option<(&Block, Vec<Type>)> {
+        self.find_at(interface, None, ty, holds_union)
+    }
+
+    /// Every written block of `interface` whose type covers `ty`, with
+    /// what its parameters stand for there: one per argument list.
+    pub fn blocks_for(&self, interface: &str, ty: &Type) -> Vec<(&Block, Vec<Type>)> {
+        self.blocks
+            .iter()
+            .filter(|b| b.interface == interface && b.written)
+            .filter_map(|b| {
+                let Covers::Type(pattern) = &b.covers else {
+                    return None;
+                };
+                let names: Vec<&str> = b.generics.iter().map(|g| g.name.as_str()).collect();
+                let mut bound = HashMap::new();
+                if !matches(pattern, ty, &names, &mut bound) {
+                    return None;
+                }
+                let args = names
+                    .iter()
+                    .map(|n| bound.get(*n).cloned())
+                    .collect::<Option<_>>()?;
+                Some((b, args))
+            })
+            .collect()
+    }
+
+    /// `find`, among the blocks whose interface arguments are `at`, when
+    /// given: `impl Mul<Vec2> for f64` beside `impl Mul<Mat> for f64`.
+    pub fn find_at(
+        &self,
+        interface: &str,
+        at: Option<&[Type]>,
+        ty: &Type,
+        holds_union: impl Fn(&str) -> bool,
+    ) -> Option<(&Block, Vec<Type>)> {
         let mine = || self.blocks.iter().filter(|b| b.interface == interface);
         for b in mine() {
             if let Covers::Type(pattern) = &b.covers {
                 let names: Vec<&str> = b.generics.iter().map(|g| g.name.as_str()).collect();
                 let mut bound = HashMap::new();
-                if matches(pattern, ty, &names, &mut bound) {
-                    let args = names.iter().map(|n| bound[*n].clone()).collect();
+                // The block's arguments bind its parameters as its type does.
+                let fits_at = |bound: &mut HashMap<String, Type>| match at {
+                    Some(at) => {
+                        b.args.len() == at.len()
+                            && b.args
+                                .iter()
+                                .zip(at)
+                                .all(|(p, t)| matches(p, t, &names, bound))
+                    }
+                    None => true,
+                };
+                if matches(pattern, ty, &names, &mut bound) && fits_at(&mut bound) {
+                    let Some(args) = names.iter().map(|n| bound.get(*n).cloned()).collect() else {
+                        continue;
+                    };
                     return Some((b, args));
                 }
             }
+        }
+        if at.is_some_and(|a| !a.is_empty()) {
+            return None;
         }
         let kind = match ty {
             Type::Struct(..) if elements(ty).is_some() => Covers::Tuple,
@@ -201,12 +254,24 @@ impl Derives {
         ty: &Type,
         holds_union: impl Fn(&str) -> bool,
     ) -> Option<Instance> {
+        self.target_at(interface, None, name, ty, holds_union)
+    }
+
+    /// `target`, through the block whose interface arguments are `at`.
+    pub fn target_at(
+        &self,
+        interface: &str,
+        at: Option<&[Type]>,
+        name: &str,
+        ty: &Type,
+        holds_union: impl Fn(&str) -> bool,
+    ) -> Option<Instance> {
         if let Type::Struct(owner, _) | Type::Enum(owner, _) = ty
             && self.own.contains(&(owner.clone(), name.to_string()))
         {
             return None;
         }
-        let (block, args) = self.find(interface, ty, holds_union)?;
+        let (block, args) = self.find_at(interface, at, ty, holds_union)?;
         // An item a written block leaves to the interface's default.
         if block.written && !block.items.iter().any(|i| i == name) {
             return None;
@@ -231,83 +296,6 @@ impl Derives {
             _ => args.first()?.clone(),
         })
     }
-}
-
-/// True if `ty` is `pattern` with each parameter in `names` replaced, the
-/// same way every time; `bound` gets what each stands for.
-fn matches(pattern: &Type, ty: &Type, names: &[&str], bound: &mut HashMap<String, Type>) -> bool {
-    match (pattern, ty) {
-        (Type::Param(n), _) if names.contains(&n.as_str()) => match bound.get(n) {
-            Some(seen) => seen == ty,
-            None => {
-                bound.insert(n.clone(), ty.clone());
-                true
-            }
-        },
-        (Type::Array(p), Type::Array(t)) | (Type::Option(p), Type::Option(t)) => {
-            matches(p, t, names, bound)
-        }
-        (Type::Struct(pk, pa), Type::Struct(tk, ta)) | (Type::Enum(pk, pa), Type::Enum(tk, ta)) => {
-            pk == tk
-                && pa.len() == ta.len()
-                && pa.iter().zip(ta).all(|(p, t)| matches(p, t, names, bound))
-        }
-        _ => pattern == ty,
-    }
-}
-
-/// What a block covers, as written: `T[]`, `struct`.
-pub(super) fn block_type(covers: &Covers) -> String {
-    match covers {
-        Covers::Type(t) => super::shown(&t.to_string()),
-        Covers::Struct => "struct".into(),
-        Covers::Enum => "enum".into(),
-        Covers::Tuple => "tuple".into(),
-        Covers::Handle => "handle".into(),
-    }
-}
-
-/// A short, symbol-safe name for what a block covers: `i64`, `array`, `Map`.
-pub(super) fn label(covers: &Covers) -> String {
-    match covers {
-        Covers::Struct => "struct".into(),
-        Covers::Enum => "enum".into(),
-        Covers::Tuple => "tuple".into(),
-        Covers::Handle => "handle".into(),
-        Covers::Type(Type::Array(_)) => "array".into(),
-        Covers::Type(Type::Option(_)) => "option".into(),
-        Covers::Type(Type::Unit) => "unit".into(),
-        Covers::Type(Type::Struct(key, _) | Type::Enum(key, _)) => {
-            key.rsplit('.').next().unwrap_or(key).to_string()
-        }
-        Covers::Type(other) => other.to_string(),
-    }
-}
-
-/// True if one type could be covered by both patterns: each pattern's
-/// parameters (in `a` and `b`) stand for any type.
-pub(super) fn overlap(a: &Type, b: &Type, a_names: &[&str], b_names: &[&str]) -> bool {
-    match (a, b) {
-        (Type::Param(n), _) if a_names.contains(&n.as_str()) => true,
-        (_, Type::Param(n)) if b_names.contains(&n.as_str()) => true,
-        (Type::Array(x), Type::Array(y)) | (Type::Option(x), Type::Option(y)) => {
-            overlap(x, y, a_names, b_names)
-        }
-        (Type::Struct(ka, xa), Type::Struct(kb, xb)) | (Type::Enum(ka, xa), Type::Enum(kb, xb)) => {
-            ka == kb
-                && xa.len() == xb.len()
-                && xa
-                    .iter()
-                    .zip(xb)
-                    .all(|(x, y)| overlap(x, y, a_names, b_names))
-        }
-        _ => a == b,
-    }
-}
-
-/// The names of a block's parameters.
-pub(super) fn names(block: &Block) -> Vec<&str> {
-    block.generics.iter().map(|g| g.name.as_str()).collect()
 }
 
 impl Checker {

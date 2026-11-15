@@ -1,34 +1,25 @@
-error[E0310]: method `mul` is declared twice for `V`
-  --> tests/programs/interfaces/mixed_arithmetic/e0457.la:8:9
-  |
-5 |     fun mul(self, k: f64): V = V { x: self.x * k };
-  |         --- first declared here
-  .
-8 |     fun mul(mut self, w: V) {
-  |         ^^^
-
-error[E0457]: this operand fits more than one `mul` of `V`: `i64`, `u8`
-   --> tests/programs/interfaces/mixed_arithmetic/e0457.la:15:17
+error[E0457]: this operand fits more than one `mul` of `V`: `u8`, `i64`
+   --> tests/programs/interfaces/mixed_arithmetic/e0457.la:24:17
    |
-15 |     let a = v * 2;
+24 |     let a = v * 2;
    |                 ^
    |
-   = help: say which: `2 as i64` or `2 as u8`
+   = help: say which: `2 as u8` or `2 as i64`
 
-error[E0404]: no `mul` of `V` takes this operand
-   --> tests/programs/interfaces/mixed_arithmetic/e0457.la:16:17
+error[E0404]: no `impl Mul` of `V` takes this operand
+   --> tests/programs/interfaces/mixed_arithmetic/e0457.la:25:17
    |
-16 |     let b = v * "two";
+25 |     let b = v * "two";
    |                 ^^^^^
    |
-   = help: `V` has `mul` for `f64`, `i64`, `u8`
+   = help: `V` has `Mul` for `f64`, `u8`, `i64`
 
 error[E0403]: expected f64, found V
-   --> tests/programs/interfaces/mixed_arithmetic/e0457.la:18:10
+   --> tests/programs/interfaces/mixed_arithmetic/e0457.la:27:10
    |
-18 |     k *= v;
+27 |     k *= v;
    |     -    ^ expected f64
    |     |
    |     `k` is f64
 
-For more about E0310, E0457, E0404 and E0403, run `lughac explain <code>`.
+For more about E0457, E0404 and E0403, run `lughac explain <code>`.

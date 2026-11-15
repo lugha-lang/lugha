@@ -36,6 +36,7 @@ mod defaults;
 mod defer;
 mod derive;
 mod derive_intrinsics;
+mod derive_match;
 mod derive_meets;
 #[cfg(test)]
 mod derive_tests;
@@ -146,6 +147,7 @@ pub use layouts::UNION_MARK;
 pub use members::{Detail, Member, MemberKind, TypeMembers, type_members, value_members};
 pub use modules::{Origin, Unit, check_modules, check_test_roots, check_tests, qualify, symbol};
 pub use ordering::ORDERING;
+pub use overloads::interface_of as operator_interface;
 pub use partial::{Name, Partial, Target, check_partial};
 pub use refs::REF_NEW;
 pub use results::RESULT;
@@ -242,7 +244,6 @@ impl Checker {
             conversions: HashMap::new(),
             try_conversions: HashMap::new(),
             through_index: std::collections::HashSet::new(),
-            overload_choices: HashMap::new(),
             impls: HashMap::new(),
             asking: derive_with::Asking::default(),
             nominal_calls: HashMap::new(),
@@ -409,8 +410,6 @@ pub(super) struct Checker {
     try_conversions: HashMap<ExprId, Type>,
     /// See `Checked::through_index`.
     through_index: std::collections::HashSet<ExprId>,
-    /// See `Checked::overloads`.
-    overload_choices: HashMap<ExprId, String>,
     /// See `Checked::impls`.
     impls: impls::Impls,
     /// See `derive_with::Asking`.

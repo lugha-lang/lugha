@@ -1,0 +1,6 @@
+// A parameter after one with a default needs one too.
+interface Pair<A = i64, B> {
+    fun first(self): A;
+}
+
+fun main() {}

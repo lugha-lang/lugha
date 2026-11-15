@@ -36,22 +36,21 @@ impl Checker {
         // Only arithmetic passes the context's type to its operands; a comparison's `bool` doesn't.
         let outer = if arithmetic { expect } else { None };
         // Comparing passes any type between operands (`o == None`); arithmetic only numbers.
-        // `2.0 * v`: a number type's method for the right operand's type.
+        // `2.0 * v`: a number type's block for the right operand's type.
         if let Some(name) = super::operators::method_of(op) {
-            let mark = self.changes_mark();
-            if let Some(ty) = self.number_on_left(expr, name, (lhs, rhs), mark) {
+            let parts = (op.symbol(), name);
+            if let Some(ty) = self.builtin_on_left(expr, parts, (lhs, rhs)) {
                 return ty;
             }
         }
         let (l, r) = match super::operators::method_of(op) {
             // `a + b` on a struct, enum or `T` calls `a.add(b)`.
             Some(name) if !defers(lhs) => {
-                let mark = self.changes_mark();
                 let l = self.value(lhs, outer);
                 if super::operators::overloaded(&l) {
                     let at = Span::new(lhs.span.end, rhs.span.start);
                     let parts = (op.symbol(), name, at);
-                    return self.operator_call(expr, parts, (lhs, &l), Some(rhs), mark);
+                    return self.operator_call(expr, parts, &l, Some(rhs));
                 }
                 let r = self.second_operand(&l, lhs, rhs, outer, false);
                 (l, r)

@@ -23,7 +23,14 @@ impl<'ctx> Lowerer<'ctx> {
         let interface = self.derived.get(&call.id)?;
         // A struct holding a C union never meets a derivable interface
         // (E0450), so none reaches codegen.
-        let target = self.derives.target(interface, name, ty, |_| false)?;
+        // A block chosen by its interface's arguments: `impl Mul<V> for f64`.
+        let at: Option<Vec<Type>> = self
+            .nominal_calls
+            .get(&call.id)
+            .map(|(_, a)| a.iter().map(|t| self.concrete(t)).collect());
+        let target = self
+            .derives
+            .target_at(interface, at.as_deref(), name, ty, |_| false)?;
         let key = instance_name(&target.key, &target.args);
         Some(
             self.monos

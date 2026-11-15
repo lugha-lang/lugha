@@ -76,9 +76,6 @@ pub struct Checked {
     /// `g[i] += v`, the receiver of `g[i].push(x)`): read the element, change
     /// the copy, then hand it to `set_index` (recorded at `write_id`).
     pub through_index: HashSet<ExprId>,
-    /// Arithmetic calls that chose among a type's overloads (`v * 2.0`,
-    /// `v.mul(2.0)`): the method's name in the type's table, `mul(f64)`.
-    pub overloads: HashMap<ExprId, String>,
     /// Every `impl I for T` block, by `T`'s key.
     pub impls: super::Impls,
     /// Calls of an item of an interface met through `impl I for T`, by

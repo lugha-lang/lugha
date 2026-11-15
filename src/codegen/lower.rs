@@ -97,8 +97,6 @@ pub(super) struct Lowerer<'ctx> {
     pub(super) try_conversions: HashMap<ExprId, Type>,
     /// Places written through a type's `index` (`Checked::through_index`).
     pub(super) through_index: std::collections::HashSet<ExprId>,
-    /// The overload each arithmetic call chose (`Checked::overloads`).
-    pub(super) overloads: HashMap<ExprId, String>,
     /// See `Checked::impls`.
     pub(super) impls: crate::check::Impls,
     /// See `Checked::nominal_calls`.
@@ -240,7 +238,6 @@ pub(super) fn lower<'ctx>(
         interfaces: checked.interfaces.clone(),
         try_conversions: checked.try_conversions.clone(),
         through_index: checked.through_index.clone(),
-        overloads: checked.overloads.clone(),
         impls: checked.impls.clone(),
         nominal_calls: checked.nominal_calls.clone(),
         qualified: checked.qualified.clone(),

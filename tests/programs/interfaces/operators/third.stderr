@@ -1,0 +1,9 @@
+error[E0459]: this `impl Mul for …` must be written in the module that declares `Mul` or a type it names
+  --> tests/programs/interfaces/operators/third/main.la:4:1
+  |
+4 | / impl Mul<geo.V> for f64 {
+5 | |     fun mul(self, v: geo.V): geo.V = geo.V { x: self * v.x };
+6 | | }
+  | \-^
+
+For more about E0459, run `lughac explain E0459`.

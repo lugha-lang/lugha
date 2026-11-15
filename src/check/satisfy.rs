@@ -97,7 +97,12 @@ impl Checker {
             return true;
         }
         let shown = interface.to_string();
-        if self.nominal(&interface.key) && !matches!(arg, Type::Param(_) | Type::Interface(..)) {
+        // A block that exists but gives another type says so.
+        let gives_other = self.impl_for(arg, interface).is_some();
+        if self.nominal(&interface.key)
+            && !gives_other
+            && !matches!(arg, Type::Param(_) | Type::Interface(..))
+        {
             self.report_not_implemented(arg, &shown, span);
         } else {
             self.report(errors::unsatisfied(arg, &shown, &problems, span));
@@ -108,8 +113,11 @@ impl Checker {
     /// What `arg` lacks to satisfy `interface`, one entry per item: empty
     /// when it satisfies it.
     pub(super) fn unmet(&self, arg: &Type, interface: &Applied) -> Vec<String> {
-        // The numbers and `string` meet the prelude's operator bounds as built-ins.
-        if let Some(problems) = self.builtin_operator(arg, &interface.key) {
+        // The numbers and `string` meet the prelude's operator bounds as
+        // built-ins, with themselves on the right: `i64 * f64` is a block's.
+        let other_right = super::impls::is_operator(&interface.key)
+            && interface.args.first().is_some_and(|r| r != arg);
+        if !other_right && let Some(problems) = self.builtin_operator(arg, &interface.key) {
             return problems;
         }
         // A built-in type through its block: `impl Show for f64`.
@@ -120,6 +128,29 @@ impl Checker {
         // parameter and an interface value still offer their items.
         if self.nominal(&interface.key) && !matches!(arg, Type::Param(_) | Type::Interface(..)) {
             return match self.impl_for(arg, interface) {
+                Some(entry) if super::impls::is_operator(&interface.key) => {
+                    // A bound promises `arg` back; the block may give another type.
+                    let name = &self.interfaces[&interface.key].items[0].name;
+                    let gives = match arg {
+                        Type::Struct(o, targs) | Type::Enum(o, targs) => self
+                            .methods
+                            .get(o)
+                            .and_then(|m| m.get(&entry.method(name)))
+                            .map(|m| subst(&m.ret, &m.generics[..m.outer], targs)),
+                        Type::Handle(o) => self
+                            .methods
+                            .get(o)
+                            .and_then(|m| m.get(&entry.method(name)))
+                            .map(|m| m.ret.clone()),
+                        _ => None,
+                    };
+                    match gives {
+                        Some(ret) if ret != *arg => {
+                            vec![format!("its `impl {interface}` gives {ret}, not {arg}")]
+                        }
+                        _ => Vec::new(),
+                    }
+                }
                 Some(_) => Vec::new(),
                 None => vec![format!("no `impl {interface} for {arg}`")],
             };
@@ -142,24 +173,6 @@ impl Checker {
     /// struct or enum its visible methods (an `impl`'s parameters
     /// substituted), and every other type nothing.
     fn offer(&self, arg: &Type, req: &Requirement) -> Offer {
-        // A type with several `mul`s offers whichever of them fits.
-        if let Type::Struct(owner, _) | Type::Enum(owner, _) = arg {
-            let family = self.overloads_of(owner, &req.name);
-            if family.len() > 1 {
-                let fits = family.into_iter().any(|name| {
-                    let req = Requirement {
-                        name,
-                        ..req.clone()
-                    };
-                    matches!(self.offer_one(arg, &req), Offer::Matches)
-                });
-                return if fits {
-                    Offer::Matches
-                } else {
-                    Offer::Mismatched
-                };
-            }
-        }
         self.offer_one(arg, req)
     }
 

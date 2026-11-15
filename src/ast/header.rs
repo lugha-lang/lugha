@@ -94,6 +94,9 @@ pub struct InterfaceDecl {
     pub name: Ident,
     /// Type parameters, `interface Source<T>`; empty when none.
     pub type_params: Vec<TypeParam>,
+    /// Each parameter's default, `R = Self` in `interface Add<R = Self>`,
+    /// in the same order; `None` for one without. Defaults come last.
+    pub defaults: Vec<Option<super::Type>>,
     /// The interfaces it extends, `interface Key: Eq`; empty when none.
     pub extends: Vec<Bound>,
     /// Required methods and associated functions, in order.

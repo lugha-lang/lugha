@@ -1,8 +1,8 @@
-//! Operator overloading in codegen. An operator whose left operand is a struct or enum calls its
-//! method (`lugha_fn_Vec2.add`), receiver first like any `self` method; an
-//! interface value dispatches through its table. Everything else (numbers,
-//! strings, and so every instance of a `T: Num` body at a number type)
-//! keeps the built-in operator, so `add<i64>` is a plain checked `add`.
+//! Operators in codegen. An operator the checker gave a block calls that
+//! block's method (`lugha_fn_Vec2.add@Add`, or a built-in type's block's
+//! instance), receiver first like any `self` method. Everything else
+//! (numbers, strings, and so every instance of a `T: Num` body at a number
+//! type) keeps the built-in operator, so `add<i64>` is a plain checked `add`.
 
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, ValueKind};
 
@@ -10,13 +10,12 @@ use super::CodegenError;
 use super::instances::instance_name;
 use super::lower::{Lowerer, POSITIONED};
 use super::methods::{Method, key};
-use super::value::Value;
-use crate::ast::{Expr, ExprKind, Ident};
+use crate::ast::Expr;
 use crate::check::Type;
 
 impl<'ctx> Lowerer<'ctx> {
-    /// `lhs op rhs` (or `-lhs`) as a call of method `name`, when `lhs`'s
-    /// type is a struct, enum or interface value; `None` otherwise.
+    /// `lhs op rhs` (or `-lhs`) as a call of its operator block's method,
+    /// when the checker chose one; `None` for the built-in operators.
     pub(super) fn operator(
         &mut self,
         expr: &Expr,
@@ -25,41 +24,21 @@ impl<'ctx> Lowerer<'ctx> {
         rhs: Option<&Expr>,
     ) -> Result<Option<BasicValueEnum<'ctx>>, CodegenError> {
         let ty = self.ty(lhs);
-        let args: Vec<Expr> = rhs.into_iter().cloned().collect();
-        match &ty {
-            // `2.0 * v` through `impl f64 { fun mul(self, v: V): V }`.
-            number if number.is_numeric() && self.overloads.contains_key(&expr.id) => {
-                let current = self.get(lhs, &ty)?;
-                self.operator_on(expr, (current, &ty), name, &args)
-                    .map(Some)
-            }
-            Type::Struct(..) | Type::Enum(..) => {
-                let current = self.get(lhs, &ty)?;
-                self.operator_on(expr, (current, &ty), name, &args)
-                    .map(Some)
-            }
-            // Through the interface's table: the method call an operator stands for.
-            Type::Interface(..) => {
-                let method = Ident {
-                    name: name.to_string(),
-                    span: expr.span,
-                };
-                let callee = Expr {
-                    id: expr.id,
-                    span: expr.span,
-                    kind: ExprKind::Field(Box::new(lhs.clone()), method),
-                };
-                match self.method_call(expr, &callee, &args)? {
-                    Some(Value::Val(v)) => Ok(Some(v)),
-                    _ => unreachable!("an operator method returns a value"),
-                }
-            }
-            _ => Ok(None),
+        // A built-in type uses its block only where the checker chose one
+        // that exists at this type; a `T: Add` instance at `string` doesn't.
+        let program = matches!(ty, Type::Struct(..) | Type::Enum(..) | Type::Handle(_));
+        if !program && self.built_in_block(expr, &ty, name).is_none() {
+            return Ok(None);
         }
+        let args: Vec<Expr> = rhs.into_iter().cloned().collect();
+        let current = self.get(lhs, &ty)?;
+        self.operator_on(expr, (current, &ty), name, &args)
+            .map(Some)
     }
 
-    /// Calls `ty`'s operator method `name` on `current` with `args`, for
-    /// the operator (or compound assignment) whose checker id is `call`'s.
+    /// Calls `ty`'s operator block's method `name` on `current` with
+    /// `args`, for the operator (or compound assignment) whose checker id
+    /// is `call`'s.
     pub(super) fn operator_on(
         &mut self,
         call: &Expr,
@@ -67,16 +46,6 @@ impl<'ctx> Lowerer<'ctx> {
         name: &str,
         args: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
-        // A type with several `mul`s: the one the checker chose.
-        let chosen = match (self.overloads.get(&call.id), ty, args) {
-            (Some(chosen), _, _) => Some(chosen.clone()),
-            // Through a bound: the concrete type is only known now.
-            (None, Type::Struct(owner, _) | Type::Enum(owner, _), [operand]) => {
-                Some(self.overload_for(owner, name, &self.ty(operand)))
-            }
-            _ => None,
-        };
-        let name = chosen.as_deref().unwrap_or(name);
         let method = self.operator_method(call, ty, name);
         // A `self` receiver is a pointer to a copy, as for any method call.
         let slot = self.entry_alloca(ty, "self");
@@ -93,49 +62,54 @@ impl<'ctx> Lowerer<'ctx> {
         }
     }
 
-    /// For a type with several arithmetic methods `name` (`mul`,
-    /// `mul(f64)`, …), the one taking `operand`; `name` itself otherwise.
-    /// Used where the checker chose through a bound, so the concrete type
-    /// is only known here.
-    pub(super) fn overload_for(&self, owner: &str, name: &str, operand: &Type) -> String {
-        if !crate::modules::overloads::ARITHMETIC.contains(&name) {
-            return name.to_string();
-        }
-        let prefix = format!("{}(", key(owner, name));
-        self.methods
-            .iter()
-            .filter(|(k, _)| **k == key(owner, name) || k.starts_with(&prefix))
-            .find(|(_, m)| m.signature.params.first() == Some(operand))
-            .map_or_else(
-                || name.to_string(),
-                |(k, _)| k[owner.len() + 1..].to_string(),
-            )
+    /// The instance of a built-in type's operator block that `call` reaches,
+    /// when the checker chose one there.
+    fn built_in_block(&self, call: &Expr, ty: &Type, name: &str) -> Option<Method<'ctx>> {
+        let interface = self.derived.get(&call.id)?;
+        crate::check::operator_interface(name)?;
+        let at: Option<Vec<Type>> = self
+            .nominal_calls
+            .get(&call.id)
+            .map(|(_, a)| a.iter().map(|t| self.concrete(t)).collect());
+        let target = self
+            .derives
+            .target_at(interface, at.as_deref(), name, ty, |_| false)?;
+        self.monos
+            .get(&instance_name(&target.key, &target.args))
+            .cloned()
     }
 
-    /// The method `name` of struct or enum `ty`: an instance for a generic
-    /// type, else the declared method or a listed prelude one.
+    /// The method of `ty`'s operator block for item `name` that `call`
+    /// reaches: a program type's `impl` block's (an instance for a generic
+    /// type), or a built-in type's block's instance.
     fn operator_method(&self, call: &Expr, ty: &Type, name: &str) -> Method<'ctx> {
-        let number;
-        let (owner, args) = match ty {
-            Type::Struct(owner, args) | Type::Enum(owner, args) => (owner, args.as_slice()),
-            // `impl f64 { … }`.
-            ty if ty.is_numeric() => {
-                number = ty.to_string();
-                (&number, &[][..])
-            }
-            _ => unreachable!("operators call methods of structs, enums and numbers"),
+        let owned = match ty {
+            Type::Struct(owner, args) | Type::Enum(owner, args) => Some((owner, args.as_slice())),
+            Type::Handle(owner) => Some((owner, &[][..])),
+            _ => None,
         };
-        let k = key(owner, name);
-        let by_type = || {
-            (!args.is_empty())
-                .then(|| self.monos.get(&instance_name(&k, args)).cloned())
-                .flatten()
-        };
-        self.instance_of(call, &k)
-            .or_else(by_type)
-            .or_else(|| self.methods.get(&k).cloned())
-            .or_else(|| self.monos.get(&k).cloned())
-            .unwrap_or_else(|| panic!("checked: `{k}` is an operator method"))
+        // A built-in type's block (a tuple's, a number's): its instance.
+        if let Some(m) = self.built_in_block(call, ty, name) {
+            return m;
+        }
+        if let Some((owner, args)) = owned {
+            let method = self
+                .impl_method(call, ty, name)
+                .unwrap_or_else(|| name.to_string());
+            let k = key(owner, &method);
+            let by_type = || {
+                (!args.is_empty())
+                    .then(|| self.monos.get(&instance_name(&k, args)).cloned())
+                    .flatten()
+            };
+            return self
+                .instance_of(call, &k)
+                .or_else(by_type)
+                .or_else(|| self.methods.get(&k).cloned())
+                .or_else(|| self.monos.get(&k).cloned())
+                .unwrap_or_else(|| panic!("checked: `{k}` is an operator method"));
+        }
+        panic!("checked: `{ty}` has an operator method `{name}`")
     }
 }
 
@@ -143,39 +117,35 @@ impl<'ctx> Lowerer<'ctx> {
 mod tests {
     use crate::codegen::test_util::ir;
 
-    const VEC2: &str = "struct Vec2 { x: f64, y: f64 }\nimpl Vec2 {\n\
-        fun add(self, o: Vec2): Vec2 = Vec2 { x: self.x + o.x, y: self.y + o.y };\n\
-        fun neg(self): Vec2 = Vec2 { x: -self.x, y: -self.y };\n}\n";
+    const VEC2: &str = "struct Vec2 { x: f64, y: f64 }\n\
+        impl Add for Vec2 { fun add(self, o: Vec2): Vec2 = Vec2 { x: self.x + o.x, y: self.y + o.y }; }\n\
+        impl Neg for Vec2 { fun neg(self): Vec2 = Vec2 { x: -self.x, y: -self.y }; }\n";
 
     #[test]
-    fn user_types_call_their_operator_methods() {
+    fn user_types_call_their_blocks_methods() {
         let ir = ir(&format!(
             "{VEC2}fun main() {{ let mut a = Vec2 {{ x: 1.0, y: 2.0 }}; let b = a + -a; a += b; }}"
         ));
         let main = &ir[ir.find("define void @lugha_fn_main").unwrap()..];
         assert_eq!(
-            main.matches("call void @lugha_fn_Vec2.add(ptr sret(%Vec2)")
+            main.matches("call void @\"lugha_fn_Vec2.add@Add\"(ptr sret(%Vec2)")
                 .count(),
             2,
             "{ir}"
         );
-        assert!(main.contains("@lugha_fn_Vec2.neg("), "{ir}");
+        assert!(main.contains("@\"lugha_fn_Vec2.neg@Neg\"("), "{ir}");
     }
 
     #[test]
-    fn only_a_type_with_several_muls_names_them_by_type() {
-        let one = ir(&format!(
-            "{VEC2}fun main() {{ let a = Vec2 {{ x: 1.0, y: 2.0 }}; let b = a + a; }}"
-        ));
-        assert!(one.contains("@lugha_fn_Vec2.add("), "{one}");
-        let two = ir("struct V { x: f64 }\nimpl V {\n\
-            fun mul(self, w: V): V = w;\n\
-            fun mul(self, k: f64): V = self;\n}\n\
-            impl f64 { fun mul(self, v: V): V = v; }\n\
+    fn each_right_hand_type_and_a_number_on_the_left_has_its_block() {
+        let ir = ir("struct V { x: f64 }\n\
+            impl Mul for V { fun mul(self, w: V): V = w; }\n\
+            impl Mul<f64> for V { fun mul(self, k: f64): V = self; }\n\
+            impl Mul<V> for f64 { fun mul(self, v: V): V = v; }\n\
             fun main() { let v = V { x: 1.0 }; let a = v * v; let b = v * 2.0; let c = 2.0 * v; }");
-        assert!(two.contains("@lugha_fn_V.mul("), "{two}");
-        assert!(two.contains("@\"lugha_fn_V.mul(f64)\"("), "{two}");
-        assert!(two.contains("@\"lugha_fn_f64.mul(V)\"("), "{two}");
+        assert!(ir.contains("@\"lugha_fn_V.mul@Mul\"("), "{ir}");
+        assert!(ir.contains("@\"lugha_fn_V.mul@Mul<f64>\"("), "{ir}");
+        assert!(ir.contains("Mul<V>@f64.mul"), "{ir}");
     }
 
     #[test]

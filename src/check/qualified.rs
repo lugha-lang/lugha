@@ -69,6 +69,26 @@ impl Checker {
             return Type::Error;
         };
         let receiver = self.value(first, None);
+        // `Mul.mul(v, x)`: the block `x` fits, as for `v * x`.
+        if super::impls::is_operator(key)
+            && !matches!(receiver, Type::Param(_) | Type::Interface(..))
+            && self.has_operator(&receiver, &name.name)
+        {
+            let right = match rest {
+                [arg] => match self.chosen_right(&receiver, &name.name, arg) {
+                    Ok(right) => right,
+                    Err(()) => return self.unchecked(rest),
+                },
+                _ => None,
+            };
+            self.qualified.insert(call.id);
+            let m = self.operator_item(call, &receiver, &name.name, right);
+            let bound = match &receiver {
+                Type::Struct(_, targs) | Type::Enum(_, targs) => targs.clone(),
+                _ => Vec::new(),
+            };
+            return self.arguments(call, &name.name, &m, rest, (&bound, expect));
+        }
         let Some(applied) = self.met(&receiver, key, first) else {
             return self.unchecked(rest);
         };
@@ -144,7 +164,7 @@ impl Checker {
 
     /// A qualified call of `name` through type parameter `param`'s bound
     /// `applied`: each instance calls the concrete type's item.
-    fn bound_item_call(
+    pub(super) fn bound_item_call(
         &mut self,
         call: &Expr,
         param: &str,

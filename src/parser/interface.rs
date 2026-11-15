@@ -1,14 +1,50 @@
 use super::{PResult, Parser};
-use crate::ast::{Bound, FunDecl, InterfaceDecl, InterfaceItem};
+use crate::ast::{Bound, FunDecl, InterfaceDecl, InterfaceItem, Type, TypeParam};
 use crate::lexer::TokenKind;
 use crate::span::Span;
 
 impl Parser<'_> {
+    /// `<T, R = Self>`: an interface's parameters, each with its bounds and
+    /// an optional default. A parameter without a default after one with
+    /// is E0201: a use leaves out trailing arguments only.
+    fn interface_params(&mut self) -> PResult<(Vec<TypeParam>, Vec<Option<Type>>)> {
+        if !self.at(&TokenKind::Lt) {
+            return Ok((Vec::new(), Vec::new()));
+        }
+        let open = self.bump();
+        if self.at(&TokenKind::Gt) {
+            return Err(self.expected("type parameter name"));
+        }
+        let mut defaults: Vec<Option<Type>> = Vec::new();
+        let params = self.comma_list(open, TokenKind::Gt, |p| {
+            let name = p.ident("type parameter name")?;
+            let mut bounds = Vec::new();
+            if p.eat(&TokenKind::Colon) {
+                loop {
+                    bounds.push(p.bound()?);
+                    if !p.eat(&TokenKind::Plus) {
+                        break;
+                    }
+                }
+            }
+            let default = if p.eat(&TokenKind::Eq) {
+                Some(p.ty()?)
+            } else if defaults.iter().any(Option::is_some) {
+                return Err(p.expected("`=` and a default, as the parameters before it have"));
+            } else {
+                None
+            };
+            defaults.push(default);
+            Ok(TypeParam { name, bounds })
+        })?;
+        Ok((params, defaults))
+    }
+
     /// `interface Name[: I, J] { fun area(self): f64; … }`.
     pub(super) fn interface_decl(&mut self) -> PResult<InterfaceDecl> {
         let start = self.bump().start;
         let name = self.ident("interface name")?;
-        let type_params = self.type_params()?;
+        let (type_params, defaults) = self.interface_params()?;
         let mut extends = Vec::new();
         if self.eat(&TokenKind::Colon) {
             extends.push(self.bound()?);
@@ -32,6 +68,7 @@ impl Parser<'_> {
             visibility: None,
             name,
             type_params,
+            defaults,
             extends,
             items,
             span: Span::new(start, self.prev_end()),

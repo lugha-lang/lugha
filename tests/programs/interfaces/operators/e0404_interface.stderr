@@ -1,0 +1,9 @@
+error[E0404]: cannot apply `*` to Scaled
+   --> tests/programs/interfaces/operators/e0404_interface.la:14:13
+   |
+14 |     let t = s * 2.0;
+   |             ^^^^^^^
+   |
+   = help: call its method instead: `x.mul(…)`
+
+For more about E0404, run `lughac explain E0404`.

@@ -20,7 +20,6 @@ pub mod link_table;
 mod link_tests;
 pub mod lock;
 pub mod manifest;
-pub mod overloads;
 pub mod package_table;
 mod packages;
 mod parse;

@@ -4,22 +4,31 @@ import shapes;
 
 struct V { x: f64, y: f64 }
 
-impl V {
+impl Mul<f64> for V {
     fun mul(self, k: f64): V = V { x: self.x * k, y: self.y * k };
+}
+
+impl Mul for V {
     fun mul(self, w: V): V = V { x: self.x * w.x, y: self.y * w.y };
+}
+
+impl Add for V {
     fun add(self, w: V): V = V { x: self.x + w.x, y: self.y + w.y };
 }
 
-impl f64 {
+impl Mul<V> for f64 {
     fun mul(self, v: V): V = v * self;
+}
+
+impl Sub<V> for f64 {
     fun sub(self, v: V): V = V { x: self - v.x, y: self - v.y };
 }
 
-impl u8 {
+impl Mul<V> for u8 {
     fun mul(self, v: V): V = v * (self as f64);
 }
 
-impl shapes.W {
+impl Mul<V> for shapes.W {
     fun mul(self, v: V): V = V { x: self.k * v.x, y: self.k * v.y };
 }
 

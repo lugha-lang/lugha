@@ -12,7 +12,7 @@ error[E0404]: cannot apply `+` to Set
 11 |     let t = s + 1;
    |             ^^^^^
    |
-   = help: for an operator, `add` must be `fun add(self, other: …): …`: a plain `self` and a result
+   = help: write `impl Add<…> for Set { fun add(…) }`
 
 error[E0404]: cannot apply `-` to string
    --> tests/programs/interfaces/operators/e0404.la:12:13

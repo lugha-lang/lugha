@@ -19,6 +19,14 @@ pub(crate) struct Applied {
 }
 
 impl Applied {
+    /// `self` with `Self` in its arguments (from a default, `R = Self`)
+    /// standing for `subject`: the bounded parameter or the block's type.
+    pub(super) fn with_self(mut self, subject: &Type) -> Applied {
+        let map = std::collections::HashMap::from([(super::SELF.to_string(), subject.clone())]);
+        self.args = self.args.iter().map(|a| a.substitute(&map)).collect();
+        self
+    }
+
     /// The interface of an interface value's type, `None` for any other type.
     pub(super) fn of(ty: &Type) -> Option<Applied> {
         let Type::Interface(key, args) = ty else {

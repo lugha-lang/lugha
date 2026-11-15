@@ -1,125 +1,314 @@
-//! Choosing among a type's arithmetic methods of one name (`mul`,
-//! `mul(f64)`, …; see `modules::overloads`) by the right operand's type.
-//! Only an exact type fits, and a literal must fit exactly one of them, so
-//! nothing is ranked and adding one can't change an existing choice
-//! silently. The choice is recorded by the call's id for codegen.
+//! Choosing an operator's block. `a * b` calls the `mul` of the block
+//! `impl Mul<B> for A` whose argument is `b`'s exact type; a type may have
+//! one block per right-hand type. Only an exact type fits, and a literal
+//! must fit exactly one of them (E0457), so nothing is ranked and adding a
+//! block can't change an existing choice silently. A number literal on
+//! the left fits the number types with a block for the right operand.
 
+use super::applied::Applied;
+use super::expr::Expect;
 use super::generics::subst;
+use super::methods::Method;
 use super::{Checker, Type};
 use crate::ast::{Expr, ExprKind, Ident, UnOp};
 use crate::diagnostic::Diagnostic;
-use crate::modules::overloads::{ARITHMETIC, written_name};
+
+/// The operator interface whose item is `name`: `$prelude.Mul` for `mul`.
+pub fn interface_of(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "add" => "$prelude.Add",
+        "sub" => "$prelude.Sub",
+        "mul" => "$prelude.Mul",
+        "div" => "$prelude.Div",
+        "rem" => "$prelude.Rem",
+        "neg" => "$prelude.Neg",
+        _ => return None,
+    })
+}
+
+/// The number types, which a literal on the left may be.
+const NUMBERS: [Type; 10] = [
+    Type::I8,
+    Type::I16,
+    Type::I32,
+    Type::I64,
+    Type::U8,
+    Type::U16,
+    Type::U32,
+    Type::U64,
+    Type::F32,
+    Type::F64,
+];
 
 impl Checker {
-    /// For `receiver.name(arg)` (or the operator that stands for it), the
-    /// method among `name`'s overloads that `arg` fits: `None` when `name`
-    /// has no overloads, `Some(Err(()))` after reporting why none fits.
-    pub(super) fn chosen_overload(
-        &mut self,
-        call: &Expr,
-        receiver: &Type,
-        name: &Ident,
-        args: &[Expr],
-    ) -> Option<Result<Ident, ()>> {
-        let number;
-        let (owner, targs) = match receiver {
-            Type::Struct(owner, targs) | Type::Enum(owner, targs) => (owner, targs.as_slice()),
-            // `impl f64 { … }`: arithmetic with a number on the left.
-            ty if ty.is_numeric() => {
-                number = ty.to_string();
-                (&number, &[][..])
-            }
-            _ => return None,
+    /// The right-hand types of `l`'s blocks of operator interface `key`,
+    /// in the order written: one per block.
+    pub(super) fn operator_rights(&self, l: &Type, key: &str) -> Vec<Type> {
+        let owned = match l {
+            Type::Struct(o, targs) | Type::Enum(o, targs) => Some((o, targs.as_slice())),
+            Type::Handle(o) => Some((o, &[][..])),
+            _ => None,
         };
-        if !ARITHMETIC.contains(&name.name.as_str()) || args.len() != 1 {
-            return None;
+        if let Some((owner, targs)) = owned
+            && !owner.starts_with('$')
+        {
+            return self
+                .impls
+                .get(owner)
+                .into_iter()
+                .flatten()
+                .filter(|e| e.key == key)
+                .map(|e| e.args_at(targs).first().cloned().unwrap_or(Type::Unit))
+                .collect();
         }
-        let family = self.overloads_of(owner, &name.name);
-        if family.len() < 2 {
-            return None;
-        }
-        let candidates: Vec<(String, Type)> = family
+        self.derives
+            .blocks_for(key, l)
             .into_iter()
-            .filter_map(|n| {
-                let m = self.methods.get(owner)?.get(&n)?;
-                let param = m.params.first()?;
-                Some((n, subst(param, &m.generics[..m.outer], targs)))
+            .map(|(b, args)| {
+                b.args
+                    .first()
+                    .map_or(Type::Unit, |a| subst(a, &b.generics, &args))
             })
-            .collect();
-        let arg = &args[0];
-        let fitting: Vec<&(String, Type)> = match literal_kind(arg) {
-            Some(kind) => candidates.iter().filter(|(_, t)| kind.fits(t)).collect(),
+            .collect()
+    }
+
+    /// True if `l` has any block of the operator whose item is `name`.
+    pub(super) fn has_operator(&self, l: &Type, name: &str) -> bool {
+        interface_of(name).is_some_and(|key| !self.operator_rights(l, key).is_empty())
+    }
+
+    /// The right-hand type of `l`'s block of `name`'s interface that `arg`
+    /// fits: `Ok(None)` when `l` has no such block, `Err(())` after
+    /// reporting that none or several fit (E0404, E0457).
+    pub(super) fn chosen_right(
+        &mut self,
+        l: &Type,
+        name: &str,
+        arg: &Expr,
+    ) -> Result<Option<Type>, ()> {
+        let Some(key) = interface_of(name) else {
+            return Ok(None);
+        };
+        let rights = self.operator_rights(l, key);
+        if rights.is_empty() {
+            return Ok(None);
+        }
+        let fitting: Vec<&Type> = match literal_kind(arg) {
+            Some(kind) => rights.iter().filter(|t| kind.fits(t)).collect(),
             None => {
                 // A probe: the call checks the argument again against its choice.
                 let reported = self.diagnostics.len();
                 let ty = self.value(arg, None);
                 self.diagnostics.truncate(reported);
                 if matches!(ty, Type::Error | Type::Never) {
-                    return Some(Err(()));
+                    return Err(());
                 }
-                candidates.iter().filter(|(_, t)| *t == ty).collect()
+                rights.iter().filter(|t| **t == ty).collect()
             }
         };
-        let shown = |c: &[&(String, Type)]| {
+        let shown = |c: &[&Type]| {
             c.iter()
-                .map(|(_, t)| format!("`{t}`"))
+                .map(|t| format!("`{t}`"))
                 .collect::<Vec<_>>()
                 .join(", ")
         };
         match fitting.as_slice() {
-            [(chosen, _)] => {
-                self.overload_choices.insert(call.id, chosen.clone());
-                Some(Ok(Ident {
-                    name: chosen.clone(),
-                    span: name.span,
-                }))
-            }
+            [one] => Ok(Some((*one).clone())),
             [] => {
-                let all: Vec<&(String, Type)> = candidates.iter().collect();
-                let message = format!("no `{}` of `{receiver}` takes this operand", name.name);
-                let help = format!("`{receiver}` has `{}` for {}", name.name, shown(&all));
+                let all: Vec<&Type> = rights.iter().collect();
+                let interface = key.trim_start_matches("$prelude.");
+                let message = format!("no `impl {interface}` of `{l}` takes this operand");
+                let help = format!("`{l}` has `{interface}` for {}", shown(&all));
                 self.report(Diagnostic::error("E0404", message, arg.span).with_help(help));
-                Some(Err(()))
+                Err(())
             }
             several => {
                 let message = format!(
-                    "this operand fits more than one `{}` of `{receiver}`: {}",
-                    name.name,
+                    "this operand fits more than one `{name}` of `{l}`: {}",
                     shown(several)
                 );
                 let help = match literal_kind(arg) {
                     Some(_) => format!("say which: {}", spelled(arg, several)),
                     // A generic type whose parameters became the same type.
-                    None => format!(
-                        "for `{receiver}` these take the same type; give one of them another name"
-                    ),
+                    None => format!("for `{l}` these blocks take the same type"),
                 };
                 self.report(Diagnostic::error("E0457", message, arg.span).with_help(help));
-                Some(Err(()))
+                Err(())
             }
         }
     }
 
-    /// The names of `owner`'s methods declared as `name`, overloads included.
-    pub(super) fn overloads_of(&self, owner: &str, name: &str) -> Vec<String> {
-        let Some(methods) = self.methods.get(owner) else {
-            return Vec::new();
+    /// The call of `l`'s block of `name`'s interface at right-hand type
+    /// `right` (none for `neg`), recorded for codegen, as the method to
+    /// check the call against.
+    pub(super) fn operator_item(
+        &mut self,
+        call: &Expr,
+        l: &Type,
+        name: &str,
+        right: Option<Type>,
+    ) -> Method {
+        let key = interface_of(name).expect("an operator's item");
+        let applied = Applied {
+            key: key.to_string(),
+            args: right.into_iter().collect(),
         };
-        let mut names: Vec<String> = methods
-            .keys()
-            .filter(|k| written_name(k) == name)
-            .cloned()
+        if let Type::Struct(o, _) | Type::Enum(o, _) | Type::Handle(o) = l
+            && !o.starts_with('$')
+        {
+            return self.item_call(call, l, &applied, name);
+        }
+        let at = (!applied.args.is_empty()).then_some(applied.args.as_slice());
+        let (block, args) = self
+            .builtin_block_at(key, at, l)
+            .expect("checked: the block was found");
+        self.block_call(call, l, (&block, &args), name)
+    }
+
+    /// `lhs op rhs` with a built-in type or a number literal on the left and
+    /// a type with blocks for it on the right: `2.0 * v` through `impl
+    /// Mul<V> for f64`. `None` leaves the built-in operator.
+    pub(super) fn builtin_on_left(
+        &mut self,
+        expr: &Expr,
+        (symbol, name): (&str, &str),
+        (lhs, rhs): (&Expr, &Expr),
+    ) -> Option<Type> {
+        let key = interface_of(name)?;
+        // Only blocks written for built-in types can apply. Probing the left
+        // operand is the costly part (a chain `a + b + c + …` would probe
+        // every prefix), so it comes last, when a block takes the right one.
+        let rights: Vec<Type> = self
+            .derives
+            .blocks
+            .iter()
+            .filter(|b| b.written && b.interface == key)
+            .filter_map(|b| b.args.first().cloned())
             .collect();
-        names.sort();
-        names
+        if rights.is_empty() {
+            return None;
+        }
+        let reported = self.diagnostics.len();
+        let right = self.value(rhs, None);
+        self.diagnostics.truncate(reported);
+        let taken = rights.iter().any(|r| *r == right || has_params(r));
+        if !taken {
+            return None;
+        }
+        let literal = literal_kind(lhs);
+        let left = literal.is_none().then(|| {
+            let reported = self.diagnostics.len();
+            let ty = self.value(lhs, None);
+            self.diagnostics.truncate(reported);
+            ty
+        });
+        // Numbers, strings and the like on the right keep the built-in operator.
+        let plain = right.is_numeric()
+            || matches!(
+                right,
+                Type::String | Type::Bool | Type::Char | Type::Error | Type::Never | Type::Param(_)
+            );
+        if plain {
+            return None;
+        }
+        if left.as_ref().is_some_and(super::operators::overloaded) {
+            return None;
+        }
+        let has = |c: &Self, l: &Type| c.operator_rights(l, key).contains(&right);
+        let fitting: Vec<Type> = match (&left, &literal) {
+            (Some(l), _) => has(self, l).then(|| l.clone()).into_iter().collect(),
+            (None, Some(kind)) => NUMBERS
+                .iter()
+                .filter(|t| kind.fits(t) && has(self, t))
+                .cloned()
+                .collect(),
+            (None, None) => Vec::new(),
+        };
+        match fitting.as_slice() {
+            [] => None,
+            [l] => {
+                let l = l.clone();
+                self.expect_type(lhs, &Expect::of(l.clone()));
+                let at = crate::span::Span::new(lhs.span.end, rhs.span.start);
+                let parts = (symbol, name, at);
+                Some(self.operator_call(expr, parts, &l, Some(rhs)))
+            }
+            several => {
+                let types: Vec<&Type> = several.iter().collect();
+                let message = format!(
+                    "this operand fits more than one `{name}` with `{right}`: {}",
+                    types
+                        .iter()
+                        .map(|t| format!("`{t}`"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                let help = format!("say which: {}", spelled(lhs, &types));
+                self.report(Diagnostic::error("E0457", message, lhs.span).with_help(help));
+                Some(Type::Error)
+            }
+        }
+    }
+
+    /// True if built-in `target` has a block of `name`'s interface for
+    /// `value`'s type: `k *= v` with `impl Mul<V> for f64`.
+    pub(super) fn number_block(&mut self, target: &Type, name: &str, value: &Expr) -> bool {
+        let Some(key) = interface_of(name) else {
+            return false;
+        };
+        if super::operators::overloaded(target) {
+            return false;
+        }
+        let rights = self.operator_rights(target, key);
+        if rights.is_empty() {
+            return false;
+        }
+        // A probe: the assignment checks the value again.
+        let reported = self.diagnostics.len();
+        let right = self.value(value, None);
+        self.diagnostics.truncate(reported);
+        rights.contains(&right)
+    }
+
+    /// `v.mul(x)` on a type with blocks of `mul`'s interface: the block `x`
+    /// fits, as for `v * x`. `None` when it has none.
+    pub(super) fn operator_method_call(
+        &mut self,
+        call: &Expr,
+        receiver: &Type,
+        name: &Ident,
+        args: &[Expr],
+    ) -> Option<Result<Method, ()>> {
+        if interface_of(&name.name).is_none() || !self.has_operator(receiver, &name.name) {
+            return None;
+        }
+        let right = match (name.name.as_str(), args) {
+            ("neg", []) => None,
+            (_, [arg]) => match self.chosen_right(receiver, &name.name, arg) {
+                Ok(right) => right,
+                Err(()) => return Some(Err(())),
+            },
+            _ => return None,
+        };
+        Some(Ok(self.operator_item(call, receiver, &name.name, right)))
+    }
+}
+
+/// True if a block's argument names a parameter, so it may take many types.
+fn has_params(ty: &Type) -> bool {
+    match ty {
+        Type::Param(_) => true,
+        Type::Array(t) | Type::Option(t) => has_params(t),
+        Type::Struct(_, args) | Type::Enum(_, args) => args.iter().any(has_params),
+        _ => false,
     }
 }
 
 /// Ways to write `arg` as each of `types`: `2.0`, `2 as u8`.
-fn spelled(arg: &Expr, types: &[&(String, Type)]) -> String {
+fn spelled(arg: &Expr, types: &[&Type]) -> String {
     let ways: Vec<String> = types
         .iter()
-        .map(|(_, t)| match &arg.kind {
+        .map(|t| match &arg.kind {
             ExprKind::Int(n) if t.is_float() => format!("`{n}.0`"),
             ExprKind::Int(n) => format!("`{n} as {t}`"),
             _ => format!("a `{t}`"),
@@ -154,67 +343,5 @@ fn literal_kind(e: &Expr) -> Option<Literal> {
 }
 
 #[cfg(test)]
-mod tests {
-    use crate::check::test_util::{errors, ok};
-
-    const V: &str = "struct V { x: f64 }\nimpl V {\n\
-        fun mul(self, w: V): V = V { x: self.x * w.x };\n\
-        fun mul(self, k: f64): V = V { x: self.x * k };\n\
-        fun mul(self, n: u8): V = V { x: self.x * (n as f64) };\n\
-        fun mul(self, n: i64): V = V { x: self.x * (n as f64) };\n}\n";
-
-    #[test]
-    fn the_right_operand_chooses() {
-        ok(&format!(
-            "{V}fun main() {{ let v = V {{ x: 1.0 }}; let b: u8 = 2;\n\
-             let a = v * v; let c = v * 2.0; let d = v * b; let e = v.mul(3.0);\n\
-             let mut f = v; f *= 2.0; f *= v; }}"
-        ));
-    }
-
-    #[test]
-    fn an_integer_literal_fitting_two_is_e0457() {
-        let src = format!("{V}fun main() {{ let v = V {{ x: 1.0 }}; let a = v * 2; }}");
-        assert_eq!(errors(&src), [("E0457", "2")]);
-    }
-
-    #[test]
-    fn no_fitting_overload_is_e0404() {
-        let src = format!("{V}fun main() {{ let v = V {{ x: 1.0 }}; let a = v * \"s\"; }}");
-        assert_eq!(errors(&src), [("E0404", "\"s\"")]);
-    }
-
-    #[test]
-    fn a_second_mul_beside_one_of_another_shape_is_a_duplicate() {
-        let src = "struct V { x: f64 }\nimpl V {\n\
-                   fun mul(mut self, k: f64) { self.x *= k; }\n\
-                   fun mul(self, n: u8): V = self;\n}\nfun main() {}";
-        assert_eq!(errors(src), [("E0310", "mul")]);
-    }
-
-    #[test]
-    fn types_that_collapse_are_e0457_where_used() {
-        let src = "struct P<A, B> { a: A, b: B }\nimpl P<A, B> {\n\
-                   fun mul(self, a: A): P<A, B> = self;\n\
-                   fun mul(self, b: B): P<A, B> = self;\n}\n\
-                   fun main() { let p = P { a: 1.0, b: 2.0 }; let x: f64 = 3.0; let q = p * x; }";
-        assert_eq!(errors(src), [("E0457", "x")]);
-    }
-
-    #[test]
-    fn an_interface_takes_the_fitting_one() {
-        ok(&format!(
-            "{V}interface Scales {{ fun mul(self, k: f64): Self; }}\n\
-             impl Scales for V {{ fun mul(self, k: f64): V = V {{ x: self.x * k }}; }}\n\
-             fun twice<T: Scales>(s: T): T = s * 2.0;\n\
-             fun main() {{ let v = twice(V {{ x: 1.0 }}); }}"
-        ));
-    }
-
-    #[test]
-    fn the_one_on_the_type_satisfies_its_bound() {
-        ok(&format!(
-            "{V}fun sq<T: Mul>(a: T): T = a * a;\nfun main() {{ let v = sq(V {{ x: 2.0 }}); }}"
-        ));
-    }
-}
+#[path = "overloads_tests.rs"]
+mod tests;

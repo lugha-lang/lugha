@@ -1,0 +1,22 @@
+// Default type arguments on a program's own interface: a trailing
+// argument left out takes its default, which may name `Self`.
+interface Convert<To = Self> {
+    fun convert(self): To;
+}
+
+struct Celsius { c: f64 }
+
+impl Convert for Celsius {
+    fun convert(self): Celsius = self;
+}
+
+impl Convert<f64> for i64 {
+    fun convert(self): f64 = self as f64;
+}
+
+fun same<T: Convert>(x: T): T = x.convert();
+
+fun main() {
+    println(same(Celsius { c: 21.5 }).c);
+    println(Convert.convert(4) / 8.0);
+}

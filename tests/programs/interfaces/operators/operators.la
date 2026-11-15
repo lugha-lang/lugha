@@ -2,8 +2,11 @@
 // generic code uses `+` through the prelude's `Add` and `Num` bounds.
 struct Vec2 { x: f64, y: f64 }
 
-impl Vec2 {
+impl Add for Vec2 {
     fun add(self, o: Vec2): Vec2 = Vec2 { x: self.x + o.x, y: self.y + o.y };
+}
+
+impl Mul for Vec2 {
     fun mul(self, o: Vec2): Vec2 = Vec2 { x: self.x * o.x, y: self.y * o.y };
 }
 

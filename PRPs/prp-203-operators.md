@@ -1,6 +1,6 @@
 ## FEATURE: Operators through generic interfaces: `impl Mul<f64> for Vec2`, `impl Mul<Vec2> for f64`, the result from the block; milestone 171, in v18's Phase 1.
 
-**Status:** proposed 2026-11-15.
+**Status:** proposed 2026-11-15. Approved 2026-11-15.
 
 ## OBJECTIVE
 ```lugha
@@ -85,7 +85,7 @@ fun main() {
 - **Security:** none: no external input, `unsafe`, dependency, `git` or process changes.
 
 ## TESTS
-- [ ] `tests/programs/interfaces/operators/`, rewritten:
+- [x] `tests/programs/interfaces/operators/`, rewritten:
   - the OBJECTIVE;
   - `Sub`, `Div`, `Rem` and `Neg` on an enum;
   - a generic struct's block with bounds;
@@ -94,7 +94,7 @@ fun main() {
   - compound assignment, `v.mul(x)` and `Mul.mul(v, x)`;
   - `T: Add` on numbers, strings, arrays and a struct;
   - default type arguments on a program's own interface.
-- [ ] Errors, one `.la` + `.stderr` each:
+- [x] Errors, one `.la` + `.stderr` each:
   - no block for the operand (E0404);
   - a literal fitting two (E0457);
   - a block returning another type used as `T: Mul<f64>` (E0422);
@@ -102,11 +102,21 @@ fun main() {
   - `impl f64 { … }` (E0466);
   - `s * 2.0` on an interface value (E0404);
   - a misplaced default (E0201).
-- [ ] Unit tests for the parser's defaults, the checker's choice and placement, and codegen's call.
-- [ ] `cargo test --lib`, `--test programs`, `--test spec`, `--test explain`, and the full suite, since this changes what type-checks.
+- [x] Unit tests for the parser's defaults, the checker's choice and placement, and codegen's call.
+- [x] `cargo test --lib`, `--test programs`, `--test spec`, `--test explain`, and the full suite, since this changes what type-checks.
 
 ## ACCEPTANCE
-- [ ] The OBJECTIVE prints the lines shown; each commented line gives its error.
-- [ ] Every migrated program and spec example passes with unchanged output.
-- [ ] The full `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
-- [ ] Every `pub` item documented; spec, CHANGELOG, TODO updated.
+- [x] The OBJECTIVE prints the lines shown; each commented line gives its error.
+- [x] Every migrated program and spec example passes with unchanged output.
+- [x] The full `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
+- [x] Every `pub` item documented; spec, CHANGELOG, TODO updated.
+
+## CHANGES DURING THE BUILD
+- **A bound gives an operator only when it is an operator interface** (or `Num`/`Float`): `fun thrice<T: Scales>(s: T): T = s * 3.0`, where `Scales` has its own `mul`, is E0404; it was name-based. `T: Scales + Mul<f64>` gives it. The operator calls through that bound, never another bound's item of the same name.
+- **`Mul.mul(v, x)`** chooses its block by `x` too, like `v * x` and `v.mul(x)`.
+- **Codegen picks a built-in type's block by its arguments** (`Derives::find_at`, `target_at`), and a built-in type uses a block only where the checker chose one: a `T: Add` instance at `string` keeps the built-in `+`.
+- **Checking a long chain** `a + b + c + …` stays linear: a number-on-the-left check probes the right operand first and the left one only when some block takes that right-hand type (the first version probed every prefix, exponentially, and hung `runtime/small_frames`).
+- **E0422 for a block giving another type** says so ("its `impl Mul<Meters>` gives Area, not Meters"), instead of asking for a block that exists.
+- **`check/derive.rs`** passed 500 lines; its pattern matching moved to `check/derive_match.rs`.
+- **The migration** was mechanical: each inherent operator method became its own block (10 test programs, 2 spec examples, 2 error pages); two programs changed by hand (an interface value's `s * 2.0` became `s.mul(2.0)`; a bound became `T: Scales + Mul<f64>`). Outputs unchanged.
+

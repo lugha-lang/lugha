@@ -24,19 +24,13 @@ impl Checker {
             self.expr(value, None);
             return;
         }
-        // `a += b` on a struct, enum or `T` is `a = a.add(b)`.
+        // `a += b` on a struct, enum or `T` is `a = a.add(b)`, and on a
+        // number with a block for `b` too (whose result must fit `a`).
         if let Some(name) = super::operators::method_of_assign(op)
-            && super::operators::overloaded(&target)
+            && (super::operators::overloaded(&target) || self.number_block(&target, name, value))
         {
             let key = self.update_key(place);
-            self.operator_assign((op.symbol(), name), (&key, place, &target), value, mark);
-            self.no_change_inside(&[place], PlaceUse::Assign, mark);
-            return;
-        }
-        // `k *= v` where `impl f64` has `mul` for `v`: the result isn't a number.
-        if let Some(name) = super::operators::method_of_assign(op)
-            && self.number_result_elsewhere(place, (&target, name), value)
-        {
+            self.operator_assign((op.symbol(), name), (&key, place, &target), value);
             self.no_change_inside(&[place], PlaceUse::Assign, mark);
             return;
         }

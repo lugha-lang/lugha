@@ -1,0 +1,9 @@
+error[E0422]: `Meters` doesn't satisfy `Mul<Meters>`
+   --> tests/programs/interfaces/operators/result_type.la:16:13
+   |
+16 |     let b = square(Meters { m: 1.0 });
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: its `impl Mul<Meters>` gives Area, not Meters
+
+For more about E0422, run `lughac explain E0422`.

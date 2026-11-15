@@ -1,17 +1,23 @@
-// An `impl` of a number holds only arithmetic for this module's types.
+// A number has no methods of a program's (E0466); its operator blocks live with the right-hand type.
 struct V { x: f64 }
 
 impl f64 {
-    fun mul(self, v: V): V = V { x: self * v.x };
     fun scale(self, v: V): V = V { x: self * v.x };
+}
+
+impl Mul<V> for f64 {
+    fun mul(self, v: V): V = V { x: self * v.x };
+}
+
+impl Add<i64> for f64 {
     fun add(self, k: i64): f64 = self + (k as f64);
 }
 
-impl u8 {
+impl Mul<V> for u8 {
     fun mul(self, v: V): V = V { x: (self as f64) * v.x };
 }
 
-impl i64 {
+impl Mul<V> for i64 {
     fun mul(self, v: V): V = V { x: (self as f64) * v.x };
 }
 

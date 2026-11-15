@@ -59,18 +59,6 @@ impl Checker {
                 self.used(expr, &target.key, &target.args);
                 continue;
             }
-            // A type with several `mul`s: the table takes the fitting one, so
-            // each is listed.
-            if let Type::Struct(owner, args) | Type::Enum(owner, args) = ty {
-                let family = self.overloads_of(owner, name);
-                if family.len() > 1 {
-                    for n in family {
-                        let key = self.methods[owner][&n].key.clone();
-                        self.used(expr, &key, args);
-                    }
-                    continue;
-                }
-            }
             // A nominal interface's item is the method of the type's block.
             let found = self.impl_item(ty, interface, name);
             let name = match &found {

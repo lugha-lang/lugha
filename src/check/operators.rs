@@ -1,15 +1,14 @@
-//! Operator overloading: `a + b`
-//! on a struct, enum, interface value or bounded type parameter calls
-//! `a.add(b)`, and likewise `sub`, `mul`, `div`, `rem` and unary `neg`. A
-//! method qualifies by its shape: a plain `self`, one parameter (none for
-//! `neg`) and a result. The call is checked as a method call whose id is
-//! the operator expression's, so instances and bound uses work unchanged.
-//! The numbers (and `string` and arrays, for `Add`) satisfy the prelude's operator
-//! bounds as built-ins.
+//! Operators on user types: `a * b` calls the `mul` of `a`'s type's block
+//! `impl Mul<B> for A` (`check::overloads` chooses it by `b`'s type), a
+//! bounded type parameter's through its bounds, and likewise `+`, `-`,
+//! `/`, `%` and unary `-`. The call is recorded under the operator
+//! expression's id, so instances and codegen treat it as a qualified call.
+//! The numbers (and `string` and arrays, for `Add`) satisfy the prelude's
+//! operator bounds as built-ins.
 
 use super::iterators::is_operator_bound;
 use super::{Checker, Type, errors};
-use crate::ast::{AssignOp, BinOp, Expr, Ident};
+use crate::ast::{AssignOp, BinOp, Expr};
 use crate::diagnostic::Diagnostic;
 use crate::span::Span;
 
@@ -99,24 +98,62 @@ impl Checker {
         &mut self,
         expr: &Expr,
         (symbol, name, at): (&str, &str, Span),
-        (lhs, l): (&Expr, &Type),
+        l: &Type,
         rhs: Option<&Expr>,
-        mark: usize,
     ) -> Type {
         let args: &[Expr] = rhs.map_or(&[], std::slice::from_ref);
-        if let Err(help) = self.operator_method(l, name, args.len()) {
-            let mut d = errors::bad_operands(symbol, std::slice::from_ref(l), expr.span);
-            if let Some(help) = help {
-                d = d.with_help(help);
+        match l {
+            // Through `T`'s operator bound: `T: Mul<f64>` gives `x * 2.0`.
+            Type::Param(p) => {
+                let Some(applied) = self.operator_bound(p, name, args.len()) else {
+                    let help = format!(
+                        "add a bound that allows it, such as `{p}: Num` or `{p}: {}`",
+                        bound_name(name)
+                    );
+                    let d = errors::bad_operands(symbol, std::slice::from_ref(l), expr.span);
+                    self.report(d.with_help(help));
+                    return self.unchecked(args);
+                };
+                let p = p.clone();
+                let m = self.bound_item_call(expr, &p, &applied, name);
+                return self.arguments(expr, name, &m, args, (&[], None));
             }
-            self.report(d);
+            // An interface value has no operator blocks.
+            Type::Interface(..) => {
+                let help = format!("call its method instead: `x.{name}(…)`");
+                let d = errors::bad_operands(symbol, std::slice::from_ref(l), expr.span);
+                self.report(d.with_help(help));
+                return self.unchecked(args);
+            }
+            _ => {}
+        }
+        if !self.has_operator(l, name) {
+            let interface = super::overloads::interface_of(name)
+                .unwrap_or_default()
+                .trim_start_matches("$prelude.");
+            let help = format!("write `impl {interface}<…> for {l} {{ fun {name}(…) }}`");
+            let d = errors::bad_operands(symbol, std::slice::from_ref(l), expr.span);
+            self.report(d.with_help(help));
             return self.unchecked(args);
         }
-        let method = Ident {
-            name: name.to_string(),
-            span: at,
+        let right = match rhs {
+            Some(arg) => match self.chosen_right(l, name, arg) {
+                Ok(right) => right,
+                Err(()) => return self.unchecked(args),
+            },
+            None => None,
         };
-        self.on_value(expr, (lhs, l), &method, args, (mark, None))
+        let m = self.operator_item(expr, l, name, right);
+        self.hover.function(at, m.span, Some(expr));
+        if m.generics.is_empty() && !m.key.is_empty() {
+            self.used(expr, &m.key, &[]);
+        }
+        // A generic type's block takes its parameters from `l`.
+        let bound = match l {
+            Type::Struct(_, targs) | Type::Enum(_, targs) => targs.clone(),
+            _ => Vec::new(),
+        };
+        self.arguments(expr, name, &m, args, (&bound, None))
     }
 
     /// `place op= value` on an overloaded `target`: `place = place.op(value)`,
@@ -126,67 +163,30 @@ impl Checker {
         (symbol, name): (&str, &str),
         (call, place, target): (&Expr, &Expr, &Type),
         value: &Expr,
-        mark: usize,
     ) {
         let span = Span::new(place.span.start, value.span.end);
-        let ty = self.operator_call(
-            call,
-            (symbol, name, span),
-            (place, target),
-            Some(value),
-            mark,
-        );
+        let ty = self.operator_call(call, (symbol, name, span), target, Some(value));
         if ty != *target && !matches!(ty, Type::Error | Type::Never) {
             let message = format!("`{symbol}` gives {ty} here, but the place is {target}");
             self.report(Diagnostic::error("E0403", message, span));
         }
     }
 
-    /// Whether `l` has an operator method `name` taking `arity` operands:
-    /// `Err` with help when a method of that name has the wrong shape, or
-    /// a type parameter lacks the bound.
-    fn operator_method(&self, l: &Type, name: &str, arity: usize) -> Result<(), Option<String>> {
-        let shape = || {
-            let params = if arity == 0 { "" } else { ", other: …" };
-            format!(
-                "for an operator, `{name}` must be `fun {name}(self{params}): …`: a plain `self` and a result"
-            )
+    /// The bound of type parameter `p` that gives operator item `name`
+    /// taking `arity` operands: an operator interface, `Num` or `Float`
+    /// (an interface's own `mul` is a method, called by name).
+    fn operator_bound(&self, p: &str, name: &str, arity: usize) -> Option<super::applied::Applied> {
+        let me = Type::Param(p.to_string());
+        let operator = |key: &str| {
+            super::impls::is_operator(key) || key == "$prelude.Num" || key == "$prelude.Float"
         };
-        match l {
-            Type::Param(p) => match self.bound_entry(p, name) {
-                Some((req, _)) if req.receiver == Some(false) && req.params.len() == arity => {
-                    Ok(())
-                }
-                Some(_) => Err(Some(shape())),
-                None => Err(Some(format!(
-                    "add a bound that allows it, such as `{p}: Num` or `{p}: {}`",
-                    bound_name(name)
-                ))),
-            },
-            Type::Interface(..) => {
-                let applied = super::applied::Applied::of(l).expect("an interface type");
-                match self
-                    .items_for(&applied, l)
-                    .into_iter()
-                    .find(|r| r.name == name)
-                {
-                    Some(r) if r.receiver == Some(false) && r.params.len() == arity => Ok(()),
-                    Some(_) => Err(Some(shape())),
-                    None => Err(None),
-                }
-            }
-            _ => match self.method(l, name) {
-                Some(m)
-                    if m.receiver == Some(false)
-                        && m.params.len() == arity
-                        && m.ret != Type::Unit =>
-                {
-                    Ok(())
-                }
-                Some(_) => Err(Some(shape())),
-                None => Err(None),
-            },
-        }
+        self.bounds(p).interfaces.into_iter().find(|a| {
+            operator(&a.key)
+                && self
+                    .items_for(a, &me)
+                    .iter()
+                    .any(|r| r.name == name && r.receiver == Some(false) && r.params.len() == arity)
+        })
     }
 }
 

@@ -3,7 +3,7 @@
 // strings and numbers through generic bounds.
 enum Money { Cents(i64), Free }
 
-impl Money {
+impl Add for Money {
     fun add(self, o: Money): Money = match (self, o) {
         (Cents(a), Cents(b)) => Money.Cents(a + b),
         (Cents(a), Free) => Money.Cents(a),
@@ -15,6 +15,16 @@ impl Money {
 struct Grid<T> { data: T[] }
 
 impl Grid<T: Num> {
+    fun total(self): T {
+        let mut s: T = 0;
+        for x of self.data {
+            s += x;
+        }
+        s
+    }
+}
+
+impl Add for Grid<T: Num> {
     fun add(self, o: Grid<T>): Grid<T> {
         let mut out = self;
         for i in 0..self.data.len {
@@ -22,6 +32,9 @@ impl Grid<T: Num> {
         }
         out
     }
+}
+
+impl Mul<T> for Grid<T: Num> {
     fun mul(self, k: T): Grid<T> {
         let mut out = self;
         for i in 0..self.data.len {
@@ -29,19 +42,15 @@ impl Grid<T: Num> {
         }
         out
     }
+}
+
+impl Neg for Grid<T: Num> {
     fun neg(self): Grid<T> {
         let mut out = self;
         for i in 0..self.data.len {
             out.data[i] = -self.data[i];
         }
         out
-    }
-    fun total(self): T {
-        let mut s: T = 0;
-        for x of self.data {
-            s += x;
-        }
-        s
     }
 }
 
@@ -72,7 +81,7 @@ fun main() {
     println(f.data.debug());
     println(Grid { data: ["a", "b"] }.size());
     let s: Scaled = Len { m: 1.5 };
-    println((s * 2.0).show());
+    println(s.mul(2.0).show());
     println(twice("ab"));
     println(twice(21));
     println((twice(Money.Cents(7))).debug());

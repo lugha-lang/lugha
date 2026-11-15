@@ -161,6 +161,25 @@ impl Type {
         }
     }
 
+    /// True if type parameter `name` appears anywhere in `self`.
+    pub fn mentions_param(&self, name: &str) -> bool {
+        match self {
+            Type::Param(n) => n == name,
+            Type::Array(inner)
+            | Type::Option(inner)
+            | Type::Ref(inner)
+            | Type::Task(inner)
+            | Type::Chan(inner) => inner.mentions_param(name),
+            Type::Struct(_, args) | Type::Enum(_, args) | Type::Interface(_, args) => {
+                args.iter().any(|a| a.mentions_param(name))
+            }
+            Type::Fun(params, ret) => {
+                params.iter().any(|p| p.mentions_param(name)) || ret.mentions_param(name)
+            }
+            _ => false,
+        }
+    }
+
     /// True for arrays, interface values and anything holding one inline:
     /// values that are deep-copied.
     /// Terminates for valid programs: only an array can close a struct cycle (E0307).

@@ -3,11 +3,9 @@
 use crate::check::test_util::{errors, let_type, ok};
 
 const VEC2: &str = "struct Vec2 { x: f64, y: f64 }\n\
-    impl Vec2 {\n\
-        fun add(self, o: Vec2): Vec2 = Vec2 { x: self.x + o.x, y: self.y + o.y };\n\
-        fun mul(self, k: f64): Vec2 = Vec2 { x: self.x * k, y: self.y * k };\n\
-        fun neg(self): Vec2 = Vec2 { x: -self.x, y: -self.y };\n\
-    }\n";
+    impl Add for Vec2 { fun add(self, o: Vec2): Vec2 = Vec2 { x: self.x + o.x, y: self.y + o.y }; }\n\
+    impl Mul<f64> for Vec2 { fun mul(self, k: f64): Vec2 = Vec2 { x: self.x * k, y: self.y * k }; }\n\
+    impl Neg for Vec2 { fun neg(self): Vec2 = Vec2 { x: -self.x, y: -self.y }; }\n";
 
 fn ty(body: &str) -> String {
     let_type(
@@ -22,7 +20,7 @@ fn codes(src: &str) -> Vec<&'static str> {
 }
 
 #[test]
-fn operators_call_methods_of_the_operator_shape() {
+fn operators_call_their_blocks_methods() {
     assert_eq!(ty("let r = a + a;"), "Vec2");
     assert_eq!(ty("let r = a * 2.5;"), "Vec2");
     assert_eq!(ty("let r = -a;"), "Vec2");
@@ -75,12 +73,12 @@ fn misuse_is_reported() {
         codes("fun f<T: Num>(a: T): T = a;\nfun main() { let s = f(\"x\"); }"),
         ["E0419"]
     );
-    // The right operand must be the method's parameter type.
+    // The right operand must be a block's argument.
     assert_eq!(
         codes(&format!(
             "{VEC2}fun main() {{ let a = Vec2 {{ x: 1.0, y: 2.0 }}; let k = 1.0; let b = a + k; }}"
         )),
-        ["E0403"]
+        ["E0404"]
     );
     // Numbers have no methods to call directly.
     assert_eq!(codes("fun main() { let n = 5.add(3); }"), ["E0415"]);

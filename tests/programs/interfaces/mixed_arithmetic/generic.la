@@ -1,6 +1,6 @@
 struct Arr<T> { xs: T[] }
 
-impl Arr<T: Num> {
+impl Mul for Arr<T: Num> {
     fun mul(self, o: Arr<T>): Arr<T> {
         let mut out: T[] = [];
         for i in 0..self.xs.len {
@@ -8,6 +8,9 @@ impl Arr<T: Num> {
         }
         Arr { xs: out }
     }
+}
+
+impl Mul<T> for Arr<T: Num> {
     fun mul(self, k: T): Arr<T> {
         let mut out: T[] = [];
         for x of self.xs {
@@ -24,8 +27,11 @@ interface Scales {
 
 struct V { x: f64 }
 
-impl V {
+impl Mul for V {
     fun mul(self, w: V): V = V { x: self.x * w.x };
+}
+
+impl Mul<f64> for V {
     fun mul(self, k: f64): V = V { x: self.x * k };
 }
 
@@ -35,7 +41,7 @@ impl Scales for V {
 }
 
 fun twice<T: Scales>(s: T): T = s.mul(2.0);
-fun thrice<T: Scales>(s: T): T = s * 3.0;
+fun thrice<T: Scales + Mul<f64>>(s: T): T = s * 3.0;
 
 fun main() {
     let a = Arr { xs: [1.0, 2.0] };

@@ -1,0 +1,31 @@
+error[E0466]: methods for `f64`, which this module doesn't declare
+  --> tests/programs/interfaces/mixed_arithmetic/e0466.la:4:6
+  |
+4 | impl f64 {
+  |      ^^^
+  |
+  = help: a number has no methods of a program's; for `f64 * v`, write `impl Mul<V> for f64 { fun mul(self, v: V): … }` in `V`'s module
+
+error[E0459]: this `impl Add for …` must be written in the module that declares `Add`
+   --> tests/programs/interfaces/mixed_arithmetic/e0466.la:12:1
+   |
+12 | / impl Add<i64> for f64 {
+13 | |     fun add(self, k: i64): f64 = self + (k as f64);
+14 | | }
+   | \-^
+
+error[E0457]: this operand fits more than one `mul` with `V`: `i64`, `u8`
+   --> tests/programs/interfaces/mixed_arithmetic/e0466.la:26:13
+   |
+26 |     let a = 2 * v;
+   |             ^
+   |
+   = help: say which: `2 as i64` or `2 as u8`
+
+error[E0403]: `*=` gives V here, but the place is f64
+   --> tests/programs/interfaces/mixed_arithmetic/e0466.la:28:5
+   |
+28 |     k *= v;
+   |     ^^^^^^
+
+For more about E0466, E0459, E0457 and E0403, run `lughac explain <code>`.

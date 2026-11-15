@@ -63,6 +63,8 @@ pub(super) struct InterfaceInfo {
     /// The interfaces it extends, in its own parameters (`Key: Eq`); set
     /// with its parameters' bounds.
     pub extends: Vec<Applied>,
+    /// Each parameter's default, in its parameters and `Self`: `R = Self`.
+    pub defaults: Vec<Option<Type>>,
 }
 
 impl Checker {
@@ -95,6 +97,7 @@ impl Checker {
                     not_value: not_value.map(|it| it.name.name.clone()),
                     uses_self: super::self_type::written_self_use(i),
                     extends: Vec::new(),
+                    defaults: Vec::new(),
                 };
                 self.interfaces.insert(key, info);
             }
@@ -114,6 +117,16 @@ impl Checker {
             {
                 let generics = self.generics(&i.type_params);
                 self.interfaces.get_mut(&key).expect("just found").generics = generics.clone();
+                // Defaults may name `Self` and the parameters.
+                let saved = std::mem::replace(&mut self.type_params, generics.clone());
+                self.type_params.push(super::self_type::self_param());
+                let defaults = i
+                    .defaults
+                    .iter()
+                    .map(|d| d.as_ref().map(|t| self.resolve(t)))
+                    .collect();
+                self.type_params = saved;
+                self.interfaces.get_mut(&key).expect("just found").defaults = defaults;
                 let extends = self.extended(&i.extends, generics);
                 self.interfaces.get_mut(&key).expect("just found").extends = extends;
             }
@@ -234,8 +247,9 @@ impl Checker {
                     }
                 }
                 _ => {
+                    let me = Type::Param(p.name.name.clone());
                     if let Some(key) = self.interface_key(b)
-                        && let Some(applied) = self.applied_bound(key, b)
+                        && let Some(applied) = self.applied_bound(key, b).map(|a| a.with_self(&me))
                         && !bounds.interfaces.contains(&applied)
                     {
                         bounds.interfaces.push(applied);

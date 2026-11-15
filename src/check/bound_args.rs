@@ -11,12 +11,34 @@ impl Checker {
     /// declaration's checks report (`bound_args`). `None` for the wrong
     /// number of arguments.
     pub(super) fn applied_bound(&mut self, key: String, b: &Bound) -> Option<Applied> {
-        let arity = self.interface_generics(&key).len();
-        if b.args.len() != arity {
+        let mut args = self.quietly(|c| b.args.iter().map(|a| c.resolve(a)).collect());
+        if !self.with_defaults(&key, &mut args) {
             return None;
         }
-        let args = self.quietly(|c| b.args.iter().map(|a| c.resolve(a)).collect());
         Some(Applied { key, args })
+    }
+
+    /// `args` with the defaults of interface `key`'s parameters they leave
+    /// out, in its parameters and `Self`: false when too few or too many.
+    pub(super) fn with_defaults(&self, key: &str, args: &mut Vec<Type>) -> bool {
+        let generics = self.interface_generics(key);
+        let defaults = self
+            .interfaces
+            .get(key)
+            .map(|i| i.defaults.clone())
+            .unwrap_or_default();
+        if args.len() > generics.len() {
+            return false;
+        }
+        for at in args.len()..generics.len() {
+            let Some(Some(default)) = defaults.get(at) else {
+                return false;
+            };
+            // Earlier parameters stand for what their arguments are.
+            let ty = super::generics::subst(default, &generics[..at], &args[..at]);
+            args.push(ty);
+        }
+        true
     }
 
     /// E0418 for a bound with the wrong number of arguments and E0419 for
@@ -24,13 +46,16 @@ impl Checker {
     /// what resolving the arguments finds (E0305, E0313).
     pub(super) fn bound_args(&mut self, key: &str, b: &Bound) {
         let generics = self.interface_generics(key);
-        let args: Vec<Type> = b.args.iter().map(|a| self.resolve(a)).collect();
-        if args.len() != generics.len() {
-            let d = errors::type_args(&b.name.name, generics.len(), args.len(), b.span);
+        let mut args: Vec<Type> = b.args.iter().map(|a| self.resolve(a)).collect();
+        let written = args.len();
+        if !self.with_defaults(key, &mut args) {
+            let d = errors::type_args(&b.name.name, generics.len(), written, b.span);
             self.report(d);
             return;
         }
-        if !args.contains(&Type::Error) {
+        // A default naming `Self` is checked where `Self` is known.
+        let known = |t: &Type| !t.mentions_param(super::SELF);
+        if !args.contains(&Type::Error) && args.iter().all(known) {
             self.meets_bounds(&generics, &args, b.span);
         }
     }

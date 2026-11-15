@@ -154,16 +154,21 @@ impl Checker {
         if matches!(receiver, Type::Error | Type::Never) {
             return self.unchecked(args);
         }
-        // `v * 2.0` on a type with several `mul`s: the one the operand fits.
-        let chosen;
-        let name = match self.chosen_overload(call, receiver, name, args) {
-            Some(Ok(ident)) => {
-                chosen = ident;
-                &chosen
+        // `v.mul(2.0)` on a type with operator blocks: the one the operand fits.
+        if let Some(found) = self.operator_method_call(call, receiver, name, args) {
+            let Ok(m) = found else {
+                return self.unchecked(args);
+            };
+            self.hover.function(name.span, m.span, Some(call));
+            if m.generics.is_empty() && !m.key.is_empty() {
+                self.used(call, &m.key, &[]);
             }
-            Some(Err(())) => return self.unchecked(args),
-            None => name,
-        };
+            let bound = match receiver {
+                Type::Struct(_, targs) | Type::Enum(_, targs) => targs.clone(),
+                _ => Vec::new(),
+            };
+            return self.arguments(call, &name.name, &m, args, (&bound, expect));
+        }
         if let Some(ty) = self.helper_call(call, (receiver, name), args, expect) {
             return ty;
         }

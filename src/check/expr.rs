@@ -207,12 +207,11 @@ impl Checker {
     fn unary(&mut self, op: UnOp, operand: &Expr, expr: &Expr, expect: Option<&Expect>) -> Type {
         let (ty, ok, symbol) = match op {
             UnOp::Neg => {
-                let mark = self.changes_mark();
                 let ty = self.value(operand, expect);
                 // `-v` on a struct, enum or `T` calls `v.neg()`.
                 if super::operators::overloaded(&ty) {
                     let at = crate::span::Span::new(expr.span.start, operand.span.start);
-                    return self.operator_call(expr, ("-", "neg", at), (operand, &ty), None, mark);
+                    return self.operator_call(expr, ("-", "neg", at), &ty, None);
                 }
                 let ok = matches!(ty, Type::I32 | Type::I64) || ty.is_float();
                 (ty, ok, "-")

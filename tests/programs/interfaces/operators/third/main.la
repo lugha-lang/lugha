@@ -1,0 +1,8 @@
+// A number-on-the-left block lives with its right-hand type, not here.
+import geo;
+
+impl Mul<geo.V> for f64 {
+    fun mul(self, v: geo.V): geo.V = geo.V { x: self * v.x };
+}
+
+fun main() {}
