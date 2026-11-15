@@ -20,6 +20,7 @@
 #include <openssl/err.h>
 #include <openssl/core_names.h>
 #include <openssl/evp.h>
+#include <openssl/hpke.h>
 #include <openssl/kdf.h>
 #include <openssl/rand.h>
 

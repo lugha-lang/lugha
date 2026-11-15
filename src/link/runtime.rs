@@ -36,11 +36,15 @@ pub const TLS_SYMBOLS: [&str; 13] = [
     "lugha_rt_tls_peer_key",
 ];
 
-/// `runtime/crypto.c`: `std.crypto` over OpenSSL, only for programs that use it.
-pub const CRYPTO_SOURCE: &str = include_str!("../../runtime/crypto.c");
+/// `runtime/crypto.c` and `runtime/crypto_hpke.c` (HPKE): `std.crypto`
+/// over OpenSSL, only for programs that use it.
+pub const CRYPTO_SOURCE: &str = concat!(
+    include_str!("../../runtime/crypto.c"),
+    include_str!("../../runtime/crypto_hpke.c")
+);
 
 /// Every function codegen calls in [`CRYPTO_SOURCE`].
-pub const CRYPTO_SYMBOLS: [&str; 15] = [
+pub const CRYPTO_SYMBOLS: [&str; 17] = [
     "lugha_rt_crypto_sha256",
     "lugha_rt_crypto_sha256_new",
     "lugha_rt_crypto_sha256_update",
@@ -56,6 +60,8 @@ pub const CRYPTO_SYMBOLS: [&str; 15] = [
     "lugha_rt_crypto_open",
     "lugha_rt_crypto_x25519_public",
     "lugha_rt_crypto_x25519_shared",
+    "lugha_rt_crypto_hpke_seal",
+    "lugha_rt_crypto_hpke_open",
 ];
 
 /// True if `cc`'s complaint is OpenSSL's absence (its headers or

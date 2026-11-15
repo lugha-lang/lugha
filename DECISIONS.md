@@ -2261,6 +2261,17 @@ Printing sites and `==` reach a type's own plain `show`/`eq` too (`show_instance
 
 **Why:** rapidkoi's devices sync over the local network and trust each other by the keys on a signed device list, with no CA and no host names. OpenSSL 3.2 brings raw public keys and HPKE; Ubuntu 24.04 (OpenSSL 3.0) can no longer build those programs, which the user accepted. TLS 1.3 encrypts the client's key, so a device's identity isn't visible to the network.
 
+### 221. HPKE in `std.crypto` — milestone 162 (PRP-194)
+
+**Decision:** approved by the user (2026-11-15). `hpke_seal(public, info, plaintext, aad)` and `hpke_open(secret, info, sealed, aad)` over OpenSSL 3.2's `OSSL_HPKE_*`:
+- One suite: DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, ChaCha20-Poly1305, the algorithms `std.crypto` already has, on `x25519_keypair`'s keys. Base mode only; single-shot; the result is one blob, the 32-byte encapsulated key then ciphertext and tag.
+- A low-order recipient or encapsulated key is `BadKey`, found by a fixed-scalar X25519 derivation coming out zero (independent of the scalar for such points); a mismatch is `NotAuthentic`; `info` at most 1024 bytes (OpenSSL's limit).
+- An empty plaintext is `BadLength`: OpenSSL's `OSSL_HPKE_seal` refuses one (found while building), and working round it would mean HPKE outside OpenSSL.
+- The C side is its own fragment, `runtime/crypto_hpke.c`, appended after `crypto.c`.
+- Not: other suites, PSK and auth modes, multi-message contexts, `export`, a way to fix the ephemeral key from Lugha (so sealing is tested by round trips; opening against RFC 9180's A.2.1 vector).
+
+**Why:** rapidkoi's old device seals the master secret to a new device's key when pairing; HPKE in `std` means apps don't compose X25519, HKDF and AEAD by hand.
+
 ## OPEN — Requires human input before implementation
 
 None.

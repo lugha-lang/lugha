@@ -343,6 +343,8 @@ After discovery (PRP-172): Lugha meets metaprogramming needs with targeted featu
 
 **TLS by key** (milestone 161, PRP-193, from rapidkoi's sync request): `listen_keys`/`connect_keys` with `Keys { secret, accept }`, mutual TLS 1.3 with raw Ed25519 public keys checked in the handshake (OpenSSL's DANE match), `Conn.peer_key()`, `Listener.set_accept`; no host name; the user raised the OpenSSL floor to 3.2 for `std.tls`, `std.http` and `std.crypto` (E0332 covers an older one); tag `m161` after the user's review.
 
+**HPKE** (milestone 162, PRP-194, from rapidkoi's sync request): `hpke_seal`/`hpke_open` in `std.crypto` over OpenSSL 3.2's `OSSL_HPKE_*`: one suite (DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, ChaCha20-Poly1305), base mode, single-shot, one blob `enc ‖ ct`; low-order keys `BadKey`, mismatches `NotAuthentic`; no empty plaintext (OpenSSL refuses it); tag `m162` after the user's review.
+
 ## Changes by section
 
 - **§2:** keywords `spawn`, `select`; `after` and `default` contextual at the start of a `select` arm.

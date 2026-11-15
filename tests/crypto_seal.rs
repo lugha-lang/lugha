@@ -1,7 +1,7 @@
 //! `std.crypto`'s sealing and key exchange end to end: RFC 8439's
 //! ChaCha20-Poly1305 vector and RFC 7748's X25519 vectors, bit for bit,
 //! through Lugha programs; every tampering refused, low-order keys refused,
-//! and every length checked.
+//! and every length checked; HPKE (RFC 9180) opening its published vector.
 
 use std::path::PathBuf;
 use std::process::{Command, Output};
@@ -234,4 +234,88 @@ fn a_match_must_name_the_new_variants() {
     assert_eq!(out.status.code(), Some(1));
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(stderr.contains("NotAuthentic"), "stderr: {stderr}");
+}
+
+/// RFC 9180's test vector for DHKEM(X25519, HKDF-SHA256), HKDF-SHA256,
+/// ChaCha20-Poly1305 in base mode: the recipient's secret, `info`, and the
+/// first message's `enc ‖ ct`, `aad` and plaintext.
+const RFC_9180: &str = "
+fun sk_r(): u8[] = unhex(\"8057991eef8f1f1af18f4a9491d16a1ce333f695d4db8e38da75975c4478e0fb\");
+fun info(): u8[] = unhex(\"4f6465206f6e2061204772656369616e2055726e\");
+fun aad(): u8[] = unhex(\"436f756e742d30\");
+fun plain(): u8[] = unhex(\"4265617574792069732074727574682c20747275746820626561757479\");
+fun sealed(): u8[] = unhex(\"1afa08d3dec047a643885163f1180476fa7ddb54c6a8029ea33f95796bf2ac4a1c5250d8034ec2b784ba2cfd69dbdb8af406cfe3ff938e131f0def8c8b60b4db21993c62ce81883d2dd1b51a28\");
+
+fun flipped(bytes: u8[], at: i64): u8[] {
+    let mut out = bytes;
+    out[at] = out[at] ^ 1;
+    out
+}
+";
+
+#[test]
+fn hpke_opens_rfc_9180_and_round_trips() {
+    let out = run(&format!(
+        "{RFC_9180}
+fun main() {{
+    println(crypto.hpke_open(sk_r(), info(), sealed(), aad()).unwrap() == plain());
+    let (secret, key) = crypto.x25519_keypair().unwrap();
+    let once = crypto.hpke_seal(key, info(), plain(), aad()).unwrap();
+    let twice = crypto.hpke_seal(key, info(), plain(), aad()).unwrap();
+    println(once.len);
+    println(once != twice);
+    println(crypto.hpke_open(secret, info(), once, aad()).unwrap() == plain());
+    let bare = crypto.hpke_seal(key, [], [7 as u8], []).unwrap();
+    println(bare.len);
+    println(crypto.hpke_open(secret, [], bare, []).unwrap() == [7 as u8]);
+    println(show(crypto.hpke_seal(key, [], [], [])));
+}}"
+    ));
+    assert_eq!(
+        out,
+        "true\n77\ntrue\ntrue\n49\ntrue\nplaintext (at least): wanted 1 bytes, got 0\n"
+    );
+}
+
+#[test]
+fn hpke_refuses_tampering_bad_keys_and_bad_lengths() {
+    let out = run(&format!(
+        "{RFC_9180}
+fun main() {{
+    let n = sealed().len;
+    // The encapsulated key, the ciphertext, the tag, info, aad, another secret.
+    println(show(crypto.hpke_open(sk_r(), info(), flipped(sealed(), 0), aad())));
+    println(show(crypto.hpke_open(sk_r(), info(), flipped(sealed(), 40), aad())));
+    println(show(crypto.hpke_open(sk_r(), info(), flipped(sealed(), n - 1), aad())));
+    println(show(crypto.hpke_open(sk_r(), flipped(info(), 0), sealed(), aad())));
+    println(show(crypto.hpke_open(sk_r(), info(), sealed(), flipped(aad(), 0))));
+    let (other, _) = crypto.x25519_keypair().unwrap();
+    println(show(crypto.hpke_open(other, info(), sealed(), aad())));
+    // Low-order keys.
+    println(show(crypto.hpke_seal([0 as u8; 32], info(), plain(), aad())));
+    let mut zero_enc = sealed();
+    for i in 0..32 {{
+        zero_enc[i] = 0;
+    }}
+    println(show(crypto.hpke_open(sk_r(), info(), zero_enc, aad())));
+    // Lengths.
+    println(show(crypto.hpke_seal([1 as u8; 31], info(), plain(), aad())));
+    println(show(crypto.hpke_open([1 as u8; 33], info(), sealed(), aad())));
+    println(show(crypto.hpke_open(sk_r(), info(), first(sealed(), 47), aad())));
+    println(show(crypto.hpke_seal(crypto.x25519_public(sk_r()).unwrap(), [0 as u8; 1025], plain(), aad())));
+}}"
+    ));
+    let refused = "the sealed bytes don't match their key, nonce and associated data\n";
+    let low = "bad key: the peer's public key has low order\n";
+    assert_eq!(
+        out,
+        format!(
+            "{}{low}{low}\
+             public key: wanted 32 bytes, got 31\n\
+             secret key: wanted 32 bytes, got 33\n\
+             sealed bytes (at least): wanted 49 bytes, got 47\n\
+             info (at most): wanted 1024 bytes, got 1025\n",
+            refused.repeat(6)
+        )
+    );
 }

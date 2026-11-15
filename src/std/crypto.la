@@ -1,7 +1,8 @@
 /**
  * std.crypto: SHA-256, Ed25519 signatures (RFC 8032), random bytes,
  * constant-time comparison, HKDF-SHA256 (RFC 5869), ChaCha20-Poly1305
- * sealing (RFC 8439) and X25519 key exchange (RFC 7748), through the
+ * sealing (RFC 8439), X25519 key exchange (RFC 7748) and HPKE, sealing to
+ * a public key (RFC 9180), through the
  * system's OpenSSL (3.2 or newer). Keys, signatures and digests are plain bytes: a
  * 32-byte secret seed, a 32-byte public key, a 64-byte signature, a 32-byte
  * digest. Nothing here panics on any input; mistakes come back as
@@ -228,6 +229,52 @@ public fun x25519_shared(secret: u8[], peer_public: u8[]): Result<u8[], CryptoEr
     sized(secret, "secret key", 32)?;
     sized(peer_public, "peer public key", 32)?;
     $os.crypto_x25519_shared(secret, peer_public).map_err(failed)
+}
+
+/**
+ * Seals bytes to an X25519 public key with HPKE (RFC 9180, base mode):
+ * only the holder of its secret can open them, and nobody learns who
+ * sealed them (sign the bytes with Ed25519 if that matters). Each seal
+ * uses a fresh one-time key, so there is no nonce to manage. The suite is
+ * fixed: DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, ChaCha20-Poly1305.
+ * @param key the recipient's 32-byte X25519 public key
+ * @param info what the sealing is for, bound into the keys; at most 1024 bytes, may be empty
+ * @param plaintext what to seal, from 1 to 1073741824 bytes (OpenSSL's HPKE refuses an empty one)
+ * @param aad associated data: authenticated, not encrypted; may be empty
+ * @returns the 32-byte encapsulated key, then the ciphertext with its 16-byte tag
+ */
+public fun hpke_seal(key: u8[], info: u8[], plaintext: u8[], aad: u8[]): Result<u8[], CryptoError> {
+    sized(key, "public key", 32)?;
+    hpke_info(info)?;
+    if plaintext.len == 0 {
+        return Err(CryptoError.BadLength("plaintext (at least)", 1, 0));
+    }
+    at_most(plaintext, "plaintext")?;
+    at_most(aad, "associated data")?;
+    $os.crypto_hpke_seal(key, info, plaintext, aad).map_err(failed)
+}
+
+/**
+ * Opens what `hpke_seal` sealed: the plaintext if `secret`, `info` and
+ * `aad` match, otherwise `NotAuthentic` and no plaintext at all.
+ * @param secret the recipient's 32 secret X25519 bytes
+ * @param info what it was sealed with
+ * @param sealed encapsulated key, ciphertext and tag: at least 49 bytes
+ * @param aad what it was sealed with
+ */
+public fun hpke_open(secret: u8[], info: u8[], sealed: u8[], aad: u8[]): Result<u8[], CryptoError> {
+    sized(secret, "secret key", 32)?;
+    hpke_info(info)?;
+    if sealed.len < 49 {
+        return Err(CryptoError.BadLength("sealed bytes (at least)", 49, sealed.len));
+    }
+    at_most(sealed, "sealed bytes")?;
+    at_most(aad, "associated data")?;
+    $os.crypto_hpke_open(secret, info, sealed, aad).map_err(failed)
+}
+
+fun hpke_info(info: u8[]): Result<(), CryptoError> {
+    if info.len <= 1024 { Ok(()) } else { Err(CryptoError.BadLength("info (at most)", 1024, info.len)) }
 }
 
 // The runtime's fixed messages for a wrong tag and a low-order peer key

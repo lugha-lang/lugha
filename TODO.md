@@ -9,7 +9,7 @@ What's next. Shipped work is in CHANGELOG.md (and the spec's §11 milestone tabl
 
 ## Language and library
 
-- [ ] **Rapidkoi's sync, the rest:** UDP and multicast (`std.net`); HPKE in `std.crypto` (OpenSSL 3.2's `OSSL_HPKE_*`). Each needs the user's security review.
+- [ ] **Rapidkoi's sync, the rest:** UDP and multicast (`std.net`). Each needs the user's security review.
 - [ ] **JSON, later:** per-field options (renaming, skipping, defaults), an `@json` attribute, base64 bytes.
 - [ ] **Boxes and bytes** (v16 §12): editing a box in place (`r.with`); a bounds-checked byte buffer.
 - [ ] **`std.process`:** streaming pipes to a running child and timeouts (found with oyster). Needs the user's security review.
