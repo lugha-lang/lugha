@@ -25,7 +25,7 @@ fun main() {
     let .Some(first) = shapes[0] else { return; };
     match first {
         .Circle(_) => println("round"),
-        other => println("not round: {other}"),   // a bare name binds, at the top level too
+        other => println(other.debug()),          // a bare name binds, at the top level too
     }
     match shapes[2] {
         None => println("none"),                   // E0468: `None` is a variant of `Option<Shape>`: write `.None`
