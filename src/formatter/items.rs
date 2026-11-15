@@ -5,7 +5,7 @@ use super::Printer;
 use super::doc::{Doc, concat, spaced, text};
 use super::leaves::visibility;
 use crate::ast::{
-    DeriveDecl, DeriveTarget, EnumDecl, Field, FunDecl, ImplDecl, Import, InterfaceDecl,
+    Bound, DeriveDecl, DeriveTarget, EnumDecl, Field, FunDecl, ImplDecl, Import, InterfaceDecl,
     InterfaceItem, Item, Program, StructDecl, Variant,
 };
 use crate::span::Span;
@@ -56,8 +56,15 @@ impl Printer<'_> {
             Top::Item(Item::Extern(e)) => (e.visibility.map(|v| v.span.start), e.span),
             Top::Item(Item::ExternType(t)) => (t.visibility.map(|v| v.span.start), t.span),
             Top::Item(Item::Const(c)) => (c.visibility.map(|v| v.span.start), c.span),
-            Top::Item(Item::Struct(s)) => (s.visibility.map(|v| v.span.start), s.span),
-            Top::Item(Item::Enum(e)) => (e.visibility.map(|v| v.span.start), e.span),
+            // `with I, J` follows the struct's braces.
+            Top::Item(Item::Struct(s)) => (
+                s.visibility.map(|v| v.span.start),
+                with_end(s.span, &s.derives),
+            ),
+            Top::Item(Item::Enum(e)) => (
+                e.visibility.map(|v| v.span.start),
+                with_end(e.span, &e.derives),
+            ),
             Top::Item(Item::Impl(i)) => (None, i.span),
             Top::Item(Item::Derive(d)) => (None, d.span),
             Top::Item(Item::Interface(i)) => (i.visibility.map(|v| v.span.start), i.span),
@@ -122,7 +129,11 @@ impl Printer<'_> {
                         ))
                     },
                 );
-                concat(vec![text(head), self.braced(body)])
+                concat(vec![
+                    text(head),
+                    self.braced(body),
+                    self.with_list(&s.derives),
+                ])
             }
             Top::Item(Item::Enum(e)) => self.enumeration(e),
             Top::Item(Item::Impl(i)) => {
@@ -138,6 +149,9 @@ impl Printer<'_> {
                     self.ident(&i.ty),
                     self.type_params(&i.params)
                 ));
+                if i.derive {
+                    return text(format!("{head}= derive;"));
+                }
                 let inner = self.inner(i.ty.span.end, i.span);
                 let body = self.sequence(
                     inner,
@@ -278,6 +292,15 @@ impl Printer<'_> {
         concat(parts)
     }
 
+    /// ` with I, J` after a declaration's braces; nothing without one.
+    fn with_list(&self, derives: &[Bound]) -> Doc {
+        if derives.is_empty() {
+            return text("");
+        }
+        let names: Vec<String> = derives.iter().map(|b| self.bound(b)).collect();
+        text(format!(" with {}", names.join(", ")))
+    }
+
     fn enumeration(&mut self, e: &EnumDecl) -> Doc {
         let head = format!(
             "{}enum {}{} ",
@@ -293,7 +316,11 @@ impl Printer<'_> {
             |_| ",",
             |p, v| p.variant(v),
         );
-        concat(vec![text(head), self.braced(body)])
+        concat(vec![
+            text(head),
+            self.braced(body),
+            self.with_list(&e.derives),
+        ])
     }
 
     fn variant(&self, v: &Variant) -> Doc {
@@ -337,4 +364,12 @@ fn field_span(f: &Field) -> Span {
 fn fun_span(f: &FunDecl) -> Span {
     let start = f.visibility.map_or(f.span.start, |v| v.span.start);
     Span::new(start.min(f.span.start), f.span.end)
+}
+
+/// Where a declaration ends: its closing brace, or its `with` list after it.
+fn with_end(span: Span, derives: &[Bound]) -> Span {
+    match derives.last() {
+        Some(b) => Span::new(span.start, b.span.end),
+        None => span,
+    }
 }

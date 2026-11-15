@@ -36,8 +36,8 @@ fun add<F: Count>(sum: i64, name: string, x: F): i64 = sum + x.count();
 
 fun count<T: Count>(x: T): i64 = x.count();
 
-struct P { a: i64, b: string, c: (i64, i64) }
-enum Shape { Dot, Line(i64, i64), Named(string, i64) }
+struct P { a: i64, b: string, c: (i64, i64) } with Count
+enum Shape { Dot, Line(i64, i64), Named(string, i64) } with Count
 
 fun main() {
     println(count(P { a: 1, b: "x", c: (2, 3) }));

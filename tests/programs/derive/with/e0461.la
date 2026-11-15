@@ -1,0 +1,6 @@
+// Asking for one interface twice.
+import std.json;
+
+struct P { x: i64 } with json.Json, json.Json
+
+fun main() {}

@@ -1,6 +1,6 @@
 ## FEATURE: Deriving on request: `with I, J` and `impl I for T = derive;`; milestone 165, the second of v18's Phase 1.
 
-**Status:** proposed 2026-11-15. Waiting for approval.
+**Status:** proposed 2026-11-15. Approved 2026-11-15, with option 2 for `$missing`; scope grown 2026-11-15 to lift the rule against defaults on associated functions (decision 9).
 
 ## OBJECTIVE
 ```lugha
@@ -38,12 +38,14 @@ A type meets a derivable interface only when it asks: `with I` on its declaratio
 ## DECISIONS MADE IN DISCOVERY (mine, for review)
 1. **What becomes opt-in.** A derive block for a *kind* (`derive I for struct`, `derive I for enum`) is a template a struct or enum uses only through `with I` or `= derive`. A block for a *type* (`derive Json for i64`, `derive<T: Json> Json for T[]`, `for Option<T>`, `for Map<K, V>`) is that built-in type's implementation and stays as it is, as do `for tuple` and `for handle`: built-in types, tuples and extern handles have no declaration to write `with` on. So `Site[]` is `Json` because `Site` is, and `(Site, i64)` because both parts are.
 2. **`Eq` waits for PRP-198.** Every struct and enum stays `Eq` without asking until `Eq` and `Key` split there; until then `with Eq` is accepted and checked (each field must be `Eq`) but changes nothing, so programs can write it early. Every other derivable interface, `std.json`'s `Json` and a program's own, is opt-in from this PRP.
-3. **Hand-written implementations are `impl I for T { … }`** [INT-12], which PRP-196's E0459 refused for derivable interfaces and now allows. It defines every item without a default; derive blocks never fill in a missing one. A type's own method named like an item (v17's way to customise one item) no longer counts. `std.json`'s `Json` has a hidden item, `$missing` (what a struct's absent field decodes to), that a program can't name; it gets a default body in the interface, the error every type but `Option` gives, so a hand-written block leaves it out and `Option`'s block keeps its own. So a derive block may now leave out an item with a default, as an `impl` may.
+3. **Hand-written implementations are `impl I for T { … }`** [INT-12], which PRP-196's E0459 refused for derivable interfaces and now allows. It defines every item without a default; derive blocks never fill in a missing one. A type's own method named like an item (v17's way to customise one item) no longer counts. `std.json`'s `Json` had a hidden item, `$missing` (what a struct's absent field decodes to), that a program can't name, since `$` names lex only in std and the prelude. It becomes a public item, `missing(path, field)`, with a default body in the interface, the error every type but `Option` gives: a hand-written block may leave it out, or replace it to give an absent field a value of its own (an empty list, a default port), as `Option` gives `None`.
 4. **Errors.** Listing an interface with no block for the type's kind (no `for struct` block for a struct; `Display`, never derivable) is **E0462**, naming the kinds it has blocks for. A field or payload whose type doesn't meet the interface is **E0451** at the declaration, naming the field (today it is reported at the first use). Deriving and hand-writing one interface for one type is **E0463**. Listing one twice (`with Json, Json`) is E0461.
 5. **Generic types derive conditionally** [INT-13]: `struct Pair<T> { a: T, b: T } with Json` checks only fields that don't mention a parameter at the declaration; `Pair<X>` meets `Json` where `X` does, checked at each use (E0451 there, as today), and a parameter that appears in no field needs nothing.
 6. **Where:** `with` follows the closing `}` of a struct or enum declaration, its interfaces named as in a bound (`with json.Json`, `with Show`). `impl I for T = derive;` may stand wherever `impl I for T { … }` may [INT-02]. `with` is a contextual word, not reserved. Actors don't take `with` in this PRP (rule 11 names structs and enums); the Draft's Part 6, which also names actors, should say the same, and I'll propose that edit with this PRP.
 7. **Codegen is unchanged:** a derived interface is reached through its block exactly as today; only who may reach it changes.
 8. **Migration by hand, in this PRP**, as before: programs, std modules and spec examples that encode, decode or otherwise use a derivable interface on their own structs and enums get `with`.
+
+9. **Associated functions may have default bodies** (added with approval during the build). `missing` has no `self`, and v5's rule kept default bodies to methods (E0201). The rule is lifted: an interface's associated function may have a default body, called through a bound (`T.pair()`), a qualified or associated call, or replaced by an `impl`. E0201 no longer covers it.
 
 ## REQUIREMENTS
 
@@ -58,6 +60,14 @@ A type meets a derivable interface only when it asks: `with I` on its declaratio
 - `Eq`/`Key`/`Ord` changes (PRP-198), printing or `Debug` (PRP-200), per-field derive options such as `@json(skip)` (deferred, DEF-13).
 - `with` on actors; derive blocks for built-in types made opt-in (decision 1).
 - A grace period or warning for types that relied on automatic deriving [PRI-03].
+
+## CHANGES DURING THE BUILD (for review)
+1. **Prelude types meet derivable interfaces without asking** (with decision 1): `Result` and the prelude's other enums are built in, like `Option`. Std's own structs and enums ask, like a program's.
+2. **Errors at the declaration reuse the existing wording**: E0450 for JSON, E0451 otherwise, now pointing at the `with` entry; a type reported there isn't reported again at its uses. My planned E0451 wording ("`Job` can't derive `Show`") was dropped for the one programs already see.
+3. **The declaration check runs once every module's declarations are in**, so a field of another module's type sees whether that type asked.
+4. **E0462's help for a prelude interface** (`with Display`) says to write the methods in the type's own `impl`, since those are still met by name.
+5. **Go-to-definition** also works on the interface in `impl I for T` (it didn't since milestone 164).
+6. **`tests/cli.rs` still expected the v17 spec title**, failing since milestone 164 (not among the tests that milestone ran); fixed here.
 
 ## DESIGN
 - **New diagnostics:** E0462 "`Show` can't be derived for an enum: it has derive blocks for `struct` and `tuple` only"; E0463 "`Point` both derives and implements `json.Json`", pointing at both, help "remove `json.Json` from `with`, or the `impl`". E0451 gains a declaration form: "`Job` can't derive `Show`: field `run` is a `fun(i64): i64`, which isn't `Show`".

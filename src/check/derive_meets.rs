@@ -30,6 +30,8 @@ pub(super) enum Unmet {
     /// A struct or enum with its own `eq` but no `hash`, or the other way
     /// round (E0454): the one it has.
     HalfPair(String),
+    /// A struct or enum that didn't ask for the interface (E0422).
+    NotAsked(Type),
 }
 
 impl Checker {
@@ -42,6 +44,10 @@ impl Checker {
         };
         let name = interface.rsplit('.').next().unwrap_or(interface);
         let d = match &why {
+            Unmet::NotAsked(part) => {
+                let shown = super::derive_with::shown_interface(interface);
+                errors::not_asked(arg, part, (&path, &shown), span)
+            }
             Unmet::HalfPair(has) => errors::half_pair(arg, has, span),
             Unmet::Mismatch(problem) => {
                 let shown = if interface == super::json::BOUND {
@@ -104,10 +110,26 @@ impl Checker {
                 .collect();
             let owners = self.structs.keys().chain(self.enums.keys());
             for owner in owners {
+                // Only `Eq` is still met by a type's own methods.
+                if interface != super::derive::EQ {
+                    continue;
+                }
                 for name in &items {
                     if self.own_item(&interface, owner, name) == Some(true) {
                         own.push((owner.clone(), name.clone()));
                     }
+                }
+            }
+        }
+        // A hand-written `impl I for T` supplies every item of `I`, its
+        // defaults included.
+        for (owner, entries) in &self.impls {
+            for e in entries {
+                if e.key == super::derive::EQ || !self.derives.derivable(&e.key) {
+                    continue;
+                }
+                for r in &self.interfaces[&e.key].items {
+                    own.push((owner.clone(), r.name.clone()));
                 }
             }
         }
@@ -137,9 +159,20 @@ impl Checker {
                 at(Unmet::Unbounded(name.clone()))
             };
         }
-        // A struct's or enum's own item must have the item's exact shape;
-        // one that supplies every item needs no block.
-        if let Type::Struct(owner, _) | Type::Enum(owner, _) = ty
+        // A struct or enum that implements the interface by hand meets it.
+        if interface != super::derive::EQ
+            && let Type::Struct(owner, _) | Type::Enum(owner, _) = ty
+            && self
+                .impls
+                .get(owner)
+                .is_some_and(|es| es.iter().any(|e| e.key == interface))
+        {
+            return None;
+        }
+        // `Eq`'s items may still be a struct's or enum's own, of the item's
+        // exact shape; one that supplies both needs no block.
+        if interface == super::derive::EQ
+            && let Type::Struct(owner, _) | Type::Enum(owner, _) = ty
             && let Some(info) = self.interfaces.get(interface)
         {
             let all = info
@@ -233,6 +266,14 @@ impl Checker {
                 let (Type::Struct(key, targs) | Type::Enum(key, targs)) = ty else {
                     return None;
                 };
+                // The block is a template: a struct uses it when it asks.
+                if interface != super::derive::EQ && !self.asks(key, interface) {
+                    return at(Unmet::NotAsked(ty.clone()));
+                }
+                // Reported at the declaration already.
+                if self.broken.contains(&(key.clone(), interface.to_string())) {
+                    return None;
+                }
                 let info = self.structs.get(key)?;
                 let fields: Vec<(String, Type)> = info
                     .fields
@@ -251,6 +292,13 @@ impl Checker {
                 let (Type::Struct(key, targs) | Type::Enum(key, targs)) = ty else {
                     return None;
                 };
+                if interface != super::derive::EQ && !self.asks(key, interface) {
+                    return at(Unmet::NotAsked(ty.clone()));
+                }
+                // Reported at the declaration already.
+                if self.broken.contains(&(key.clone(), interface.to_string())) {
+                    return None;
+                }
                 let variants = self.enum_variants(key, targs).unwrap_or_default();
                 variants.iter().find_map(|(name, payloads)| {
                     payloads.iter().enumerate().find_map(|(i, t)| {
@@ -365,7 +413,7 @@ pub(super) fn union_part(itself: bool) -> String {
 }
 
 /// What E0451 says a part is, for derivable interface `name`.
-fn describe(name: &str, why: &Unmet) -> String {
+pub(super) fn describe(name: &str, why: &Unmet) -> String {
     match why {
         Unmet::Missing(ty) => format!("`{ty}`, which no `derive {name}` block covers"),
         Unmet::Unbounded(p) => format!("a type parameter without `{name}` (write `{p}: {name}`)"),
@@ -376,5 +424,6 @@ fn describe(name: &str, why: &Unmet) -> String {
         Unmet::Union(itself) => union_part(*itself),
         Unmet::Mismatch(problem) => problem.clone(),
         Unmet::HalfPair(has) => format!("its own `{has}` alone"),
+        Unmet::NotAsked(ty) => format!("`{ty}`, which doesn't derive or implement `{name}`"),
     }
 }

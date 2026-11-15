@@ -147,7 +147,9 @@ impl<'ctx> Lowerer<'ctx> {
                     let args = mono.args[..i.params.len()].to_vec();
                     Some(owner_type(units, owner, args))
                 }
-                _ if source.interface.is_some() => mono.args.first().cloned(),
+                // A default's receiver is `Self`, its first argument; an
+                // associated function's default has none.
+                (_, Some(_)) if source.interface.is_some() => mono.args.first().cloned(),
                 (_, Some(_)) if let Some((_, owner)) = &source.derive => {
                     self.derives.self_type(owner, &mono.args)
                 }

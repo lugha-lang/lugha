@@ -42,10 +42,12 @@ fun join(xs: string[]): string = xs.join(", ");
 
 fun show<T: Show>(x: T): string = x.show();
 
-struct Date { y: i64, m: i64, d: i64 }
+struct Date { y: i64, m: i64, d: i64 } with Show
 
-impl Date {
-    /** Dates are JSON strings, not objects: this replaces the derived `to_json`. */
+// Dates are JSON strings, not objects, so `Date` implements `json.Json` by
+// hand instead of deriving it.
+impl json.Json for Date {
+    /** A date as `y-m-d`. */
     fun to_json(self): json.Value = json.Value.Text("{self.y}-{self.m}-{self.d}");
 
     /** And read back from one. */
@@ -64,13 +66,13 @@ impl Date {
     }
 }
 
-enum Shape { Dot, Circle(i64), Rect(i64, i64) }
+enum Shape { Dot, Circle(i64), Rect(i64, i64) } with Show, json.Json
 
-struct Event { title: string, on: Date, shapes: Shape[] }
+struct Event { title: string, on: Date, shapes: Shape[] } with Show, json.Json
 
-struct Pair<A, B> { first: A, second: B }
+struct Pair<A, B> { first: A, second: B } with Show
 
-enum List { Nil, Cons(i64, List) }
+enum List { Nil, Cons(i64, List) } with Show
 
 fun main() {
     let e = Event { title: "launch", on: Date { y: 2026, m: 10, d: 31 }, shapes: [Shape.Dot, Shape.Circle(2), Shape.Rect(1, 2)] };

@@ -93,6 +93,23 @@ impl Checker {
         ));
     }
 
+    /// For the editor: `b`, naming interface `key` in an `impl` or `with`,
+    /// leads to the interface's declaration, and its module to the module.
+    pub(super) fn define_bound(&mut self, b: &crate::ast::Bound, key: &str) {
+        if let Some(info) = self.interfaces.get(key) {
+            self.hover.define(b.name.span, info.span);
+        }
+        if let Some(m) = &b.module {
+            self.module_named(m.span, &m.name);
+        }
+    }
+
+    /// True for an interface a type may implement through `impl I for T`:
+    /// any but the prelude's.
+    pub(super) fn by_block(&self, key: &str) -> bool {
+        module_of(key) != "$prelude"
+    }
+
     /// True for an interface a type meets only through `impl I for T`:
     /// any but the prelude's and the derivable ones, which the compiler
     /// still finds by their methods' names.
@@ -120,6 +137,7 @@ impl Checker {
             return false;
         };
         self.item_visible(&key, b.span);
+        self.define_bound(b, &key);
         let written = &b.name.name;
         if !matches!(ty, Type::Struct(..) | Type::Enum(..) | Type::Handle(_)) {
             let why = format!(
@@ -128,7 +146,7 @@ impl Checker {
             self.report(errors::misplaced_impl(written, why, i.ty.span));
             return false;
         }
-        if !self.nominal(&key) {
+        if module_of(&key) == "$prelude" {
             let why = format!(
                 "names `{written}`, which a type still meets by its methods' names: write them in `impl {} {{ … }}`",
                 i.ty.name
@@ -151,6 +169,11 @@ impl Checker {
         let Some(applied) = applied else {
             return false;
         };
+        // `impl I for T = derive;` asks for the derive blocks instead
+        // (`check::derive_with`).
+        if i.derive {
+            return false;
+        }
         let entry = ImplEntry {
             key,
             args: applied.args,
@@ -254,11 +277,15 @@ impl Checker {
             Type::Struct(o, _) | Type::Enum(o, _) | Type::Handle(o) => o,
             _ => return None,
         };
-        if !self.nominal(&interface.key) {
+        if !self.by_block(&interface.key) {
             return None;
         }
         let Some(entry) = self.impl_for(ty, interface) else {
-            return Some(None);
+            // A derived interface's items come from its blocks.
+            return match self.derives.derivable(&interface.key) {
+                true => None,
+                false => Some(None),
+            };
         };
         let name = entry.method(item);
         let has = self
@@ -280,7 +307,7 @@ impl Checker {
     ) -> Option<Option<String>> {
         let bounds = &generics.iter().find(|g| g.name == param)?.bounds;
         let interface = bounds.interfaces.iter().find(|a| {
-            self.nominal(&a.key)
+            self.by_block(&a.key)
                 && self
                     .interfaces
                     .get(&a.key)

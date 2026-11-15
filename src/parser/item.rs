@@ -174,15 +174,18 @@ impl Parser<'_> {
                 })
             })
         })?;
+        let span = Span::new(start, self.prev_end());
+        let derives = self.with_list()?;
         Ok(StructDecl {
             visibility: None,
             name,
             type_params,
             fields,
-            span: Span::new(start, self.prev_end()),
+            span,
             c_layout: None,
             union: None,
             actor: None,
+            derives,
         })
     }
 

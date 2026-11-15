@@ -2,7 +2,7 @@
 // lughac's own sources only.
 import std.json;
 
-struct Point { derive: i64, tuple: i64 }
+struct Point { derive: i64, tuple: i64 } with json.Json
 
 fun derive(x: i64): i64 = x * 2;
 

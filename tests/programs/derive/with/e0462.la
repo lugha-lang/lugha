@@ -1,0 +1,10 @@
+// `with` needs a derive block for the type's kind; `Display` has none.
+interface Show { fun show(self): string; }
+
+derive Show for struct { fun show(self): string = "a struct"; }
+
+enum Light { Red, Green } with Show
+
+struct P { x: i64 } with Display
+
+fun main() {}

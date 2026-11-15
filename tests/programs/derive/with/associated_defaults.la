@@ -1,0 +1,14 @@
+// An associated function of an interface may have a default body.
+interface Zero {
+    fun zero(): Self;
+    fun pair(): (Self, Self) = (Self.zero(), Self.zero());
+}
+struct P { n: i64 }
+impl Zero for P { fun zero(): P = P { n: 7 }; }
+struct Q { n: i64 }
+impl Zero for Q { fun zero(): Q = Q { n: 1 }; fun pair(): (Q, Q) = (Q { n: 2 }, Q { n: 3 }); }
+fun both<T: Zero>(x: T): (T, T) = T.pair();
+fun main() {
+    println(both(P { n: 0 }));
+    println(both(Q { n: 0 }));
+}

@@ -371,7 +371,7 @@ fn a_program_that_only_parses_compiles_no_writer() {
     // A program that only encodes compiles no decoder.
     let encodes = lughac(
         &temp.0,
-        "import std.json;\nstruct P { x: i64 }\nfun main() { println(json.encode(P { x: 1 })); }\n",
+        "import std.json;\nstruct P { x: i64 } with json.Json\nfun main() { println(json.encode(P { x: 1 })); }\n",
         &["build", "--emit=ir", "main.la"],
     );
     let ir = String::from_utf8_lossy(&encodes.stdout);

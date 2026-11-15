@@ -1,0 +1,9 @@
+error[E0450]: `Pair<fun()>` can't be turned into JSON: `a` is a function
+  --> tests/programs/derive/with/generic_use.la:7:13
+  |
+7 |     let v = json.encode(Pair { a: fun() {}, b: fun() {} });
+  |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = help: JSON holds data: numbers, `bool`, `char`, `string`, arrays, tuples, maps with string or integer keys, sets, `Option`, and structs and enums of these that ask for it with `with json.Json`
+
+For more about E0450, run `lughac explain E0450`.

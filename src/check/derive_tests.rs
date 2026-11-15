@@ -40,8 +40,9 @@ fn codes(src: &str) -> Vec<&'static str> {
 
 #[test]
 fn a_type_uses_its_own_block_then_the_struct_block() {
-    let found =
-        monos("struct P { a: i64, b: i64[] }\nfun main() { let s = show(P { a: 1, b: [2] }); }");
+    let found = monos(
+        "struct P { a: i64, b: i64[] } with Show\nfun main() { let s = show(P { a: 1, b: [2] }); }",
+    );
     for want in [
         "show<P>",
         "Show@struct.show<P>",
@@ -57,10 +58,10 @@ fn a_type_uses_its_own_block_then_the_struct_block() {
 
 #[test]
 fn recursive_and_generic_types_meet_it_through_their_parts() {
-    let list = "enum List { Nil, Cons(i64, List) }\n\
+    let list = "enum List { Nil, Cons(i64, List) } with Show\n\
             fun main() { let s = show(List.Cons(1, List.Nil)); }";
     assert!(monos(list).iter().any(|m| m == "Show@enum.show<List>"));
-    let boxed = "struct Box<T> { v: T }\n\
+    let boxed = "struct Box<T> { v: T } with Show\n\
             fun f<T: Show>(b: Box<T>): string = show(b);\nfun main() { let s = f(Box { v: 1 }); }";
     assert!(
         monos(boxed)
@@ -71,10 +72,15 @@ fn recursive_and_generic_types_meet_it_through_their_parts() {
 
 #[test]
 fn a_part_no_block_covers_misses_the_bound() {
+    // Without `with Show`, a struct doesn't meet it at all.
     let fun_field = "struct Job { run: fun(i64): i64 }\n\
             fun main() { let s = show(Job { run: fun(x: i64): i64 = x }); }";
-    assert_eq!(codes(fun_field), ["E0451"]);
-    let unbounded = "struct Box<T> { v: T }\nfun f<T>(b: Box<T>): string = show(b);\nfun main() {}";
+    assert_eq!(codes(fun_field), ["E0422"]);
+    // With it, a field that can't be shown is E0451 at the declaration.
+    let asked = "struct Job { run: fun(i64): i64 } with Show\nfun main() {}";
+    assert_eq!(codes(asked), ["E0451"]);
+    let unbounded =
+        "struct Box<T> { v: T } with Show\nfun f<T>(b: Box<T>): string = show(b);\nfun main() {}";
     assert_eq!(codes(unbounded), ["E0451"]);
     assert_eq!(codes("fun main() { let s = show(true); }"), ["E0451"]);
 }
@@ -108,8 +114,8 @@ fn blocks_that_could_cover_one_type_overlap() {
 }
 
 #[test]
-fn a_types_own_item_wins_and_must_have_its_shape() {
-    let own = "struct P { a: i64 }\nimpl P { fun show(self): string = \"mine\"; }\n\
+fn a_written_impl_replaces_the_blocks_and_must_match() {
+    let own = "struct P { a: i64 }\nimpl Show for P { fun show(self): string = \"mine\"; }\n\
             fun main() { let s = show(P { a: 1 }); }";
     let found = monos(own);
     assert!(found.iter().any(|m| m == "show<P>"), "{found:?}");
@@ -118,12 +124,20 @@ fn a_types_own_item_wins_and_must_have_its_shape() {
         "{found:?}"
     );
     // Supplying every item itself, a type needs no block for its parts.
-    let unshowable = "struct Q { f: fun(): i64 }\nimpl Q { fun show(self): string = \"q\"; }\n\
+    let unshowable = "struct Q { f: fun(): i64 }\nimpl Show for Q { fun show(self): string = \"q\"; }\n\
             fun main() { let s = show(Q { f: fun(): i64 = 1 }); }";
     assert_eq!(codes(unshowable), Vec::<&str>::new());
-    let wrong = "struct R { a: i64 }\nimpl R { fun show(self): i64 = 1; }\n\
+    let wrong = "struct R { a: i64 }\nimpl Show for R { fun show(self): i64 = 1; }\n\
             fun main() { let s = show(R { a: 1 }); }";
     assert_eq!(codes(wrong), ["E0422"]);
+    // A type's own method of the item's name doesn't count.
+    let own_only = "struct S { a: i64 }\nimpl S { fun show(self): string = \"s\"; }\n\
+            fun main() { let s = show(S { a: 1 }); }";
+    assert_eq!(codes(own_only), ["E0422"]);
+    // Deriving and writing one interface is E0463.
+    let both = "struct T2 { a: i64 } with Show\nimpl Show for T2 { fun show(self): string = \"t\"; }\n\
+            fun main() {}";
+    assert_eq!(codes(both), ["E0463"]);
 }
 
 /// `key<args>` of every instance of program `src` (prelude included).

@@ -1,10 +1,10 @@
 import std.json;
 
-struct Person { name: string, age: i64, email: Option<string>, tags: string[] }
-enum Shape { Dot, Circle(f64), Rect(f64, f64) }
-enum Tree { Leaf(i64), Node(Tree[]) }
-struct Pair<T> { a: T, b: T }
-struct Doc { meta: json.Value, n: u8 }
+struct Person { name: string, age: i64, email: Option<string>, tags: string[] } with json.Json
+enum Shape { Dot, Circle(f64), Rect(f64, f64) } with json.Json
+enum Tree { Leaf(i64), Node(Tree[]) } with json.Json
+struct Pair<T> { a: T, b: T } with json.Json
+struct Doc { meta: json.Value, n: u8 } with json.Json
 
 fun round<T: json.Json>(x: T): Result<T, json.DecodeError> = json.decode(json.encode(x));
 

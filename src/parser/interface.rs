@@ -1,6 +1,5 @@
 use super::{PResult, Parser};
 use crate::ast::{Bound, FunDecl, InterfaceDecl, InterfaceItem};
-use crate::diagnostic::Diagnostic;
 use crate::lexer::TokenKind;
 use crate::span::Span;
 
@@ -43,10 +42,6 @@ impl Parser<'_> {
         } else {
             let body = self.fun_body()?;
             let span = Span::new(start, self.prev_end());
-            if receiver.is_none() {
-                let message = "a default body needs `self`: only methods can have one";
-                self.error(Diagnostic::error("E0201", message, span));
-            }
             Some(FunDecl {
                 visibility: None,
                 name: name.clone(),
@@ -95,7 +90,7 @@ impl Parser<'_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::test_util::{errors, program};
+    use crate::parser::test_util::{parse_src, program};
 
     #[test]
     fn interfaces_list_signatures_without_bodies() {
@@ -142,10 +137,11 @@ mod tests {
     }
 
     #[test]
-    fn a_default_needs_self() {
-        assert_eq!(
-            errors("interface Make { fun make(): i64 = 1; }"),
-            [("E0201", "fun make(): i64 = 1;")]
-        );
+    fn associated_functions_may_have_defaults() {
+        let p = parse_src("interface Make { fun make(): i64 = 1; }").expect("parses");
+        let crate::ast::Item::Interface(i) = &p.items[0] else {
+            panic!("an interface")
+        };
+        assert!(i.items[0].default.is_some());
     }
 }

@@ -1,0 +1,8 @@
+// A generic type's parameters are checked where it is used.
+import std.json;
+
+struct Pair<T> { a: T, b: T } with json.Json
+
+fun main() {
+    let v = json.encode(Pair { a: fun() {}, b: fun() {} });
+}

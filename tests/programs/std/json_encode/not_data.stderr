@@ -1,18 +1,34 @@
+error[E0450]: `Job` can't be turned into JSON: `run` is a function
+  --> tests/programs/std/json_encode/not_data.la:3:50
+  |
+3 | struct Job { name: string, run: fun(): () } with json.Json
+  |                                                  ^^^^^^^^^
+  |
+  = help: JSON holds data: numbers, `bool`, `char`, `string`, arrays, tuples, maps with string or integer keys, sets, `Option`, and structs and enums of these that ask for it with `with json.Json`
+
+error[E0450]: `Holder` can't be turned into JSON: `shapes[]` is an interface value
+  --> tests/programs/std/json_encode/not_data.la:5:40
+  |
+5 | struct Holder { shapes: Shape[] } with json.Json
+  |                                        ^^^^^^^^^
+  |
+  = help: JSON holds data: numbers, `bool`, `char`, `string`, arrays, tuples, maps with string or integer keys, sets, `Option`, and structs and enums of these that ask for it with `with json.Json`
+
+error[E0450]: `Slot` can't be turned into JSON: `Boxed.0` is a `Ref`
+  --> tests/programs/std/json_encode/not_data.la:6:43
+  |
+6 | enum Slot { Empty, Boxed(Ref<i64>) } with json.Json
+  |                                           ^^^^^^^^^
+  |
+  = help: JSON holds data: numbers, `bool`, `char`, `string`, arrays, tuples, maps with string or integer keys, sets, `Option`, and structs and enums of these that ask for it with `with json.Json`
+
 error[E0450]: `T` can't be turned into JSON: it is a type parameter without `json.Json` (write `T: json.Json`)
   --> tests/programs/std/json_encode/not_data.la:8:37
   |
 8 | fun anything<T>(x: T): json.Value = json.encode(x);
   |                                     ^^^^^^^^^^^^^^
   |
-  = help: JSON holds data: numbers, `bool`, `char`, `string`, arrays, tuples, maps with string or integer keys, sets, `Option`, and structs and enums of these
-
-error[E0450]: `Job` can't be turned into JSON: `run` is a function
-   --> tests/programs/std/json_encode/not_data.la:12:13
-   |
-12 |     let a = json.encode(job);
-   |             ^^^^^^^^^^^^^^^^
-   |
-   = help: JSON holds data: numbers, `bool`, `char`, `string`, arrays, tuples, maps with string or integer keys, sets, `Option`, and structs and enums of these
+  = help: JSON holds data: numbers, `bool`, `char`, `string`, arrays, tuples, maps with string or integer keys, sets, `Option`, and structs and enums of these that ask for it with `with json.Json`
 
 error[E0450]: `fun(i64): i64` can't be turned into JSON: it is a function
    --> tests/programs/std/json_encode/not_data.la:13:13
@@ -20,23 +36,7 @@ error[E0450]: `fun(i64): i64` can't be turned into JSON: it is a function
 13 |     let b = json.encode(fun(x: i64): i64 = x);
    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
-   = help: JSON holds data: numbers, `bool`, `char`, `string`, arrays, tuples, maps with string or integer keys, sets, `Option`, and structs and enums of these
-
-error[E0450]: `Holder` can't be turned into JSON: `shapes[]` is an interface value
-   --> tests/programs/std/json_encode/not_data.la:15:13
-   |
-15 |     let c = json.encode(h);
-   |             ^^^^^^^^^^^^^^
-   |
-   = help: JSON holds data: numbers, `bool`, `char`, `string`, arrays, tuples, maps with string or integer keys, sets, `Option`, and structs and enums of these
-
-error[E0450]: `Slot[]` can't be turned into JSON: `[].Boxed.0` is a `Ref`
-   --> tests/programs/std/json_encode/not_data.la:16:13
-   |
-16 |     let d = json.encode([Slot.Empty]);
-   |             ^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
-   = help: JSON holds data: numbers, `bool`, `char`, `string`, arrays, tuples, maps with string or integer keys, sets, `Option`, and structs and enums of these
+   = help: JSON holds data: numbers, `bool`, `char`, `string`, arrays, tuples, maps with string or integer keys, sets, `Option`, and structs and enums of these that ask for it with `with json.Json`
 
 error[E0450]: `Map<bool, i64>` can't be turned into JSON: it is a map with `bool` keys
    --> tests/programs/std/json_encode/not_data.la:18:13
@@ -44,6 +44,6 @@ error[E0450]: `Map<bool, i64>` can't be turned into JSON: it is a map with `bool
 18 |     let e = json.encode(flags);
    |             ^^^^^^^^^^^^^^^^^^
    |
-   = help: JSON holds data: numbers, `bool`, `char`, `string`, arrays, tuples, maps with string or integer keys, sets, `Option`, and structs and enums of these
+   = help: JSON holds data: numbers, `bool`, `char`, `string`, arrays, tuples, maps with string or integer keys, sets, `Option`, and structs and enums of these that ask for it with `with json.Json`
 
 For more about E0450, run `lughac explain E0450`.

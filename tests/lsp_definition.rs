@@ -362,3 +362,26 @@ fn an_included_path_goes_to_its_file() {
     assert_eq!(found["range"]["start"]["line"], 0, "{found}");
     assert_eq!(server.finish(), Some(0));
 }
+
+#[test]
+fn interfaces_a_type_derives_jump_to_their_declarations() {
+    let main = "interface Show { fun show(self): string; }
+derive Show for struct { fun show(self): string = \"s\"; }
+struct P {} with Show
+struct Q {}
+impl Show for Q = derive;
+fun main() {}
+";
+    let t = Temp::with(&[("main.la", main)]);
+    let uri = t.uri("main.la");
+    let mut s = Server::start(&t, json!({}));
+    s.open(&uri, main);
+    s.expect(&uri, &[]);
+    let decl = location(&uri, range(main, "interface Show", "Show"));
+    assert_eq!(jump(&mut s, &uri, pos(main, "with Show", "Show")), decl);
+    assert_eq!(
+        jump(&mut s, &uri, pos(main, "impl Show for Q", "Show")),
+        decl
+    );
+    assert_eq!(s.finish(), Some(0));
+}

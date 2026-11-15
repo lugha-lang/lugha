@@ -1,0 +1,11 @@
+error[E0461]: `json.Json` is implemented for `P` twice
+  --> tests/programs/derive/with/e0461.la:4:37
+  |
+4 | struct P { x: i64 } with json.Json, json.Json
+  |                          ---------  ^^^^^^^^^
+  |                          |
+  |                          first implemented here
+  |
+  = help: keep one of the two blocks
+
+For more about E0461, run `lughac explain E0461`.

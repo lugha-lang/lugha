@@ -1,0 +1,8 @@
+// A struct that doesn't ask for `json.Json` isn't JSON.
+import std.json;
+
+struct Secret { key: string }
+
+fun main() {
+    let v = json.encode(Secret { key: "k" });
+}

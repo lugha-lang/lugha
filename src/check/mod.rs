@@ -36,6 +36,7 @@ mod derive_intrinsics;
 mod derive_meets;
 #[cfg(test)]
 mod derive_tests;
+mod derive_with;
 mod enums;
 mod env;
 mod errors;
@@ -236,6 +237,8 @@ impl Checker {
             through_index: std::collections::HashSet::new(),
             overload_choices: HashMap::new(),
             impls: HashMap::new(),
+            asked: HashMap::new(),
+            broken: std::collections::HashSet::new(),
             nominal_calls: HashMap::new(),
             qualified: std::collections::HashSet::new(),
             impl_owners: HashMap::new(),
@@ -400,6 +403,12 @@ pub(super) struct Checker {
     overload_choices: HashMap<ExprId, String>,
     /// See `Checked::impls`.
     impls: impls::Impls,
+    /// The derivable interfaces each struct or enum asks for (`with I`,
+    /// `impl I for T = derive;`), by type and interface key, with where.
+    asked: HashMap<(String, String), Span>,
+    /// Asked-for derivations already reported at the declaration (E0450,
+    /// E0451): their uses aren't reported again.
+    broken: std::collections::HashSet<(String, String)>,
     /// See `Checked::nominal_calls`.
     nominal_calls: HashMap<ExprId, applied::Applied>,
     /// See `Checked::qualified`.

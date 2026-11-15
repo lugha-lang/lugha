@@ -62,7 +62,7 @@ impl Checker {
             return None;
         }
         self.bound_used(call, param, &name.name);
-        if self.nominal(&applied.key) {
+        if self.by_block(&applied.key) {
             self.nominal_calls.insert(call.id, applied.clone());
         }
         // Codegen finds a derivable interface's item through its blocks.

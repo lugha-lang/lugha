@@ -1,0 +1,9 @@
+error[E0422]: `Secret` doesn't implement `json.Json`
+  --> tests/programs/derive/with/e0422.la:7:13
+  |
+7 |     let v = json.encode(Secret { key: "k" });
+  |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = help: add `with json.Json` after `Secret`'s declaration, or implement it by hand with `impl json.Json for Secret`
+
+For more about E0422, run `lughac explain E0422`.

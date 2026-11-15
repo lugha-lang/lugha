@@ -121,6 +121,79 @@ pub(in crate::check) fn not_json(ty: &Type, path: &str, what: &str, span: Span) 
         span,
     )
     .with_help(
-        "JSON holds data: numbers, `bool`, `char`, `string`, arrays, tuples, maps with string or integer keys, sets, `Option`, and structs and enums of these",
+        "JSON holds data: numbers, `bool`, `char`, `string`, arrays, tuples, maps with string or integer keys, sets, `Option`, and structs and enums of these that ask for it with `with json.Json`",
     )
+}
+
+/// E0422: `ty` meets derivable interface `interface` only by asking, and
+/// `part`, at `path` inside it (or `ty` itself), doesn't.
+pub(in crate::check) fn not_asked(
+    ty: &Type,
+    part: &Type,
+    (path, interface): (&str, &str),
+    span: Span,
+) -> Diagnostic {
+    let message = if path.is_empty() {
+        format!("`{ty}` doesn't implement `{interface}`")
+    } else {
+        let at = path.trim_start_matches('.');
+        format!("`{ty}` doesn't implement `{interface}`: `{at}` is a `{part}`, which doesn't")
+    };
+    // The declaration's name, without the arguments of this use.
+    let declared = match part {
+        Type::Struct(k, _) | Type::Enum(k, _) => k.rsplit('.').next().unwrap_or(k).to_string(),
+        _ => part.to_string(),
+    };
+    Diagnostic::error("E0422", message, span).with_help(format!(
+        "add `with {interface}` after `{declared}`'s declaration, or implement it by hand with `impl {interface} for {declared}`"
+    ))
+}
+
+/// E0462: `interface` can't be derived for `ty`, which is `kind` ("a
+/// struct" or "an enum"); `covered` lists what its blocks cover, and
+/// `by_name` says the interface is still met by methods' names.
+pub(in crate::check) fn not_derivable(
+    interface: &str,
+    (ty, kind): (&str, &str),
+    covered: &[String],
+    by_name: bool,
+    span: Span,
+) -> Diagnostic {
+    let help = if by_name {
+        format!(
+            "a type meets `{interface}` with its own methods of the interface's item names, in `impl {ty} {{ … }}`"
+        )
+    } else if covered.is_empty() {
+        format!("`{interface}` has no derive blocks: write `impl {interface} for {ty} {{ … }}`")
+    } else {
+        format!(
+            "`{interface}` has derive blocks for {} only: write `impl {interface} for {ty} {{ … }}`",
+            list(covered)
+        )
+    };
+    Diagnostic::error(
+        "E0462",
+        format!("`{interface}` can't be derived for `{ty}`, {kind}"),
+        span,
+    )
+    .with_help(help)
+}
+
+/// E0463: `ty` both derives `interface` (at `span`) and implements it by
+/// hand (at `written`).
+pub(in crate::check) fn derived_and_written(
+    ty: &str,
+    interface: &str,
+    span: Span,
+    written: Span,
+) -> Diagnostic {
+    Diagnostic::error(
+        "E0463",
+        format!("`{ty}` both derives and implements `{interface}`"),
+        span,
+    )
+    .with_label(written, "implemented by hand here")
+    .with_help(format!(
+        "keep one: remove `{interface}` from `with`, or the `impl` block"
+    ))
 }

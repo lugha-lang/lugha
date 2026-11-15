@@ -1,0 +1,35 @@
+// Structs and enums ask for JSON with `with`; a hand-written impl replaces
+// the blocks, and may replace `missing`, what an absent field decodes to.
+import std.json;
+
+struct Site { name: string, url: string } with json.Json
+
+enum Status { Up(i64), Down(string) } with json.Json
+
+struct Secret { key: string }
+
+struct Point { x: i64, y: i64 }
+
+impl json.Json for Point {
+    fun to_json(self): json.Value = json.Value.Text("({self.x}, {self.y})");
+    fun from_json(v: json.Value, path: string): Result<Point, json.DecodeError> = Ok(Point { x: 0, y: 0 });
+}
+
+struct Tags { list: string[] }
+
+impl json.Json for Tags {
+    fun to_json(self): json.Value = json.encode(self.list);
+    fun from_json(v: json.Value, path: string): Result<Tags, json.DecodeError> = Ok(Tags { list: [] });
+    fun missing(path: string, field: string): Result<Tags, json.DecodeError> = Ok(Tags { list: ["none"] });
+}
+
+struct Post { title: string, tags: Tags, at: Point } with json.Json
+
+fun main() {
+    println(json.stringify(json.encode(Site { name: "a", url: "b" })).unwrap());
+    println(json.stringify(json.encode([Status.Up(200), Status.Down("dns")])).unwrap());
+    println(json.stringify(json.encode(Point { x: 1, y: 2 })).unwrap());
+    let v = json.parse("{{\"title\": \"hi\", \"at\": 1}}").unwrap();
+    let p: Result<Post, json.DecodeError> = json.decode(v);
+    println(p);
+}

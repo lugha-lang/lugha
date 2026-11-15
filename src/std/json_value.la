@@ -86,15 +86,20 @@ fun oops(kind: ErrorKind, detail: string, at: i64): Oops = Oops { kind: kind, de
 /**
  * The types `encode` and `decode` take: numbers, `bool`, `char`, `string`,
  * `()`, arrays, tuples, maps with string or integer keys, sets, `Option`,
- * structs and enums made of these, and `Value`. Met through this module's
- * derive blocks, never implemented: write `T: json.Json` on a type
+ * `Value`, and structs and enums that ask for it, `with json.Json`, or
+ * write `impl json.Json for T { … }`. Write `T: json.Json` on a type
  * parameter to pass one through.
  */
 public interface Json {
+    /** The value as JSON. */
     fun to_json(self): Value;
+    /** The value `v`, found at `path` in the whole document, decoded. */
     fun from_json(v: Value, path: string): Result<Self, DecodeError>;
-    /** A struct's field named `name` that the object at `path` lacks. */
-    fun $missing(path: string, name: string): Result<Self, DecodeError>;
+    /**
+     * What a struct's field of this type decodes to when the object at
+     * `path` lacks it: an error, unless replaced. `Option` gives `None`.
+     */
+    fun missing(path: string, field: string): Result<Self, DecodeError> = $no_field(path, field);
 }
 
 /**
@@ -123,93 +128,93 @@ fun $no_field<T>(path: string, name: string): Result<T, DecodeError> = $fail(pat
 derive Json for i8 {
     fun to_json(self): Value = Value.Integer(self as i64);
     fun from_json(v: Value, path: string): Result<i8, DecodeError> = $dec_i8(v, path);
-    fun $missing(path: string, name: string): Result<i8, DecodeError> = $no_field(path, name);
+    fun missing(path: string, field: string): Result<i8, DecodeError> = $no_field(path, field);
 }
 
 derive Json for i16 {
     fun to_json(self): Value = Value.Integer(self as i64);
     fun from_json(v: Value, path: string): Result<i16, DecodeError> = $dec_i16(v, path);
-    fun $missing(path: string, name: string): Result<i16, DecodeError> = $no_field(path, name);
+    fun missing(path: string, field: string): Result<i16, DecodeError> = $no_field(path, field);
 }
 
 derive Json for i32 {
     fun to_json(self): Value = Value.Integer(self as i64);
     fun from_json(v: Value, path: string): Result<i32, DecodeError> = $dec_i32(v, path);
-    fun $missing(path: string, name: string): Result<i32, DecodeError> = $no_field(path, name);
+    fun missing(path: string, field: string): Result<i32, DecodeError> = $no_field(path, field);
 }
 
 derive Json for i64 {
     fun to_json(self): Value = Value.Integer(self);
     fun from_json(v: Value, path: string): Result<i64, DecodeError> = $dec_i64(v, path);
-    fun $missing(path: string, name: string): Result<i64, DecodeError> = $no_field(path, name);
+    fun missing(path: string, field: string): Result<i64, DecodeError> = $no_field(path, field);
 }
 
 derive Json for u8 {
     fun to_json(self): Value = Value.Integer(self as i64);
     fun from_json(v: Value, path: string): Result<u8, DecodeError> = $dec_u8(v, path);
-    fun $missing(path: string, name: string): Result<u8, DecodeError> = $no_field(path, name);
+    fun missing(path: string, field: string): Result<u8, DecodeError> = $no_field(path, field);
 }
 
 derive Json for u16 {
     fun to_json(self): Value = Value.Integer(self as i64);
     fun from_json(v: Value, path: string): Result<u16, DecodeError> = $dec_u16(v, path);
-    fun $missing(path: string, name: string): Result<u16, DecodeError> = $no_field(path, name);
+    fun missing(path: string, field: string): Result<u16, DecodeError> = $no_field(path, field);
 }
 
 derive Json for u32 {
     fun to_json(self): Value = Value.Integer(self as i64);
     fun from_json(v: Value, path: string): Result<u32, DecodeError> = $dec_u32(v, path);
-    fun $missing(path: string, name: string): Result<u32, DecodeError> = $no_field(path, name);
+    fun missing(path: string, field: string): Result<u32, DecodeError> = $no_field(path, field);
 }
 
 /** A `u64` past `i64.MAX` can only be a (rounded) `Float`. */
 derive Json for u64 {
     fun to_json(self): Value = if self > 9223372036854775807 { Value.Float(self as f64) } else { Value.Integer(self as i64) };
     fun from_json(v: Value, path: string): Result<u64, DecodeError> = $dec_u64(v, path);
-    fun $missing(path: string, name: string): Result<u64, DecodeError> = $no_field(path, name);
+    fun missing(path: string, field: string): Result<u64, DecodeError> = $no_field(path, field);
 }
 
 derive Json for f32 {
     fun to_json(self): Value = Value.Float(self as f64);
     fun from_json(v: Value, path: string): Result<f32, DecodeError> = $dec_f32(v, path);
-    fun $missing(path: string, name: string): Result<f32, DecodeError> = $no_field(path, name);
+    fun missing(path: string, field: string): Result<f32, DecodeError> = $no_field(path, field);
 }
 
 derive Json for f64 {
     fun to_json(self): Value = Value.Float(self);
     fun from_json(v: Value, path: string): Result<f64, DecodeError> = $dec_f64(v, path);
-    fun $missing(path: string, name: string): Result<f64, DecodeError> = $no_field(path, name);
+    fun missing(path: string, field: string): Result<f64, DecodeError> = $no_field(path, field);
 }
 
 derive Json for bool {
     fun to_json(self): Value = Value.Bool(self);
     fun from_json(v: Value, path: string): Result<bool, DecodeError> = $dec_bool(v, path);
-    fun $missing(path: string, name: string): Result<bool, DecodeError> = $no_field(path, name);
+    fun missing(path: string, field: string): Result<bool, DecodeError> = $no_field(path, field);
 }
 
 derive Json for char {
     fun to_json(self): Value = Value.Text("{self}");
     fun from_json(v: Value, path: string): Result<char, DecodeError> = $dec_char(v, path);
-    fun $missing(path: string, name: string): Result<char, DecodeError> = $no_field(path, name);
+    fun missing(path: string, field: string): Result<char, DecodeError> = $no_field(path, field);
 }
 
 derive Json for string {
     fun to_json(self): Value = Value.Text(self);
     fun from_json(v: Value, path: string): Result<string, DecodeError> = $dec_text(v, path);
-    fun $missing(path: string, name: string): Result<string, DecodeError> = $no_field(path, name);
+    fun missing(path: string, field: string): Result<string, DecodeError> = $no_field(path, field);
 }
 
 derive Json for () {
     fun to_json(self): Value = Value.Null;
     fun from_json(v: Value, path: string): Result<(), DecodeError> = $dec_unit(v, path);
-    fun $missing(path: string, name: string): Result<(), DecodeError> = $no_field(path, name);
+    fun missing(path: string, field: string): Result<(), DecodeError> = $no_field(path, field);
 }
 
 /** A `Value` is itself. */
 derive Json for Value {
     fun to_json(self): Value = self;
     fun from_json(v: Value, path: string): Result<Value, DecodeError> = Ok(v);
-    fun $missing(path: string, name: string): Result<Value, DecodeError> = $no_field(path, name);
+    fun missing(path: string, field: string): Result<Value, DecodeError> = $no_field(path, field);
 }
 
 derive<T: Json> Json for T[] {
@@ -230,7 +235,7 @@ derive<T: Json> Json for T[] {
         Ok(out)
     }
 
-    fun $missing(path: string, name: string): Result<T[], DecodeError> = $no_field(path, name);
+    fun missing(path: string, field: string): Result<T[], DecodeError> = $no_field(path, field);
 }
 
 /** `None` is `null` and `Some(x)` is `x`'s; a missing `Option` field is `None`. */
@@ -247,7 +252,7 @@ derive<T: Json> Json for Option<T> {
         Ok(Some(T.from_json(v, path)?))
     }
 
-    fun $missing(path: string, name: string): Result<Option<T>, DecodeError> = Ok(None);
+    fun missing(path: string, field: string): Result<Option<T>, DecodeError> = Ok(None);
 }
 
 /** An object, its keys as text: a string as it is, an integer in decimal. */
@@ -271,7 +276,7 @@ derive<K: Eq + $JsonKey, V: Json> Json for Map<K, V> {
         Ok(out)
     }
 
-    fun $missing(path: string, name: string): Result<Map<K, V>, DecodeError> = $no_field(path, name);
+    fun missing(path: string, field: string): Result<Map<K, V>, DecodeError> = $no_field(path, field);
 }
 
 /** An array with no element twice. */
@@ -295,7 +300,7 @@ derive<T: Eq + Json> Json for Set<T> {
         Ok(out)
     }
 
-    fun $missing(path: string, name: string): Result<Set<T>, DecodeError> = $no_field(path, name);
+    fun missing(path: string, field: string): Result<Set<T>, DecodeError> = $no_field(path, field);
 }
 
 /** An array of the elements, by position. */
@@ -304,7 +309,7 @@ derive Json for tuple {
 
     fun from_json(v: Value, path: string): Result<Self, DecodeError> = derive.build(Read { v: v, path: path }, $dec_element);
 
-    fun $missing(path: string, name: string): Result<Self, DecodeError> = $no_field(path, name);
+    fun missing(path: string, field: string): Result<Self, DecodeError> = $no_field(path, field);
 }
 
 /** An object of every field, private ones too, in declaration order. */
@@ -316,7 +321,7 @@ derive Json for struct {
         derive.build(Members { m: m, path: path }, $dec_member)
     }
 
-    fun $missing(path: string, name: string): Result<Self, DecodeError> = $no_field(path, name);
+    fun missing(path: string, field: string): Result<Self, DecodeError> = $no_field(path, field);
 }
 
 /** A variant's name, or a one-key object holding its payload (several as an array). */
@@ -351,7 +356,7 @@ derive Json for enum {
         Err($unknown_variant(path, name))
     }
 
-    fun $missing(path: string, name: string): Result<Self, DecodeError> = $no_field(path, name);
+    fun missing(path: string, field: string): Result<Self, DecodeError> = $no_field(path, field);
 }
 
 /** A value and where it is, for the field functions below. */
@@ -382,7 +387,7 @@ fun $dec_element<F: Json>(c: Read, name: string, i: i64, n: i64): Result<F, Deco
 /** A struct's field `name`. */
 fun $dec_member<F: Json>(c: Members, name: string, i: i64, n: i64): Result<F, DecodeError> = match c.m.get(name) {
     Some(x) => F.from_json(x, $field_path(c.path, name)),
-    None => F.$missing(c.path, name),
+    None => F.missing(c.path, name),
 };
 
 /** A variant's payload `i` of `of`: the value itself, or element `i` of an array of `of`. */

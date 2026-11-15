@@ -1,0 +1,4 @@
+{"name":"a","url":"b"}
+[{"Up":200},{"Down":"dns"}]
+"(1, 2)"
+Ok(Post { title: "hi", tags: Tags { list: ["none"] }, at: Point { x: 0, y: 0 } })

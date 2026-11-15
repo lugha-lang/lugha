@@ -2,7 +2,7 @@
 //! `self` receiver.
 
 use super::{PResult, Parser};
-use crate::ast::{Block, EnumDecl, FunDecl, Ident, ImplDecl, Param, Receiver, Variant};
+use crate::ast::{Block, Bound, EnumDecl, FunDecl, Ident, ImplDecl, Param, Receiver, Variant};
 use crate::diagnostic::Diagnostic;
 use crate::lexer::TokenKind;
 use crate::span::Span;
@@ -33,12 +33,15 @@ impl Parser<'_> {
                 })
             })
         })?;
+        let span = Span::new(start, self.prev_end());
+        let derives = self.with_list()?;
         Ok(EnumDecl {
             visibility: None,
             name,
             type_params,
             variants,
-            span: Span::new(start, self.prev_end()),
+            span,
+            derives,
         })
     }
 
@@ -68,10 +71,21 @@ impl Parser<'_> {
             (None, first)
         };
         let params = self.impl_params()?;
-        let open = self.expect(&TokenKind::LBrace)?;
-        // `Self` means this type throughout the block.
-        let names: Vec<Ident> = params.iter().map(|p| p.name.clone()).collect();
-        let mut methods = self.in_impl(&ty, &names, |p| p.impl_methods(open))?;
+        // `impl I for T = derive;`: the items come from `I`'s derive blocks.
+        let derive = interface.is_some() && self.eat(&TokenKind::Eq);
+        let mut methods = Vec::new();
+        if derive {
+            if !matches!(self.peek(), TokenKind::Ident(w) if w == "derive") {
+                return Err(self.expected("`derive`"));
+            }
+            self.bump();
+            self.expect(&TokenKind::Semi)?;
+        } else {
+            let open = self.expect(&TokenKind::LBrace)?;
+            // `Self` means this type throughout the block.
+            let names: Vec<Ident> = params.iter().map(|p| p.name.clone()).collect();
+            methods = self.in_impl(&ty, &names, |p| p.impl_methods(open))?;
+        }
         // An interface's methods are named apart from the type's own:
         // `area@Shape`, the interface as written, its `.`s as `/`s (a
         // method's key is split at its last `.`). No program's name has `@`.
@@ -93,7 +107,22 @@ impl Parser<'_> {
             actor: false,
             interface,
             tag,
+            derive,
         })
+    }
+
+    /// `with I, J` after a struct's or enum's closing brace; empty without
+    /// one. `with` is a word only here.
+    pub(super) fn with_list(&mut self) -> PResult<Vec<Bound>> {
+        if !matches!(self.peek(), TokenKind::Ident(w) if w == "with") {
+            return Ok(Vec::new());
+        }
+        self.bump();
+        let mut bounds = vec![self.bound()?];
+        while self.eat(&TokenKind::Comma) {
+            bounds.push(self.bound()?);
+        }
+        Ok(bounds)
     }
 
     /// True if the `impl` header ahead names an interface: a `for` comes

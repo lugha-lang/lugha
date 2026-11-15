@@ -212,7 +212,7 @@ impl Checker {
     /// Every declaration pass over every module in turn, then every body.
     fn modules(&mut self, units: &[Unit]) {
         type Pass = fn(&mut Checker, &Program);
-        let passes: [Pass; 13] = [
+        let passes: [Pass; 14] = [
             Checker::collect_handles,
             Checker::collect_interfaces,
             Checker::collect_structs,
@@ -225,6 +225,7 @@ impl Checker {
             Checker::collect_consts,
             Checker::collect_methods,
             Checker::collect_derives,
+            Checker::collect_with,
             Checker::check_actors,
         ];
         // Named imports first, so every pass resolves through them.
@@ -241,6 +242,11 @@ impl Checker {
         }
         // Which structs and enums supply derivable items themselves.
         self.derive_owners();
+        // What each struct and enum asked to derive, once every type is known.
+        for unit in units {
+            self.enter(unit);
+            self.check_with(unit.program);
+        }
         for unit in units {
             self.enter(unit);
             self.visibility_rules(unit.program);

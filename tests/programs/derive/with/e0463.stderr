@@ -1,0 +1,12 @@
+error[E0463]: `Point` both derives and implements `json.Json`
+  --> tests/programs/derive/with/e0463.la:4:38
+  |
+4 | struct Point { x: i64, y: i64 } with json.Json
+  |                                      ^^^^^^^^^
+5 |
+6 | impl json.Json for Point {
+  |      --------- implemented by hand here
+  |
+  = help: keep one: remove `json.Json` from `with`, or the `impl` block
+
+For more about E0463, run `lughac explain E0463`.

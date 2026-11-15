@@ -1,0 +1,12 @@
+// Derived and written by hand: one too many.
+import std.json;
+
+struct Point { x: i64, y: i64 } with json.Json
+
+impl json.Json for Point {
+    fun to_json(self): json.Value = json.Value.Text("({self.x}, {self.y})");
+    fun from_json(v: json.Value, path: string): Result<Point, json.DecodeError> =
+        Ok(Point { x: 0, y: 0 });
+}
+
+fun main() {}

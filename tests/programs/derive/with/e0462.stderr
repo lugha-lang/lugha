@@ -1,0 +1,17 @@
+error[E0462]: `Show` can't be derived for `Light`, an enum
+  --> tests/programs/derive/with/e0462.la:6:32
+  |
+6 | enum Light { Red, Green } with Show
+  |                                ^^^^
+  |
+  = help: `Show` has derive blocks for structs only: write `impl Show for Light { … }`
+
+error[E0462]: `Display` can't be derived for `P`, a struct
+  --> tests/programs/derive/with/e0462.la:8:26
+  |
+8 | struct P { x: i64 } with Display
+  |                          ^^^^^^^
+  |
+  = help: a type meets `Display` with its own methods of the interface's item names, in `impl P { … }`
+
+For more about E0462, run `lughac explain E0462`.

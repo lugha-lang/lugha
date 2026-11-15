@@ -1,9 +1,9 @@
 import std.json;
 
-struct Job { name: string, run: fun(): () }
+struct Job { name: string, run: fun(): () } with json.Json
 interface Shape { fun area(self): f64; }
-struct Holder { shapes: Shape[] }
-enum Slot { Empty, Boxed(Ref<i64>) }
+struct Holder { shapes: Shape[] } with json.Json
+enum Slot { Empty, Boxed(Ref<i64>) } with json.Json
 
 fun anything<T>(x: T): json.Value = json.encode(x);
 

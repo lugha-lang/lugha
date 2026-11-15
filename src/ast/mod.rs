@@ -194,6 +194,8 @@ pub struct StructDecl {
     /// its methods follow as an `impl` with `actor` set. `span` is the
     /// whole actor.
     pub actor: Option<Span>,
+    /// `with I, J` after the closing brace: the interfaces it derives.
+    pub derives: Vec<Bound>,
 }
 
 /// A method's `self` or `mut self` parameter.
@@ -218,6 +220,8 @@ pub struct EnumDecl {
     pub variants: Vec<Variant>,
     /// From `enum` to the closing brace.
     pub span: Span,
+    /// `with I, J` after the closing brace: the interfaces it derives.
+    pub derives: Vec<Bound>,
 }
 
 /// One enum variant and its positional payload types.
@@ -255,6 +259,9 @@ pub struct ImplDecl {
     /// block's method names (`area@Shape`), and `modules::impls` adds the
     /// module to for another module's type; empty for a type's own methods.
     pub tag: Box<str>,
+    /// `impl I for T = derive;`: the interface's items come from its derive
+    /// blocks, as for `with I`; `methods` is empty.
+    pub derive: bool,
 }
 
 /// A typed name: a function parameter.

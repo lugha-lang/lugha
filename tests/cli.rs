@@ -220,7 +220,7 @@ fn spec_prints_the_bundled_specification() {
     let out = lughac(&dir.0, &["spec"]);
     assert_eq!(out.status.code(), Some(0));
     assert_eq!(text(&out.stdout), lugha::SPEC);
-    assert!(lugha::SPEC.starts_with("# Lugha v17 Specification"));
+    assert!(lugha::SPEC.starts_with("# Lugha v18 Specification"));
     assert!(out.stderr.is_empty(), "{}", text(&out.stderr));
     assert_eq!(lughac(&dir.0, &["spec", "extra"]).status.code(), Some(2));
 }

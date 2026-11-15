@@ -48,6 +48,7 @@ impl Parser<'_> {
             c_layout: None,
             union: None,
             actor: Some(keyword),
+            derives: Vec::new(),
         };
         let methods = ImplDecl {
             module: None,
@@ -58,6 +59,7 @@ impl Parser<'_> {
             actor: true,
             interface: None,
             tag: Box::default(),
+            derive: false,
         };
         Ok((state, methods))
     }

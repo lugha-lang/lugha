@@ -1,9 +1,9 @@
-error[E0422]: `Point` doesn't satisfy `json.Json`
+error[E0422]: `Point` doesn't implement `json.Json`
    --> tests/programs/derive/every_module/json_clash.la:12:13
    |
 12 |     let v = json.encode(Point { x: 1, y: 2 });
    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
-   = help: `to_json` should be `fun to_json(self): json.Value`
+   = help: add `with json.Json` after `Point`'s declaration, or implement it by hand with `impl json.Json for Point`
 
 For more about E0422, run `lughac explain E0422`.

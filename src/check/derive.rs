@@ -137,6 +137,14 @@ impl Derives {
         Some((b, vec![ty.clone()]))
     }
 
+    /// True if `interface` has a block for every struct (`Covers::Struct`)
+    /// or every enum (`Covers::Enum`).
+    pub(super) fn covers(&self, interface: &str, kind: &Covers) -> bool {
+        self.blocks
+            .iter()
+            .any(|b| b.interface == interface && b.covers == *kind)
+    }
+
     /// True if struct or enum `owner` has its own item `name` of a derivable
     /// interface.
     pub fn has_own(&self, owner: &str, name: &str) -> bool {
