@@ -1,0 +1,9 @@
+error[E0422]: `P` doesn't implement `Ord`
+   --> tests/programs/interfaces/user_ord/e0422_own_cmp.la:10:13
+   |
+10 |     println(a < a);
+   |             ^^^^^
+   |
+   = help: add `with Ord` after `P`'s declaration, or implement it by hand with `impl Ord for P`
+
+For more about E0422, run `lughac explain E0422`.

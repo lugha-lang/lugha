@@ -291,7 +291,7 @@ mod tests {
             .map(|(c, _)| c)
             .collect::<Vec<_>>()
         };
-        assert!(e("let r = [S { n: 1 }].iter().min();").contains(&"E0419"));
+        assert!(e("let r = [S { n: 1 }].iter().min();").contains(&"E0422"));
         assert!(e("let r = [1].iter().chain([\"a\"].iter());").contains(&"E0422"));
     }
 

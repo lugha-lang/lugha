@@ -1,0 +1,16 @@
+true
+true
+true
+b
+[(1, "z"), (2, "a"), (2, "b")]
+true
+[-0.0, 1.0, 2.5]
+true
+[Dot, Circle(9), Rect(1, 1), Rect(1, 2)]
+true true
+9 5 5
+true
+[-inf, -2.0, -0.0, 0.0, 1.0, NaN]
+true false true false
+[-1.0, 2.0, 3.0]
+true

@@ -40,7 +40,8 @@ impl Checker {
         // `Iter`, `Display`, `Eq`, `Key` and the operator bounds are the
         // prelude's interfaces.
         let prelude = format!("$prelude.{name}");
-        let known = (matches!(name, "Iter" | "Display" | "Eq" | "Key") || is_operator_bound(name))
+        let known = (matches!(name, "Iter" | "Display" | "Eq" | "Key" | "Ord")
+            || is_operator_bound(name))
             && self.interfaces.contains_key(&prelude);
         if module.is_none() && known && !declared {
             return prelude;

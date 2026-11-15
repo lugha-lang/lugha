@@ -1,0 +1,17 @@
+error[E0422]: `P` doesn't implement `Ord`
+  --> tests/programs/interfaces/user_ord/e0422.la:8:13
+  |
+8 |     let m = math.min(a, a);
+  |             ^^^^^^^^^^^^^^
+  |
+  = help: add `with Ord` after `P`'s declaration, or implement it by hand with `impl Ord for P`
+
+error[E0422]: `P` doesn't implement `Ord`
+  --> tests/programs/interfaces/user_ord/e0422.la:9:13
+  |
+9 |     let s = [a].sort();
+  |             ^^^^^^^^^^
+  |
+  = help: add `with Ord` after `P`'s declaration, or implement it by hand with `impl Ord for P`
+
+For more about E0422, run `lughac explain E0422`.

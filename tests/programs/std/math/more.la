@@ -30,9 +30,9 @@ fun main() {
     println(mean(1.0, 2.0));
     println(math.abs(-2.5));
     println(math.abs(7));
-    println(math.min(-1.5, 2.0));
+    println(math.min(-1, 2));
     println(math.max("pear", "apple"));
     println(clamp(-4, 0, 10));
-    println(clamp(0.5, 0.0, 1.0));
+    println(clamp('z', 'a', 'm'));
     println(math.pow(3.0, 2.0) + sqrt(16.0));
 }

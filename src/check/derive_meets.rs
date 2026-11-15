@@ -66,6 +66,9 @@ impl Checker {
             Unmet::Missing(Type::F32 | Type::F64) if interface == super::derive::KEY => {
                 errors::float_key(arg, &path, span)
             }
+            Unmet::Missing(float @ (Type::F32 | Type::F64)) if interface == super::derive::ORD => {
+                errors::float_not_ord(arg, float, &path, span)
+            }
             _ => {
                 let covered = self.derives.covered(interface);
                 let what = describe(name, &why);

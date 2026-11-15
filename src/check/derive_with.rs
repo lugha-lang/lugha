@@ -26,6 +26,9 @@ pub(super) struct Asking {
     /// Map and set keys written before every type has said what it
     /// derives: checked for `Key` once it has.
     pub keys: Vec<(Type, Span)>,
+    /// Derivable bounds met by types written before the declarations are
+    /// in, with the interface's key: checked once they are.
+    pub bounds: Vec<(Type, String, Span)>,
     /// True once every module's declarations are in: keys are checked at
     /// once from then on.
     pub settled: bool,
@@ -246,6 +249,13 @@ impl Checker {
                     false if float && key == super::derive::KEY => {
                         errors::float_key(&me, &inner, span)
                     }
+                    false if float && key == super::derive::ORD => {
+                        let float = match why {
+                            Unmet::Missing(f) => f,
+                            _ => Type::F64,
+                        };
+                        errors::float_not_ord(&me, &float, &inner, span)
+                    }
                     false => {
                         let name = key.rsplit('.').next().unwrap_or(key);
                         let what = super::derive_meets::describe(name, &why);
@@ -308,11 +318,17 @@ impl Checker {
         }
     }
 
-    /// Every key waiting for the declarations, checked.
+    /// Every key and bound waiting for the declarations, checked.
     pub(super) fn settle_keys(&mut self) {
         self.asking.settled = true;
         for (key, at) in std::mem::take(&mut self.asking.keys) {
             self.meets_derived(super::derive::KEY, &key, at);
+        }
+        for (ty, interface, at) in std::mem::take(&mut self.asking.bounds) {
+            // A type parameter's bounds were known where it was written.
+            if !super::generics::has_param(&ty) {
+                self.meets_derived(&interface, &ty, at);
+            }
         }
     }
 }

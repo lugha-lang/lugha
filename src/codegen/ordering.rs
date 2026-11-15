@@ -1,6 +1,6 @@
-//! User-defined order in codegen:
-//! `<`, `<=`, `>` and `>=` on a struct or enum call its `cmp`, and the
-//! `Ordering` it returns becomes the −1/0/1 the tuple comparisons use.
+//! Order in codegen: `<`, `<=`, `>` and `>=` on a struct, enum or tuple
+//! call its `Ord`'s `cmp`, written or derived, and the `Ordering` it
+//! returns becomes −1, 0 or 1.
 
 use inkwell::IntPredicate;
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, IntValue, ValueKind};
@@ -9,11 +9,11 @@ use super::instances::instance_name;
 use super::lower::{Lowerer, POSITIONED};
 use super::methods::{Method, key};
 use super::value::is_aggregate;
-use crate::check::{ORDERING, Type, tuple_elements};
+use crate::check::{ORD, ORDERING, Type};
 
-/// Whether `<` on `ty` calls a `cmp` method: a struct or enum, not a tuple.
+/// Whether `<` on `ty` calls `Ord`'s `cmp`: a struct, enum or tuple.
 pub(super) fn user_ordered(ty: &Type) -> bool {
-    matches!(ty, Type::Struct(..) | Type::Enum(..)) && tuple_elements(ty).is_none()
+    matches!(ty, Type::Struct(..) | Type::Enum(..))
 }
 
 impl<'ctx> Lowerer<'ctx> {
@@ -78,18 +78,30 @@ impl<'ctx> Lowerer<'ctx> {
             .into_int_value()
     }
 
-    /// `ty`'s `cmp`: its instance for a generic type, else the declared method.
+    /// `ty`'s `cmp`: its `impl Ord`'s (an instance for a generic type),
+    /// else the covering derive block's instance.
     fn cmp_method(&self, ty: &Type) -> Method<'ctx> {
         let (Type::Struct(owner, args) | Type::Enum(owner, args)) = ty else {
-            unreachable!("checked: only structs and enums have `cmp`")
+            unreachable!("checked: only structs, enums and tuples go through `Ord`")
         };
-        let k = key(owner, "cmp");
-        let instance = (!args.is_empty())
-            .then(|| self.monos.get(&instance_name(&k, args)).cloned())
-            .flatten();
-        instance
-            .or_else(|| self.methods.get(&k).cloned())
-            .or_else(|| self.monos.get(&k).cloned())
-            .unwrap_or_else(|| panic!("checked: `{k}` is listed for `{ty}`"))
+        if self.derives.has_own(owner, "cmp") {
+            let k = key(owner, &self.block_method(ty, ORD, &[], "cmp"));
+            let instance = (!args.is_empty())
+                .then(|| self.monos.get(&instance_name(&k, args)).cloned())
+                .flatten();
+            return instance
+                .or_else(|| self.methods.get(&k).cloned())
+                .or_else(|| self.monos.get(&k).cloned())
+                .unwrap_or_else(|| panic!("checked: `{k}` is listed for `{ty}`"));
+        }
+        let target = self
+            .derives
+            .target(ORD, "cmp", ty, |_| false)
+            .unwrap_or_else(|| panic!("checked: `{ty}` is `Ord`"));
+        let k = instance_name(&target.key, &target.args);
+        self.monos
+            .get(&k)
+            .cloned()
+            .unwrap_or_else(|| panic!("checked: `{k}` is listed"))
     }
 }

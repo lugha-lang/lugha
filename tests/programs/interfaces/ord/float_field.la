@@ -1,0 +1,4 @@
+// `with Ord` over a float field is rejected where it is asked for.
+struct Reading { at: string, value: f64 } with Ord
+
+fun main() {}

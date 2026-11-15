@@ -1,0 +1,4 @@
+// Floats aren't `Ord`: `sort` needs `sort_by(f64.total_order)`.
+fun main() {
+    println([2.5, 1.0].sort());
+}

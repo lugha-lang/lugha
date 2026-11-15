@@ -1,4 +1,4 @@
-// `<` on a type without a `cmp` of the right shape is E0404.
+// An own `cmp` method doesn't make a type `Ord`: only `with Ord` or `impl Ord` do.
 struct P { x: i64 }
 
 impl P {

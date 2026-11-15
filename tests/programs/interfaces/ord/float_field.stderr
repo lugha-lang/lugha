@@ -1,0 +1,9 @@
+error[E0451]: `Reading` isn't `Ord`: `value` is a float
+  --> tests/programs/interfaces/ord/float_field.la:2:48
+  |
+2 | struct Reading { at: string, value: f64 } with Ord
+  |                                                ^^^
+  |
+  = help: order by the other parts with `impl Ord for Reading`, or sort with `xs.sort_by(f)` comparing `f64.total_order`
+
+For more about E0451, run `lughac explain E0451`.

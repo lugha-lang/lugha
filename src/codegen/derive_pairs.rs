@@ -227,6 +227,115 @@ impl<'ctx> Lowerer<'ctx> {
             .into_int_value()
     }
 
+    /// `derive.order(a, b, f)`: `f(name, x, y)`, -1, 0 or 1, for each pair
+    /// of corresponding fields until one isn't 0; an enum's variants by
+    /// their position first. 0 when every pair is.
+    pub(super) fn order(
+        &mut self,
+        f: &str,
+        (ha, hb): (PointerValue<'ctx>, PointerValue<'ctx>),
+        ty: &Type,
+    ) -> inkwell::values::IntValue<'ctx> {
+        let i64_type = self.context.i64_type();
+        let result = self.entry_alloca(&Type::I64, "order");
+        self.builder
+            .build_store(result, i64_type.const_zero())
+            .expect(POSITIONED);
+        let done = self.append("order.done");
+        // `f(name, x, y)`, kept and on to `done` when it isn't 0.
+        let check = |this: &mut Self,
+                     name: &str,
+                     pair: (BasicValueEnum<'ctx>, BasicValueEnum<'ctx>),
+                     part: &Type| {
+            let name = this.string_literal(name).into();
+            let args = [
+                (name, Type::String),
+                (pair.0, part.clone()),
+                (pair.1, part.clone()),
+            ];
+            let sign = this.field_call(f, part, &args).into_int_value();
+            this.builder.build_store(result, sign).expect(POSITIONED);
+            let same = this
+                .builder
+                .build_int_compare(IntPredicate::EQ, sign, i64_type.const_zero(), "same")
+                .expect(POSITIONED);
+            let next = this.append("order.next");
+            this.builder
+                .build_conditional_branch(same, next, done)
+                .expect(POSITIONED);
+            this.builder.position_at_end(next);
+        };
+        if let Type::Enum(..) | Type::Option(_) = ty {
+            let (ta, tb) = (self.tag(ty, ha), self.tag(ty, hb));
+            let before = self
+                .builder
+                .build_int_compare(IntPredicate::ULT, ta, tb, "before")
+                .expect(POSITIONED);
+            let after = self
+                .builder
+                .build_int_compare(IntPredicate::UGT, ta, tb, "after")
+                .expect(POSITIONED);
+            let up = self
+                .builder
+                .build_select(
+                    after,
+                    i64_type.const_int(1, false),
+                    i64_type.const_zero(),
+                    "up",
+                )
+                .expect(POSITIONED);
+            let sign = self
+                .builder
+                .build_select(before, i64_type.const_all_ones().into(), up, "variant")
+                .expect(POSITIONED)
+                .into_int_value();
+            self.builder.build_store(result, sign).expect(POSITIONED);
+            let same_tag = self
+                .builder
+                .build_int_compare(IntPredicate::EQ, ta, tb, "same.variant")
+                .expect(POSITIONED);
+            let payloads = self.append("order.payloads");
+            self.builder
+                .build_conditional_branch(same_tag, payloads, done)
+                .expect(POSITIONED);
+            self.builder.position_at_end(payloads);
+            let mut cases = Vec::new();
+            for (index, (name, parts)) in variants(ty, &self.enums).into_iter().enumerate() {
+                let block = self.append("order.variant");
+                cases.push((
+                    self.context.i32_type().const_int(index as u64, false),
+                    block,
+                ));
+                let resume = self.current_block();
+                self.builder.position_at_end(block);
+                for (i, p) in parts.iter().enumerate() {
+                    let i = u32::try_from(i).expect("payload count fits in u32");
+                    let x = self.load_payload(ty, ha, &parts, i, p);
+                    let y = self.load_payload(ty, hb, &parts, i, p);
+                    check(self, &name, (x, y), p);
+                }
+                self.branch(done);
+                self.builder.position_at_end(resume);
+            }
+            // Every tag has a case; the default is never taken.
+            self.builder
+                .build_switch(ta, done, &cases)
+                .expect(POSITIONED);
+        } else {
+            let xs = self.fields_at(ha, ty);
+            let ys = self.fields_at(hb, ty);
+            for ((name, part, x), (_, _, y)) in xs.into_iter().zip(ys) {
+                check(self, &name, (x, y), &part);
+            }
+            self.branch(done);
+        }
+        self.builder.position_at_end(done);
+        self.builder
+            .build_load(i64_type, result, "order")
+            .expect(POSITIONED)
+            .into_int_value()
+    }
+
     /// `derive.fold(x, init, f)`: `f(acc, name, part)` for each field, or
     /// each payload of the variant at hand, threading `acc`.
     pub(super) fn fold(

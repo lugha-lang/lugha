@@ -105,9 +105,10 @@ impl Checker {
     }
 
     /// True for an interface a type may implement through `impl I for T`:
-    /// any but the prelude's, except its `Eq` and `Key`.
+    /// any but the prelude's, except its `Eq`, `Key` and `Ord`.
     pub(super) fn by_block(&self, key: &str) -> bool {
-        module_of(key) != "$prelude" || key == super::derive::EQ || key == super::derive::KEY
+        module_of(key) != "$prelude"
+            || [super::derive::EQ, super::derive::KEY, super::derive::ORD].contains(&key)
     }
 
     /// True for an interface a type meets only through `impl I for T`:

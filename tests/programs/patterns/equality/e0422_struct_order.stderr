@@ -1,0 +1,9 @@
+error[E0422]: `P` doesn't implement `Ord`
+  --> tests/programs/patterns/equality/e0422_struct_order.la:6:13
+  |
+6 |     let c = a < b;
+  |             ^^^^^
+  |
+  = help: add `with Ord` after `P`'s declaration, or implement it by hand with `impl Ord for P`
+
+For more about E0422, run `lughac explain E0422`.

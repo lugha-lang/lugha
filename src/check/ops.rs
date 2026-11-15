@@ -63,6 +63,14 @@ impl Checker {
             (Type::Never, ty) | (ty, Type::Never) => (ty.clone(), ty),
             pair => pair,
         };
+        // `<` on a struct, enum or tuple needs it to meet `Ord`.
+        if matches!(op, BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge)
+            && l == r
+            && super::ordering::ordered_through_ord(&l)
+            && !self.meets_derived(super::derive::ORD, &l, expr.span)
+        {
+            return Type::Error;
+        }
         // `==` on a struct, enum, tuple, array or `Option` needs it to meet
         // `Eq`: E0451 names the part that doesn't.
         if matches!(op, BinOp::Eq | BinOp::Ne)
@@ -96,16 +104,15 @@ impl Checker {
             let wanted = self
                 .missing_bound(&l, ord)
                 .filter(|_| l == r && !arithmetic);
-            let help = super::ordering::cmp_help(&l).filter(|_| ord && l == r && wanted.is_none());
             // Boxes have no `==`: say which comparison was meant.
-            let help = help.or_else(|| match l {
+            let help = match l {
                 Type::Ref(_) => Some(
                     "compare boxes with `a.is(b)` (the same box) or `a.get() == b.get()` (the same contents)"
                         .to_string(),
                 ),
                 Type::Chan(_) => Some("`a.is(b)` tells whether both are the same channel".to_string()),
                 _ => None,
-            });
+            };
             let types = if l == r { vec![l] } else { vec![l, r] };
             let d = errors::bad_operands_on(op.symbol(), &types, expr.span);
             let d = errors::with_bound_help(d, wanted, ord);
@@ -115,7 +122,7 @@ impl Checker {
             });
             return Type::Error;
         }
-        // `<` on a type with `cmp` calls it.
+        // `<` on a type ordered through `Ord` calls its `cmp`.
         if matches!(op, BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge) {
             self.order_uses(expr, &l);
         }

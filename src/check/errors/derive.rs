@@ -126,6 +126,36 @@ pub(in crate::check) fn float_key(ty: &Type, path: &str, span: Span) -> Diagnost
     ))
 }
 
+/// E0451: `ty` isn't `Ord` because of `float`, at `path` inside it.
+pub(in crate::check) fn float_not_ord(
+    ty: &Type,
+    float: &Type,
+    path: &str,
+    span: Span,
+) -> Diagnostic {
+    let tuple = super::super::tuples::elements(ty).is_some();
+    let place = if path.is_empty() {
+        "floats have `<` but no order of their own".to_string()
+    } else if tuple {
+        // A tuple's element is named as it is read: `.0`.
+        format!("`{path}` is a float")
+    } else {
+        format!("`{}` is a float", path.trim_start_matches('.'))
+    };
+    let help = if path.is_empty() {
+        format!("sort them with `xs.sort_by({float}.total_order)`, IEEE 754's total order")
+    } else if tuple {
+        format!(
+            "compare the parts yourself, the float with `{float}.total_order`, or sort with `xs.sort_by(f)`"
+        )
+    } else {
+        format!(
+            "order by the other parts with `impl Ord for {ty}`, or sort with `xs.sort_by(f)` comparing `{float}.total_order`"
+        )
+    };
+    Diagnostic::error("E0451", format!("`{ty}` isn't `Ord`: {place}"), span).with_help(help)
+}
+
 /// E0422: `ty` meets derivable interface `interface` only by asking, and
 /// `part`, at `path` inside it (or `ty` itself), doesn't.
 pub(in crate::check) fn not_asked(

@@ -1,0 +1,9 @@
+error[E0422]: `P` implements `Ord` but not `Eq`, which `Ord` extends
+  --> tests/programs/interfaces/ord/ord_without_eq.la:4:6
+  |
+4 | impl Ord for P {
+  |      ^^^
+  |
+  = help: add `with Eq`, or write `impl Eq for P { … }`
+
+For more about E0422, run `lughac explain E0422`.

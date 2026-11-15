@@ -141,6 +141,11 @@ impl<'ctx> Lowerer<'ctx> {
             ExprKind::Call(callee, args) if let Some(op) = crate::check::float_op(callee) => {
                 self.float_call(expr, op, args)?
             }
+            // `f64.total_order(a, b)`: the prelude's function, compiled when
+            // reached.
+            ExprKind::Call(callee, args) if crate::check::total_order(callee).is_some() => {
+                return self.call(expr, args);
+            }
             // `f64.from_bits(b)`: the same bits as a float.
             ExprKind::Call(callee, args)
                 if let Some((float, _)) = crate::check::from_bits(callee) =>

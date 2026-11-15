@@ -115,6 +115,13 @@ impl Checker {
             ExprKind::Call(callee, args) if let Some(op) = super::float_ops::float_op(callee) => {
                 self.float_call(expr, (callee, op), args, expect)
             }
+            // `f64.total_order(a, b)`: the prelude's function.
+            ExprKind::Call(callee, args)
+                if let Some(key) = super::float_bits::total_order(callee) =>
+            {
+                self.record(callee, Type::Unit);
+                self.call_key(expr, key, args, expect)
+            }
             // `f64.from_bits(b)`.
             ExprKind::Call(callee, args)
                 if let Some(found) = super::float_bits::from_bits(callee) =>
@@ -166,6 +173,10 @@ impl Checker {
             ExprKind::Try(inner) => self.try_expr(expr, inner, expect),
             ExprKind::Cast(inner, target) => self.cast(expr, inner, target),
             ExprKind::Index(base, _, index) => self.index(expr, base, index),
+            // `f64.total_order` as a value: `xs.sort_by(f64.total_order)`.
+            ExprKind::Field(..) if let Some(key) = super::float_bits::total_order(expr) => {
+                self.function_value(expr, key, expect)
+            }
             // `CPtr.null`: C's NULL as a `CPtr`.
             ExprKind::Field(base, field)
                 if field.name == "null"

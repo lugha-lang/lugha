@@ -19,7 +19,27 @@ pub fn from_bits(callee: &Expr) -> Option<(Type, &str)> {
         "f32" => Type::F32,
         _ => return None,
     };
+    // `f64.total_order` is a prelude function (`total_order`).
+    if member.name == "total_order" {
+        return None;
+    }
     Some((float, member.name.as_str()))
+}
+
+/// The prelude function `f64.total_order` or `f32.total_order` names, when
+/// `e` is one of them: IEEE 754's total order as a `less` for `sort_by`.
+pub fn total_order(e: &Expr) -> Option<&'static str> {
+    let ExprKind::Field(base, member) = &e.kind else {
+        return None;
+    };
+    let ExprKind::Name(keyword) = &base.kind else {
+        return None;
+    };
+    match (keyword.as_str(), member.name.as_str()) {
+        ("f64", "total_order") => Some("$prelude.$total_order_f64"),
+        ("f32", "total_order") => Some("$prelude.$total_order_f32"),
+        _ => None,
+    }
 }
 
 /// The unsigned integer type holding a float's bits: `u64` or `u32`.
@@ -61,7 +81,7 @@ impl Checker {
 #[cfg(test)]
 mod tests {
     use crate::check::Type;
-    use crate::check::test_util::{errors, let_type};
+    use crate::check::test_util::{errors, let_type, ok};
 
     #[test]
     fn floats_turn_into_their_bits_and_back() {
@@ -86,5 +106,22 @@ mod tests {
         assert_eq!(one("let y = f64.from_bits(1, 2);"), "E0405");
         assert_eq!(one("let y = f64.nope(1);"), "E0415");
         assert_eq!(one("let b = (1).to_bits();"), "E0415");
+    }
+
+    #[test]
+    fn total_order_is_called_or_passed_and_floats_are_not_ord() {
+        let main = |body: &str| format!("fun main() {{ {body} }}");
+        assert_eq!(
+            let_type(&main("let b = f64.total_order(-0.0, 0.0);"), "b"),
+            Type::Bool
+        );
+        ok(&main("let xs = [2.5, 1.0].sort_by(f64.total_order);"));
+        ok(&main(
+            "let xs: f32[] = [2.0]; let ys = xs.sort_by(f32.total_order);",
+        ));
+        let one = |body: &str| errors(&main(body))[0].0;
+        assert_eq!(one("let b = f64.total_order(1.0, 2);"), "E0401");
+        assert_eq!(one("let xs = [2.5, 1.0].sort();"), "E0451");
+        assert_eq!(one("let b = (1.5, 2) < (2.5, 1);"), "E0451");
     }
 }

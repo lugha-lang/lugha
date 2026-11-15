@@ -58,7 +58,7 @@ mod tests {
         let sorted = "interface Sorted<T: Ord> { fun get(self): T; }\nstruct P {}\n";
         assert_eq!(
             codes(&format!("{sorted}fun f<S: Sorted<P>>(s: S) {{}}")),
-            ["E0419"]
+            ["E0422"]
         );
         assert_eq!(
             codes("fun f<S: Source<i64> + Source<string>>(s: S) {}"),

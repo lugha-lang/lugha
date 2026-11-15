@@ -9,29 +9,21 @@ impl Checker {
     /// E0419 for the first argument that doesn't meet its parameter's bounds.
     pub(super) fn meets_bounds(&mut self, generics: &[Generic], args: &[Type], span: Span) -> bool {
         for (g, arg) in generics.iter().zip(args) {
-            // `Eq` on a struct, enum, tuple, array or `Option` is the
-            // prelude's derivable `Eq`: E0451 with the path.
-            if g.bounds.eq && super::derive::compared_through_eq(arg) {
-                if !self.meets_derived(super::derive::EQ, arg, span) {
-                    return false;
-                }
-            } else if g.bounds.eq && !self.eq_ok(arg) {
-                self.report(errors::unmet_bound(arg, "Eq", span));
-                return false;
-            }
-            if g.bounds.ord && !self.ord_ok(arg) {
-                let d = errors::unmet_bound(arg, "Ord", span);
-                // A struct or enum becomes `Ord` through `cmp`.
-                self.report(match super::ordering::cmp_help(arg) {
-                    Some(help) => d.with_help(help),
-                    None => d,
-                });
-                return false;
-            }
+            // The interfaces come first: `Ord` extends `Eq`, and a type
+            // missing `Ord` is reported as missing it, not as missing `Eq`.
+            // The `ord` flag stands for the prelude's interface there.
             for interface in &g.bounds.interfaces {
                 // A derivable interface (`json.Json`) is met through its
                 // derive blocks: E0450 names the part
                 // that isn't data.
+                // `Ord` on a type written before the derive blocks are in
+                // (a struct's own bound): checked once they are.
+                if !self.asking.settled && interface.key == super::derive::ORD {
+                    self.asking
+                        .bounds
+                        .push((arg.clone(), interface.key.clone(), span));
+                    continue;
+                }
                 if self.derives.derivable(&interface.key) {
                     if !self.meets_derived(&interface.key, arg, span) {
                         return false;
@@ -54,6 +46,28 @@ impl Checker {
                 if !self.satisfies(arg, &interface, span) {
                     return false;
                 }
+            }
+            // `Eq` on a struct, enum, tuple, array or `Option` is the
+            // prelude's derivable `Eq`: E0451 with the path.
+            let ord = g
+                .bounds
+                .interfaces
+                .iter()
+                .any(|i| i.key == super::derive::ORD);
+            if ord && super::derive::compared_through_eq(arg) {
+                // `Ord` was checked, and a type meeting it meets `Eq`.
+            } else if g.bounds.eq && super::derive::compared_through_eq(arg) && !self.asking.settled
+            {
+                // Before the derive blocks are in: checked once they are.
+                let eq = super::derive::EQ.to_string();
+                self.asking.bounds.push((arg.clone(), eq, span));
+            } else if g.bounds.eq && super::derive::compared_through_eq(arg) {
+                if !self.meets_derived(super::derive::EQ, arg, span) {
+                    return false;
+                }
+            } else if g.bounds.eq && !self.eq_ok(arg) {
+                self.report(errors::unmet_bound(arg, "Eq", span));
+                return false;
             }
         }
         true
@@ -96,12 +110,8 @@ impl Checker {
     pub(super) fn ord_ok(&self, ty: &Type) -> bool {
         match ty {
             Type::Param(n) => self.bounds(n).ord || self.has_num(n),
-            // A tuple orders lexicographically when every element does.
-            Type::Struct(key, args) if key.starts_with(super::tuples::TUPLE) => {
-                args.iter().all(|a| self.ord_ok(a))
-            }
-            // A struct or enum with `cmp`.
-            Type::Struct(..) | Type::Enum(..) => self.has_cmp(ty),
+            // Structs, enums and tuples are judged by `Ord` itself.
+            Type::Struct(..) | Type::Enum(..) => true,
             // `()`: always equal.
             _ => ty.is_numeric() || matches!(ty, Type::String | Type::Char | Type::Unit),
         }
@@ -173,7 +183,8 @@ mod tests {
         let set = "struct Set<T: Ord> { items: T[] }\n";
         assert_eq!(
             errors(&format!("{set}fun f(s: Set<i64[]>) {{}}\nfun main() {{}}")),
-            [("E0419", "Set<i64[]>")]
+            // Arrays aren't `Ord`: the part is named (E0451).
+            [("E0451", "Set<i64[]>")]
         );
         ok(&format!(
             "{set}fun f(s: Set<string>) {{}}\nfun g<U: Ord>(s: Set<U>) {{}}\nfun main() {{}}"
@@ -183,7 +194,10 @@ mod tests {
             [("E0419", "Set<U>")]
         );
         let d = diagnostics(&format!("{set}fun f(s: Set<i64[]>) {{}}\nfun main() {{}}"));
-        assert_eq!(d[0].message, "`i64[]` doesn't satisfy `Ord`");
+        assert_eq!(
+            d[0].message,
+            "`i64[]` doesn't meet `Ord`: it is `i64[]`, which no `derive Ord` block covers"
+        );
     }
 
     #[test]

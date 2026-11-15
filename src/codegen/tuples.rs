@@ -5,11 +5,9 @@
 
 use inkwell::IntPredicate;
 use inkwell::basic_block::BasicBlock;
-use inkwell::module::Linkage;
-use inkwell::values::{BasicValueEnum, FunctionValue, IntValue, ValueKind};
+use inkwell::values::{BasicValueEnum, IntValue, ValueKind};
 
 use super::CodegenError;
-use super::copy::mangle;
 use super::lower::{Lowerer, POSITIONED};
 use super::patterns::Subject;
 use super::value::llvm_type;
@@ -141,20 +139,9 @@ impl<'ctx> Lowerer<'ctx> {
             };
             return sign.into_int_value();
         }
-        // A struct or enum with `cmp`.
+        // A struct, enum or tuple: its `Ord`'s `cmp`.
         if super::ordering::user_ordered(ty) {
             return self.user_order(a, b, ty);
-        }
-        if crate::check::tuple_elements(ty).is_some() {
-            let helper = self.cmp_function(ty);
-            let call = self
-                .builder
-                .build_call(helper, &[a.into(), b.into()], "cmp")
-                .expect(POSITIONED);
-            let ValueKind::Basic(sign) = call.try_as_basic_value() else {
-                unreachable!("cmp helpers return an i32")
-            };
-            return sign.into_int_value();
         }
         let less = self.compare(BinOp::Lt, ty.clone(), a, b);
         let more = self.compare(BinOp::Gt, ty.clone(), a, b);
@@ -172,64 +159,6 @@ impl<'ctx> Lowerer<'ctx> {
             .expect(POSITIONED)
             .into_int_value()
     }
-
-    /// `lugha_cmp_<mangled>(T, T) -> i32`: the first unequal element decides.
-    fn cmp_function(&mut self, ty: &Type) -> FunctionValue<'ctx> {
-        let name = format!("lugha_cmp_{}", mangle(ty));
-        if let Some(function) = self.module.get_function(&name) {
-            return function;
-        }
-        let llvm = llvm_type(self.context, ty);
-        let i32_type = self.context.i32_type();
-        let function = self.module.add_function(
-            &name,
-            i32_type.fn_type(&[llvm.into(), llvm.into()], false),
-            Some(Linkage::Internal),
-        );
-        let (saved_block, saved_function) = (self.builder.get_insert_block(), self.function);
-        self.function = Some(function);
-        self.builder
-            .position_at_end(self.context.append_basic_block(function, "entry"));
-        let param = |i| {
-            function
-                .get_nth_param(i)
-                .expect("two parameters")
-                .into_struct_value()
-        };
-        let (a, b) = (param(0), param(1));
-        let fields = self.structs[&ty.to_string()].clone();
-        for (index, (field, field_ty)) in fields.iter().enumerate() {
-            let index = u32::try_from(index).expect("element count fits in u32");
-            let read = |this: &Self, v| {
-                let raw = this
-                    .builder
-                    .build_extract_value(v, index, field)
-                    .expect("element exists");
-                this.loaded_form(raw, field_ty)
-            };
-            let (x, y) = (read(self, a), read(self, b));
-            let sign = self.order_of(x, y, field_ty);
-            let differ = self
-                .builder
-                .build_int_compare(IntPredicate::NE, sign, i32_type.const_zero(), "differ")
-                .expect(POSITIONED);
-            let (done, more) = (self.append("decided"), self.append("next"));
-            self.builder
-                .build_conditional_branch(differ, done, more)
-                .expect(POSITIONED);
-            self.builder.position_at_end(done);
-            self.builder.build_return(Some(&sign)).expect(POSITIONED);
-            self.builder.position_at_end(more);
-        }
-        self.builder
-            .build_return(Some(&i32_type.const_zero()))
-            .expect(POSITIONED);
-        self.function = saved_function;
-        if let Some(block) = saved_block {
-            self.builder.position_at_end(block);
-        }
-        function
-    }
 }
 
 #[cfg(test)]
@@ -237,9 +166,9 @@ mod tests {
     use crate::codegen::test_util::ir;
 
     #[test]
-    fn tuples_are_named_structs_and_compare_by_helper() {
+    fn tuples_are_named_structs_and_compare_through_ords_block() {
         let ir = ir("fun main() { let t = (1, \"a\"); let b = t < (2, \"b\"); }");
         assert!(ir.contains("%\"(i64, string)\" = type"), "{ir}");
-        assert!(ir.contains("@\"lugha_cmp_"), "{ir}");
+        assert!(ir.contains("Ord@tuple.cmp"), "{ir}");
     }
 }

@@ -201,7 +201,7 @@ pub(super) mod tests {
         let sorted = "interface Sorted<T: Ord> { fun get(self): T; }\nstruct P {}\n";
         assert_eq!(
             codes(&format!("{sorted}fun f(s: Sorted<P>) {{}}")),
-            ["E0419"]
+            ["E0422"]
         );
     }
 

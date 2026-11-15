@@ -52,6 +52,13 @@ impl<'ctx> Lowerer<'ctx> {
             let f = self.callees[&expr.id].clone();
             return Ok(self.all(&f, (a, b), &me).into());
         }
+        // Two values ordered field by field: -1, 0 or 1.
+        if op == "order" {
+            let a = self.address_of(&args[0], &me)?;
+            let b = self.address_of(&args[1], &me)?;
+            let f = self.callees[&expr.id].clone();
+            return Ok(self.order(&f, (a, b), &me).into());
+        }
         // A variant's position, or a handle's address.
         if op == "index" || op == "address" {
             let x = self.get(&args[0], &me)?;

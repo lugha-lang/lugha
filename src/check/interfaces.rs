@@ -221,7 +221,18 @@ impl Checker {
         for b in &p.bounds {
             match (b.module.is_some(), b.name.name.as_str()) {
                 (false, "Eq") => bounds.eq = true,
-                (false, "Ord") => bounds.ord = true,
+                // `Ord` is the prelude's interface, written as a flag too.
+                (false, "Ord") => {
+                    bounds.ord = true;
+                    let ord = super::derive::ORD;
+                    let applied = Applied {
+                        key: ord.to_string(),
+                        args: Vec::new(),
+                    };
+                    if self.interfaces.contains_key(ord) && !bounds.interfaces.contains(&applied) {
+                        bounds.interfaces.push(applied);
+                    }
+                }
                 _ => {
                     if let Some(key) = self.interface_key(b)
                         && let Some(applied) = self.applied_bound(key, b)

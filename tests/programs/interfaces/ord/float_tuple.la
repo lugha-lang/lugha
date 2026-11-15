@@ -1,0 +1,4 @@
+// A tuple holding a float isn't ordered.
+fun main() {
+    println((1.5, 2) < (2.5, 1));
+}

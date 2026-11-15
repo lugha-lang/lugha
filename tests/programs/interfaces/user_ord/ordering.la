@@ -1,10 +1,10 @@
-// User-defined order: a type with
-// `fun cmp(self, other: Self): Ordering` is `Ord`.
+// User-defined order: `impl Ord` with a hand-written `cmp`, used by `<`,
+// `min`, `sort`, tuples and `T: Ord` alike.
 import std.math;
 
 struct Score { loss: f64, name: string } with Eq
 
-impl Score {
+impl Ord for Score {
     fun cmp(self, o: Score): Ordering =
         if self.loss < o.loss {
             Ordering.Less
@@ -15,7 +15,7 @@ impl Score {
         };
 }
 
-enum Level { Low, Mid, High }
+enum Level { Low, Mid, High } with Eq
 
 impl Level {
     fun rank(self): i64 = match self {
@@ -23,6 +23,9 @@ impl Level {
         Mid => 1,
         High => 2,
     };
+}
+
+impl Ord for Level {
     fun cmp(self, o: Level): Ordering =
         if self.rank() < o.rank() {
             Ordering.Less
@@ -33,9 +36,9 @@ impl Level {
         };
 }
 
-struct Box<T> { v: T }
+struct Box<T> { v: T } with Eq
 
-impl Box<T: Ord> {
+impl Ord for Box<T: Ord> {
     fun cmp(self, o: Box<T>): Ordering =
         if self.v < o.v {
             Ordering.Less

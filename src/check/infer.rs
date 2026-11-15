@@ -278,7 +278,7 @@ mod tests {
         );
         assert_eq!(
             e("let l = largest([[1]]);"),
-            [("E0419", "largest([[1]])".to_string())]
+            [("E0451", "largest([[1]])".to_string())]
         );
         // The string decides `T` before the literal, which defers.
         assert_eq!(e("let m = max(1, \"a\");"), [("E0401", "1".to_string())]);

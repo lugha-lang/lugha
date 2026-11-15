@@ -155,7 +155,8 @@ mod tests {
             codes("let r = match (true, 1) { (true, _) => 1 };"),
             ["E0417"]
         );
-        assert_eq!(codes("let b = ([1], 2) < ([1], 3);"), ["E0404"]);
+        // Arrays aren't `Ord`, so neither is a tuple holding one.
+        assert_eq!(codes("let b = ([1], 2) < ([1], 3);"), ["E0451"]);
         assert_eq!(codes("let t = (1, 2); let z = t.5;"), ["E0410"]);
     }
 }

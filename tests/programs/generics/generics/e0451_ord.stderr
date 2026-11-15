@@ -1,0 +1,9 @@
+error[E0451]: `i64[]` doesn't meet `Ord`: it is `i64[]`, which no `derive Ord` block covers
+  --> tests/programs/generics/generics/e0451_ord.la:3:13
+  |
+3 | fun size(s: Set<i64[]>): i64 = s.items.len;
+  |             ^^^^^^^^^^
+  |
+  = help: `Ord` has blocks for `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `char`, `string`, `()`, tuples, structs and enums
+
+For more about E0451, run `lughac explain E0451`.

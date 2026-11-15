@@ -256,6 +256,10 @@ impl Checker {
             None if u.callee.key == super::maps::EQUAL => {
                 self.eq_instances(&subst(&u.callee.args[0], generics, args), every)
             }
+            // A `<` reaches its type's `cmp`: written, or its block's.
+            None if u.callee.key == super::ordering::ORDER => {
+                self.ord_instances(&subst(&u.callee.args[0], generics, args), every)
+            }
             None => vec![Instance {
                 key: u.callee.key.clone(),
                 args: u
@@ -265,12 +269,6 @@ impl Checker {
                     .map(|a| subst(a, generics, args))
                     .collect(),
             }],
-            // `<` through `T: Ord` at a tuple reaches its elements'
-            // `cmp`.
-            Some(param) if u.callee.key == "cmp" => {
-                let concrete = subst(&Type::Param(param.clone()), generics, args);
-                self.cmp_targets(&concrete)
-            }
             Some(param) => match self.bound_target(generics, args, param, &u.callee.key) {
                 Some(instance) => vec![instance],
                 // A plain method is compiled anyway; purity still follows it.

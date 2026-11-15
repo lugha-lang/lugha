@@ -24,9 +24,9 @@ fun main() {
     println(contains(ps, Point { x: 4, y: 3 }));
     println(contains([[1], [2, 3]], [2, 3]));
     println(Pair { a: 1, b: "x" } == Pair { a: 1, b: "x" });
-    match largest([1.5, 0.5, 2.5]) {
+    match largest([3, 9, 4]) {
         Some(f) => println(f),
-        None => println(0.0),
+        None => println(0),
     }
     match largest(["pear", "apple", "plum"]) {
         Some(w) => println(w),

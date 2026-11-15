@@ -34,10 +34,119 @@ interface Float {
     fun neg(self): Self;
 }
 
-// What `cmp` returns: a type with
-// `fun cmp(self, other: Self): Ordering` is `Ord`, and `<` calls it.
-// Its variants are written `Ordering.Less`, like any enum's.
+// What `cmp` returns. Its variants are written `Ordering.Less`, like any
+// enum's.
 enum Ordering { Less, Equal, Greater }
 
-/** A sorted copy, stable, in the type's order (`<`, or its `cmp`): `xs.sort()`. */
+/**
+ * Values in a total order: `<`, `<=`, `>`, `>=`, sorting, `max` and `min`.
+ * Derivable: `with Ord` orders a struct by its fields and an enum by its
+ * variants, in declaration order. Floats have `<` but aren't `Ord`: sort
+ * them with `xs.sort_by(f64.total_order)`.
+ */
+public interface Ord: Eq {
+    /** Whether `self` comes before, with or after `other`. */
+    fun cmp(self, other: Self): Ordering;
+}
+
+/** `Less`, `Greater` or `Equal`, from the two comparisons. */
+fun $compare(less: bool, more: bool): Ordering = if less {
+    Ordering.Less
+} else if more {
+    Ordering.Greater
+} else {
+    Ordering.Equal
+};
+
+/** A pair of fields or payloads, ordered: -1, 0 or 1. */
+fun $order<F: Ord>(name: string, x: F, y: F): i64 = match x.cmp(y) {
+    Less => -1,
+    Equal => 0,
+    Greater => 1,
+};
+
+/** An `Ordering` from -1, 0 or 1. */
+fun $ordering(n: i64): Ordering = $compare(n < 0, n > 0);
+
+derive Ord for i8 {
+    fun cmp(self, other: i8): Ordering = $compare(self < other, self > other);
+}
+
+derive Ord for i16 {
+    fun cmp(self, other: i16): Ordering = $compare(self < other, self > other);
+}
+
+derive Ord for i32 {
+    fun cmp(self, other: i32): Ordering = $compare(self < other, self > other);
+}
+
+derive Ord for i64 {
+    fun cmp(self, other: i64): Ordering = $compare(self < other, self > other);
+}
+
+derive Ord for u8 {
+    fun cmp(self, other: u8): Ordering = $compare(self < other, self > other);
+}
+
+derive Ord for u16 {
+    fun cmp(self, other: u16): Ordering = $compare(self < other, self > other);
+}
+
+derive Ord for u32 {
+    fun cmp(self, other: u32): Ordering = $compare(self < other, self > other);
+}
+
+derive Ord for u64 {
+    fun cmp(self, other: u64): Ordering = $compare(self < other, self > other);
+}
+
+derive Ord for char {
+    fun cmp(self, other: char): Ordering = $compare(self < other, self > other);
+}
+
+derive Ord for string {
+    fun cmp(self, other: string): Ordering = $compare(self < other, self > other);
+}
+
+derive Ord for () {
+    fun cmp(self, other: ()): Ordering = Ordering.Equal;
+}
+
+/** Element by element, the first unequal one deciding. */
+derive Ord for tuple {
+    fun cmp(self, other: Self): Ordering = $ordering(derive.order(self, other, $order));
+}
+
+/** Field by field, in declaration order, the first unequal one deciding. */
+derive Ord for struct {
+    fun cmp(self, other: Self): Ordering = $ordering(derive.order(self, other, $order));
+}
+
+/** By variant, in declaration order, then by payloads. */
+derive Ord for enum {
+    fun cmp(self, other: Self): Ordering = $ordering(derive.order(self, other, $order));
+}
+
+/**
+ * IEEE 754's total order for `f64`, as a `less` for `sort_by`:
+ * `-NaN < -inf < … < -0.0 < 0.0 < … < inf < NaN`.
+ */
+fun $total_order_f64(a: f64, b: f64): bool = $total_key_f64(a) < $total_key_f64(b);
+
+/** `x`'s bits, as an integer ordered as the total order orders floats. */
+fun $total_key_f64(x: f64): i64 {
+    let bits = x.to_bits() as i64;
+    if bits < 0 { bits ^ 9223372036854775807 } else { bits }
+}
+
+/** IEEE 754's total order for `f32`, as `$total_order_f64` for `f64`. */
+fun $total_order_f32(a: f32, b: f32): bool = $total_key_f32(a) < $total_key_f32(b);
+
+/** `x`'s bits, ordered as the total order orders floats. */
+fun $total_key_f32(x: f32): i32 {
+    let bits = x.to_bits() as i32;
+    if bits < 0 { bits ^ 2147483647 } else { bits }
+}
+
+/** A sorted copy, stable, in the type's order: `xs.sort()`. */
 fun sort<T: Ord>(xs: T[]): T[] = sort_by(xs, fun(a: T, b: T): bool = a < b);

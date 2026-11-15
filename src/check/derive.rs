@@ -25,6 +25,9 @@ pub const EQ: &str = "$prelude.Eq";
 /// The prelude's `Key`, which extends `Eq`: map keys and set values.
 pub const KEY: &str = "$prelude.Key";
 
+/// The prelude's `Ord`, which extends `Eq`: what `T: Ord` means.
+pub const ORD: &str = "$prelude.Ord";
+
 /// True if a parameter with `bounds` has `==`, and so `Eq`'s items:
 /// `Eq`, or `Num`/`Float`, which give `==` too.
 pub(super) fn implies_eq(bounds: &Bounds) -> bool {

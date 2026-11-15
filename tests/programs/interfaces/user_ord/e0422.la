@@ -1,4 +1,4 @@
-// A type without `cmp` isn't `Ord`.
+// A type that doesn't ask for `Ord` isn't ordered: no `min`, no `sort`.
 import std.math;
 
 struct P { x: i64 }

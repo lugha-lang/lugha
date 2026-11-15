@@ -31,7 +31,7 @@ use super::{Checker, SELF, Type, errors};
 use crate::ast::{Expr, ExprKind};
 
 /// The intrinsics' names, after `derive.`.
-pub const DERIVE_OPS: [&str; 9] = [
+pub const DERIVE_OPS: [&str; 10] = [
     "fields",
     "build",
     "variant",
@@ -41,6 +41,7 @@ pub const DERIVE_OPS: [&str; 9] = [
     "index",
     "address",
     "all",
+    "order",
 ];
 
 /// The intrinsic `callee` would name: `fields` for `derive.fields`.
@@ -108,7 +109,7 @@ impl Checker {
             .ok_or("is used outside a derive block")?;
         let me = Type::Param(SELF.to_string());
         let fits = match (&block.covers, op) {
-            (_, "fold" | "all") => {
+            (_, "fold" | "all" | "order") => {
                 matches!(block.covers, Covers::Struct | Covers::Tuple | Covers::Enum)
             }
             (Covers::Enum, o) => matches!(o, "variant" | "variants" | "build_variant" | "index"),
@@ -136,8 +137,8 @@ impl Checker {
             return Ok(Type::Array(Box::new(pair)));
         }
         // Two values compared field by field.
-        if op == "all" {
-            return self.derive_all(call, args, &block.interface);
+        if op == "all" || op == "order" {
+            return self.derive_all(call, args, &block.interface, op == "order");
         }
         // A variant's position, or a handle's address.
         if op == "index" || op == "address" {
@@ -225,9 +226,16 @@ impl Checker {
 }
 
 impl Checker {
-    /// `derive.all(a, b, f)`: `f(name, x, y): bool` for each pair of
-    /// corresponding fields, `F` bounded by the block's `interface`.
-    fn derive_all(&mut self, call: &Expr, args: &[Expr], interface: &str) -> Result<Type, String> {
+    /// `derive.all(a, b, f)`, a `bool`, or with `order`, `derive.order(a,
+    /// b, f)`, an `i64` (-1, 0 or 1): `f` is `(name, x: F, y: F)` giving
+    /// the same, generic over one `F` with the block's interface.
+    fn derive_all(
+        &mut self,
+        call: &Expr,
+        args: &[Expr],
+        interface: &str,
+        order: bool,
+    ) -> Result<Type, String> {
         let me = Type::Param(SELF.to_string());
         if args.len() != 3 {
             return Err("takes 3 arguments".into());
@@ -252,7 +260,10 @@ impl Checker {
                 .any(|a| a.key == interface)
             || sig.generics.len() == 1
                 && interface == super::derive::EQ
-                && sig.generics[0].bounds.eq;
+                && sig.generics[0].bounds.eq
+            || sig.generics.len() == 1
+                && interface == super::derive::ORD
+                && sig.generics[0].bounds.ord;
         if !bounded {
             return Err(format!(
                 "needs `f` generic over one `F: {}`",
@@ -261,12 +272,15 @@ impl Checker {
         }
         let field = Type::Param(sig.generics[0].name.clone());
         let shape = [Type::String, field.clone(), field];
-        if sig.params[..] != shape[..] || sig.ret != Type::Bool {
-            return Err("needs `f` to be `(name: string, x: F, y: F): bool`".into());
+        let ret = if order { Type::I64 } else { Type::Bool };
+        if sig.params[..] != shape[..] || sig.ret != ret {
+            return Err(format!(
+                "needs `f` to be `(name: string, x: F, y: F): {ret}`"
+            ));
         }
         self.callees.insert(call.id, key.clone());
         self.field_used(call, &key);
-        Ok(Type::Bool)
+        Ok(ret)
     }
 }
 

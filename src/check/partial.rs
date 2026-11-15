@@ -248,7 +248,7 @@ mod tests {
             for w of [1, 2] { n += w; }\n\
             match Some(3) { Some(k) => println(k), None => {} }\n\
             println(p.len());\n\
-            println(max(1.5, 2.5));\n\
+            println(max(15, 25));\n\
         }\n";
 
     #[test]
@@ -302,14 +302,14 @@ mod tests {
     #[test]
     fn expressions_keep_their_spans_and_types() {
         let partial = test_util::partial(SRC);
-        let call = at(SRC, "max(1.5, 2.5)", 0);
+        let call = at(SRC, "max(15, 25)", 0);
         let id = partial
             .spans
             .iter()
             .position(|s| *s == Some(call))
             .expect("the call is typed");
-        assert_eq!(partial.types[id], Some(Type::F64));
-        assert_eq!(partial.instances[&ExprId(id as u32)], [Type::F64]);
+        assert_eq!(partial.types[id], Some(Type::I64));
+        assert_eq!(partial.instances[&ExprId(id as u32)], [Type::I64]);
     }
 
     #[test]

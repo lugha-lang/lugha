@@ -28,7 +28,7 @@ fun main() {
     println(swap_pair((1, "x")));
     let nested = ((1, 2), (3, (4, 5)));
     println(nested.1.1.0);
-    println(("b", 1.5) > ("a", 9.0));
+    println(("b", 1) > ("a", 9));
     for p of ["x", "y"].iter().zip([10, 20].iter()).enumerate() {
         println("{p.i} {p.value.0} {p.value.1}");
     }

@@ -1,6 +1,6 @@
 ## FEATURE: `Ord` as an interface: order asked for (`with Ord`), tuples ordered by a derive block, floats out of `Ord` with `f64.total_order`; milestone 168, in v18's Phase 1.
 
-**Status:** proposed 2026-11-15. Waiting for approval.
+**Status:** proposed 2026-11-15. Approved 2026-11-15.
 
 ## OBJECTIVE
 ```lugha
@@ -79,13 +79,21 @@ fun main() {
 - **Security:** none: no external input, `unsafe`, dependency, `git` or process changes.
 
 ## TESTS
-- [ ] `tests/programs/interfaces/ord/`: the OBJECTIVE; `with Ord` on a generic struct; an enum with payloads; tuples nested in structs; `max`/`min`/`sort` on derived types; `f64.total_order` and `f32.total_order` as values and calls, with `NaN` and `-0.0`.
-- [ ] Errors, one `.la` + `.stderr` each: `<` without `Ord` (E0422); `with Ord` over a float field (E0451 at the declaration); `impl Ord` without `Eq`; `[1.5].sort()`; `(1.5, 2) < (2.5, 1)`.
-- [ ] Unit tests in `check/` for each rule and for `total_order`'s order of special values.
-- [ ] `cargo test --lib`, `--test programs`, `--test spec`, `--test explain`, `--test ordering`; the benchmarks that sort.
+- [x] `tests/programs/interfaces/ord/`: the OBJECTIVE; `with Ord` on a generic struct; an enum with payloads; tuples nested in structs; `max`/`min`/`sort` on derived types; `f64.total_order` and `f32.total_order` as values and calls, with `NaN` and `-0.0`.
+- [x] Errors, one `.la` + `.stderr` each: `<` without `Ord` (E0422); `with Ord` over a float field (E0451 at the declaration); `impl Ord` without `Eq`; `[1.5].sort()`; `(1.5, 2) < (2.5, 1)`.
+- [x] Unit tests in `check/` for each rule and for `total_order`'s order of special values.
+- [x] `cargo test --lib`, `--test programs`, `--test spec`, `--test explain`, `--test ordering`; the benchmarks that sort.
 
 ## ACCEPTANCE
-- [ ] The OBJECTIVE prints the six lines shown; each commented line gives its error.
-- [ ] Every migrated program, std test and spec example passes with unchanged output.
-- [ ] `cargo test --lib` and the touched integration tests pass; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
-- [ ] Every `pub` item documented; spec, CHANGELOG, TODO updated.
+- [x] The OBJECTIVE prints the six lines shown; each commented line gives its error.
+- [x] Every migrated program, std test and spec example passes with unchanged output.
+- [x] `cargo test --lib` and the touched integration tests pass; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
+- [x] Every `pub` item documented; spec, CHANGELOG, TODO updated.
+
+## CHANGES DURING THE BUILD
+- **No `max`/`min` in the prelude:** they live in `std.math` (`math.min`, `math.max`, `math.clamp`), which keeps `T: Ord`, so floats no longer go through them. `std/math/more.la` now passes integers and chars; floats need a follow-up (TODO).
+- **`Ord` and `Eq` bounds on a type's own parameters** (`struct Set<T: Ord>`) are checked once the derive blocks are collected, after every module's declarations, as `Key` was.
+- **A missing `Ord` is reported as `Ord`:** a bound `T: Ord` (which extends `Eq`) checks `Ord` before the implied `Eq`, so `math.min(p, p)` on a type that asked for nothing says it doesn't implement `Ord`, not `Eq`.
+- **Codes:** a type that doesn't meet `Ord` is E0422 (it didn't ask) or E0451 (a part isn't, a float included); E0419 stays for `Num`, `Float` and `Eq` on parameters. The E0419 page now shows `math.sqrt(2)`; E0422 and E0451 gain `Ord` and float examples. A tuple element is named as it is read: "`.0` is a float".
+- **Spec §10 Ordering program:** `Run` orders by a float, so it keeps its hand-written `cmp` in an `impl Ord for Run` and asks for `with Eq`; output unchanged.
+

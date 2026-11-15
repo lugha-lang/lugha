@@ -58,7 +58,7 @@ mod tests {
     fn a_bounded_method_needs_its_bound_at_the_use() {
         let src = format!("{BOX}fun main() {{ let s = Box {{ v: [1] }}; let y = s.bigger([2]); }}");
         let found = errors(&src);
-        assert_eq!(found.first().map(|(c, _)| *c), Some("E0419"), "{found:?}");
+        assert_eq!(found.first().map(|(c, _)| *c), Some("E0451"), "{found:?}");
         let unknown = errors(
             "struct Box<T> { v: T }\nimpl Box<T: Nope> { fun get(self): T = self.v; }\nfun main() {}",
         );

@@ -1,0 +1,8 @@
+// `Ord` extends `Eq`: a hand-written `impl Ord` needs `Eq` too.
+struct P { x: i64 }
+
+impl Ord for P {
+    fun cmp(self, other: P): Ordering = Ordering.Equal;
+}
+
+fun main() {}

@@ -1,12 +1,12 @@
-//! User-defined order through the `lughac` binary: `<`
-//! on a struct with `cmp`, and on a tuple holding one, calls that `cmp`.
+//! User-defined order through the `lughac` binary: `<` on a struct with
+//! `impl Ord`, and on a tuple holding one, calls that block's `cmp`.
 //! The prelude's `Ordering` is needed, so this runs the whole pipeline.
 
 use std::path::PathBuf;
 use std::process::Command;
 
-const SRC: &str = "struct S { x: i64 }
-impl S {
+const SRC: &str = "struct S { x: i64 } with Eq
+impl Ord for S {
     fun cmp(self, o: S): Ordering = if self.x < o.x { Ordering.Less } else { Ordering.Equal };
 }
 fun main() {
@@ -51,10 +51,13 @@ fn ordering_a_user_type_calls_its_cmp() {
     );
     let ir = String::from_utf8_lossy(&out.stdout);
     let main = &ir[ir.find("define void @lugha_fn_main").expect("main")..];
-    assert!(main.contains("@lugha_fn_S.cmp("), "{main}");
-    // The tuple's comparison helper calls it too.
-    let helper = &ir[ir
-        .find("define internal i32 @\"lugha_cmp_")
-        .expect("a tuple helper")..];
-    assert!(helper.contains("@lugha_fn_S.cmp("), "{helper}");
+    let cmp = "@\"lugha_fn_S.cmp@Ord\"(";
+    assert!(main.contains(cmp), "{main}");
+    // The tuple is ordered through the prelude's block, which compares
+    // each element through `$order`: for `S`, its own `cmp`.
+    assert!(main.contains("Ord@tuple.cmp<(S, i64)>"), "{main}");
+    let order = &ir[ir
+        .find("define internal i64 @\"lugha_fn_$prelude/$order<S>\"")
+        .expect("the element comparison")..];
+    assert!(order.contains(cmp), "{order}");
 }
