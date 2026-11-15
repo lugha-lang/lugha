@@ -38,7 +38,7 @@ A struct with a matching `area` and no `impl Shape for Circle` no longer satisfi
 - Draft v18 §1.1 rules 1, 2, 5–8 and 10 [INT-01, INT-02, INT-05, INT-06, INT-08, INT-09, INT-15, INT-16]; Part 7 Phase 1. v17 spec §4 "Interfaces" ("Satisfying one", "Default methods", "Interface values"), §8 symbol names.
 - Ledger `docs/decisions/v18-ledger.md`: every line used here is `approved`; nothing open. DECISIONS.md core decision 6 (symbols).
 - Code: `parser/item.rs`, `parser/interface.rs`, `ast/mod.rs` (`ImplDecl`); `check/satisfy.rs` (structural `unmet`/`offer`, replaced), `check/interfaces.rs`, `check/defaults.rs`, `check/iface_tables.rs`, `check/iface_calls.rs`, `check/conflicts.rs`, `check/errors/interfaces.rs`; `codegen/` method symbols and interface tables; the formatter and the language server's symbols/hover.
-- Programs to migrate: the `.la` files under `tests/programs/` (65 declare an interface; more satisfy one), `src/prelude/`, `src/std/`, the spec's §10 programs, `examples/` and `bench/` Lugha sources.
+- Programs to migrate: the `.la` files under `tests/programs/` (65 declare an interface; more satisfy one), `src/prelude/`, `src/std/`, the spec's §10 programs and `bench/`'s Lugha sources.
 
 ## DECISIONS MADE IN DISCOVERY (mine, for review)
 1. **Slicing Phase 1.** This PRP makes interfaces nominal and nothing else. Later PRPs, in order: 197 `with` and deriving (INT-10–14); 198 `Eq`/`Key`/`Ord` (EQ); 199 operators (INT-04); 200 `Debug`/`Display`, printing, the prelude takes over (PRE, OPN-02/10); 201 `.Variant`, must-use `Result`, lossy conversions (IMP); 202 type arguments (TYA); 203 map and set literals (LIT). `Sendable` (INT-07) waits for the sendable rule in Phase 5.
