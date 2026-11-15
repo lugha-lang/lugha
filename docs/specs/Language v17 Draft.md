@@ -341,6 +341,8 @@ After discovery (PRP-172): Lugha meets metaprogramming needs with targeted featu
 
 **Sealing and key exchange** (milestone 160, PRP-192, from rapidkoi's sync request): `chacha20poly1305_seal`/`_open` (caller's 12-byte nonce, tag appended, no plaintext unless the tag matches) and `x25519_keypair`/`_public`/`_shared` (a low-order peer key refused) in `std.crypto`, on any OpenSSL 3; `CryptoError` gains `NotAuthentic` and `BadKey(why)`; no HPKE yet; tag `m160` after the user's review.
 
+**TLS by key** (milestone 161, PRP-193, from rapidkoi's sync request): `listen_keys`/`connect_keys` with `Keys { secret, accept }`, mutual TLS 1.3 with raw Ed25519 public keys checked in the handshake (OpenSSL's DANE match), `Conn.peer_key()`, `Listener.set_accept`; no host name; the user raised the OpenSSL floor to 3.2 for `std.tls`, `std.http` and `std.crypto` (E0332 covers an older one); tag `m161` after the user's review.
+
 ## Changes by section
 
 - **§2:** keywords `spawn`, `select`; `after` and `default` contextual at the start of a `select` arm.

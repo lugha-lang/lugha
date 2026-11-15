@@ -2,7 +2,7 @@
  * std.crypto: SHA-256, Ed25519 signatures (RFC 8032), random bytes,
  * constant-time comparison, HKDF-SHA256 (RFC 5869), ChaCha20-Poly1305
  * sealing (RFC 8439) and X25519 key exchange (RFC 7748), through the
- * system's OpenSSL 3. Keys, signatures and digests are plain bytes: a
+ * system's OpenSSL (3.2 or newer). Keys, signatures and digests are plain bytes: a
  * 32-byte secret seed, a 32-byte public key, a 64-byte signature, a 32-byte
  * digest. Nothing here panics on any input; mistakes come back as
  * `CryptoError` (or `false`, from `ed25519_verify` and `equal`).

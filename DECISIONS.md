@@ -2252,6 +2252,15 @@ Printing sites and `==` reach a type's own plain `show`/`eq` too (`show_instance
 
 **Why:** rapidkoi's sync seals everything the Pond stores and pairs devices over an X25519 channel. Both primitives exist in every OpenSSL 3, and a distinct error for a forged input keeps callers from treating an attack as an internal failure.
 
+### 220. OpenSSL 3.2 is the floor; TLS by key — milestone 161 (PRP-193)
+
+**Decision:** the user's choice (2026-11-15): programs loading `std.tls`, `std.http` or `std.crypto` need OpenSSL 3.2 or newer. `runtime/tls.c` and `runtime/crypto.c` `#error` on an older one, and the driver reports that as E0332, widened from "missing". Approved with PRP-193 (2026-11-15):
+- `tls.listen_keys(addr, Keys { secret, accept })` and `tls.connect_keys(addr, keys, timeout_ms)`: raw public keys (RFC 7250), not self-signed certificates; both sides prove an Ed25519 key; TLS 1.3 only; no host name.
+- The list is checked by OpenSSL in the handshake: `SSL_dane_enable` then `SSL_add_expected_rpk` per key (it refuses without DANE on). An empty list refuses everyone (checked: it doesn't fall back to accepting).
+- `Listener.set_accept` replaces the list for later connections; `Conn.peer_key()` reads the key back. The by-key code is its own fragment, `runtime/tls_keys.c`, appended after `tls.c`.
+
+**Why:** rapidkoi's devices sync over the local network and trust each other by the keys on a signed device list, with no CA and no host names. OpenSSL 3.2 brings raw public keys and HPKE; Ubuntu 24.04 (OpenSSL 3.0) can no longer build those programs, which the user accepted. TLS 1.3 encrypts the client's key, so a device's identity isn't visible to the network.
+
 ## OPEN — Requires human input before implementation
 
 None.

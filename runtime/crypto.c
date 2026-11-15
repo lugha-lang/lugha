@@ -2,7 +2,7 @@
  * crypto.c — `std.crypto`'s built-ins: SHA-256,
  * Ed25519, random bytes, constant-time comparison, HKDF, ChaCha20-Poly1305
  * and X25519, through the system's
- * OpenSSL 3. Appended to the runtime only for programs that load
+ * OpenSSL (3.2 or newer). Appended to the runtime only for programs that load
  * `std.crypto` (they link -lcrypto); every other program never sees it.
  *
  * Programs never see an OpenSSL object: digests, keys and signatures cross
@@ -22,6 +22,12 @@
 #include <openssl/evp.h>
 #include <openssl/kdf.h>
 #include <openssl/rand.h>
+
+/* X25519 and ChaCha20-Poly1305 are in any OpenSSL 3, but Lugha needs one
+ * floor for everything OpenSSL does; the driver turns this message into E0332. */
+#if OPENSSL_VERSION_NUMBER < 0x30200000L
+#error "Lugha needs OpenSSL 3.2 or newer"
+#endif
 
 enum {
     CRYPTO_KEY = 32,

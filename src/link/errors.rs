@@ -32,7 +32,7 @@ pub enum LinkError {
     /// Linking failed with `[link]` input: E0331 at its first line.
     #[error("linking failed:\n{stderr}")]
     Libraries { span: Span, stderr: String },
-    /// A TLS or crypto program, and no OpenSSL to build it with: E0332 at its import.
+    /// A TLS or crypto program, and no OpenSSL 3.2 or newer to build it with: E0332 at its import.
     #[error("OpenSSL is missing")]
     Tls { span: Span },
 }
@@ -69,10 +69,13 @@ impl LinkError {
             LinkError::Tls { span } => Some(
                 Diagnostic::error(
                     "E0332",
-                    "this program needs OpenSSL, which isn't installed",
+                    "this program needs OpenSSL 3.2 or newer, which isn't installed",
                     *span,
                 )
-                .with_help("install OpenSSL's development files: `sudo apt install libssl-dev`"),
+                .with_help(
+                    "install OpenSSL's development files, version 3.2 or newer: \
+                     `sudo apt install libssl-dev` (Ubuntu 24.04's is 3.0, too old)",
+                ),
             ),
             LinkError::CcNotFound(_)
             | LinkError::BadCompiler

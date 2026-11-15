@@ -110,6 +110,25 @@ pub fn os_signature(op: &str) -> Option<(Vec<Type>, Type)> {
             result(Type::I64),
         ),
         "tls_accept" => (vec![Type::I64, Type::I64], result(Type::I64)),
+        // By key: this side's secret seed and the public keys it accepts.
+        "tls_connect_keys" => (
+            vec![
+                Type::String,
+                bytes(),
+                Type::Array(Box::new(bytes())),
+                Type::I64,
+            ],
+            result(Type::I64),
+        ),
+        "tls_listen_keys" => (
+            vec![Type::String, bytes(), Type::Array(Box::new(bytes()))],
+            result(Type::I64),
+        ),
+        "tls_set_accept" => (
+            vec![Type::I64, Type::Array(Box::new(bytes()))],
+            result(Type::I64),
+        ),
+        "tls_peer_key" => (vec![Type::I64], bytes()),
         "tls_read" => (vec![Type::I64, Type::I64, Type::I64], result(bytes())),
         "tls_write" => (vec![Type::I64, bytes(), Type::I64], result(Type::I64)),
         "tls_close" | "tls_close_listener" => (vec![Type::I64], Type::Unit),

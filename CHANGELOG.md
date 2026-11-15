@@ -9,6 +9,7 @@ Never deleted. Older entries are never modified.
 ## [Unreleased]
 
 ### Breaking
+- Programs that load `std.tls`, `std.http` or `std.crypto` need OpenSSL 3.2 or newer (E0332 otherwise); Ubuntu 24.04's OpenSSL 3.0 is too old.
 - `crypto.CryptoError` has two new variants, `NotAuthentic` and `BadKey(string)`: a `match` naming every variant must add them.
 
 ### Fixed
@@ -20,6 +21,7 @@ Never deleted. Older entries are never modified.
 - A command whose output can't be written exits 2 (core decision 217): `lughac build --emit=ir > out.ll` on a full disk printed nothing and exited 0; it now says `error: cannot write the output: …`. A reader that stops early (`lughac spec | head`) is still a success. Every place lughac ignores an error now has a comment saying why that's safe.
 
 ### Added
+- TLS by key (milestone 161, PRP-193): `tls.listen_keys(addr, tls.Keys { secret, accept })` and `tls.connect_keys(addr, keys, timeout_ms)` — mutual TLS 1.3 where each side proves an Ed25519 key and accepts only the keys on its list, checked in the handshake, with no certificates or host names (raw public keys, RFC 7250); `conn.peer_key()` reads the peer's key and `listener.set_accept(keys)` changes the list while listening. Tested in `tests/tls_keys.rs`.
 - Sealing and key exchange in `std.crypto` (milestone 160, PRP-192): `chacha20poly1305_seal(key, nonce, plaintext, aad)` and `chacha20poly1305_open(…)` (RFC 8439; the 16-byte tag appended, no plaintext unless the tag matches) and `x25519_keypair()`, `x25519_public(secret)`, `x25519_shared(secret, peer_public)` (RFC 7748; a low-order peer key refused), on any OpenSSL 3. Tested against the RFCs' vectors in `tests/crypto_seal.rs`.
 - Arithmetic between different types (milestones 158 and 159, PRP-191): a type may declare `add`, `sub`, `mul`, `div` and `rem` once per right-hand type, so a vector has both `v * w` and `v * 2.0`; the operand picks by its exact type, `v.mul(2.0)` and `v *= 2.0` choose the same way, and a literal fitting more than one is E0457. `impl f64 { fun mul(self, v: V): V }` makes `2.0 * v`, and `impl shapes.W { … }` makes `w * v`, allowed only in the module that declares the right-hand type (E0458). `T: Mul` still means `T * T`; an interface's `mul` takes whichever overload fits. Types with one method per operator keep their symbols.
 - `for x of mut g[i]`, `swap(g[i], b)` and `out g[i]` through a type's `index` (milestone 157, PRP-190): each works on a copy of the element handed back to `set_index`; the loop hands it back on every way out (its end, `break`, `continue`, `return`, `?`) as a `defer` around it would, and changing `g` in its body is E0507. These were the last E0502s for writes through `index`.

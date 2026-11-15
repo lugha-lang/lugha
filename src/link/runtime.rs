@@ -12,11 +12,15 @@ use super::compiler::Compiler;
 use super::object_cache::Cache;
 use crate::span::Span;
 
-/// `runtime/tls.c`: `std.tls` over OpenSSL, only for programs that use it.
-pub const TLS_SOURCE: &str = include_str!("../../runtime/tls.c");
+/// `runtime/tls.c` and `runtime/tls_keys.c` (connections by key):
+/// `std.tls` over OpenSSL, only for programs that use it.
+pub const TLS_SOURCE: &str = concat!(
+    include_str!("../../runtime/tls.c"),
+    include_str!("../../runtime/tls_keys.c")
+);
 
 /// Every function codegen calls in [`TLS_SOURCE`].
-pub const TLS_SYMBOLS: [&str; 9] = [
+pub const TLS_SYMBOLS: [&str; 13] = [
     "lugha_rt_tls_connect",
     "lugha_rt_tls_listen",
     "lugha_rt_tls_accept",
@@ -26,6 +30,10 @@ pub const TLS_SYMBOLS: [&str; 9] = [
     "lugha_rt_tls_close",
     "lugha_rt_tls_close_listener",
     "lugha_rt_tls_listener_fd",
+    "lugha_rt_tls_connect_keys",
+    "lugha_rt_tls_listen_keys",
+    "lugha_rt_tls_set_accept",
+    "lugha_rt_tls_peer_key",
 ];
 
 /// `runtime/crypto.c`: `std.crypto` over OpenSSL, only for programs that use it.
@@ -50,9 +58,13 @@ pub const CRYPTO_SYMBOLS: [&str; 15] = [
     "lugha_rt_crypto_x25519_shared",
 ];
 
-/// True if `cc`'s complaint is OpenSSL's absence: its headers or libraries.
+/// True if `cc`'s complaint is OpenSSL's absence (its headers or
+/// libraries) or its age: the runtime's `#error` for one older than 3.2.
 pub fn missing_openssl(stderr: &str) -> bool {
-    stderr.contains("openssl/") || stderr.contains("-lssl") || stderr.contains("-lcrypto")
+    stderr.contains("openssl/")
+        || stderr.contains("-lssl")
+        || stderr.contains("-lcrypto")
+        || stderr.contains("Lugha needs OpenSSL 3.2 or newer")
 }
 
 /// The runtime source in a private temp file, removed on drop.
@@ -219,6 +231,9 @@ mod tests {
         ));
         assert!(missing_openssl(
             "/usr/bin/ld: cannot find -lssl: No such file"
+        ));
+        assert!(missing_openssl(
+            "lugha_rt.c:4100:2: error: #error \"Lugha needs OpenSSL 3.2 or newer\""
         ));
         assert!(!missing_openssl("undefined reference to `foo'"));
     }

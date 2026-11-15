@@ -1,9 +1,14 @@
 /**
- * std.tls: TLS connections, through the system's OpenSSL 3, shaped
- * like `std.net`'s. Every certificate is verified — its chain against the
- * system's trusted roots and the host name — and nothing turns that off:
- * `Options.ca_file` adds certificates to trust (a private CA, or a
- * self-signed certificate). TLS 1.2 is the oldest version spoken.
+ * std.tls: TLS connections, through the system's OpenSSL (3.2 or newer),
+ * shaped like `std.net`'s. Every certificate is verified — its chain
+ * against the system's trusted roots and the host name — and nothing turns
+ * that off: `Options.ca_file` adds certificates to trust (a private CA, or
+ * a self-signed certificate). TLS 1.2 is the oldest version spoken.
+ *
+ * Connections by key (`listen_keys`, `connect_keys`) use no certificates:
+ * each side proves an Ed25519 key, and each accepts only the keys on its
+ * list, checked in the handshake. They speak TLS 1.3 only, which keeps the
+ * client's key hidden from the network.
  *
  * A program that uses this module is linked with OpenSSL (`libssl-dev`
  * must be installed to build it). Close what you open, as with `std.net`.
@@ -26,6 +31,17 @@ public struct Options {
 
 /** The defaults: the system's roots only, no timeout. */
 public fun options(): Options = Options { ca_file: "", timeout_ms: 0, address: "" };
+
+/**
+ * This side's key and the keys it accepts, for connections by key: Ed25519
+ * keys as `std.crypto` makes them.
+ */
+public struct Keys {
+    /** This side's 32-byte Ed25519 secret seed. */
+    public secret: u8[],
+    /** The 32-byte public keys of the peers accepted; empty accepts nobody. */
+    public accept: u8[][],
+}
 
 /** An encrypted connection. */
 public struct Conn {
@@ -67,6 +83,52 @@ public fun connect_with(addr: string, opts: Options): Result<Conn, string> {
 public fun listen(addr: string, cert_file: string, key_file: string): Result<Listener, string> {
     let h = $os.tls_listen(addr, cert_file, key_file)?;
     Ok(Listener { h: Ref.new(h), timeout: Ref.new(0) })
+}
+
+/**
+ * Listens for connections by key: a client gets in only by proving one of
+ * `keys.accept`'s keys (a client without one, or with a certificate, is
+ * refused in the handshake). `set_accept` changes the list later.
+ * @param addr host:port
+ * @param keys this side's secret and the clients' public keys
+ */
+public fun listen_keys(addr: string, keys: Keys): Result<Listener, string> {
+    sized(keys)?;
+    let h = $os.tls_listen_keys(addr, keys.secret, keys.accept)?;
+    Ok(Listener { h: Ref.new(h), timeout: Ref.new(0) })
+}
+
+/**
+ * Connects by key: the server must prove one of `keys.accept`'s keys
+ * (otherwise `Err("peer key not accepted")`), and this side proves its
+ * own. No host name is checked: `addr` is only where to connect. A server
+ * that refuses this side's key does so after the handshake has finished
+ * here, so it shows as the first read failing.
+ * @param addr host:port or ip:port
+ * @param keys this side's secret and the servers' public keys
+ * @param timeout_ms how long the connect and handshake, and later reads and writes, may wait; `0` waits forever
+ */
+public fun connect_keys(addr: string, keys: Keys, timeout_ms: i64): Result<Conn, string> {
+    sized(keys)?;
+    let h = $os.tls_connect_keys(addr, keys.secret, keys.accept, timeout_ms)?;
+    Ok(Conn { h: Ref.new(h), timeout: Ref.new(timeout_ms) })
+}
+
+/** The lengths `$os` would refuse, checked first with the same messages. */
+fun sized(keys: Keys): Result<(), string> {
+    if keys.secret.len != 32 {
+        return Err("secret key must be 32 bytes");
+    }
+    accepted(keys.accept)
+}
+
+fun accepted(accept: u8[][]): Result<(), string> {
+    for i in 0..accept.len {
+        if accept[i].len != 32 {
+            return Err("accepted key {i} must be 32 bytes");
+        }
+    }
+    Ok(())
 }
 
 /** `address`, which must be an IP literal, at `port`, with an IPv6 address in brackets. */
@@ -124,6 +186,22 @@ impl Listener {
         if h < 0 { "" } else { name($os.tls_listener_fd(h), 0) }
     }
 
+    /**
+     * Replaces the keys a listener by key accepts, for connections accepted
+     * from now on.
+     * @param accept the 32-byte public keys; empty accepts nobody
+     * @returns `Ok(())`, or `Err` for a certificate listener or a closed one
+     */
+    public fun set_accept(self, accept: u8[][]): Result<(), string> {
+        let h = self.h.get();
+        if h < 0 {
+            return Err("closed");
+        }
+        accepted(accept)?;
+        $os.tls_set_accept(h, accept)?;
+        Ok(())
+    }
+
     /** Stops listening; every copy is closed. Closing twice is fine. */
     public fun close(self) {
         let h = self.h.get();
@@ -165,6 +243,15 @@ impl Conn {
     /** How long a read or write waits, in milliseconds; `0` waits forever. */
     public fun set_timeout(self, ms: i64) {
         self.timeout.set(ms);
+    }
+
+    /**
+     * The 32-byte Ed25519 key the other end proved, on a connection by key;
+     * `[]` on a certificate connection and once closed.
+     */
+    public fun peer_key(self): u8[] {
+        let h = self.h.get();
+        if h < 0 { [] } else { $os.tls_peer_key(h) }
     }
 
     /** The other end's address, as `host:port`; `""` once closed. */

@@ -1,12 +1,13 @@
 /*
  * tls.c — `std.tls`'s built-ins: TLS over net.c's
- * non-blocking sockets, through the system's OpenSSL 3. Appended to the
+ * non-blocking sockets, through the system's OpenSSL (3.2 or newer). Appended to the
  * runtime only for programs that load `std.tls` (they link -lssl -lcrypto);
  * every other program never sees these headers.
  *
  * Certificates are always verified: the chain against the system's roots
  * (plus a `ca_file` the program names) and the host name. TLS 1.2 is the
- * oldest version spoken. When OpenSSL wants to read or write, the green
+ * oldest version spoken. Connections by key (tls_keys.c) verify the peer's
+ * raw public key against a list instead, over TLS 1.3 only. When OpenSSL wants to read or write, the green
  * thread parks with `wait_fd` and the others run.
  *
  * OpenSSL's objects live outside the collector: `malloc`ed here and by
@@ -16,15 +17,30 @@
 #include <openssl/ssl.h>
 #include <openssl/x509v3.h>
 
+/* Raw public keys and HPKE arrived in OpenSSL 3.2; the driver turns this
+ * message into E0332. */
+#if OPENSSL_VERSION_NUMBER < 0x30200000L
+#error "Lugha needs OpenSSL 3.2 or newer"
+#endif
+
 typedef struct {
     SSL *ssl;
     int fd;
+    /* 1 for a connection by key: a failed check names the key, not a certificate. */
+    int by_key;
 } TlsConn;
 
 typedef struct {
     SSL_CTX *ctx;
     int fd;
+    /* 1 for a listener by key, with the public keys it accepts. */
+    int by_key;
+    EVP_PKEY **keys;
+    int64_t nkeys;
 } TlsListener;
+
+static int tls_expect(SSL *ssl, EVP_PKEY **keys, int64_t n);
+static void tls_free_keys(EVP_PKEY **keys, int64_t n);
 
 /* OpenSSL's reason for the last failure, or `fallback`. */
 static int32_t tls_error(LughaString **error, const char *fallback) {
@@ -88,7 +104,10 @@ static int tls_drive(TlsConn *c, int64_t deadline, int (*step)(SSL *, void *, in
             return 1;
         } else {
             long verify = SSL_get_verify_result(c->ssl);
-            if (verify != X509_V_OK) {
+            if (verify != X509_V_OK && c->by_key) {
+                ERR_clear_error();
+                net_error(error, "peer key not accepted");
+            } else if (verify != X509_V_OK) {
                 char text[300];
                 snprintf(text, sizeof text, "certificate verify failed: %s",
                          X509_verify_cert_error_string(verify));
@@ -138,6 +157,7 @@ static TlsConn *tls_wrap(SSL_CTX *ctx, int fd) {
     }
     c->ssl = ssl;
     c->fd = fd;
+    c->by_key = 0;
     return c;
 }
 
@@ -229,6 +249,9 @@ int32_t lugha_rt_tls_listen(const LughaString *addr, const LughaString *cert,
     }
     l->ctx = ctx;
     l->fd = (int)fd;
+    l->by_key = 0;
+    l->keys = NULL;
+    l->nkeys = 0;
     *handle = (int64_t)(intptr_t)l;
     return 1;
 }
@@ -246,6 +269,12 @@ int32_t lugha_rt_tls_accept(int64_t listener, int64_t timeout_ms, int64_t *handl
     TlsConn *c = tls_wrap(l->ctx, (int)fd);
     if (c == NULL) {
         close((int)fd);
+        return tls_error(error, "TLS unavailable");
+    }
+    // The list as it is now: a later `set_accept` doesn't reach this handshake.
+    c->by_key = l->by_key;
+    if (l->by_key && !tls_expect(c->ssl, l->keys, l->nkeys)) {
+        tls_free(c);
         return tls_error(error, "TLS unavailable");
     }
     int n;
@@ -312,6 +341,7 @@ void lugha_rt_tls_close_listener(int64_t listener) {
     TlsListener *l = (TlsListener *)(intptr_t)listener;
     close(l->fd);
     SSL_CTX_free(l->ctx);
+    tls_free_keys(l->keys, l->nkeys);
     free(l);
 }
 
