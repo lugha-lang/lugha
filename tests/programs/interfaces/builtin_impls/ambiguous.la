@@ -1,0 +1,20 @@
+// Two interfaces give `f64` a `show`: the call is qualified.
+interface Show {
+    fun show(self): string;
+}
+
+interface Shows {
+    fun show(self): string;
+}
+
+impl Show for f64 {
+    fun show(self): string = "a";
+}
+
+impl Shows for f64 {
+    fun show(self): string = "b";
+}
+
+fun main() {
+    println(2.0.show());
+}

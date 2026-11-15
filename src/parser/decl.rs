@@ -49,28 +49,42 @@ impl Parser<'_> {
     /// [m.]Type[<T, …>] { … }` for an interface's items.
     pub(super) fn impl_decl(&mut self) -> PResult<ImplDecl> {
         let start = self.bump().start;
-        let interface = if self.for_ahead() {
+        // `impl<T: B> I for T[]`: the block's parameters, for a built-in type.
+        let generic = self.at(&TokenKind::Lt);
+        let outer = self.impl_params()?;
+        let interface = if generic || self.for_ahead() {
             let bound = self.bound()?;
             self.expect(&TokenKind::For)?;
             Some(Box::new(bound))
         } else {
             None
         };
-        // `impl f64 { … }`: arithmetic with a number on the left.
-        let number = number_type(self.peek());
-        let first = match number {
-            Some(name) => Ident {
-                name: name.to_string(),
-                span: self.bump(),
-            },
-            None => self.ident("type name")?,
-        };
-        let (module, ty) = if self.eat(&TokenKind::Dot) {
-            (Some(first), self.ident("type name")?)
-        } else {
-            (None, first)
-        };
-        let params = self.impl_params()?;
+        let (module, ty, params, target) =
+            if interface.is_some() && (generic || !self.named_ahead()) {
+                // Any other type: `f64`, `Point[]`, `(A, B)`, `Map<string, V>`.
+                let t = self.ty()?;
+                let name = Ident {
+                    name: t.written(),
+                    span: t.span,
+                };
+                (None, name, outer, Some(Box::new(t)))
+            } else {
+                // `impl f64 { … }`: arithmetic with a number on the left.
+                let number = number_type(self.peek());
+                let first = match number {
+                    Some(name) => Ident {
+                        name: name.to_string(),
+                        span: self.bump(),
+                    },
+                    None => self.ident("type name")?,
+                };
+                let (module, ty) = if self.eat(&TokenKind::Dot) {
+                    (Some(first), self.ident("type name")?)
+                } else {
+                    (None, first)
+                };
+                (module, ty, self.impl_params()?, None)
+            };
         // `impl I for T = derive;`: the items come from `I`'s derive blocks.
         let derive = interface.is_some() && self.eat(&TokenKind::Eq);
         let mut methods = Vec::new();
@@ -84,7 +98,15 @@ impl Parser<'_> {
             let open = self.expect(&TokenKind::LBrace)?;
             // `Self` means this type throughout the block.
             let names: Vec<Ident> = params.iter().map(|p| p.name.clone()).collect();
-            methods = self.in_impl(&ty, &names, |p| p.impl_methods(open))?;
+            methods = match &target {
+                Some(t) => {
+                    let outer = self.impl_target.replace((**t).clone());
+                    let methods = self.impl_methods(open);
+                    self.impl_target = outer;
+                    methods?
+                }
+                None => self.in_impl(&ty, &names, |p| p.impl_methods(open))?,
+            };
         }
         // An interface's methods are named apart from the type's own:
         // `area@Shape`, the interface as written, its `.`s as `/`s (a
@@ -108,6 +130,7 @@ impl Parser<'_> {
             interface,
             tag,
             derive,
+            target,
         })
     }
 
@@ -132,6 +155,60 @@ impl Parser<'_> {
             .map(|n| self.peek_at(n))
             .take_while(|t| !matches!(t, TokenKind::LBrace | TokenKind::Eof | TokenKind::Semi))
             .any(|t| *t == TokenKind::For)
+    }
+
+    /// True if a struct's, enum's, actor's or extern type's name comes next,
+    /// as `impl I for` writes it: `Name`, `m.Name` or `Name<T: B, …>`, then
+    /// the block's `{` or `= derive`. Any other type is read as a type.
+    fn named_ahead(&self) -> bool {
+        let mut n = 0;
+        if !matches!(self.peek_at(n), TokenKind::Ident(_)) {
+            return false;
+        }
+        n += 1;
+        while *self.peek_at(n) == TokenKind::Dot
+            && matches!(self.peek_at(n + 1), TokenKind::Ident(_))
+        {
+            n += 2;
+        }
+        if *self.peek_at(n) == TokenKind::Lt {
+            // Parameters, each a name with optional bounds (`T`, `T: Ord`);
+            // anything else there (`Option<Point[]>`) makes it a type.
+            let mut depth = 0usize;
+            let mut start = true;
+            loop {
+                let token = self.peek_at(n);
+                if depth == 1 && start {
+                    let named = matches!(token, TokenKind::Ident(_))
+                        && matches!(
+                            self.peek_at(n + 1),
+                            TokenKind::Colon | TokenKind::Comma | TokenKind::Gt
+                        );
+                    if !named {
+                        return false;
+                    }
+                }
+                start = false;
+                match token {
+                    TokenKind::Lt => {
+                        depth += 1;
+                        start = depth == 1;
+                    }
+                    TokenKind::Comma if depth == 1 => start = true,
+                    TokenKind::Gt => {
+                        depth -= 1;
+                        if depth == 0 {
+                            n += 1;
+                            break;
+                        }
+                    }
+                    TokenKind::Eof | TokenKind::LBrace => return false,
+                    _ => {}
+                }
+                n += 1;
+            }
+        }
+        matches!(self.peek_at(n), TokenKind::LBrace | TokenKind::Eq)
     }
 
     /// The methods of an `impl` up to and including its `}`.
@@ -244,7 +321,60 @@ fn number_type(kind: &TokenKind) -> Option<&'static str> {
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::test_util::{errors, program};
+    use crate::ast::{ImplDecl, Item};
+    use crate::parser::test_util::{errors, parse_src, program};
+
+    /// The one `impl` block of `src`.
+    fn block(src: &str) -> ImplDecl {
+        let found = parse_src(src).unwrap_or_else(|d| panic!("{d:?}")).items;
+        match found.as_slice() {
+            [Item::Impl(i)] => i.clone(),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn an_interface_block_is_for_a_name_or_for_any_type() {
+        // A struct's block: its name, parameters after it.
+        for src in [
+            "impl Shape for Circle { }",
+            "impl Shape for geo.Circle { }",
+            "impl Source<T> for Stack<T: Ord, U> { }",
+            "impl Json for Point = derive;",
+        ] {
+            let i = block(src);
+            assert!(i.target.is_none(), "{src}");
+        }
+        assert_eq!(
+            block("impl Source<T> for Stack<T: Ord, U> { }")
+                .params
+                .len(),
+            2
+        );
+        // Any other type is read whole; `impl<…>` gives the parameters.
+        for (src, written, params) in [
+            ("impl Show for f64 { }", "f64", 0),
+            ("impl Show for string { }", "string", 0),
+            ("impl Show for Point[] { }", "Point[]", 0),
+            ("impl Show for (Point, i64) { }", "(Point,i64)", 0),
+            (
+                "impl Show for Map<string, Point> { }",
+                "Map<string,Point>",
+                0,
+            ),
+            ("impl<T: Show> Show for T[] { }", "T[]", 1),
+            ("impl<A, B> Show for (A, B) { }", "(A,B)", 2),
+            ("impl<T: Show> Show for Option<T> { }", "Option<T>", 1),
+        ] {
+            let i = block(src);
+            let target = i.target.unwrap_or_else(|| panic!("{src}"));
+            assert_eq!(target.written(), written, "{src}");
+            assert_eq!(i.params.len(), params, "{src}");
+            assert_eq!(i.ty.name, written, "{src}");
+        }
+        let i = block("impl<T: Show> Show for T[] { fun show(self): string = \"\"; }");
+        assert_eq!(i.methods[0].name.name, "show@Show");
+    }
 
     #[test]
     fn enums_have_positional_payloads() {

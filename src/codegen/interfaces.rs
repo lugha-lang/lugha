@@ -161,6 +161,15 @@ impl<'ctx> Lowerer<'ctx> {
         args: &[Type],
         name: &str,
     ) -> FunctionValue<'ctx> {
+        // A built-in type's block item: `impl Show for f64`.
+        let builtin = !matches!(ty, Type::Struct(k, _) | Type::Enum(k, _) if !k.starts_with('$'))
+            && !matches!(ty, Type::Handle(_));
+        if builtin && let Some(t) = self.derives.target(key, name, ty, |_| false) {
+            let found = self.monos.get(&instance_name(&t.key, &t.args));
+            if let Some(m) = found.or_else(|| self.methods.get(&t.key)) {
+                return m.signature.function;
+            }
+        }
         // A nominal interface's item: the method of the type's block.
         let method = &self.block_method(ty, key, args, name);
         let own = match ty {
@@ -300,5 +309,25 @@ pub(super) mod tests {
         for symbol in ["lugha_vt_", "lugha_type_", "_box"] {
             assert!(!ir.contains(symbol), "{symbol}: {ir}");
         }
+    }
+
+    #[test]
+    fn a_built_in_types_table_holds_its_blocks_items() {
+        let ir = ir("interface Show { fun show(self): string; }\n\
+             impl Show for f64 { fun show(self): string = \"f\"; }\n\
+             impl<T: Show> Show for T[] { fun show(self): string = \"a\"; }\n\
+             fun main() { let a: Show = 1.5; let b: Show = [2.5]; }");
+        let table = |name: &str| {
+            ir.lines()
+                .find(|l| l.starts_with(name))
+                .unwrap_or_else(|| panic!("no {name}: {ir}"))
+                .to_string()
+        };
+        assert!(
+            table("@lugha_vt_f64.Show = ").contains("Show@f64.show"),
+            "{ir}"
+        );
+        let array = table("@\"lugha_vt_f64[].Show\" = ");
+        assert!(array.contains("Show@array.show<f64>"), "{array}");
     }
 }

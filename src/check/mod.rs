@@ -17,6 +17,9 @@ mod body;
 mod bound_args;
 mod bound_infer;
 mod bounds;
+mod builtin_impls;
+#[cfg(test)]
+mod builtin_impls_tests;
 mod builtins;
 mod call;
 mod callbacks;

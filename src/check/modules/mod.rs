@@ -212,7 +212,7 @@ impl Checker {
     /// Every declaration pass over every module in turn, then every body.
     fn modules(&mut self, units: &[Unit]) {
         type Pass = fn(&mut Checker, &Program);
-        let passes: [Pass; 14] = [
+        let passes: [Pass; 15] = [
             Checker::collect_handles,
             Checker::collect_interfaces,
             Checker::collect_structs,
@@ -225,6 +225,7 @@ impl Checker {
             Checker::collect_consts,
             Checker::collect_methods,
             Checker::collect_derives,
+            Checker::collect_builtin_impls,
             Checker::collect_with,
             Checker::check_actors,
         ];

@@ -1,13 +1,13 @@
-error[E0459]: this `impl Shape for …` is for `f64`: only a struct, an enum, an actor or an extern type can implement an interface
-  --> tests/programs/interfaces/nominal/e0459.la:6:16
-  |
-6 | impl Shape for f64 { fun area(self): f64 = self; }
-  |                ^^^
-
 error[E0459]: this `impl Display for …` names `Display`, which a type still meets by its methods' names: write them in `impl P { … }`
   --> tests/programs/interfaces/nominal/e0459.la:8:6
   |
 8 | impl Display for P { fun show(self): string = "p"; }
   |      ^^^^^^^
+
+error[E0459]: this `impl Shape for …` is for `fun(): f64`: a function type can't implement an interface
+  --> tests/programs/interfaces/nominal/e0459.la:6:16
+  |
+6 | impl Shape for fun(): f64 { fun area(self): f64 = 1.0; }
+  |                ^^^^^^^^^^
 
 For more about E0459, run `lughac explain E0459`.

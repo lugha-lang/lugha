@@ -262,6 +262,11 @@ pub struct ImplDecl {
     /// `impl I for T = derive;`: the interface's items come from its derive
     /// blocks, as for `with I`; `methods` is empty.
     pub derive: bool,
+    /// `f64[]` in `impl Show for f64[]` or `impl<T: Show> Show for T[]`: a
+    /// block for a type that isn't a struct, enum, actor or extern type by
+    /// name, written as any type; `params` are then the `impl<…>` ones.
+    /// `None` for a block written `impl I for Name<T: B>`.
+    pub target: Option<Box<Type>>,
 }
 
 /// A typed name: a function parameter.

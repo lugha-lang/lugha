@@ -1,6 +1,6 @@
 ## FEATURE: Built-in types implement interfaces: `impl I for f64`, `impl I for V[]`, and generic `impl<T: B> I for T[]`; milestone 169, in v18's Phase 1.
 
-**Status:** proposed 2026-11-15.
+**Status:** proposed 2026-11-15. Approved 2026-11-15.
 
 ## OBJECTIVE
 ```lugha
@@ -94,13 +94,22 @@ fun main() {
 - **Security:** none: no external input, `unsafe`, dependency, `git` or process changes.
 
 ## TESTS
-- [ ] `tests/programs/interfaces/builtin_impls/`: the OBJECTIVE; a block for a number, `string`, `bool`, `()`, a tuple, `Map<string, V>`, `Option<T>`, `Result<T, E>`; `impl Show for Point[]` in `Point`'s module (a directory case with two modules); a default item on a built-in type; `mut self` items on an array; interface values of built-in types in arrays, passed and returned; qualified calls; the prelude's `cmp`/`eq` through method syntax.
-- [ ] Errors, one `.la` + `.stderr` each: a block in a third module (E0459); a function type, an interface type, a bare parameter, an unused parameter (E0459); `impl<T>` before a struct (E0459); `impl Eq for f64[]` (E0459); overlapping blocks (E0461); a block missing an item (E0422); a built-in method name winning, reached by `I.item(x)`.
-- [ ] Unit tests: the parser's `impl<…>` forms; the checker's placement, overlap and uses; codegen tables for built-in types.
-- [ ] `cargo test --lib`, `--test programs`, `--test spec`, `--test explain`, `--test lsp`.
+- [x] `tests/programs/interfaces/builtin_impls/`: the OBJECTIVE; a block for a number, `string`, `bool`, `()`, a tuple, `Map<string, V>`, `Option<T>`, `Result<T, E>`; `impl Show for Point[]` in `Point`'s module (a directory case with two modules); a default item on a built-in type; `mut self` items on an array; interface values of built-in types in arrays, passed and returned; qualified calls; the prelude's `cmp`/`eq` through method syntax.
+- [x] Errors, one `.la` + `.stderr` each: a block in a third module (E0459); a function type, an interface type, a bare parameter, an unused parameter (E0459); `impl<T>` before a struct (E0459); `impl Eq for f64[]` (E0459); overlapping blocks (E0461); a block missing an item (E0422); a built-in method name winning, reached by `I.item(x)`.
+- [x] Unit tests: the parser's `impl<…>` forms; the checker's placement, overlap and uses; codegen tables for built-in types.
+- [x] `cargo test --lib`, `--test programs`, `--test spec`, `--test explain`, `--test lsp`.
 
 ## ACCEPTANCE
-- [ ] The OBJECTIVE prints the lines shown; each commented line gives its error.
-- [ ] Existing programs pass unchanged.
-- [ ] `cargo test --lib` and the touched integration tests pass; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
-- [ ] Every `pub` item documented; spec, CHANGELOG, TODO updated.
+- [x] The OBJECTIVE prints the lines shown; each commented line gives its error.
+- [x] Existing programs pass unchanged.
+- [x] `cargo test --lib` and the touched integration tests pass; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
+- [x] Every `pub` item documented; spec, CHANGELOG, TODO updated.
+
+## CHANGES DURING THE BUILD
+- **`CPtr`** already had blocks written by name (`impl I for CPtr`, an extern type), so it stays on that path.
+- **`impl I for Option<Point>`**, written like a struct's block with a bare name inside, is read as a block for that type when no type of the program is named `Option`, `Result`, `Map` or `Set`.
+- **A generic interface has one block per built-in type,** whatever its arguments: overlap is checked by the type alone (`impl From<string> for i64` and `impl From<char> for i64` are E0461). Several argument lists stay for structs and enums.
+- **Ambiguity** between two interfaces' items on a built-in receiver is E0460, as for structs (decision 8 named only E0459, E0461 and E0422).
+- **The E0459 page** now shows a function type; `impl Shape for f64`, its old example, is valid. `tests/programs/interfaces/nominal/e0459.la` moved to a function type for the same reason.
+- **Completion** lists a block's items on built-in receivers through the checker's `Partial`, which now carries the blocks.
+

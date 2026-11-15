@@ -1,0 +1,7 @@
+error[E0459]: this `impl Show for …` is for every type `T`: a block is for one kind of type
+  --> tests/programs/interfaces/builtin_impls/e0459_blanket.la:6:18
+  |
+6 | impl<T> Show for T {
+  |                  ^
+
+For more about E0459, run `lughac explain E0459`.

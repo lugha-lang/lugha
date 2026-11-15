@@ -79,6 +79,9 @@ impl Checker {
                 Some(m) => m,
                 None => return self.unchecked(rest),
             },
+            _ if let Some((block, targs)) = self.builtin_block(key, &receiver) => {
+                self.block_call(call, &receiver, (&block, &targs), &name.name)
+            }
             _ => {
                 let m = self.item_call(call, &receiver, &applied, &name.name);
                 if m.generics.is_empty() && !m.key.is_empty() {
@@ -127,6 +130,11 @@ impl Checker {
                 }),
             _ => None,
         };
+        // A built-in type through its block: `Show.show(2.5)`.
+        let found = found.or_else(|| {
+            let (block, args) = self.builtin_block(key, ty)?;
+            Some(Self::block_applied(&block, &args))
+        });
         if found.is_none() {
             let shown = Type::Interface(key.to_string(), Vec::new());
             self.report_not_implemented(ty, &shown.to_string(), at.span);

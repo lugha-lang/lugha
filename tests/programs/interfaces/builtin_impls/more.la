@@ -1,0 +1,86 @@
+// More built-in types with blocks: `bool`, `()`, tuples, maps, `Result`;
+// a default item; a `mut self` item on an array; interface values passed
+// and returned; a built-in method winning over an item of the same name.
+interface Show {
+    fun show(self): string;
+    fun twice(self): string = self.show() + self.show();
+}
+
+interface Stack {
+    fun push_two(mut self, x: i64);
+}
+
+interface Trim {
+    fun trim(self): string;
+}
+
+impl Show for bool {
+    fun show(self): string = if self { "yes" } else { "no" };
+}
+
+impl Show for () {
+    fun show(self): string = "unit";
+}
+
+impl Show for i64 {
+    fun show(self): string = "#{self}";
+}
+
+impl Show for string {
+    fun show(self): string = self;
+}
+
+impl<A: Show, B: Show> Show for (A, B) {
+    fun show(self): string = "<" + self.0.show() + " " + self.1.show() + ">";
+}
+
+impl<V: Show> Show for Map<string, V> {
+    fun show(self): string = "map of {self.len}";
+}
+
+impl<T: Show, E: Show> Show for Result<T, E> {
+    fun show(self): string = match self {
+        Ok(x) => "ok " + x.show(),
+        Err(e) => "err " + e.show(),
+    };
+}
+
+impl Stack for i64[] {
+    fun push_two(mut self, x: i64) {
+        self.push(x);
+        self.push(x);
+    }
+}
+
+impl Trim for string {
+    fun trim(self): string = "[" + self + "]";
+}
+
+fun shown(x: Show): string = x.show();
+
+fun pick(b: bool): Show = if b { 7 } else { "seven" };
+
+fun main() {
+    println(true.show());
+    println(().show());
+    println((1, false).show());
+    let m: Map<string, bool> = #{"a": true};
+    // A map's own `show` wins; the qualified call reaches the interface's.
+    println(m.show());
+    println(Show.show(m));
+    let r: Result<i64, string> = Err("no");
+    println(r.show());
+    println(5.twice());
+    println(Show.twice(false));
+    let mut xs = [1];
+    xs.push_two(2);
+    println(xs);
+    Stack.push_two(xs, 3);
+    println(xs.len);
+    println(shown((2, "x")));
+    println(pick(true).show());
+    println(pick(false).twice());
+    println("  a ".trim());
+    println(Trim.trim("  a "));
+    println("{3.cmp(4) == Ordering.Less} {"a".eq("b")} {[1, 2].eq([1, 2])}");
+}

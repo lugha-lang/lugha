@@ -1,0 +1,8 @@
+// A built-in type without a block doesn't implement the interface.
+interface Show {
+    fun show(self): string;
+}
+
+fun main() {
+    let s: Show = true;
+}

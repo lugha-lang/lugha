@@ -1,0 +1,9 @@
+error[E0422]: `bool` doesn't implement `Show`
+  --> tests/programs/interfaces/builtin_impls/e0422_none.la:7:19
+  |
+7 |     let s: Show = true;
+  |                   ^^^^
+  |
+  = help: add `impl Show for bool { … }` in the module that declares `Show`
+
+For more about E0422, run `lughac explain E0422`.

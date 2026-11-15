@@ -88,6 +88,7 @@ pub fn parse_partial_from(tokens: &[Token], first: u32) -> (Program, Vec<Diagnos
         no_struct: false,
         scrutinee: false,
         impl_self: None,
+        impl_target: None,
         labels: Vec::new(),
         no_label: false,
         diagnostics: Vec::new(),
@@ -122,6 +123,9 @@ struct Parser<'t> {
     scrutinee: bool,
     /// The type and parameters of the `impl` being read: what `Self` means.
     impl_self: Option<(Ident, Vec<Ident>)>,
+    /// The type of an `impl I for f64[]` block being read: `Self` in its
+    /// types is that type.
+    impl_target: Option<crate::ast::Type>,
     /// The labels of the enclosing loops: after
     /// `break`, one of these names is the label, any other a value.
     labels: Vec<String>,

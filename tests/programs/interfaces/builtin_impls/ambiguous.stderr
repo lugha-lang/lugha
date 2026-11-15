@@ -1,0 +1,9 @@
+error[E0460]: `show` on `f64` is an item of both `Show` and `Shows`
+   --> tests/programs/interfaces/builtin_impls/ambiguous.la:19:17
+   |
+19 |     println(2.0.show());
+   |                 ^^^^
+   |
+   = help: say which one you mean: `Show.show(…)` or `Shows.show(…)`
+
+For more about E0460, run `lughac explain E0460`.

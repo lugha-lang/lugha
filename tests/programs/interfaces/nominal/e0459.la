@@ -1,9 +1,9 @@
-// A block for a number, or for an interface met by method names.
+// A block for a function type, or for an interface met by method names.
 interface Shape { fun area(self): f64; }
 
 struct P { x: i64 }
 
-impl Shape for f64 { fun area(self): f64 = self; }
+impl Shape for fun(): f64 { fun area(self): f64 = 1.0; }
 
 impl Display for P { fun show(self): string = "p"; }
 

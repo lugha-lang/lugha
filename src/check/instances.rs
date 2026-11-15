@@ -65,7 +65,12 @@ impl Checker {
         };
         // A plain call is compiled anyway; it is kept only for the purity
         // of constants.
-        if args.is_empty() && !lazy_key(key) {
+        // A block's items compile only as listed instances, generic or not.
+        let block = self.derives.blocks.iter().any(|b| {
+            key.strip_prefix(b.owner.as_str())
+                .is_some_and(|r| r.starts_with('.'))
+        });
+        if args.is_empty() && !lazy_key(key) && !block {
             self.calls.push(u);
         } else {
             self.uses.push(u);
@@ -129,7 +134,7 @@ impl Checker {
                         .interfaces
                         .get(&a.key)
                         .is_some_and(|i| i.items.iter().any(|r| r.name == name));
-                    declares && self.derives.derivable(&a.key)
+                    declares && self.derives.has_blocks(&a.key)
                 })
         });
         // A struct's or enum's own item wins.

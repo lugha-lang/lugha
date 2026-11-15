@@ -1,0 +1,9 @@
+error[E0422]: `impl Show for f64` doesn't match `Show`
+  --> tests/programs/interfaces/builtin_impls/e0422_items.la:6:6
+  |
+6 | impl Show for f64 {
+  |      ^^^^
+  |
+  = help: `shows` isn't an item of `Show`; no method `show`
+
+For more about E0422, run `lughac explain E0422`.

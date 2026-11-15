@@ -47,7 +47,7 @@ fn a_block_must_match_its_interface() {
 #[test]
 fn a_misplaced_block_is_e0459() {
     assert_eq!(
-        codes("impl Shape for i64 { fun area(self): f64 = 1.0; }"),
+        codes("impl Shape for fun(): i64 { fun area(self): f64 = 1.0; }"),
         ["E0459"]
     );
     assert_eq!(

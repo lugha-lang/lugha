@@ -1,0 +1,7 @@
+error[E0459]: this `impl Show for …` is for `fun(i64): i64`: a function type can't implement an interface
+  --> tests/programs/interfaces/builtin_impls/e0459_function.la:6:15
+  |
+6 | impl Show for fun(i64): i64 {
+  |               ^^^^^^^^^^^^^
+
+For more about E0459, run `lughac explain E0459`.

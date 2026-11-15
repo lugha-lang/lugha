@@ -60,6 +60,7 @@ impl Parser<'_> {
             interface: None,
             tag: Box::default(),
             derive: false,
+            target: None,
         };
         Ok((state, methods))
     }

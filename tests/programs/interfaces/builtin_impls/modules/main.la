@@ -1,0 +1,18 @@
+// A block for a type built from a program's type lives in that type's module.
+import geo;
+import shapes;
+
+fun all<T: shapes.Show>(x: T): string = x.show();
+
+fun main() {
+    let ps = [geo.Point { x: 1.0, y: 2.0 }, geo.Point { x: 3.0, y: 4.0 }];
+    println(ps.show());
+    println(all(ps));
+    let o: Option<geo.Point> = None;
+    println(shapes.Show.show(o));
+    println(Some(ps[1]).show());
+    let items: shapes.Show[] = [ps, 2.5];
+    for i of items {
+        println(i.show());
+    }
+}

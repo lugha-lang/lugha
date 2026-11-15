@@ -1,0 +1,8 @@
+// The prelude decides `Eq`, `Key` and `Ord` for built-in types.
+struct P { x: i64 } with Eq
+
+impl Ord for P[] {
+    fun cmp(self, other: P[]): Ordering = Ordering.Equal;
+}
+
+fun main() {}

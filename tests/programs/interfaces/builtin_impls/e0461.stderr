@@ -1,0 +1,14 @@
+error[E0461]: `Show` is implemented for `Point[]` twice
+   --> tests/programs/interfaces/builtin_impls/e0461.la:16:6
+   |
+12 | / impl<T: Show> Show for T[] {
+13 | |     fun show(self): string = "all";
+14 | | }
+   | \-' first implemented here
+15 |
+16 |   impl Show for Point[] {
+   |        ^^^^
+   |
+   = help: keep one of the two blocks
+
+For more about E0461, run `lughac explain E0461`.

@@ -1,0 +1,45 @@
+// Built-in types implement interfaces: a number, `string`, every array of a
+// `Show` type, `Option<T>`; method syntax, qualified calls, bounds and
+// interface values, and the prelude's own blocks.
+interface Show {
+    fun show(self): string;
+}
+
+impl Show for f64 {
+    fun show(self): string = "{self} m";
+}
+
+impl Show for string {
+    fun show(self): string = "\"{self}\"";
+}
+
+impl<T: Show> Show for T[] {                       // every array of a `Show` type
+    fun show(self): string = "[" + self.map(fun(x: T): string = x.show()).join(", ") + "]";
+}
+
+impl<T: Show> Show for Option<T> {
+    fun show(self): string = match self {
+        Some(x) => "some " + x.show(),
+        None => "none",
+    };
+}
+
+struct Point { x: f64, y: f64 }
+
+impl Show for Point {
+    fun show(self): string = "({self.x}, {self.y})";
+}
+
+fun all<T: Show>(xs: T[]): string = xs.show();
+
+fun main() {
+    println(2.5.show());                                       // 2.5 m
+    println(Show.show("hi"));                                  // "hi"
+    println(all([[1.0, 2.0], [3.0]]));                         // [[1.0 m, 2.0 m], [3.0 m]]
+    println(Some(Point { x: 1.0, y: 2.0 }).show());            // some (1.0, 2.0)
+    let items: Show[] = [1.5, "a", Point { x: 0.0, y: 0.0 }];   // interface values
+    for i of items {
+        println(i.show());
+    }
+    println(3.cmp(4) == Ordering.Less);                        // true: the prelude's blocks count too
+}

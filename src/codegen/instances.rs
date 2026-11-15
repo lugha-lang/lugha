@@ -27,6 +27,19 @@ struct Source<'a> {
     /// The derive block of a derived item, with its
     /// hidden owner: its type arguments are the block's parameters.
     derive: Option<(&'a DeriveDecl, String)>,
+    /// A block for a built-in type (`impl Show for f64`), with its hidden
+    /// owner: like a derive block's, its arguments are the block's parameters.
+    written: Option<(&'a ImplDecl, String)>,
+}
+
+impl Source<'_> {
+    /// The hidden owner of a derive block's or a built-in type's block's item.
+    fn block_owner(&self) -> Option<&String> {
+        self.derive
+            .as_ref()
+            .map(|(_, o)| o)
+            .or(self.written.as_ref().map(|(_, o)| o))
+    }
 }
 
 /// An instance's linkage: the prelude's and std's (derive blocks
@@ -155,7 +168,7 @@ impl<'ctx> Lowerer<'ctx> {
                 // A default's receiver is `Self`, its first argument; an
                 // associated function's default has none.
                 (_, Some(_)) if source.interface.is_some() => mono.args.first().cloned(),
-                (_, Some(_)) if let Some((_, owner)) = &source.derive => {
+                (_, Some(_)) if let Some(owner) = source.block_owner() => {
                     self.derives.self_type(owner, &mono.args)
                 }
                 _ => None,
@@ -182,7 +195,11 @@ impl<'ctx> Lowerer<'ctx> {
             DeriveTarget::Type(_) => d.type_params.iter().map(|p| p.name.name.clone()).collect(),
             _ => vec![SELF.to_string()],
         });
-        let hidden = hidden.chain(derived);
+        let written = source
+            .written
+            .iter()
+            .flat_map(|(i, _)| i.params.iter().map(|p| p.name.name.clone()));
+        let hidden = hidden.chain(derived).chain(written);
         self.subst = hidden
             .chain(names.map(|n| n.name.clone()))
             .zip(args.iter().cloned())
@@ -214,6 +231,7 @@ fn find<'a>(
                             owner: None,
                             interface: None,
                             derive: Some((d, owner.to_string())),
+                            written: None,
                         };
                     }
                 }
@@ -223,6 +241,7 @@ fn find<'a>(
                         owner: None,
                         interface: None,
                         derive: None,
+                        written: None,
                     };
                 }
                 Item::Interface(i) => {
@@ -237,6 +256,22 @@ fn find<'a>(
                             owner: None,
                             interface: Some((owner, i)),
                             derive: None,
+                            written: None,
+                        };
+                    }
+                }
+                // A block for a built-in type: like a derive block's items.
+                Item::Impl(i) if let Some(owner) = derives.owner_at(i.span) => {
+                    let found = i.methods.iter().find(|f| {
+                        format!("{owner}.{}", crate::modules::impls::item_name(&f.name.name)) == key
+                    });
+                    if let Some(f) = found {
+                        return Source {
+                            f,
+                            owner: None,
+                            interface: None,
+                            derive: None,
+                            written: Some((i, owner.to_string())),
                         };
                     }
                 }
@@ -255,6 +290,7 @@ fn find<'a>(
                             owner: Some((i, owner)),
                             interface: None,
                             derive: None,
+                            written: None,
                         };
                     }
                 }
@@ -269,13 +305,14 @@ fn find<'a>(
 /// method on its type and then its own (`lugha_fn_Stack<string>.tag<f64>`).
 fn symbol_of(source: &Source, mono: &Instance) -> String {
     // `lugha_fn_std/$json_value/Json@array.$to_json<i64>`.
-    if let Some((_, owner)) = &source.derive {
+    if let Some(owner) = source.block_owner() {
         let args = if mono.args.is_empty() {
             String::new()
         } else {
             format!("<{}>", symbol(&spelled(&mono.args)))
         };
-        return format!("lugha_fn_{}.{}{args}", symbol(owner), source.f.name.name);
+        let item = crate::modules::impls::item_name(&source.f.name.name);
+        return format!("lugha_fn_{}.{item}{args}", symbol(owner));
     }
     match &source.owner {
         // `lugha_fn_Error.report<ParseError>`.

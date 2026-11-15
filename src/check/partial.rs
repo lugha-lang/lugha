@@ -69,6 +69,8 @@ pub struct Partial {
     pub members: HashMap<String, super::TypeMembers>,
     /// Every prelude function's declaration name, by its name.
     pub prelude: HashMap<String, Span>,
+    /// Every derive block and block for a built-in type, for completion.
+    pub derives: super::Derives,
     /// Each function's and method's signature, by its declaration's name.
     pub signatures: HashMap<Span, super::Sig>,
     /// Every missing pattern of each non-exhaustive `match`, in full
@@ -215,6 +217,7 @@ pub fn check_partial(units: &[Unit]) -> Partial {
         missing_arms: checker.hover.missing_arms,
         variants: checker.hover.unused_variants,
         diagnostics: checker.diagnostics,
+        derives: checker.derives,
     }
 }
 

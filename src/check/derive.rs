@@ -83,6 +83,14 @@ pub struct Block {
     pub owner: String,
     /// The whole block, from `derive` to its `}`.
     pub span: Span,
+    /// An `impl I for f64` block for a built-in type, which doesn't make
+    /// `I` derivable; its items are `items`, the rest the interface's defaults.
+    pub written: bool,
+    /// The interface's arguments, in the block's parameters: `impl
+    /// Source<i64> for i64[]`. Empty for a derive block.
+    pub args: Vec<Type>,
+    /// The items the block defines.
+    pub items: Vec<String>,
 }
 
 impl Block {
@@ -99,7 +107,7 @@ impl Block {
 /// Every derive block, by interface (`Checked::derives`).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Derives {
-    blocks: Vec<Block>,
+    pub(super) blocks: Vec<Block>,
     /// Struct and enum keys with their own item of a derivable interface,
     /// by item name: calls reach those instead of a block's.
     pub(super) own: std::collections::HashSet<(String, String)>,
@@ -108,6 +116,12 @@ pub struct Derives {
 impl Derives {
     /// True if interface `key` has derive blocks: it is met through them.
     pub fn derivable(&self, key: &str) -> bool {
+        self.blocks.iter().any(|b| b.interface == key && !b.written)
+    }
+
+    /// True if interface `key` has any block: a derive block, or an `impl`
+    /// block for a built-in type.
+    pub fn has_blocks(&self, key: &str) -> bool {
         self.blocks.iter().any(|b| b.interface == key)
     }
 
@@ -187,6 +201,10 @@ impl Derives {
             return None;
         }
         let (block, args) = self.find(interface, ty, holds_union)?;
+        // An item a written block leaves to the interface's default.
+        if block.written && !block.items.iter().any(|i| i == name) {
+            return None;
+        }
         Some(Instance {
             key: format!("{}.{name}", block.owner),
             args,
@@ -233,7 +251,7 @@ fn matches(pattern: &Type, ty: &Type, names: &[&str], bound: &mut HashMap<String
 }
 
 /// What a block covers, as written: `T[]`, `struct`.
-fn block_type(covers: &Covers) -> String {
+pub(super) fn block_type(covers: &Covers) -> String {
     match covers {
         Covers::Type(t) => super::shown(&t.to_string()),
         Covers::Struct => "struct".into(),
@@ -244,7 +262,7 @@ fn block_type(covers: &Covers) -> String {
 }
 
 /// A short, symbol-safe name for what a block covers: `i64`, `array`, `Map`.
-fn label(covers: &Covers) -> String {
+pub(super) fn label(covers: &Covers) -> String {
     match covers {
         Covers::Struct => "struct".into(),
         Covers::Enum => "enum".into(),
@@ -262,7 +280,7 @@ fn label(covers: &Covers) -> String {
 
 /// True if one type could be covered by both patterns: each pattern's
 /// parameters (in `a` and `b`) stand for any type.
-fn overlap(a: &Type, b: &Type, a_names: &[&str], b_names: &[&str]) -> bool {
+pub(super) fn overlap(a: &Type, b: &Type, a_names: &[&str], b_names: &[&str]) -> bool {
     match (a, b) {
         (Type::Param(n), _) if a_names.contains(&n.as_str()) => true,
         (_, Type::Param(n)) if b_names.contains(&n.as_str()) => true,
@@ -282,7 +300,7 @@ fn overlap(a: &Type, b: &Type, a_names: &[&str], b_names: &[&str]) -> bool {
 }
 
 /// The names of a block's parameters.
-fn names(block: &Block) -> Vec<&str> {
+pub(super) fn names(block: &Block) -> Vec<&str> {
     block.generics.iter().map(|g| g.name.as_str()).collect()
 }
 
@@ -345,6 +363,9 @@ impl Checker {
             generics: generics.clone(),
             owner: owner.clone(),
             span: d.span,
+            written: false,
+            args: Vec::new(),
+            items: d.methods.iter().map(|f| f.name.name.clone()).collect(),
         };
         let me = block.self_type();
         let clash = self.derives.blocks.iter().find(|b| {

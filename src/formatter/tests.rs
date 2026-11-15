@@ -409,3 +409,11 @@ fn loops_and_labels_v17_m152() {
         "fun f() {\n    let x = a: loop {\n        break a 1;\n    };\n    outer: for i in 0..3 {\n        continue outer;\n    }\n    w: while c {\n        break w;\n    }\n    loop {\n        break;\n    }\n}\n",
     );
 }
+
+#[test]
+fn a_block_for_a_built_in_type_keeps_its_parameters_first() {
+    check(
+        "impl<T:Show>Show for T[]{fun show(self):string=\"a\";}\nimpl Show for (Point,i64){fun show(self):string=\"p\";}\n",
+        "impl<T: Show> Show for T[] {\n    fun show(self): string = \"a\";\n}\nimpl Show for (Point, i64) {\n    fun show(self): string = \"p\";\n}\n",
+    );
+}

@@ -36,6 +36,10 @@ impl Checker {
     pub(super) fn collect_methods(&mut self, program: &Program) {
         for item in &program.items {
             let Item::Impl(i) = item else { continue };
+            // A block for a built-in type (`check::builtin_impls`).
+            if self.builtin_target(i).is_some() {
+                continue;
+            }
             // An `impl` belongs to its type's module, so it never names one,
             // except to hold arithmetic for this module's types (`impl f64`).
             let foreign = i.module.is_some()
@@ -143,6 +147,9 @@ impl Checker {
     pub(super) fn method_bodies(&mut self, program: &Program) {
         for item in &program.items {
             let Item::Impl(i) = item else { continue };
+            if self.builtin_target(i).is_some() {
+                continue;
+            }
             // `impl f64 { … }` and `impl shapes.W { … }`: the type found earlier.
             let (owner, ty) = match self.impl_owners.get(&i.span) {
                 Some(ty @ (Type::Struct(k, _) | Type::Enum(k, _))) => (k.clone(), ty.clone()),
@@ -176,6 +183,7 @@ impl Checker {
         self.in_actor = None;
         self.default_bodies(program);
         self.derive_bodies(program);
+        self.builtin_impl_bodies(program);
         self.type_params.clear();
         self.owner.clear();
     }

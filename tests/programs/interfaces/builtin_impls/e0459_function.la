@@ -1,0 +1,10 @@
+// A function type can't implement an interface.
+interface Show {
+    fun show(self): string;
+}
+
+impl Show for fun(i64): i64 {
+    fun show(self): string = "f";
+}
+
+fun main() {}

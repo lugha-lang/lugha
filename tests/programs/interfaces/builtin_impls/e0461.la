@@ -1,0 +1,20 @@
+// Two blocks cover `Point[]`: no specialization.
+interface Show {
+    fun show(self): string;
+}
+
+struct Point { x: i64 }
+
+impl Show for Point {
+    fun show(self): string = "p";
+}
+
+impl<T: Show> Show for T[] {
+    fun show(self): string = "all";
+}
+
+impl Show for Point[] {
+    fun show(self): string = "points";
+}
+
+fun main() {}

@@ -21,7 +21,7 @@ pub(in crate::check) fn not_implemented(
     let help = match declared {
         Some(declared) => format!("add `impl {interface} for {declared} {{ … }}`"),
         None => format!(
-            "a `{ty}` can't implement an interface yet: wrap it in a struct that implements `{interface}`"
+            "add `impl {interface} for {ty} {{ … }}` in the module that declares `{interface}`"
         ),
     };
     Diagnostic::error(

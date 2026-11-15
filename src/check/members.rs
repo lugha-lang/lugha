@@ -107,6 +107,20 @@ impl Checker {
                 },
             );
         }
+        // A built-in type's blocks: their items, by hidden owner.
+        for b in self.derives.blocks.iter().filter(|b| b.written) {
+            let members = self.methods_of(&b.owner);
+            let generics = b.generics.clone();
+            let decl = b.span;
+            out.insert(
+                b.owner.clone(),
+                TypeMembers {
+                    decl,
+                    generics,
+                    members,
+                },
+            );
+        }
         for (key, info) in &self.interfaces {
             let members = info
                 .items
@@ -224,6 +238,27 @@ pub fn value_members(partial: &Partial, ty: &Type) -> Vec<Member> {
             });
         } else if let Some(function) = helpers::helper_function(ty, name) {
             out.push(helper(partial, name, &function));
+        }
+    }
+    // The items of a built-in type's blocks; its own methods win.
+    let builtin = !matches!(ty, Type::Param(_) | Type::Interface(..) | Type::Error)
+        && !matches!(ty, Type::Struct(k, _) | Type::Enum(k, _) if !k.starts_with('$'));
+    let mut interfaces: Vec<&String> = partial
+        .derives
+        .blocks
+        .iter()
+        .map(|b| &b.interface)
+        .collect();
+    interfaces.dedup();
+    for key in interfaces.into_iter().filter(|_| builtin) {
+        let Some((b, _)) = partial.derives.find(key, ty, |_| false) else {
+            continue;
+        };
+        let items = partial.members.get(&b.owner).filter(|_| b.written);
+        for m in items.into_iter().flat_map(|t| &t.members) {
+            if !out.iter().any(|o| o.name == m.name) {
+                out.push(m.clone());
+            }
         }
     }
     let iterates = out
@@ -353,6 +388,23 @@ fun main() { }
         );
         let at = members[0].decl.expect("its declaration");
         assert_eq!(&SRC[at.start..at.end], "area");
+    }
+
+    #[test]
+    fn a_built_in_types_blocks_give_their_items() {
+        let src = "interface Show { fun show(self): string; fun len(self): i64; }\n\
+                   impl<T> Show for T[] { fun show(self): string = \"a\"; fun len(self): i64 = 0; }\n\
+                   fun main() {}";
+        let partial = test_util::partial(src);
+        let array = value_members(&partial, &Type::Array(Box::new(Type::I64)));
+        let show = array.iter().find(|m| m.name == "show").expect("show");
+        let at = show.decl.expect("its declaration");
+        assert_eq!(&src[at.start..at.end], "show");
+        // The array's own `len` wins.
+        let lens: Vec<_> = array.iter().filter(|m| m.name == "len").collect();
+        assert_eq!(lens.len(), 1);
+        assert_eq!(lens[0].kind, MemberKind::Field);
+        assert!(!names(&value_members(&partial, &Type::F64)).contains(&"show".to_string()));
     }
 
     #[test]

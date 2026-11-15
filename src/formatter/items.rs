@@ -138,17 +138,24 @@ impl Printer<'_> {
             Top::Item(Item::Enum(e)) => self.enumeration(e),
             Top::Item(Item::Impl(i)) => {
                 let mut head = "impl ".to_string();
+                // `impl<T: B> I for T[]`: the parameters come first.
+                if i.target.is_some() {
+                    head = format!("impl{} ", self.type_params(&i.params));
+                }
                 if let Some(b) = &i.interface {
                     head.push_str(&format!("{} for ", self.bound(b)));
                 }
                 if let Some(m) = &i.module {
                     head.push_str(&format!("{}.", self.ident(m)));
                 }
-                head.push_str(&format!(
-                    "{}{} ",
-                    self.ident(&i.ty),
-                    self.type_params(&i.params)
-                ));
+                match &i.target {
+                    Some(t) => head.push_str(&format!("{} ", self.ty(t))),
+                    None => head.push_str(&format!(
+                        "{}{} ",
+                        self.ident(&i.ty),
+                        self.type_params(&i.params)
+                    )),
+                }
                 if i.derive {
                     return text(format!("{head}= derive;"));
                 }

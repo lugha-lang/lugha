@@ -1,0 +1,8 @@
+// A block for a built-in type lives in the interface's module.
+import shapes;
+
+impl shapes.Show for bool {
+    fun show(self): string = "b";
+}
+
+fun main() {}

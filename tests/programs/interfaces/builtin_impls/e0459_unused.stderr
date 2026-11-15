@@ -1,0 +1,7 @@
+error[E0459]: this `impl Show for …` has `U`, which `T[]` doesn't use
+  --> tests/programs/interfaces/builtin_impls/e0459_unused.la:6:21
+  |
+6 | impl<T, U> Show for T[] {
+  |                     ^^^
+
+For more about E0459, run `lughac explain E0459`.

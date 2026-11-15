@@ -65,8 +65,9 @@ impl Checker {
         if self.by_block(&applied.key) {
             self.nominal_calls.insert(call.id, applied.clone());
         }
-        // Codegen finds a derivable interface's item through its blocks.
-        if self.derives.derivable(&applied.key) {
+        // Codegen finds a derivable interface's item through its blocks, and
+        // a built-in type's through its `impl` block.
+        if self.derives.has_blocks(&applied.key) {
             self.derived.insert(call.id, applied.key.clone());
         }
         self.default_callee(call, &req, applied.args);
@@ -110,6 +111,10 @@ impl Checker {
         // The numbers and `string` meet the prelude's operator bounds as built-ins.
         if let Some(problems) = self.builtin_operator(arg, &interface.key) {
             return problems;
+        }
+        // A built-in type through its block: `impl Show for f64`.
+        if self.builtin_implements(arg, interface) {
+            return Vec::new();
         }
         // A nominal interface is met only through `impl I for T`; a type
         // parameter and an interface value still offer their items.
@@ -300,7 +305,7 @@ mod tests {
             d[0].help
                 .as_deref()
                 .unwrap()
-                .contains("wrap it in a struct"),
+                .contains("add `impl Shape for i64 { … }` in the module that declares `Shape`"),
             "{:?}",
             d[0].help
         );

@@ -200,6 +200,14 @@ impl Checker {
                 .method(receiver, &name.name)
                 .filter(|m| m.receiver.is_some()),
         };
+        // An item of a built-in type's block: `2.5.show()`, `3.cmp(4)`.
+        let found = match found {
+            None => match self.block_item(call, receiver, name) {
+                Some(None) => return self.unchecked(args),
+                found => found.flatten(),
+            },
+            found => found,
+        };
         // `x.eq(y)` and `x.hash(h)` on any `Eq` type.
         let found = match found {
             None => self.eq_item(call, receiver, &name.name),

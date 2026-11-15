@@ -1,0 +1,7 @@
+error[E0459]: this `impl Ord for …` is for `P[]`: the prelude decides `Eq`, `Key` and `Ord` for built-in types
+  --> tests/programs/interfaces/builtin_impls/e0459_prelude.la:4:6
+  |
+4 | impl Ord for P[] {
+  |      ^^^
+
+For more about E0459, run `lughac explain E0459`.

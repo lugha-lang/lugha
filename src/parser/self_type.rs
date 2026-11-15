@@ -27,6 +27,9 @@ impl Parser<'_> {
     // Not inlined: `named_type` recurses once per nesting level.
     #[inline(never)]
     pub(super) fn self_type(&self, name: &Ident) -> Option<TypeKind> {
+        if let Some(target) = self.impl_target.as_ref().filter(|_| name.name == SELF) {
+            return Some(target.kind.clone());
+        }
         let (ty, params) = self.impl_self.as_ref().filter(|_| name.name == SELF)?;
         let at = |n: &Ident| Ident {
             name: n.name.clone(),

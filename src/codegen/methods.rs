@@ -44,8 +44,8 @@ impl<'ctx> Lowerer<'ctx> {
         for item in &unit.program.items {
             let Item::Impl(i) = item else { continue };
             // The prelude's and std's methods are listed instances, compiled
-            // when reached.
-            if super::declare::is_lazy(unit) {
+            // when reached; so are a built-in type's block's.
+            if super::declare::is_lazy(unit) || self.derives.owner_at(i.span).is_some() {
                 continue;
             }
             let owner = self.impl_owner(unit, i);
@@ -109,7 +109,7 @@ impl<'ctx> Lowerer<'ctx> {
     pub(super) fn define_methods(&mut self, unit: &Unit) -> Result<(), CodegenError> {
         for item in &unit.program.items {
             let Item::Impl(i) = item else { continue };
-            if super::declare::is_lazy(unit) {
+            if super::declare::is_lazy(unit) || self.derives.owner_at(i.span).is_some() {
                 continue;
             }
             let name = self.impl_owner(unit, i);
@@ -203,6 +203,13 @@ impl<'ctx> Lowerer<'ctx> {
         // Through a derivable interface's bound, the covering derive
         // block's item, whatever the type.
         if let Some(method) = self.derive_method(call, &name.name, &base_type) {
+            return self.call_method(method, Some(&**base), &base_type, args);
+        }
+        // An item a built-in type's block leaves to the interface's default,
+        // before the type's own built-in methods.
+        if self.derived.contains_key(&call.id)
+            && let Some(method) = self.default_method(call, &base_type)
+        {
             return self.call_method(method, Some(&**base), &base_type, args);
         }
         // `xs.map(f)`, `s.trim()`, `o.unwrap_or(d)`: helpers call the prelude

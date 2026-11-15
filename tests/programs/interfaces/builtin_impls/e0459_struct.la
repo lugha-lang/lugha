@@ -1,0 +1,12 @@
+// A program's struct writes its parameters after its name.
+interface Show {
+    fun show(self): string;
+}
+
+struct Box<T> { v: T }
+
+impl<T> Show for Box<T> {
+    fun show(self): string = "b";
+}
+
+fun main() {}
