@@ -1,0 +1,9 @@
+error[E0463]: `P` asks for `Debug`, which every type already implements
+  --> tests/programs/text/printing/with_debug.la:2:30
+  |
+2 | struct P { x: i64 } with Eq, Debug
+  |                              ^^^^^
+  |
+  = help: remove `Debug` from `with`; write `impl Debug for P { … }` to change its debug form
+
+For more about E0463, run `lughac explain E0463`.

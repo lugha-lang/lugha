@@ -16,8 +16,8 @@ fun main() {
     println(show(env.set_current_dir("sub")));
     let here = env.current_dir().unwrap_or("?");
     println("{here.ends_with("/sub")} {here == start + "/sub"}");
-    println(read_file("note.txt"));
-    println(fs.list_dir("."));
+    println(read_file("note.txt").debug());
+    println(fs.list_dir(".").debug());
     match process.run("ls", []) {
         Ok(out) => println(out.stdout.trim()),
         Err(e) => println(e),

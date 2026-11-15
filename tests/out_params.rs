@@ -138,7 +138,7 @@ fun main() {
     println(inst.store_id + inst.hidden);
     let mut xs = [0, 0];
     two(out xs[1], out xs[0]);
-    println(xs);
+    println(xs.debug());
     let mut p = Pair { a: 0, b: 0 };
     two(out p.b, out p.a);
     println(p.a * 10 + p.b);
@@ -218,7 +218,7 @@ impl Cells {
 fun main() {
     let mut c = Cells { xs: [0, 0, 0] };
     two(out c[2], out c[0]);
-    println(c.xs);
+    println(c.xs.debug());
 }
 "#;
     Case::new(main, SIDE).runs("[2, 0, 1]\n");

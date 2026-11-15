@@ -4,7 +4,7 @@ import std.process;
 import std.random;
 
 fun show(r: Result<process.Output, string>): string = match r {
-    Ok(o) => "{o.code} {o.stdout.split("\n")} {o.stderr.split("\n")}",
+    Ok(o) => "{o.code} {o.stdout.split("\n").debug()} {o.stderr.split("\n").debug()}",
     Err(e) => "err {e}",
 };
 

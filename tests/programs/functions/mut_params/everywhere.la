@@ -26,20 +26,20 @@ fun main() {
     feed(Shout {}, mut out);
     via(Shout {}, mut out);
     Sink.put(Shout {}, mut out, 5);
-    println(out);
+    println(out.debug());
     let mut b = Box { items: [1, 2] };
     let mut t = 10;
     b.add_to(mut t);
     let mut src = [7, 8];
     b.grab(mut src);
     println(t);
-    println(b.items);
-    println(src);
+    println(b.items.debug());
+    println(src.debug());
     let mut names = ["a", "b", "c"];
     swap_ends(mut names);
-    println(names);
+    println(names.debug());
     let copy = names;
     swap_ends(mut names);
-    println(copy);
-    println(names);
+    println(copy.debug());
+    println(names.debug());
 }

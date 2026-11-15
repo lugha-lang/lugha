@@ -8,15 +8,15 @@ fun main() {
             firsts.push(x);
         }
     }
-    println(firsts);
-    println(seen);
+    println(firsts.debug());
+    println(seen.debug());
     println(seen.has(2));
     println(seen.has(9));
     let a = #{1, 2, 3};
     let b = #{2, 3, 4};
-    println(a.union(b));
-    println(a.intersect(b));
-    println(a.minus(b));
+    println(a.union(b).debug());
+    println(a.intersect(b).debug());
+    println(a.minus(b).debug());
     let mut s = #{"x", "y"};
     println(s.remove("x"));
     println(s.remove("x"));

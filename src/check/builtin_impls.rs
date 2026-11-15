@@ -131,6 +131,7 @@ impl Checker {
             self.report(misplaced(why));
             return;
         }
+        let here = self.module.join(".");
         let mut used = Vec::new();
         params_in(&ty, &mut used);
         if let Some(g) = generics.iter().find(|g| !used.contains(&g.name)) {
@@ -138,10 +139,16 @@ impl Checker {
             self.report(misplaced(why));
             return;
         }
-        let prelude = [super::derive::EQ, super::derive::KEY, super::derive::ORD];
-        if prelude.contains(&key.as_str()) {
+        let prelude = [
+            super::derive::EQ,
+            super::derive::KEY,
+            super::derive::ORD,
+            super::derive::DEBUG,
+        ];
+        // The prelude's own blocks are where it decides them.
+        if prelude.contains(&key.as_str()) && here != "$prelude" {
             let why = format!(
-                "is for `{ty}`: the prelude decides `Eq`, `Key` and `Ord` for built-in types"
+                "is for `{ty}`: the prelude decides `Eq`, `Key`, `Ord` and `Debug` for built-in types"
             );
             self.report(errors::misplaced_impl(written, why, b.span));
             return;
@@ -151,7 +158,6 @@ impl Checker {
             self.report(errors::misplaced_impl(written, why, b.span));
             return;
         }
-        let here = self.module.join(".");
         let mut owners = Vec::new();
         program_types(&ty, &mut owners);
         if module_of(&key) != here && !owners.iter().any(|o| module_of(o) == here) {

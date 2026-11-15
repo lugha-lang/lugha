@@ -30,7 +30,7 @@ fun main() {
     names.insert(a, "first");
     names.insert(b, "second");
     let other = User { id: 7, name: "x", seen: 0 };
-    println("{names.len} {names.get(other)}");
+    println("{names.len} {names.get(other).debug()}");
     // As a field, the own `eq` is used too.
     println(Team { lead: a, size: 3 } == Team { lead: b, size: 3 });
     println(same(a, b));

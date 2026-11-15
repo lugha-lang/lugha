@@ -29,12 +29,12 @@ fun main() {
 
     println("chance(0.0): {rng.chance(0.0)}, chance(1.0): {rng.chance(1.0)}");
     let none: i64[] = [];
-    println("choice([]): {rng.choice(none)}");
+    println("choice([]): {rng.choice(none).debug()}");
 
     let xs = [5, 3, 9, 1, 7, 2];
     let shuffled = rng.shuffle(xs);
     println("shuffle keeps every element: {shuffled.sort_by(fun(a: i64, b: i64): bool = a < b) == xs.sort_by(fun(a: i64, b: i64): bool = a < b)}");
-    println("shuffle leaves the original: {xs}");
+    println("shuffle leaves the original: {xs.debug()}");
 
     let mut os = random.from_os();
     let u = os.uniform();

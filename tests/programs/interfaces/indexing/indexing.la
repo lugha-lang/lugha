@@ -80,8 +80,8 @@ fun main() {
     for i in 0..3 {
         g[i, i] = 9.0;
     }
-    println(g.cells);
-    println(before.cells);
+    println(g.cells.debug());
+    println(before.cells.debug());
 
     let b = Bytes { xs: [10, 20, 30, 40] };
     println(b[3]);

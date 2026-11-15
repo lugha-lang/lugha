@@ -6,7 +6,7 @@ struct Glyph { c: char, n: i64 }
 
 fun main() {
     match read_line() {
-        Some(line) => println(line.chars().collect()),
+        Some(line) => println(line.chars().collect().debug()),
         None => println("none"),
     }
     println(-1 as char);
@@ -22,9 +22,9 @@ fun main() {
         '\t'.is_whitespace(),
         'Ä'.to_lower() == 'ä',
         '×'.is_alphabetic(),
-    ]);
+    ].debug());
     println("[{'x':<3}][{'é':^5}]");
-    println(Glyph { c: 'x', n: 1 });
+    println((Glyph { c: 'x', n: 1 }).debug());
     let c = 'q';
     if c == 'q' {
         println("quit");

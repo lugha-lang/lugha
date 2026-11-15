@@ -69,7 +69,7 @@ mod tests {
     fn format_gives_a_string() {
         let src = "fun main() { let r = format(\"{} {:>4} {:x} {{}}\", \"a\", 2.5, 255); }";
         assert_eq!(let_type(src, "r"), Type::String);
-        let src = "struct P { x: i64 }\nfun main() { let r = format(\"{}\", P { x: 1 }); }";
+        let src = "struct P { x: i64 }\nfun main() { let r = format(\"{}\", P { x: 1 }.debug()); }";
         assert_eq!(let_type(src, "r"), Type::String);
     }
 
@@ -94,7 +94,9 @@ mod tests {
             [("E0431", ":.2".into())]
         );
         assert_eq!(codes("let r = format(\"\\t{:.2}\", n);").len(), 1);
-        crate::check::test_util::ok("fun v() {}\nfun main() { let r = format(\"{}\", v()); }");
+        crate::check::test_util::ok(
+            "fun v() {}\nfun main() { let r = format(\"{}\", v().debug()); }",
+        );
         assert_eq!(
             errors("fun format(): i64 = 1;\nfun main() {}"),
             [("E0302", "format")]

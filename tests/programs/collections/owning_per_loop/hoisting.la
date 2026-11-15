@@ -14,7 +14,7 @@ fun mul(a: f64[][], b: f64[][]): f64[][] {
             }
         }
     }
-    println("{before}");
+    println("{before.debug()}");
     out
 }
 
@@ -28,11 +28,11 @@ fun main() {
             counts[text[i]] += 1;
         }
     }
-    println("{counts} {saved}");
+    println("{counts.debug()} {saved.debug()}");
 
     // A matrix product whose result starts as a shared copy.
     let m = [[1.0, 2.0], [3.0, 4.0]];
-    println("{mul(m, m)} {m}");
+    println("{mul(m, m).debug()} {m.debug()}");
 
     // Fields, `while`, `push` and `for … of mut`.
     let mut g = Grid { cells: [[0.0; 2]; 2] };
@@ -46,7 +46,7 @@ fun main() {
     for row of mut g.cells {
         row[0] += 5.0;
     }
-    println("{g.cells} {old.cells}");
+    println("{g.cells.debug()} {old.cells.debug()}");
 
     // `while let` and an index fixed across the inner loop.
     let mut rows = [[1, 1], [2, 2]];
@@ -58,5 +58,5 @@ fun main() {
         }
         next = None;
     }
-    println("{rows} {copy}");
+    println("{rows.debug()} {copy.debug()}");
 }

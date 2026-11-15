@@ -53,8 +53,8 @@ fun main() {
     println(p.scale(2.0).x);
     println(plain());
     println(math.sqrt(4.0));
-    println(xs.map(fun(n: i64): i64 = n * 2));
-    println(word.split(\" \"));
+    println(xs.map(fun(n: i64): i64 = n * 2).debug());
+    println(word.split(\" \").debug());
 }
 ";
 

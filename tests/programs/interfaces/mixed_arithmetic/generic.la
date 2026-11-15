@@ -39,10 +39,10 @@ fun thrice<T: Scales>(s: T): T = s * 3.0;
 
 fun main() {
     let a = Arr { xs: [1.0, 2.0] };
-    println((a * a).xs);
-    println((a * 3.0).xs);
+    println(((a * a).xs).debug());
+    println(((a * 3.0).xs).debug());
     let i = Arr { xs: [1, 2] };
-    println((i * 5).xs);
+    println(((i * 5).xs).debug());
     println(twice(V { x: 4.0 }).get());
     println(thrice(V { x: 4.0 }).get());
 }

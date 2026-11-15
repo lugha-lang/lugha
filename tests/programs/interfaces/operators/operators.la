@@ -20,11 +20,11 @@ fun sum<T: Num>(xs: T[]): T {
 fun main() {
     let a = Vec2 { x: 1.0, y: 2.0 };
     let b = Vec2 { x: 3.0, y: 4.0 };
-    println(a + b);
-    println(a * b);
+    println((a + b).debug());
+    println((a * b).debug());
     println(add(5, 10));
     println(add("glow", "worm"));
-    println(add(a, b));
+    println(add(a, b).debug());
     println(sum([1, 2, 3]));
     println(sum([0.5, 0.25]));
 }

@@ -14,28 +14,28 @@ fun main() {
     let m: Map<(), i64> = #{(): 7};
     println(m[()]);
     let s: Set<()> = #{(), ()};
-    println(s);
+    println(s.debug());
     let mut us: ()[] = [(), (), ()];
     us.push(());
     let popped = us.pop();
-    println("{us.len} {popped}");
+    println("{us.len} {popped.debug()}");
     let f = fun(): () = log("closure");
     let r: () = f();
-    println(r);
+    println(r.debug());
     let units = [1, 2].map(fun(x: i64) {
         println(x);
     });
-    println(units);
+    println(units.debug());
     let b = Ref.new(());
     b.set(());
-    println(b.get());
+    println(b.get().debug());
     let t = ((), 1);
-    println(t);
+    println(t.debug());
     let (u, n) = t;
-    println("{u} {n}");
+    println("{u.debug()} {n}");
     let w = Wrap { v: (), n: 2 };
     println(w == Wrap { v: (), n: 2 });
-    println(pick((), (), true));
+    println((pick((), (), true)).debug());
     let o: Option<()> = None;
     match o {
         Some(_) => println("some"),
@@ -49,6 +49,6 @@ fun main() {
 fun more() {
     let mut xs = [(), ()];
     xs = xs.sort();
-    println(xs);
+    println(xs.debug());
     println(((), 2) < ((), 3));
 }

@@ -116,7 +116,7 @@ fun main() {
     match toml.parse(text) {
         Ok(doc) => println(table(doc)),
         Err(e) => {
-            println("ERROR {e.kind} {e.message()}");
+            println("ERROR {e.kind.debug()} {e.message()}");
             exit(1);
         }
     }
@@ -305,7 +305,7 @@ fun repeat(s: string, n: i64): string {
 fun show(r: Result<Map<string, toml.Value>, toml.TomlError>) {
     match r {
         Ok(_) => println("ok"),
-        Err(e) => println("{e.kind}: {e.message()}"),
+        Err(e) => println("{e.kind.debug()}: {e.message()}"),
     }
 }
 "#;
@@ -329,8 +329,8 @@ fun main() {{
     show(toml.parse(\"n = 9223372036854775808\"));
     show(toml.parse(\"n = -9223372036854775809\"));
     show(toml.parse(\"n = 0x8000000000000000\"));
-    println(toml.parse(\"n = -9223372036854775808\").unwrap());
-    println(toml.parse(\"n = 0x7fffffffffffffff\").unwrap());
+    println(toml.parse(\"n = -9223372036854775808\").unwrap().debug());
+    println(toml.parse(\"n = 0x7fffffffffffffff\").unwrap().debug());
     let big = toml.parse(\"s = \\\"\" + repeat(\"x\", 1048000) + \"\\\"\").unwrap();
     println(toml.as_text(big[\"s\"]).unwrap().len);
 }}
@@ -409,13 +409,13 @@ fn helpers_reach_into_documents() {
 
 fun main() {
     let doc = toml.parse(\"[app]\\nname = \\\"koi\\\"\\nport = 8080\\nratio = 0.5\\ndebug = true\\ntags = [\\\"a\\\"]\\nwhen = 1979-05-27T07:32:00Z\\n[app.inner]\\nx = 1\").unwrap();
-    println(name(doc));
+    println(name(doc).debug());
     println(toml.get(doc, \"app.missing\").is_none());
     println(toml.get(doc, \"app.name.deeper\").is_none());
     let app = toml.as_table(toml.get(doc, \"app\").unwrap()).unwrap();
-    println(\"{toml.as_i64(app[\"port\"])} {toml.as_f64(app[\"port\"])} {toml.as_f64(app[\"ratio\"])} {toml.as_bool(app[\"debug\"])}\");
+    println(\"{toml.as_i64(app[\"port\"]).debug()} {toml.as_f64(app[\"port\"]).debug()} {toml.as_f64(app[\"ratio\"]).debug()} {toml.as_bool(app[\"debug\"]).debug()}\");
     println(\"{toml.as_array(app[\"tags\"]).unwrap().len} {toml.as_table(app[\"inner\"]).unwrap().len}\");
-    println(\"{toml.as_text(app[\"port\"])} {toml.as_i64(app[\"name\"])} {toml.as_bool(app[\"ratio\"])} {toml.as_array(app[\"name\"])} {toml.as_table(app[\"tags\"])}\");
+    println(\"{toml.as_text(app[\"port\"]).debug()} {toml.as_i64(app[\"name\"]).debug()} {toml.as_bool(app[\"ratio\"]).debug()} {toml.as_array(app[\"name\"]).debug()} {toml.as_table(app[\"tags\"]).debug()}\");
     match toml.as_date_time(app[\"when\"]) {
         Some((Some(d), Some(t), Some(o))) => println(\"{d.year}-{d.month}-{d.day} {t.hour}:{t.minute} {o}\"),
         _ => println(\"?\"),

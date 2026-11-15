@@ -103,11 +103,11 @@ fn c_text_is_copied_into_lugha_strings() {
                  let g = greeting();\n\
                  scribble();\n\
                  println(g);\n\
-                 println(maybe_name(0));\n\
-                 println(maybe_name(1));\n\
+                 println(maybe_name(0).debug());\n\
+                 println(maybe_name(1).debug());\n\
                  println(text_len(None));\n\
                  println(text_len(Some(\"four\")));\n\
-                 println(getenv(\"LUGHA_SURELY_UNSET_89\"));\n\
+                 println(getenv(\"LUGHA_SURELY_UNSET_89\").debug());\n\
                  println(getenv(\"HOME\") != None);\n\
              }\n",
         ]
@@ -144,7 +144,7 @@ fn callbacks_receive_strings() {
                  let total = Ref.new(0);\n\
                  each_word(fun(w: string) { total.update(fun(n) = n + w.len); println(w); });\n\
                  println(total.get());\n\
-                 maybe_word(fun(w: Option<string>) { println(w); });\n\
+                 maybe_word(fun(w: Option<string>) { println(w.debug()); });\n\
              }\n",
         ]
         .concat(),

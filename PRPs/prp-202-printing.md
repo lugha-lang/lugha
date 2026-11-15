@@ -1,6 +1,6 @@
 ## FEATURE: Printing through `Debug` and `Display`: `Debug` for every type, `Display` by hand, `x.debug()` and `debug(x)`; milestone 170, in v18's Phase 1.
 
-**Status:** proposed 2026-11-15.
+**Status:** proposed 2026-11-15. Approved 2026-11-15.
 
 ## OBJECTIVE
 ```lugha
@@ -93,23 +93,35 @@ fun main() {
 - **Security:** none: no external input, `unsafe`, dependency, `git` or process changes. `debug` writes only to stderr.
 
 ## TESTS
-- [ ] `tests/programs/text/printing/`:
+- [x] `tests/programs/text/printing/`:
   - the OBJECTIVE;
   - every debug form above: nested, strings and chars escaped, empty containers, maps and sets, `Result`, generic structs, recursive enums, functions, `Ref`, tasks, channels, interface values;
   - `impl Debug` by hand inside containers;
   - `Display` on an interface that extends it;
   - `to_string` and interpolation;
   - `debug(x)`'s stderr line and its returned value.
-- [ ] Errors, one `.la` + `.stderr` each:
+- [x] Errors, one `.la` + `.stderr` each:
   - `println(xs)`, `"{opt}"` and `to_string(p)` without `Display` (E0422);
   - `"{x}"` on a bare `T` (E0422, help `T: Display`);
   - `with Debug` (E0463);
   - `debug` at `-O2` (E0465, through the driver test).
-- [ ] Unit tests: the checker's rules; the driver's E0465; the formatter on `debug(…)`.
-- [ ] `cargo test --lib`, `--test programs`, `--test spec`, `--test explain`, `--test lsp_completion`, the driver tests touched; bench before/after.
+- [x] Unit tests: the checker's rules; the driver's E0465; the formatter on `debug(…)`.
+- [x] `cargo test --lib`, `--test programs`, `--test spec`, `--test explain`, `--test lsp_completion`, the driver tests touched; bench before/after.
 
 ## ACCEPTANCE
-- [ ] The OBJECTIVE prints the lines shown; each commented line gives its error.
-- [ ] Every migrated program, std test and spec example passes with its output unchanged, except the documented panic and nested-`show` cases.
-- [ ] `cargo test --lib` and the touched integration tests pass; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
-- [ ] Every `pub` item documented; spec, CHANGELOG, TODO updated.
+- [x] The OBJECTIVE prints the lines shown; each commented line gives its error.
+- [x] Every migrated program, std test and spec example passes with its output unchanged, except the documented panic and nested-`show` cases.
+- [x] `cargo test --lib` and the touched integration tests pass; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
+- [x] Every `pub` item documented; spec, CHANGELOG, TODO updated.
+
+## CHANGES DURING THE BUILD
+- **Containers follow Rust's split** (the user's call in discovery): `Display` never covers arrays, tuples, `Option`, `Result`, maps, sets or `()`; their text is `.debug()`.
+- **Interface values** print when their interface declares `show(self): string` (through the table); `interface Shape: Display` can't be a value type yet (E0464), so it isn't the way.
+- **The debug forms** are the prelude's blocks (`src/prelude/debug.la`), dispatched by one `lugha_debug_<type>` helper per type, which calls the block's or the hand-written `impl Debug`'s instance; numbers, `bool`, `char` and `string` stay inline, and the fixed forms (`<fun>`, `Ref(…)`, `<task>`, `<chan>`, `<actor N>`, `<Handle>`, `<union>`) and interface values stay in codegen. Strings and chars are quoted through `$string.quote` and `$string.quote_char`, built-ins over the runtime's existing quoting.
+- **`derive.name(x)`**, a new field intrinsic, gives a struct block its type's bare name.
+- **Every `debug` reaches one pseudo-callee, `$debug`,** as `==` reaches `$equal`: the checker lists the type's debug instance (and, for an interface value, those of every type converted to it).
+- **`x.debug()` on an actor handle** is its debug form unless the actor has a `debug` message.
+- **PRP-201's test interface** `Show { fun show(self) }` now collides with `Display`'s `show` on built-in types (E0460, as two interfaces with one item name do); its tests name the item `label`.
+- **Std:** `TimeError` and `DecodeError` get `impl Display` from their old `show`; a printed `Result` of them shows the struct, `Err(TimeError { message: "…" })`.
+- **Migration:** 7 files' own `show` became `impl Display` and about 110 programs, 40 spec examples and 14 error pages got `.debug()` mechanically, from the compiler's own E0422 spans; outputs are unchanged except where a container held a type with its own `show` (6 programs, 2 spec examples) and the `unwrap` panic.
+

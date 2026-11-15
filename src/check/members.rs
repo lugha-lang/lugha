@@ -261,6 +261,15 @@ pub fn value_members(partial: &Partial, ty: &Type) -> Vec<Member> {
             }
         }
     }
+    // Every value has its debug form.
+    if !out.iter().any(|m| m.name == "debug") {
+        out.push(Member {
+            name: "debug".into(),
+            kind: MemberKind::Method,
+            detail: Detail::Text("fun debug(self): string".into()),
+            decl: None,
+        });
+    }
     let iterates = out
         .iter()
         .any(|m| m.name == "next" && m.kind == MemberKind::Method);
@@ -354,7 +363,7 @@ fun main() { }
         let partial = test_util::partial(SRC);
         let ty = Type::Struct("P".into(), vec![Type::F64]);
         let members = value_members(&partial, &ty);
-        assert_eq!(names(&members), ["len", "n", "x"]);
+        assert_eq!(names(&members), ["debug", "len", "n", "x"]);
         let x = members.iter().find(|m| m.name == "x").unwrap();
         assert_eq!(x.detail, Detail::Type(Type::F64));
         assert!(matches!(
@@ -378,7 +387,7 @@ fun main() { }
         let partial = test_util::partial(SRC);
         let members = value_members(&partial, &Type::Interface("Area".into(), vec![]));
         assert_eq!(
-            members,
+            members[..1],
             [Member {
                 name: "area".into(),
                 kind: MemberKind::Method,
@@ -392,19 +401,19 @@ fun main() { }
 
     #[test]
     fn a_built_in_types_blocks_give_their_items() {
-        let src = "interface Show { fun show(self): string; fun len(self): i64; }\n\
-                   impl<T> Show for T[] { fun show(self): string = \"a\"; fun len(self): i64 = 0; }\n\
+        let src = "interface Show { fun label(self): string; fun len(self): i64; }\n\
+                   impl<T> Show for T[] { fun label(self): string = \"a\"; fun len(self): i64 = 0; }\n\
                    fun main() {}";
         let partial = test_util::partial(src);
         let array = value_members(&partial, &Type::Array(Box::new(Type::I64)));
-        let show = array.iter().find(|m| m.name == "show").expect("show");
-        let at = show.decl.expect("its declaration");
-        assert_eq!(&src[at.start..at.end], "show");
+        let label = array.iter().find(|m| m.name == "label").expect("label");
+        let at = label.decl.expect("its declaration");
+        assert_eq!(&src[at.start..at.end], "label");
         // The array's own `len` wins.
         let lens: Vec<_> = array.iter().filter(|m| m.name == "len").collect();
         assert_eq!(lens.len(), 1);
         assert_eq!(lens[0].kind, MemberKind::Field);
-        assert!(!names(&value_members(&partial, &Type::F64)).contains(&"show".to_string()));
+        assert!(!names(&value_members(&partial, &Type::F64)).contains(&"label".to_string()));
     }
 
     #[test]
@@ -412,7 +421,7 @@ fun main() { }
         let partial = test_util::partial(SRC);
         let array = names(&value_members(&partial, &Type::Array(Box::new(Type::I64))));
         for name in [
-            "len", "push", "pop", "clear", "map", "filter", "iter", "sort",
+            "len", "push", "pop", "clear", "map", "filter", "iter", "sort", "debug",
         ] {
             assert!(array.contains(&name.to_string()), "{name} in {array:?}");
         }
@@ -453,7 +462,7 @@ fun main() { }
             assert!(chan.contains(&name.to_string()), "{name} in {chan:?}");
         }
         let task = names(&value_members(&partial, &Type::Task(Box::new(Type::I64))));
-        assert_eq!(task, ["join"]);
+        assert_eq!(task, ["debug", "join"]);
     }
 
     #[test]

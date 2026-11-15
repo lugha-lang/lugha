@@ -133,6 +133,9 @@ impl Checker {
         if name == "swap" {
             return self.swap(call, args);
         }
+        if name == "debug" {
+            return self.debug_intrinsic(call, args);
+        }
         if super::test_fns::ASSERTIONS.contains(&name) {
             return self.assertion(call, name, args);
         }
@@ -162,17 +165,15 @@ impl Checker {
             return result;
         };
         let ty = self.value(arg, None);
-        // Every value prints; `panic` still takes a `string`.
-        let fits = match name {
-            "print" | "println" | "eprint" | "eprintln" | "to_string" => {
-                super::printing::printable(&ty)
+        if name != "panic" {
+            // What prints is a value's `Display`.
+            if self.displayed(&ty, arg.span) {
+                self.printed(arg, &ty);
             }
-            _ => ty == Type::String,
-        };
-        if fits && name != "panic" {
-            self.printed(arg, &ty);
+            return result;
         }
-        if !fits && !matches!(ty, Type::Error | Type::Never) {
+        // `panic` takes a `string`.
+        if ty != Type::String && !matches!(ty, Type::Error | Type::Never) {
             self.report(errors::intrinsic_argument(name, ty, arg.span));
         }
         result
@@ -252,9 +253,12 @@ mod tests {
             errors("fun main() { println(1, 2); }"),
             [("E0405", "println(1, 2)")]
         );
-        crate::check::test_util::ok("fun f() {}\nfun main() { let s = to_string(f()); }");
+        assert_eq!(
+            errors("fun f() {}\nfun main() { let s = to_string(f()); }"),
+            [("E0422", "f()")]
+        );
         assert_eq!(errors("fun main() { panic(1); }"), [("E0403", "1")]);
-        crate::check::test_util::ok("fun noop() {}\nfun main() { println(noop()); }");
+        crate::check::test_util::ok("fun noop() {}\nfun main() { println(noop().debug()); }");
         assert_eq!(
             errors("fun main() { let p = println; }"),
             [("E0406", "println")]

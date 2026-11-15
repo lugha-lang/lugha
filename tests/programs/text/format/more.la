@@ -8,8 +8,8 @@ fun main() {
     println(format(""));
     println(format("[{:>6}] [{:<6}] [{:^6}] [{:*^7}]", 1, 2, 3, 4));
     println(format("{:x} {:X} {:b} {:o} {:#b} {:#o} {:08.3}", 255, 255, 5, 8, 5, 8, -2.5));
-    println(format("{} {} {}", P { x: 1, y: 2 }, [Some(1), None], Shape.Circle(1.5)));
-    println(format("{} {} {}", ("a", 2), 'é', true));
+    println(format("{} {} {}", (P { x: 1, y: 2 }).debug(), [Some(1), None].debug(), Shape.Circle(1.5).debug()));
+    println(format("{} {} {}", ("a", 2).debug(), 'é', true));
     println(format("<{}>", format("{}-{}", 1, format("{}", 2))));
     println(format("tab:\t{}\nquote: \"{}\"", 1, "q"));
     let s = format("{}", "x").len;

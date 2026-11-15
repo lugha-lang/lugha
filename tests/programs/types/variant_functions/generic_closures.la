@@ -6,6 +6,6 @@ fun lengths<T>(xs: T[][]): i64[] = xs.iter().map(fun(x) = x.len).collect();
 fun pairs<T>(xs: T[]): (T, T)[] = xs.iter().map(fun(x) = (x, x)).collect();
 
 fun main() {
-    println(lengths([[1, 2], [3]]));
-    println(pairs(["a", "b"]));
+    println(lengths([[1, 2], [3]]).debug());
+    println(pairs(["a", "b"]).debug());
 }

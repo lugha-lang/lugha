@@ -1,0 +1,103 @@
+
+// Printing. `Debug` is every value's debug form, the way it is written in
+// code: `Point { x: 1, y: 2 }`, `[1, 2]`, `Some("ada")`, strings quoted.
+// Every type has it without asking, from the blocks below; a type may
+// write its own with `impl Debug for T`. Functions, boxes, tasks,
+// channels, actors, handles and C unions have fixed forms (`<fun>`) from
+// the compiler, and an interface value shows the value inside it.
+
+/** A value's debug form, as code writes it: `x.debug()`, or `debug(x)` to print it with its place. */
+interface Debug { fun debug(self): string; }
+
+derive Debug for i8 { fun debug(self): string = to_string(self); }
+derive Debug for i16 { fun debug(self): string = to_string(self); }
+derive Debug for i32 { fun debug(self): string = to_string(self); }
+derive Debug for i64 { fun debug(self): string = to_string(self); }
+derive Debug for u8 { fun debug(self): string = to_string(self); }
+derive Debug for u16 { fun debug(self): string = to_string(self); }
+derive Debug for u32 { fun debug(self): string = to_string(self); }
+derive Debug for u64 { fun debug(self): string = to_string(self); }
+derive Debug for f32 { fun debug(self): string = to_string(self); }
+derive Debug for f64 { fun debug(self): string = to_string(self); }
+derive Debug for bool { fun debug(self): string = to_string(self); }
+derive Debug for () { fun debug(self): string = "()"; }
+derive Debug for char { fun debug(self): string = $string.quote_char(self); }
+derive Debug for string { fun debug(self): string = $string.quote(self); }
+
+derive<T: Debug> Debug for T[] {
+    fun debug(self): string {
+        let mut parts: string[] = [];
+        for x of self {
+            parts.push(x.debug());
+        }
+        "[" + parts.join(", ") + "]"
+    }
+}
+
+derive Debug for tuple {
+    fun debug(self): string = "(" + derive.fields(self, (), $debug_part).join(", ") + ")";
+}
+
+derive Debug for struct {
+    fun debug(self): string {
+        let fields = derive.fields(self, (), $debug_field);
+        if fields.len == 0 {
+            return derive.name(self) + " {{}}";
+        }
+        derive.name(self) + " {{ " + fields.join(", ") + " }}"
+    }
+}
+
+derive Debug for enum {
+    fun debug(self): string {
+        let (name, parts) = derive.variant(self, (), $debug_part);
+        if parts.len == 0 {
+            return name;
+        }
+        name + "(" + parts.join(", ") + ")"
+    }
+}
+
+/** A part's debug form, inside a tuple or a variant. */
+fun $debug_part<F: Debug>(ctx: (), name: string, x: F): string = x.debug();
+
+/** A field and its debug form, inside a struct. */
+fun $debug_field<F: Debug>(ctx: (), name: string, x: F): string = name + ": " + x.debug();
+
+/** `#{"ann": 31, "bo": 40}`: keys and values in their debug forms. */
+impl Debug for Map<K: Key, V> {
+    fun debug(self): string {
+        let mut parts: string[] = [];
+        for (k, v) of self.iter() {
+            parts.push(k.debug() + ": " + v.debug());
+        }
+        "#{{" + parts.join(", ") + "}}"
+    }
+}
+
+/** `#{1, 2, 3}`. */
+impl Debug for Set<T: Key> {
+    fun debug(self): string {
+        let mut parts: string[] = [];
+        for x of self.iter() {
+            parts.push(x.debug());
+        }
+        "#{{" + parts.join(", ") + "}}"
+    }
+}
+
+// `Display` for the types with one plain text: what `print`, `"{x}"` and
+// `to_string` show. Containers have none: their text is `x.debug()`.
+impl Display for i8 { fun show(self): string = to_string(self); }
+impl Display for i16 { fun show(self): string = to_string(self); }
+impl Display for i32 { fun show(self): string = to_string(self); }
+impl Display for i64 { fun show(self): string = to_string(self); }
+impl Display for u8 { fun show(self): string = to_string(self); }
+impl Display for u16 { fun show(self): string = to_string(self); }
+impl Display for u32 { fun show(self): string = to_string(self); }
+impl Display for u64 { fun show(self): string = to_string(self); }
+impl Display for f32 { fun show(self): string = to_string(self); }
+impl Display for f64 { fun show(self): string = to_string(self); }
+impl Display for bool { fun show(self): string = to_string(self); }
+impl Display for char { fun show(self): string = to_string(self); }
+impl Display for string { fun show(self): string = self; }

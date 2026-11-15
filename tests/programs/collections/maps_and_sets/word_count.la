@@ -5,7 +5,7 @@ fun main() {
     for w of text.split(" ") {
         counts[w] = counts.get(w).unwrap_or(0) + 1;
     }
-    println(counts);
+    println(counts.debug());
     println(counts["the"]);
     println(counts.len);
     for (w, n) of counts {

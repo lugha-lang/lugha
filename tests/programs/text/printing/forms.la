@@ -1,0 +1,63 @@
+// Every debug form: numbers, strings and chars quoted and escaped, empty
+// containers, maps and sets, `Result`, generic structs, recursive enums,
+// functions, boxes, tasks, channels, interface values, and a hand-written
+// `impl Debug` used wherever its type appears.
+interface Shape {
+    fun area(self): f64;
+}
+
+struct Square { side: f64 }
+
+impl Shape for Square {
+    fun area(self): f64 = self.side * self.side;
+}
+
+struct Pair<A, B> { a: A, b: B }
+
+enum Tree { Leaf, Node(Tree, i64, Tree) }
+
+struct Secret { key: string }
+
+impl Debug for Secret {
+    fun debug(self): string = "Secret(…)";
+}
+
+struct Label { text: string }
+
+impl Display for Label {
+    fun show(self): string = self.text;
+}
+
+fun shape(): Shape = Square { side: 2.0 };
+
+fun double(n: i64): i64 = n * 2;
+
+fun main() {
+    println(1.5.debug());
+    println('\n'.debug());
+    println("tab\there \"q\"".debug());
+    let none: Option<i64> = None;
+    let empty: i64[] = [];
+    println("{none.debug()} {empty.debug()} {().debug()} {true.debug()}");
+    let m: Map<string, i64[]> = #{"a": [1], "b": []};
+    let s: Set<char> = #{'x'};
+    println("{m.debug()} {s.debug()}");
+    let r: Result<i64, string> = Err("no");
+    println(r.debug());
+    println(Pair { a: "x", b: (1, 'c') }.debug());
+    println(Tree.Node(Tree.Leaf, 1, Tree.Node(Tree.Leaf, 2, Tree.Leaf)).debug());
+    let f = fun(x: i64): i64 = x;
+    println(f.debug());
+    println(Ref.new([1, 2]).debug());
+    println(shape().debug());
+    println([shape()].debug());
+    let k = Secret { key: "hunter2" };
+    println("{k.debug()} {[k, k].debug()} {Some(k).debug()}");
+    // A `Display` type's debug form is still its structure.
+    let l = Label { text: "hi" };
+    println("{l} {l.debug()} {to_string(l)}");
+    let t = spawn double(2);
+    let c: Chan<i64> = Chan.new();
+    println("{t.debug()} {c.debug()}");
+    println(t.join());
+}

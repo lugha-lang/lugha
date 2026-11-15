@@ -10,8 +10,8 @@ fun first_even(xs: i64[]): Option<i64> = search: loop {
 };
 
 fun main() {
-    println(first_even([1, 3, 4, 5]));
-    println(first_even([1, 3]));
+    println(first_even([1, 3, 4, 5]).debug());
+    println(first_even([1, 3]).debug());
     let empty: string[] = loop {
         break [];
     };
@@ -33,5 +33,5 @@ fun main() {
     let unit: () = loop {
         break;
     };
-    println(unit);
+    println(unit.debug());
 }

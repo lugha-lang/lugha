@@ -1,6 +1,6 @@
-//! Printing interface values: `lugha_show_<I>` compares the
+//! The debug form of interface values: `lugha_debug_<I>` compares the
 //! value's identity slot with each concrete type the program has a table
-//! of for `I`, and prints the box's value by that type's rules. Its body is
+//! of for `I`, and shows the box's value in that type's debug form. Its body is
 //! built at the end of lowering, when every table is known, so dispatch
 //! tables themselves never change.
 
@@ -42,7 +42,7 @@ impl<'ctx> Lowerer<'ctx> {
                     .expect(POSITIONED);
                 self.builder.position_at_end(this);
                 let value = self.load_element(boxed, &concrete);
-                let text = self.text(value, &concrete);
+                let text = self.part(value, &concrete);
                 self.builder.build_return(Some(&text)).expect(POSITIONED);
                 self.builder.position_at_end(next);
             }
@@ -58,29 +58,29 @@ mod tests {
     use crate::codegen::test_util::ir;
 
     #[test]
-    fn values_print_through_helpers() {
+    fn values_show_through_their_blocks_and_impls() {
         let ir = ir("struct Point { x: i64, s: string }\n\
-            struct M { c: i64 }\nimpl M { fun show(self): string = \"m\"; }\n\
-            fun main() { println(Point { x: 1, s: \"a\" }); println(M { c: 1 }); }");
+            struct M { c: i64 }\nimpl Display for M { fun show(self): string = \"m\"; }\n\
+            fun main() { println(Point { x: 1, s: \"a\" }.debug()); println(M { c: 1 }); }");
         for needle in [
-            "@lugha_show_5Point(",
+            "@lugha_debug_5Point(",
+            "@\"lugha_fn_$prelude/Debug@struct.debug<Point>\"",
             "@lugha_rt_str_quote",
-            "@lugha_show_1M(",
-            "@lugha_fn_M.show",
+            "@\"lugha_fn_M.show@Display\"",
         ] {
             assert!(ir.contains(needle), "{needle}: {ir}");
         }
     }
 
     #[test]
-    fn interface_values_print_by_identity() {
+    fn interface_values_show_by_identity() {
         let ir = ir("interface Named { fun name(self): string; }\n\
             struct Dog { age: i64 }\nimpl Named for Dog { fun name(self): string = \"d\"; }\n\
-            fun dump<T>(x: T) { println(x); }\n\
+            fun dump<T>(x: T) { println(x.debug()); }\n\
             fun main() { let n: Named = Dog { age: 1 }; dump(n); }");
-        let f = &ir[ir.find("define internal ptr @lugha_show_").unwrap()..];
+        let f = &ir[ir.find("define internal ptr @lugha_debug_5Named").unwrap()..];
         assert!(
-            f.contains("@lugha_type_Dog") && f.contains("@lugha_show_3Dog"),
+            f.contains("@lugha_type_Dog") && f.contains("@lugha_debug_3Dog"),
             "{f}"
         );
     }
@@ -88,6 +88,6 @@ mod tests {
     #[test]
     fn plain_values_print_as_before() {
         let ir = ir("fun main() { println(1); println(\"s\"); let t = \"{2.5}\"; }");
-        assert!(!ir.contains("lugha_show_"), "{ir}");
+        assert!(!ir.contains("lugha_debug_"), "{ir}");
     }
 }

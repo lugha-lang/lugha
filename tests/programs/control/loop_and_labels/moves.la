@@ -16,5 +16,5 @@ fun main() {
             break outer;
         }
     }
-    println("{xs} {last}");
+    println("{xs.debug()} {last.debug()}");
 }

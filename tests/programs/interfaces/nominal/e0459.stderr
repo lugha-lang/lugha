@@ -1,8 +1,8 @@
-error[E0459]: this `impl Display for …` names `Display`, which a type still meets by its methods' names: write them in `impl P { … }`
+error[E0459]: this `impl Iter for …` names `Iter`, which a type still meets by its methods' names: write them in `impl P { … }`
   --> tests/programs/interfaces/nominal/e0459.la:8:6
   |
-8 | impl Display for P { fun show(self): string = "p"; }
-  |      ^^^^^^^
+8 | impl Iter<i64> for P { fun next(mut self): Option<i64> = None; }
+  |      ^^^^^^^^^
 
 error[E0459]: this `impl Shape for …` is for `fun(): f64`: a function type can't implement an interface
   --> tests/programs/interfaces/nominal/e0459.la:6:16

@@ -13,9 +13,9 @@ fun main() {
     c.add(5);
     println(c.get());
     c.divide(0);
-    println(c.join());
+    println(c.join().debug());
     let d = spawn Counter { count: 0 };
     d.stop();
-    println(d.join());
-    println(d);
+    println(d.join().debug());
+    println(d.debug());
 }

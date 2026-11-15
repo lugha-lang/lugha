@@ -99,8 +99,8 @@ fn handles_come_from_c_and_go_back() {
              println(a == thing_make(0));\n\
              println(a == b);\n\
              println(a != b);\n\
-             println(a);\n\
-             println(\"{h.t}\");\n\
+             println(a.debug());\n\
+             println(\"{h.t.debug()}\");\n\
              match thing_find(2) { Some(t) => println(thing_id(t)), None => println(\"none\") }\n\
              match thing_find(5) { Some(t) => println(thing_id(t)), None => println(\"none\") }\n\
              println(thing_is_null(None));\n\
@@ -108,7 +108,7 @@ fn handles_come_from_c_and_go_back() {
              let ts = [a, b];\n\
              println(ts[1].id());\n\
              println(ts == [a, b]);\n\
-             println(h);\n\
+             println(h.debug());\n\
          }\n",
         THINGS,
     )

@@ -15,19 +15,19 @@ impl Naturals {
 fun main() {
     let short = [1].iter();
     println(short.zip([true, false].iter()).count());
-    println([true, false].iter().zip([7].iter()).collect());
+    println(([true, false].iter().zip([7].iter()).collect()).debug());
     let none: i64[] = [];
     println(none.iter().chain(none.iter()).count());
-    println([5, 6].iter().take_while(fun(n) = n > 0).collect());
+    println(([5, 6].iter().take_while(fun(n) = n > 0).collect()).debug());
     println([5, 6].iter().skip_while(fun(n) = n > 0).count());
     println(range(0, 4).flat_map(fun(n) = range(0, n % 2)).count());
-    println(["pear", "apple", "fig"].iter().min());
-    println(["pear", "apple", "fig"].iter().max());
-    println(none.iter().max());
-    println([2, 1, 1].iter().position(fun(n) = n == 1));
-    println([2, 1].iter().position(fun(n) = n > 5));
+    println((["pear", "apple", "fig"].iter().min()).debug());
+    println((["pear", "apple", "fig"].iter().max()).debug());
+    println(none.iter().max().debug());
+    println(([2, 1, 1].iter().position(fun(n) = n == 1)).debug());
+    println(([2, 1].iter().position(fun(n) = n > 5)).debug());
     let p = ("x", 1.5);
-    println(p);
+    println(p.debug());
     println(p.1);
     let ends = (Naturals { n: 0 }).zip(["a", "b", "c"].iter());
     println(ends.map(fun(p) = p.0).sum());

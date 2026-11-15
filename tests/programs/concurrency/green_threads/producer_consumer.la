@@ -14,5 +14,5 @@ fun main() {
     while let Some(item) = c.recv() {
         println("got {item}");
     }
-    println("closed: {c.recv()}");
+    println("closed: {c.recv().debug()}");
 }

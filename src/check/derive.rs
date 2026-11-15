@@ -28,6 +28,12 @@ pub const KEY: &str = "$prelude.Key";
 /// The prelude's `Ord`, which extends `Eq`: what `T: Ord` means.
 pub const ORD: &str = "$prelude.Ord";
 
+/// The prelude's `Debug`: every type's debug form, met without asking.
+pub const DEBUG: &str = "$prelude.Debug";
+
+/// The prelude's `Display`: the text `print` and `"{x}"` show, written by hand.
+pub const DISPLAY: &str = "$prelude.Display";
+
 /// True if a parameter with `bounds` has `==`, and so `Eq`'s items:
 /// `Eq`, or `Num`/`Float`, which give `==` too.
 pub(super) fn implies_eq(bounds: &Bounds) -> bool {
@@ -175,7 +181,7 @@ impl Derives {
     pub(super) fn covered(&self, interface: &str) -> Vec<String> {
         self.blocks
             .iter()
-            .filter(|b| b.interface == interface)
+            .filter(|b| b.interface == interface && !b.written)
             .map(|b| match &b.covers {
                 Covers::Type(t) => format!("`{}`", super::shown(&t.to_string())),
                 Covers::Struct => "structs".to_string(),

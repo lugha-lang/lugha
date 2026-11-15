@@ -20,8 +20,9 @@ Nov 15, 2026 · @kithinji
 - `Eq` and `Key`: equality and map keys are asked for (`with Eq`, `with Key`) or written (`impl Eq`, `impl Key`); `Key` extends `Eq` and hashes into a `Hasher`; floats are `Eq` but not `Key`; interfaces may extend interfaces (`interface I: J`, E0464 as a type); `assert_key_laws`. E0441 and E0454 are retired (milestone 167; sections 3, 4).
 - `Ord` as an interface: `interface Ord: Eq { fun cmp(self, other: Self): Ordering; }`, asked for (`with Ord`: fields in order, variants in declaration order) or written (`impl Ord`); tuples ordered through the prelude's block; floats keep `<` but aren't `Ord`, and sort with `f64.total_order`/`f32.total_order`, IEEE 754's total order (milestone 168; section 4).
 - Built-in types implement interfaces: `impl Show for f64`, `impl Show for Point[]` in `Point`'s module, and generic blocks `impl<T: Show> Show for T[]`, for bounds, `x.item()`, `I.item(x)` and interface values; the prelude's blocks count too (`3.cmp(4)`) (milestone 169; section 4).
+- Printing through `Debug` and `Display`: `print`, `println`, `to_string` and `"{x}"` need `Display`, written by hand (`impl Display for T`); every type has a debug form, `x.debug()`, from the prelude's `Debug` blocks or a hand-written `impl Debug`; `debug(x)` writes it to stderr with file and line and returns `x` (E0465 in an `-O2` build); panics show values in it (milestone 170; section 5).
 
-**Breaking:** a struct or enum ordered with `<`, `sort`, `min` or `max` needs `with Ord` or `impl Ord` (milestone 168); an own `cmp` method no longer orders it, and `Ord` now implies `Eq`. Floats aren't `Ord`: `[1.5].sort()`, `math.min(1.5, 2.0)` and tuples or structs holding a float that are ordered are E0451; sort floats with `xs.sort_by(f64.total_order)`. A struct or enum compared with `==` or used as a map key or set value needs `with Eq` or `with Key` (milestone 167); own `eq` and `hash` methods become `impl Eq` and `impl Key`. A struct or enum encoded, decoded or otherwise used through a derivable interface needs `with I` (milestone 165); a type's own `to_json` or `show` no longer replaces a derived item. A type that met an interface by its methods needs `impl I for T`; methods that implement an interface move from `impl T { … }` into it. A number, string or array converted to a program's interface (`let x: Any = 1;`) is E0422 unless a block implements it for that type (milestone 169).
+**Breaking:** printing needs `Display` (milestone 170): `println(xs)`, `"{opt}"` and `to_string(p)` on an array, `Option`, tuple, map, `()` or a struct or enum without `impl Display` are E0422; write `.debug()` for the old text, or `impl Display`. A type's own `show` method becomes `impl Display for T`, and is no longer used inside an array or another value's text. `unwrap()` on an `Err` shows the error's debug form (`"boom"` quoted). `debug` is a reserved name. A struct or enum ordered with `<`, `sort`, `min` or `max` needs `with Ord` or `impl Ord` (milestone 168); an own `cmp` method no longer orders it, and `Ord` now implies `Eq`. Floats aren't `Ord`: `[1.5].sort()`, `math.min(1.5, 2.0)` and tuples or structs holding a float that are ordered are E0451; sort floats with `xs.sort_by(f64.total_order)`. A struct or enum compared with `==` or used as a map key or set value needs `with Eq` or `with Key` (milestone 167); own `eq` and `hash` methods become `impl Eq` and `impl Key`. A struct or enum encoded, decoded or otherwise used through a derivable interface needs `with I` (milestone 165); a type's own `to_json` or `show` no longer replaces a derived item. A type that met an interface by its methods needs `impl I for T`; methods that implement an interface move from `impl T { … }` into it. A number, string or array converted to a program's interface (`let x: Any = 1;`) is E0422 unless a block implements it for that type (milestone 169).
 
 **Changes in v17 since v16** (milestones 91–163):
 - Green threads: `spawn f(x)` runs a call concurrently and gives a `Task<T>` (a plain `Task` for a call that returns nothing) whose `join()` waits for the result. `Chan<T>` carries values between green threads: `Chan.new()` (unbuffered) or `Chan.buffered(n)`, `send`, `recv` (an `Option`, `None` once closed), `try_recv`, `close`, `is`. `select` waits on several channels at once, with an `after(ms)` timeout or a `default` that never waits. `std.task` has `sleep(ms)` and `yield_now()`. Every function stays an ordinary function: there is no `async` and no `await`, so nothing is coloured. All green threads share the program's one OS thread; a panic in any of them ends the program, as does `main` returning, and a deadlock is a panic (sections 2–9).
@@ -1079,14 +1080,15 @@ for path in paths {
 
 | Intrinsic | Accepts | Effect |
 | --- | --- | --- |
-| `print(x)` | Any value (v12) | Writes `x`'s text (below) to stdout with no newline |
+| `print(x)` | A value with `Display` (v18; any value v12–v17) | Writes `x`'s text (below) to stdout with no newline |
 | `println(x)` | The same, or nothing | Writes `x`'s text and a newline |
 | `panic(msg)` | `string` | Panics with `msg` |
 | `assert(c)` (v16) | `bool` | Panics with `assertion failed` unless `c` holds |
-| `assert_eq(a, b)` (v16) | two values of one type with `==` | Panics with `assert_eq failed: left <a>, right <b>` unless `a == b`, each value printed as inside an array (strings quoted) |
+| `assert_eq(a, b)` (v16) | two values of one type with `==` | Panics with `assert_eq failed: left <a>, right <b>` unless `a == b`, each value in its debug form |
 | `assert_ne(a, b)` (v16) | the same | Panics with `assert_ne failed: both <a>` if `a == b` |
 | `skip(reason)` (v17) | a `string` | In a test, ends it at once and reports it skipped with `reason`; outside a test, panics with `skip outside a test` |
-| `to_string(x)` | The same as `print` (v12) | Returns the text `print` would write; a `string` is itself |
+| `to_string(x)` | The same as `print` | Returns the text `print` would write; a `string` is itself |
+| `debug(x)` (v18) | Any value | Writes `[file:line] <x as written> = <x's debug form>` to stderr and returns `x`; E0465 in an `-O2` build |
 | `swap(a, b)` | Two places of the same type | Exchanges their contents |
 | `args()` | Nothing | Returns the program's command-line arguments as a new `string[]`; `args()[0]` is the program's path (v3) |
 | `parse_i64(s)` | `string` | `Some(n)` if `s` is an optional `-` followed by decimal digits and fits in `i64`, else `None`; no `+`, spaces, `_` or hex (v3) |
@@ -1112,26 +1114,28 @@ for path in paths {
 
 **Files** (v4). Paths are relative to the current directory, exactly as given; a path containing a NUL byte is an `Err`. Files are read and written as bytes, with no newline translation, and a whole file is read into memory. Every failure is a value (`Err` or `None`), never a panic.
 
-**How values print** (v12). `print`, `println`, `eprint`, `eprintln`, `to_string` and interpolation share one text for each value:
+**How values print** (v12; v18, milestone 170). A value has two texts. Its **`Display`** text is what `print`, `println`, `eprint`, `eprintln`, `to_string` and interpolation write: `interface Display { fun show(self): string; }`, implemented by the numbers, `bool`, `char` and `string`, and by a struct or enum only through `impl Display for T { … }`, never derived. Printing a value whose type lacks it is E0422, with help to write the block or show the debug form; on a bare `T` it names the bound `T: Display`. An interface value has it when its interface declares `show(self): string`, called through its table. Arrays, tuples, `Option`, `Result`, maps, sets, `()`, functions and handles have no `Display`. Its **debug form**, `x.debug()`, is the value as code writes it, for every type without asking: `interface Debug { fun debug(self): string; }`, from the prelude's derive blocks, or a type's own `impl Debug for T { … }` wherever the type appears (`with Debug` is E0463). `debug(x)` writes it to stderr with its place, and panics show values in it.
 
-| Value | Prints as |
-| --- | --- |
-| a number or `bool` | as below |
-| a `string` | its bytes |
-| a `char` | its character, as UTF-8 (v14) |
-| a struct or enum whose own method is `fun show(self): string` | what `show` returns |
-| any other struct | `Point { x: 1, y: 2 }`, or `Point {}` without fields |
-| any other enum value, `Option`, `Result` | `Circle(1.5)`, `Empty`, `Some(5)`, `None`, `Ok(1)`, `Err("no")` |
-| an array | `[1, 2, 3]`, or `[]` |
-| an interface value | as the value inside it |
-| a function value | `<fun>` |
+| Value | `Display` (`print`) | Debug form (`x.debug()`) |
+| --- | --- | --- |
+| a number or `bool` | as below | the same |
+| a `string` | its bytes | quoted: `"a\"b"` |
+| a `char` | its character, as UTF-8 (v14) | quoted: `'a'` |
+| a struct or enum with `impl Display` | what `show` returns | its structure, below |
+| a struct | — | `Point { x: 1, y: 2 }`, or `Point {}` without fields |
+| an enum value, `Option`, `Result` | — | `Circle(1.5)`, `Empty`, `Some(5)`, `None`, `Ok(1)`, `Err("no")` |
+| an array, a tuple | — | `[1, 2, 3]`, `[]`, `(1, "a")` |
+| a map, a set | — | `#{"a": 1}`, `#{1, 2}` |
+| `()` | — | `()` |
+| an interface value | its `show`, when it declares one | the value inside it |
+| a function, a `Ref`, a task, a channel, an actor, a handle, a C union | — | `<fun>`, `Ref(…)`, `<task>`, `<chan>`, `<actor Counter>`, `<W>`, `<union>` |
 
-- **Parts:** the fields, payloads and elements inside a built-in form print by the same table, except that a `string` there is quoted: `"`, `\`, newline, tab and carriage return are written `\"`, `\\`, `\n`, `\t`, `\r`, other bytes below 0x20 as `\u{XX}`, and every other byte as itself. A `show`'s text is never quoted. A `char` there is quoted too (v14): `'a'`, `'\n'`, `'\''`.
-- **Names:** a struct prints its bare name, without its module path or type arguments (`Stack { items: [3] }`), and an enum value only its variant.
-- **`show`:** the prelude declares `interface Display { fun show(self): string; }`, visible in every module like `Iter` unless the module declares `Display`. A struct or enum with its own method of exactly that shape prints through it, whatever the method's visibility, since printing is the type's own behaviour; a method `show` of any other shape is ignored, and the built-in form is used. Like any interface, `Display` works as a bound (`T: Display` gives `x.show()`) and as a type.
-- **Depth:** a recursive enum prints to its full depth. Values are trees, so printing always ends.
+- **Parts:** the fields, payloads and elements inside a debug form are in their own debug forms: a `string` is quoted, `"`, `\`, newline, tab and carriage return written `\"`, `\\`, `\n`, `\t`, `\r`, other bytes below 0x20 as `\u{XX}`, and every other byte as itself; a `char` is quoted too (`'a'`, `'\n'`, `'\''`). A type's `Display` is never used inside a debug form.
+- **Names:** a struct shows its bare name, without its module path or type arguments (`Stack { items: [3] }`), and an enum value only its variant.
+- **`Display` and `Debug`** are visible in every module, like `Iter`, unless the module declares the name. Both work as bounds (`T: Display` gives `x.show()`); `x.debug()` needs no bound, on any `T`. A type's own method named `debug` wins over the debug form, as own methods do.
+- **Depth:** a recursive enum shows its full depth. Values are trees, so showing one always ends.
 
-**Interpolated strings** (v3). Each `{expr}` is evaluated left to right and formatted exactly as `print` would write it (floats as below); the parts are joined into one new `string`. Any value interpolates (v12), `()` too (v17).
+**Interpolated strings** (v3). Each `{expr}` is evaluated left to right and formatted exactly as `print` would write it (floats as below); the parts are joined into one new `string`. A value interpolates its `Display` (v18; any value v12–v17); `"{x.debug()}"` interpolates the debug form.
 
 **Format specifiers** (v13). An interpolation may end in `:` and a specifier, `{expr:spec}`, which changes how its value is written. The lexer splits the specifier off at the first `:` outside every `(`, `[` and `{` of the expression and outside strings, and takes everything up to the closing `}`; an expression that needs such a `:` goes in parentheses. A specifier is `[[fill]align][#][0][width][.precision][kind]`:
 - **`align`:** `<` left, `>` right, `^` centre (an odd gap's extra character goes right). Without one, numbers align right and everything else left. **`fill`**, written before an alignment, is any character other than `{` and `}` (v15; ASCII only before); the default is a space.
@@ -1952,6 +1956,7 @@ Name and type errors, reported by the checker:
 | E0462 | An interface that can't be derived for this type (v18) | `enum E { … } with Show` where `Show` has blocks for structs only; `with Display` |
 | E0463 | An interface both derived and implemented (v18) | `struct P { … } with json.Json` beside `impl json.Json for P { … }` |
 | E0464 | An interface that extends another, used as a type (v18) | `fun hello(g: Greeter)` where `interface Greeter: Named` |
+| E0465 | `debug` in an optimized build (v18) | `debug(x)` in a program built with `-O2` |
 | E0437 | A malformed `extern struct` | `extern struct S { s: string }`; a field of an array, a plain struct, an enum, `Option` (other than of a handle) or a function type; a handle, `Option` of one or `CPtr` in an `extern union`, at any depth; `extern struct S<T> { … }`; `extern struct S {}` |
 | E0433 | A pattern that must match every value but might not | `let (1, x) = t;`, `let Some(n) = o;` without `else`, `for (Some(a), b) of …` |
 | E0428 | Or-pattern alternatives that bind differently, or `mut` on a variant | `Some(x) \| None`; `Count(n) \| Circle(n)` with `n` an `i64` and an `f64`; `mut None` |
@@ -3083,7 +3088,7 @@ fun main() {
 }
 ```
 
-**Printing values** (milestone 39). Prints `Point { x: 1, y: 2 }`, `Circle(1.5)`, `[Some(1), None]`, `Team { name: "red", members: ["ann", "bo"] }`, `$5.25`, `wallet: Wallet { cash: $5.25 }`, `Stack { items: [3] }` on seven lines, exits with 0.
+**Printing values** (milestone 39). Prints `Point { x: 1, y: 2 }`, `Circle(1.5)`, `[Some(1), None]`, `Team { name: "red", members: ["ann", "bo"] }`, `$5.25`, `wallet: Wallet { cash: Money { cents: 525 } }`, `Stack { items: [3] }` on seven lines, exits with 0.
 
 ```
 struct Point { x: i64, y: i64 }
@@ -3094,7 +3099,7 @@ struct Team { name: string, members: string[] }
 
 struct Money { cents: i64 }
 
-impl Money {
+impl Display for Money {
     fun show(self): string = "${self.cents / 100}.{self.cents % 100}";
 }
 
@@ -3103,22 +3108,23 @@ struct Wallet { cash: Money }
 struct Stack<T> { items: T[] }
 
 fun dump<T>(x: T) {
-    println(x);
+    println(x.debug());
 }
 
 fun main() {
-    println(Point { x: 1, y: 2 });
-    println(Shape.Circle(1.5));
-    println([Some(1), None]);
-    println(Team { name: "red", members: ["ann", "bo"] });
+    println((Point { x: 1, y: 2 }).debug());
+    println(Shape.Circle(1.5).debug());
+    println([Some(1), None].debug());
+    println((Team { name: "red", members: ["ann", "bo"] }).debug());
     let m = Money { cents: 525 };
     println(m);
-    println("wallet: {Wallet { cash: m }}");
+    // A debug form shows each part's debug form, never its `Display`.
+    println("wallet: {(Wallet { cash: m }).debug()}");
     dump(Stack { items: [3] });
 }
 ```
 
-**Printing anything** (milestone 40). Prints `Circle { r: 2.0 }`, `square 3`, `<fun>` on three lines, exits with 101 (the last line panics, with the message unwrap on Err: Bad { code: 7 }).
+**Printing anything** (milestone 40). Prints `Circle { r: 2.0 }`, `Square { side: 3 }`, `<fun>` on three lines, exits with 101 (the last line panics, with the message unwrap on Err: Bad { code: 7 }).
 
 ```
 interface Shape { fun area(self): f64; }
@@ -3128,16 +3134,17 @@ impl Shape for Circle { fun area(self): f64 = 3.0 * self.r * self.r; }
 
 struct Square { side: i64 }
 impl Shape for Square { fun area(self): f64 = (self.side * self.side) as f64; }
-impl Square { fun show(self): string = "square {self.side}"; }
+impl Display for Square { fun show(self): string = "square {self.side}"; }
 
 struct Bad { code: i64 }
 
 fun main() {
     let shapes: Shape[] = [Circle { r: 2.0 }, Square { side: 3 }];
+    // An interface value's debug form is its value's.
     for s of shapes {
-        println(s);
+        println(s.debug());
     }
-    println(fun(x: i64): i64 = x);
+    println((fun(x: i64): i64 = x).debug());
     let r: Result<i64, Bad> = Err(Bad { code: 7 });
     println(r.unwrap());
 }
@@ -3163,7 +3170,7 @@ enum List { Cons(i64, Self), Nil }
 fun main() {
     let t = Tree { value: 1, kids: [Tree { value: 2, kids: [] }, Tree { value: 3, kids: [] }] };
     println(t.size());
-    println(List.Cons(1, List.Cons(2, List.Nil)));
+    println((List.Cons(1, List.Cons(2, List.Nil))).debug());
 }
 ```
 
@@ -3175,7 +3182,7 @@ fun main() {
     for x of mut xs {
         x *= 2;
     }
-    println(xs);
+    println(xs.debug());
     let mut words = ["a", "b", "--", "c", "d"].iter();
     let mut first = "";
     for w of mut words {
@@ -3198,14 +3205,14 @@ fun main() {
 ```
 fun main() {
     let xs = [1, 2, 3, 1, 9];
-    println(xs.iter().zip(["a", "b"].iter()).collect());
-    println([1, 2].iter().chain([3, 4].iter()).collect());
-    println(xs.iter().take_while(fun(n) = n < 3).collect());
-    println(xs.iter().skip_while(fun(n) = n < 3).take(2).collect());
-    println(range(1, 4).flat_map(fun(n) = range(0, n)).collect());
-    println(xs.iter().min());
-    println(xs.iter().max());
-    println(xs.iter().position(fun(n) = n == 3));
+    println((xs.iter().zip(["a", "b"].iter()).collect()).debug());
+    println(([1, 2].iter().chain([3, 4].iter()).collect()).debug());
+    println((xs.iter().take_while(fun(n) = n < 3).collect()).debug());
+    println((xs.iter().skip_while(fun(n) = n < 3).take(2).collect()).debug());
+    println((range(1, 4).flat_map(fun(n) = range(0, n)).collect()).debug());
+    println(xs.iter().min().debug());
+    println(xs.iter().max().debug());
+    println((xs.iter().position(fun(n) = n == 3)).debug());
 }
 ```
 
@@ -3235,15 +3242,15 @@ fun main() {
         Err(e) => println("error {e}"),
     }
     match read_bytes("out.bin") {
-        Ok(b) => println(b),
+        Ok(b) => println(b.debug()),
         Err(e) => println(e),
     }
     let text = "héllo";
     let raw = text.to_bytes();
     println(raw.len);
-    println(string_from_utf8(raw));
+    println(string_from_utf8(raw).debug());
     let bad: u8[] = [104, 195, 40];
-    println(string_from_utf8(bad));
+    println(string_from_utf8(bad).debug());
     let i: u8 = 1;
     let j: u32 = 2;
     let k: i32 = 0;
@@ -3267,9 +3274,9 @@ fun main() {
     println("{s.char_count()} chars, {s.len} bytes");
     println(shout(s));
     println(s.chars().filter(fun(c) = c.is_alphabetic()).count());
-    println(['é', 'a', '\n']);
+    println(['é', 'a', '\n'].debug());
     println('é' as u32);
-    println(char_from(55296));
+    println(char_from(55296).debug());
 }
 ```
 
@@ -3286,7 +3293,7 @@ fun main() {
         println("{i}: {w}");
     }
     let t = (1, "a", 2.5);
-    println(t);
+    println(t.debug());
     println(t.1);
     let label = match (q > 2, r) {
         (true, 2) => "big two",
@@ -3295,11 +3302,11 @@ fun main() {
     };
     println(label);
     println((1, "b") < (1, "c"));
-    println([(2, 1), (1, 9)].iter().min());
+    println(([(2, 1), (1, 9)].iter().min()).debug());
     let mut p = (1, [2]);
     let copy = p;
     p.1[0] = 9;
-    println("{copy} {p}");
+    println("{copy.debug()} {p.debug()}");
     println((1, 2) == (1, 2));
     if let (Some(a), b) = (Some(3), 4) {
         println(a + b);
@@ -3321,7 +3328,7 @@ fun main() {
         println(line(it));
     }
     println(format("{:.2} | {:#x} | {:<6}|", 3.14159, 255, "left"));
-    println(format("{{literal}} and {}", (1, 'a')));
+    println(format("{{literal}} and {}", (1, 'a').debug()));
     let total = items.iter().map(fun(it: Item): i64 = it.n).sum();
     println("total: {format("{:05}", total)}");
 }
@@ -3375,7 +3382,7 @@ fun main() {
         Down => println("down"),
     }
     let f = shapes.vec.add;
-    println(f(a, a));
+    println(f(a, a).debug());
 }
 ```
 
@@ -3404,11 +3411,11 @@ fun sum<T: Num>(xs: T[]): T {
 fun main() {
     let a = Vec2 { x: 1.0, y: 2.0 };
     let b = Vec2 { x: 3.0, y: 4.0 };
-    println(a + b);
-    println(a * b);
+    println((a + b).debug());
+    println((a * b).debug());
     println(add(5, 10));
     println(add("glow", "worm"));
-    println(add(a, b));
+    println(add(a, b).debug());
     println(sum([1, 2, 3]));
     println(sum([0.5, 0.25]));
 }
@@ -3451,8 +3458,8 @@ fun main() {
     println(rng.between(10, 20));
     println(rng.normal(0.0, 1.0));
     println(rng.chance(0.5));
-    println(rng.choice(["red", "green", "blue"]));
-    println(rng.shuffle([1, 2, 3, 4, 5]));
+    println(rng.choice(["red", "green", "blue"]).debug());
+    println(rng.shuffle([1, 2, 3, 4, 5]).debug());
 }
 ```
 
@@ -3473,19 +3480,19 @@ fun main() {
     let mut a = [1, 2, 3];
     let b = a;
     a[0] = 10;
-    println("{a} {b}");
+    println("{a.debug()} {b.debug()}");
 
     let mut grid = [[0; 2]; 2];
     let saved = grid;
     grid[1][0] = 7;
     grid.push([9]);
-    println("{grid} {saved}");
+    println("{grid.debug()} {saved.debug()}");
 
     let mut net = [Layer { weights: [0.5, 1.5] }];
     let w = net[0].weights;
     net[0].weights[1] += 1.0;
-    println("{net[0].weights} {w}");
-    println("{scaled(w, 2.0)} {w}");
+    println("{net[0].weights.debug()} {w.debug()}");
+    println("{scaled(w, 2.0).debug()} {w.debug()}");
 }
 ```
 
@@ -3512,7 +3519,7 @@ fun main() {
     let y = t.mul(t.add(x, t.put(1.0)), t.add(x, x));
     println(t.vals[y]);
     println(t.vals.len);
-    println(t.vals);
+    println(t.vals.debug());
 }
 ```
 
@@ -3596,7 +3603,7 @@ fun main() {
     let a = write_file("runs/2026/b.log", "b");
     let b = write_file("runs/2026/a.log", "a");
     match fs.list_dir("runs/2026") {
-        Ok(names) => println(names),
+        Ok(names) => println(names.debug()),
         Err(e) => println(e),
     }
     println("{fs.is_dir("runs")} {fs.is_file("runs/2026/a.log")} {fs.exists("runs/x")}");
@@ -3626,7 +3633,7 @@ fun main() {
         Err(e) => println(e),
     }
     match process.run_with("sort", [], "pear\napple\n") {
-        Ok(out) => println(out.stdout.split("\n")),
+        Ok(out) => println(out.stdout.split("\n").debug()),
         Err(e) => println(e),
     }
     match process.run("sh", ["-c", "exit 7"]) {
@@ -3662,7 +3669,7 @@ fun main() {
     let mut first = a.get();
     first.next = Some(a);
     a.set(first);
-    println(a);
+    println(a.debug());
 }
 ```
 
@@ -3677,11 +3684,11 @@ fun main() {
     let start = env.current_dir().unwrap_or("?");
     let made = fs.make_dirs("inbox/2026");
     let moved = env.set_current_dir("inbox/2026");
-    println(moved);
+    println(moved.debug());
     let wrote = write_file("note.txt", "hi");
     let back = env.set_current_dir(start);
     println(fs.is_file("inbox/2026/note.txt"));
-    println(env.set_current_dir("missing"));
+    println(env.set_current_dir("missing").debug());
     let a = fs.remove_file("inbox/2026/note.txt");
     let b = fs.remove_dir("inbox/2026");
     let c = fs.remove_dir("inbox");
@@ -3756,11 +3763,11 @@ fun main() {
     spawn later(quick, 5);
     spawn later(slow, 100);
     select {
-        m = quick.recv() => println("quick: {m}"),
-        m = slow.recv() => println("slow: {m}"),
+        m = quick.recv() => println("quick: {m.debug()}"),
+        m = slow.recv() => println("slow: {m.debug()}"),
     }
     select {
-        m = slow.recv() => println("slow: {m}"),
+        m = slow.recv() => println("slow: {m.debug()}"),
         after(20) => println("timed out"),
     }
     let empty: Chan<i64> = Chan.new();
@@ -3768,7 +3775,7 @@ fun main() {
         m = empty.recv() => m,
         default => None,
     };
-    println(got);
+    println(got.debug());
     println("waiting");
     empty.recv();
 }
@@ -3822,7 +3829,7 @@ fun main() {
     for w of text.split(" ") {
         counts[w] = counts.get(w).unwrap_or(0) + 1;
     }
-    println(counts);
+    println(counts.debug());
     println(counts["the"]);
     println(counts.len);
     for (w, n) of counts {
@@ -3844,14 +3851,14 @@ fun main() {
             firsts.push(x);
         }
     }
-    println(firsts);
-    println(seen);
+    println(firsts.debug());
+    println(seen.debug());
     println(seen.has(2));
     let a = #{1, 2, 3};
     let b = #{2, 3, 4};
-    println(a.union(b));
-    println(a.intersect(b));
-    println(a.minus(b));
+    println(a.union(b).debug());
+    println(a.intersect(b).debug());
+    println(a.minus(b).debug());
     println(#{1, 2} == #{2, 1});
 }
 ```
@@ -4030,6 +4037,7 @@ The spec is implemented in five milestones, each ending in a program that runs. 
 | 167 | `Eq` and `Key` (v18) | `Eq` and `Key` asked for, `interface I: J`, `Hasher`, `assert_key_laws`; E0464; E0441 and E0454 retired | `tests/programs/interfaces/eq_key` (done) |
 | 168 | `Ord` (v18) | `Ord: Eq` asked for or written, tuples through a derive block, floats out of `Ord`, `f64.total_order`, `f32.total_order` | `tests/programs/interfaces/ord` (done) |
 | 169 | Built-in implementations (v18) | `impl I for f64`, `impl I for Point[]`, `impl<T: B> I for T[]`; method syntax, qualified calls and interface values on built-in types | `tests/programs/interfaces/builtin_impls` (done) |
+| 170 | Printing (v18) | `Debug` for every type, `Display` by hand, `x.debug()`, `debug(x)`; E0465 | `tests/programs/text/printing` (done) |
 
 In milestones 1 and 2, every value can be treated as `i64`, so codegen can start before the type checker exists. Until milestone 4 provides `lugha_rt_panic`, integer `+`, `-` and `*` wrap, and `/` and `%` stop the program with a trap on a zero divisor or `MIN / -1`. Milestone 3 then replaces that assumption with real types. The process exit code is the low 8 bits of `main`'s result, so milestone tests use results below 256.
 

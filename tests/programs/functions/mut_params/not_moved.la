@@ -6,6 +6,6 @@ fun main() {
     let mut ys = [1];
     let zs = keep(mut ys);
     ys.push(2);
-    println(ys);
-    println(zs);
+    println(ys.debug());
+    println(zs.debug());
 }

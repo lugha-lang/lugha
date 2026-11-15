@@ -6,7 +6,7 @@ fun main() {
     for j in 0..0 {
         g[k][j] = 1;
     }
-    println("{g}");
+    println("{g.debug()}");
     for j in 0..2 {
         g[k][j] = 1;
     }

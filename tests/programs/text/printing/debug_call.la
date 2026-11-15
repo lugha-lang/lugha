@@ -1,0 +1,11 @@
+// `debug(x)` writes `[file:line] x = <debug form>` to stderr and gives `x`
+// back, so it can wrap an expression where it stands.
+struct Point { x: i64, y: i64 }
+
+fun main() {
+    let p = Point { x: 1, y: 2 };
+    let n = debug(p.x + 10) * 2;
+    debug(p);
+    println(n);
+    debug([Some("a"), None]);
+}

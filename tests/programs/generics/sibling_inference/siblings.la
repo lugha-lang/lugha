@@ -18,7 +18,7 @@ fun main() {
     assert_ne(text("ho"), expected);
     println(text("hi") == expected);
     println(expected != text("hi"));
-    println(pair(text("a"), button("b", Msg.Go)));
+    println((pair(text("a"), button("b", Msg.Go))).debug());
     let x: u8 = 3;
     assert_eq(3, x);
     println("ok");

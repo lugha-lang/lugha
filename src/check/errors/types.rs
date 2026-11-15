@@ -271,10 +271,26 @@ pub(in crate::check) fn no_method(
     }
 }
 
-/// E0403: a value in `"{…}"` that can't be printed.
-pub(in crate::check) fn not_interpolable(ty: &Type, span: Span) -> Diagnostic {
-    Diagnostic::error("E0403", format!("can't interpolate a `{ty}`"), span)
-        .with_help("only numbers, `bool` and strings interpolate; convert it first")
+/// E0422: a printed or interpolated value whose type has no `Display`.
+pub(in crate::check) fn not_display(ty: &Type, span: Span) -> Diagnostic {
+    let help = match ty {
+        Type::Param(p) => {
+            format!("add the bound `{p}: Display`, or show its debug form with `.debug()`")
+        }
+        Type::Struct(k, _) | Type::Enum(k, _) | Type::Handle(k)
+            if !k.starts_with('$') && super::super::tuples::elements(ty).is_none() =>
+        {
+            // Written in the type's own module, where its name is bare.
+            let bare = k.rsplit('.').next().unwrap_or(k);
+            let shown = ty.to_string();
+            let args = shown.find('<').map_or("", |at| &shown[at..]);
+            format!(
+                "write `impl Display for {bare}{args} {{ fun show(self): string = … }}`, or show its debug form with `.debug()`"
+            )
+        }
+        _ => "it has no text of its own: show its debug form with `.debug()`".to_string(),
+    };
+    Diagnostic::error("E0422", format!("`{ty}` doesn't implement `Display`"), span).with_help(help)
 }
 
 /// E0409: a function type in an extern signature: C can't call Lugha functions.

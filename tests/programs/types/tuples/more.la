@@ -25,7 +25,7 @@ fun main() {
         Line((x1, y1), (x2, y2)) => println((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)),
         Dot => println(0),
     }
-    println(swap_pair((1, "x")));
+    println((swap_pair((1, "x"))).debug());
     let nested = ((1, 2), (3, (4, 5)));
     println(nested.1.1.0);
     println(("b", 1) > ("a", 9));
@@ -35,5 +35,5 @@ fun main() {
     let mut t = (0, 0);
     t.0 += 5;
     t.1 = t.0 * 2;
-    println(t);
+    println(t.debug());
 }

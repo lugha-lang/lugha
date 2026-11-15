@@ -1,9 +1,9 @@
-error[E0460]: `show` on `f64` is an item of both `Show` and `Shows`
+error[E0460]: `label` on `f64` is an item of both `Labels` and `Show`
    --> tests/programs/interfaces/builtin_impls/ambiguous.la:19:17
    |
-19 |     println(2.0.show());
-   |                 ^^^^
+19 |     println(2.0.label());
+   |                 ^^^^^
    |
-   = help: say which one you mean: `Show.show(…)` or `Shows.show(…)`
+   = help: say which one you mean: `Labels.label(…)` or `Show.label(…)`
 
 For more about E0460, run `lughac explain E0460`.

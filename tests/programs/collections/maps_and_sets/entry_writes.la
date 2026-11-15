@@ -23,9 +23,9 @@ fun main() {
     for x of mut n["b"] {
         x *= 2;
     }
-    println(n);
+    println(n.debug());
     let copy = n;
     n["a"][0] = 0;
-    println(copy["a"]);
-    println(n["a"]);
+    println(copy["a"].debug());
+    println(n["a"].debug());
 }

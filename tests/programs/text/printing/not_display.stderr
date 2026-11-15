@@ -1,0 +1,33 @@
+error[E0422]: `i64[]` doesn't implement `Display`
+  --> tests/programs/text/printing/not_display.la:8:13
+  |
+8 |     println([1, 2]);
+  |             ^^^^^^
+  |
+  = help: it has no text of its own: show its debug form with `.debug()`
+
+error[E0422]: `Option<i64>` doesn't implement `Display`
+   --> tests/programs/text/printing/not_display.la:10:21
+   |
+10 |     let t = "found {o}";
+   |                     ^
+   |
+   = help: it has no text of its own: show its debug form with `.debug()`
+
+error[E0422]: `P` doesn't implement `Display`
+   --> tests/programs/text/printing/not_display.la:11:23
+   |
+11 |     let s = to_string(P { x: 1 });
+   |                       ^^^^^^^^^^
+   |
+   = help: write `impl Display for P { fun show(self): string = … }`, or show its debug form with `.debug()`
+
+error[E0422]: `()` doesn't implement `Display`
+   --> tests/programs/text/printing/not_display.la:12:14
+   |
+12 |     eprintln(nothing());
+   |              ^^^^^^^^^
+   |
+   = help: it has no text of its own: show its debug form with `.debug()`
+
+For more about E0422, run `lughac explain E0422`.

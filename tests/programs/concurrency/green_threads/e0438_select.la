@@ -1,7 +1,7 @@
 fun main() {
     let c: Chan<i64> = Chan.new();
     select {
-        m = c.recv() => println(m),
+        m = c.recv() => println(m.debug()),
         after(10) => println("late"),
         default => println("never waits"),
     }

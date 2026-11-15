@@ -105,7 +105,10 @@ impl Checker {
         }
         self.record(callee, Type::Unit);
         // A message to an actor: its methods, through the handle.
+        // `h.debug()` on a handle without a `debug` of its own is its debug form.
+        let own = |c: &Self, key: &str| c.methods.get(key).is_some_and(|m| m.contains_key("debug"));
         if let Type::Actor(key) = &receiver
+            && (name.name != "debug" || own(self, key))
             && let Some(ty) = self.actor_call(call, key, name, args, expect)
         {
             return Some(ty);
@@ -166,6 +169,12 @@ impl Checker {
         }
         // `it.map(f)` and the other iterator helpers.
         if let Some(ty) = self.iter_helper_call(call, (base, receiver), name, args, expect) {
+            return ty;
+        }
+        // `x.debug()`: any value's debug form.
+        if name.name == "debug"
+            && let Some(ty) = self.debug_call(call, receiver, args)
+        {
             return ty;
         }
         if let Some(m) = builtin(receiver, &name.name) {

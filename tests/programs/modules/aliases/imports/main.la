@@ -16,5 +16,5 @@ fun main() {
         Down => println("down"),
     }
     let f = shapes.vec.add;
-    println(f(a, a));
+    println(f(a, a).debug());
 }

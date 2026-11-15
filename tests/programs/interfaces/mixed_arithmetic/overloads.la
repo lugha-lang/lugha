@@ -14,12 +14,12 @@ fun sq<T: Mul>(a: T): T = a * a;
 fun main() {
     let v = V { x: 1.0, y: 2.0 };
     let b: u8 = 3;
-    println(v * 2.0 + v * v);
-    println(v * b);
-    println(v.mul(10.0));
+    println((v * 2.0 + v * v).debug());
+    println((v * b).debug());
+    println(v.mul(10.0).debug());
     let mut w = v;
     w *= 2.0;
     w *= v;
-    println(w);
-    println(sq(v));
+    println(w.debug());
+    println(sq(v).debug());
 }

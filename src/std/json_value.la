@@ -115,9 +115,11 @@ public struct DecodeError {
 impl DecodeError {
     /** `people[2].age: expected an integer, found a string`, or the detail alone at the top. */
     public fun message(self): string = if self.path.len == 0 { self.detail } else { "{self.path}: {self.detail}" };
+}
 
+impl Display for DecodeError {
     /** Printed as its message. */
-    public fun show(self): string = self.message();
+    fun show(self): string = self.message();
 }
 
 // ---- How each type meets `Json` ----

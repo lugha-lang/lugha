@@ -213,8 +213,10 @@ mod tests {
             errors("fun less<T: Eq>(a: T, b: T): bool = a < b;\nfun main() {}"),
             [("E0404", "a < b")]
         );
-        // A bare parameter prints.
-        ok("fun f<T>(a: T) { println(a); }\nfun main() {}");
+        // A bare parameter shows its debug form; it prints with `T: Display`.
+        ok(
+            "fun f<T>(a: T) { println(a.debug()); }\nfun g<T: Display>(a: T) { println(a); }\nfun main() {}",
+        );
         ok(
             "fun same<T: Eq>(a: T, b: T): bool = a == b;\nfun less<T: Ord>(a: T, b: T): bool = a < b;\nfun main() {}",
         );

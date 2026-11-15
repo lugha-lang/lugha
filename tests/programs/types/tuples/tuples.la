@@ -8,7 +8,7 @@ fun main() {
         println("{i}: {w}");
     }
     let t = (1, "a", 2.5);
-    println(t);
+    println(t.debug());
     println(t.1);
     let label = match (q > 2, r) {
         (true, 2) => "big two",
@@ -17,11 +17,11 @@ fun main() {
     };
     println(label);
     println((1, "b") < (1, "c"));
-    println([(2, 1), (1, 9)].iter().min());
+    println(([(2, 1), (1, 9)].iter().min()).debug());
     let mut p = (1, [2]);
     let copy = p;
     p.1[0] = 9;
-    println("{copy} {p}");
+    println("{copy.debug()} {p.debug()}");
     println((1, 2) == (1, 2));
     if let (Some(a), b) = (Some(3), 4) {
         println(a + b);

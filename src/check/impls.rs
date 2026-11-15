@@ -105,17 +105,25 @@ impl Checker {
     }
 
     /// True for an interface a type may implement through `impl I for T`:
-    /// any but the prelude's, except its `Eq`, `Key` and `Ord`.
+    /// any but the prelude's, except its `Eq`, `Key`, `Ord`, `Debug` and `Display`.
     pub(super) fn by_block(&self, key: &str) -> bool {
         module_of(key) != "$prelude"
-            || [super::derive::EQ, super::derive::KEY, super::derive::ORD].contains(&key)
+            || [
+                super::derive::EQ,
+                super::derive::KEY,
+                super::derive::ORD,
+                super::derive::DEBUG,
+                super::derive::DISPLAY,
+            ]
+            .contains(&key)
     }
 
     /// True for an interface a type meets only through `impl I for T`:
-    /// any but the prelude's and the derivable ones, which the compiler
-    /// still finds by their methods' names.
+    /// `Display`, and any but the prelude's and the derivable ones, which
+    /// the compiler still finds by their methods' names.
     pub(super) fn nominal(&self, key: &str) -> bool {
-        module_of(key) != "$prelude" && !self.derives.derivable(key)
+        (module_of(key) != "$prelude" || key == super::derive::DISPLAY)
+            && !self.derives.derivable(key)
     }
 
     /// Records `impl I for T` block `i` of `owner` (type `ty`, the block's

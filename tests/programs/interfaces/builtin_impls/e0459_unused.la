@@ -1,10 +1,10 @@
 // Every parameter of a block appears in its type.
 interface Show {
-    fun show(self): string;
+    fun label(self): string;
 }
 
 impl<T, U> Show for T[] {
-    fun show(self): string = "t";
+    fun label(self): string = "t";
 }
 
 fun main() {}

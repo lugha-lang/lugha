@@ -31,19 +31,19 @@ fun main() {
         println("{y}-{m}-{d} is {show(time.civil(t, 0).unwrap())}");
     }
     // What doesn't exist.
-    println(time.from_civil(date(1900, 2, 29), 0));
-    println(time.from_civil(date(2026, 13, 1), 0));
-    println(time.from_civil(date(2026, 4, 31), 0));
+    println((time.from_civil(date(1900, 2, 29), 0)).debug());
+    println((time.from_civil(date(2026, 13, 1), 0)).debug());
+    println((time.from_civil(date(2026, 4, 31), 0)).debug());
     let late = time.Civil { year: 2026, month: 1, day: 1, weekday: 0, hour: 24, minute: 0, second: 0, ms: 0 };
-    println(time.from_civil(late, 0));
+    println(time.from_civil(late, 0).debug());
     let leap_second = time.Civil { year: 2026, month: 1, day: 1, weekday: 0, hour: 23, minute: 59, second: 60, ms: 0 };
-    println(time.from_civil(leap_second, 0));
+    println(time.from_civil(leap_second, 0).debug());
     let far = time.Civil { year: 300000000, month: 1, day: 1, weekday: 0, hour: 0, minute: 0, second: 0, ms: 0 };
-    println(time.from_civil(far, 0));
-    println(time.from_civil(date(292278995, 1, 1), 0));
-    println(time.civil(0, 93601));
-    println(time.from_civil(date(2026, 1, 1), -100000));
+    println(time.from_civil(far, 0).debug());
+    println((time.from_civil(date(292278995, 1, 1), 0)).debug());
+    println(time.civil(0, 93601).debug());
+    println((time.from_civil(date(2026, 1, 1), -100000)).debug());
     // The weekday given to `from_civil` is ignored.
     let wrong = time.Civil { year: 2027, month: 1, day: 1, weekday: 2, hour: 0, minute: 0, second: 0, ms: 0 };
-    println(time.from_civil(wrong, 0));
+    println(time.from_civil(wrong, 0).debug());
 }

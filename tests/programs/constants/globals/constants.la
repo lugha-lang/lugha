@@ -38,23 +38,23 @@ fun main() {
     println("{GREETING}, {MAX_PLAYERS} players");
     let mut ps = PRIMES;
     ps.push(11);
-    println(ps);
-    println(PRIMES);
+    println(ps.debug());
+    println(PRIMES.debug());
     println(total(PRIMES));
     for p of PRIMES {
         print(p);
     }
     println();
-    println(ZEROS);
-    println(ORIGIN);
+    println(ZEROS.debug());
+    println(ORIGIN.debug());
     println(ORIGIN.x);
-    println(PAIR);
-    println(PICK);
-    println(NONE);
-    println(RED);
+    println(PAIR.debug());
+    println(PICK.debug());
+    println(NONE.debug());
+    println(RED.debug());
     println(FIRST);
     println(RATIO);
-    println(DONE);
+    println(DONE.debug());
     let f = fun(): i64 = MAX_PLAYERS + 1;
     println(f());
     let MAX_PLAYERS = 3;

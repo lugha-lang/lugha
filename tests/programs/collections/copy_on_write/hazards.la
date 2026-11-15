@@ -25,7 +25,7 @@ fun main() {
         kept = a;
         100
     };
-    println("{a} {kept}");
+    println("{a.debug()} {kept.debug()}");
 
     let mut b = [5, 6];
     let mut seen: i64[] = [];
@@ -33,7 +33,7 @@ fun main() {
         seen = b;
         60
     };
-    println("{b} {seen}");
+    println("{b.debug()} {seen.debug()}");
 
     // `for … of mut` whose body copies the array, then writes the element.
     let mut xs = [1, 2, 3];
@@ -42,7 +42,7 @@ fun main() {
         copies.push(xs);
         x *= 10;
     }
-    println("{xs} {copies}");
+    println("{xs.debug()} {copies.debug()}");
 
     // The same through a function that returns its parameter.
     let mut ys = [1, 2];
@@ -52,7 +52,7 @@ fun main() {
         y += 1;
         via.push(keep(ys));
     }
-    println("{ys} {via}");
+    println("{ys.debug()} {via.debug()}");
 
     // A loop variable that is a struct holding an array.
     let mut hs = [Holder { xs: [1] }, Holder { xs: [2] }];
@@ -62,13 +62,13 @@ fun main() {
         h.xs.push(0);
         h.xs[0] *= 3;
     }
-    println("{hs[0].xs} {hs[1].xs} {before[0].xs} {before[1].xs}");
+    println("{hs[0].xs.debug()} {hs[1].xs.debug()} {before[0].xs.debug()} {before[1].xs.debug()}");
 
     // Closures and interface-free captures hold their own copy.
     let mut zs = [1, 2];
-    let show = fun(): string = "{zs}";
+    let show = fun(): string = "{zs.debug()}";
     zs[0] = 9;
-    println("{zs} {show()}");
+    println("{zs.debug()} {show()}");
 
     // `swap` whose second index copies the first place's array.
     let mut p = [1, 2];
@@ -78,7 +78,7 @@ fun main() {
         r = p;
         0
     }]);
-    println("{p} {q} {r}");
+    println("{p.debug()} {q.debug()} {r.debug()}");
 
     // An iterator stepped in place inside an array the body copies.
     let mut cs = [Count { n: 0, seen: [] }];
@@ -87,7 +87,7 @@ fun main() {
         held = cs;
         print("{v} ");
     }
-    println("{cs[0].n} {cs[0].seen} {held[0].n} {held[0].seen}");
+    println("{cs[0].n} {cs[0].seen.debug()} {held[0].n} {held[0].seen.debug()}");
 
     // The same through interface values.
     let mut its: Iter<i64>[] = [Count { n: 0, seen: [] }];

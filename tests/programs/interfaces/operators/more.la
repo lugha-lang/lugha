@@ -61,19 +61,19 @@ impl Scaled for Len {
 fun twice<T: Add>(x: T): T = x + x;
 
 fun main() {
-    println(Money.Cents(150) + Money.Free + Money.Cents(25));
+    println((Money.Cents(150) + Money.Free + Money.Cents(25)).debug());
     let g = Grid { data: [1, 2, 3] };
     let h = (g + g) * 10;
-    println(h.data);
+    println(h.data.debug());
     println((-h).total());
     let mut f = Grid { data: [0.5, 1.5] };
     f += Grid { data: [1.0, 1.0] };
     f *= 2.0;
-    println(f.data);
+    println(f.data.debug());
     println(Grid { data: ["a", "b"] }.size());
     let s: Scaled = Len { m: 1.5 };
     println((s * 2.0).show());
     println(twice("ab"));
     println(twice(21));
-    println(twice(Money.Cents(7)));
+    println((twice(Money.Cents(7))).debug());
 }

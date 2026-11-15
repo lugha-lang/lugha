@@ -7,8 +7,8 @@ fun run(): Result<(), string> {
     let out = fs.create("notes.txt")?;
     out.write_text("first\r\nsecond\n")?;
     out.write("last".to_bytes())?;
-    println(out.read(10));
-    println(out.read_line());
+    println(out.read(10).debug());
+    println(out.read_line().debug());
     out.close();
 
     let log = fs.append("notes.txt")?;
@@ -25,23 +25,23 @@ fun run(): Result<(), string> {
             }
         }
     }
-    println(copy.read_line());
-    println(f.read(10));
-    println(f.write_text("x"));
-    println(f.write("y".to_bytes()));
+    println(copy.read_line().debug());
+    println(f.read(10).debug());
+    println(f.write_text("x").debug());
+    println((f.write("y".to_bytes())).debug());
     f.close();
     copy.close();
-    println(f.read(10));
-    println(f.read_line());
-    println(copy.write_text("x"));
+    println(f.read(10).debug());
+    println(f.read_line().debug());
+    println(copy.write_text("x").debug());
 
     let again = fs.create("notes.txt")?;
     again.write_text("fresh")?;
     again.close();
-    println(read_file("notes.txt"));
+    println(read_file("notes.txt").debug());
     Ok(())
 }
 
 fun main() {
-    println(run());
+    println(run().debug());
 }

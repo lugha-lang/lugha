@@ -30,13 +30,13 @@ fun main() {
     let mut by_point: Map<P, i64> = #{};
     by_point.insert(P { x: 1, tag: "a", at: (-1, 2) }, 10);
     by_point.insert(P { x: 1, tag: "b", at: (-1, 2) }, 20);
-    println(by_point.get(P { x: 1, tag: "a", at: (-1, 2) }));
-    println(by_point.get(P { x: 1, tag: "a", at: (-1, 3) }));
+    println((by_point.get(P { x: 1, tag: "a", at: (-1, 2) })).debug());
+    println((by_point.get(P { x: 1, tag: "a", at: (-1, 3) })).debug());
 
     let mut trees: Map<Tree, string> = #{};
     trees.insert(Tree.Node(Tree.Leaf(1), Tree.Empty), "left");
     trees.insert(Tree.Node(Tree.Empty, Tree.Leaf(1)), "right");
-    println(trees.get(Tree.Node(Tree.Leaf(1), Tree.Empty)));
+    println((trees.get(Tree.Node(Tree.Leaf(1), Tree.Empty))).debug());
     println(trees.len);
 
     let mut small: Map<u8, char> = #{};
@@ -45,7 +45,7 @@ fun main() {
         small.insert(i as u8, 'x');
         wide.insert(-(i as i32), i % 2 == 0);
     }
-    println("{small.len} {wide.get(-4)} {wide.get(5)}");
+    println("{small.len} {wide.get(-4).debug()} {wide.get(5).debug()}");
 
     let mut chars: Set<char> = #{'é', 'e'};
     chars.insert('é');
@@ -57,7 +57,7 @@ fun main() {
     lists.insert([1, 2], 1);
     lists.insert([2, 1], 2);
     lists.insert([1, 2], 3);
-    println("{chars.len} {options.len} {lists.len} {lists.get([1, 2])}");
+    println("{chars.len} {options.len} {lists.len} {lists.get([1, 2]).debug()}");
 
     let p = c_malloc(8);
     let q = c_malloc(8);
@@ -65,5 +65,5 @@ fun main() {
     handles.insert(p, "p");
     handles.insert(q, "q");
     handles.insert(p, "p again");
-    println("{handles.len} {handles.get(p)}");
+    println("{handles.len} {handles.get(p).debug()}");
 }

@@ -100,8 +100,8 @@ fun main() {{
     println(conn.read(100).unwrap().len);
     let copy = conn;
     copy.close();
-    println(conn.read(1));
-    println(conn.write([1]));
+    println(conn.read(1).debug());
+    println(conn.write([1]).debug());
     conn.close();
     listener.close();
     println(listener.accept().is_err());
@@ -168,8 +168,8 @@ fun main() {
     spawn hold(listener);
     let conn = net.connect(addr).unwrap();
     conn.set_timeout(50);
-    println(conn.read(10));
-    println(conn.read(0));
+    println(conn.read(10).debug());
+    println(conn.read(0).debug());
     conn.close();
     let gone = net.listen(\"127.0.0.1:0\").unwrap();
     let free = gone.addr();
@@ -178,8 +178,8 @@ fun main() {
         Ok(_) => println(\"connected?\"),
         Err(e) => println(e),
     }
-    println(net.listen(\"nope\"));
-    println(net.listen(\"127.0.0.1:70000\"));
+    println(net.listen(\"nope\").debug());
+    println(net.listen(\"127.0.0.1:70000\").debug());
     let quiet = net.listen(\"127.0.0.1:0\").unwrap();
     quiet.set_timeout(20);
     println(quiet.accept().is_err());
@@ -264,8 +264,8 @@ fn resolve_gives_every_address_once() {
         }
     }
     println(once);
-    println(net.resolve(\"127.0.0.1\"));
-    println(net.resolve(\"::1\"));
+    println(net.resolve(\"127.0.0.1\").debug());
+    println(net.resolve(\"::1\").debug());
     println(net.resolve(\"\").is_err());
     println(net.resolve(\"nothing.invalid\").is_err());
 }

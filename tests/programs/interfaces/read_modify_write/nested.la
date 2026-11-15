@@ -60,31 +60,31 @@ fun main() {
     r[1].push(4);
     r[1] += [5];
     let popped = r[0].pop();
-    println(r.rows);
-    println(popped);
+    println(r.rows.debug());
+    println(popped.debug());
 
     let mut ps = Pts { ps: [Pt { x: 1, y: 2 }] };
     ps[0].x = 9;
     ps[0].y *= 3;
-    println((ps[0].x, ps[0].y));
+    println((ps[0].x, ps[0].y).debug());
 
     let mut o = Outer { inner: [Rows { rows: [[0, 0]] }] };
     o[0][0][1] = 8;
-    println(o.inner[0].rows);
+    println(o.inner[0].rows.debug());
 
     let mut m: Map<string, Rows> = #{"a": Rows { rows: [[1]] }};
     m["a"][0][0] += 100;
     m["a"][0].push(2);
-    println(m["a"].rows);
+    println(m["a"].rows.debug());
 
     let mut c = Cells { xs: [1, 2] };
     c = bump(c, 1);
     let mut t: Table = c;
     t[0] += 5;
-    println((t[0], t[1]));
+    println((t[0], t[1]).debug());
 
     let calls = Ref.new(0);
     let mut s = Rows { rows: [[0], [0]] };
     s[next(calls)][0] += 7;
-    println((s.rows, calls.get()));
+    println((s.rows, calls.get()).debug());
 }

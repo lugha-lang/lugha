@@ -47,8 +47,8 @@ fun unreached(x: i64): i64 {
 fun main() {
     println(early(1));
     println(early(0));
-    println(parse("41"));
-    println(parse("x"));
+    println(parse("41").debug());
+    println(parse("x").debug());
     loops();
     println(unreached(0));
 }

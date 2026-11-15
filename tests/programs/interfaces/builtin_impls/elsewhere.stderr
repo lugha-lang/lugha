@@ -2,7 +2,7 @@ error[E0459]: this `impl Show for …` must be written in the module that declar
   --> tests/programs/interfaces/builtin_impls/elsewhere/main.la:4:1
   |
 4 | / impl shapes.Show for bool {
-5 | |     fun show(self): string = "b";
+5 | |     fun label(self): string = "b";
 6 | | }
   | \-^
 

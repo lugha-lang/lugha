@@ -47,5 +47,5 @@ fun main() {
     let q = Shape.Square(2.0);
     println("{s.Circle()} {q.Circle()}");
     let make = Shape.Circle;
-    println(make(3.0));
+    println(make(3.0).debug());
 }

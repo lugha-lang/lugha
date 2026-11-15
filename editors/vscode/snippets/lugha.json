@@ -199,7 +199,7 @@
     "prefix": "select",
     "body": [
       "select {",
-      "\t${1:m} = ${2:c}.recv() => ${3:println(m)},",
+      "\t${1:m} = ${2:c}.recv() => ${3:println(m.debug())},",
       "\tafter(${4:100}) => ${5:println(\"timed out\")},",
       "}"
     ],

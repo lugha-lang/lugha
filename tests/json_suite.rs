@@ -56,7 +56,7 @@ fun main() {
             println(compact);
         }
         Err(e) => {
-            println("ERROR {e.kind} {e.message()}");
+            println("ERROR {e.kind.debug()} {e.message()}");
             exit(1);
         }
     }

@@ -8,7 +8,7 @@ fun show(r: Result<i64, string>): string = match r {
 };
 
 fun list(path: string): string = match fs.list_dir(path) {
-    Ok(names) => "{names}",
+    Ok(names) => "{names.debug()}",
     Err(e) => e,
 };
 

@@ -131,7 +131,7 @@ pub use channels::{CHAN_BUFFERED, CHAN_NEW};
 pub use checked::Checked;
 pub(crate) use concat::CONCAT;
 pub use defaults::SELF;
-pub use derive::{Block as DeriveBlock, Covers, Derives, EQ, ORD};
+pub use derive::{Block as DeriveBlock, Covers, DEBUG, DISPLAY, Derives, EQ, ORD};
 pub use derive_intrinsics::{DERIVE_OPS, derive_op};
 pub use float_bits::{bits_of, from_bits, total_order};
 pub use float_ops::{float_op, os_op, os_signature, string_op};
@@ -260,6 +260,7 @@ impl Checker {
             derives: derive::Derives::default(),
             deriving: None,
             derived: HashMap::new(),
+            debug_calls: Vec::new(),
             derive_calls: HashMap::new(),
             hover: partial::Recorder::new(count),
             test_mode: false,
@@ -443,6 +444,8 @@ pub(super) struct Checker {
     deriving: Option<derive::Block>,
     /// See `Checked::derived`.
     derived: HashMap<ExprId, String>,
+    /// See `Checked::debug_calls`.
+    debug_calls: Vec<Span>,
     /// See `Checked::derive_calls`.
     derive_calls: HashMap<ExprId, String>,
     /// The types in each generic body that mention its parameters, by the

@@ -311,7 +311,15 @@ impl Checker {
         if let ExprKind::Field(base, _) = &callee.kind {
             self.record(base, Type::Unit);
         }
-        if op != "from_bytes" || args.len() != 1 {
+        // `$string.quote(s)` and `$string.quote_char(c)`: the debug forms
+        // of strings and chars, quoted and escaped.
+        let operand = match op {
+            "from_bytes" => Type::Array(Box::new(Type::U8)),
+            "quote" => Type::String,
+            "quote_char" => Type::Char,
+            _ => Type::Error,
+        };
+        if operand == Type::Error || args.len() != 1 {
             let d = Diagnostic::error(
                 "E0415",
                 format!("no `$string` built-in `{op}` with these arguments"),
@@ -320,7 +328,7 @@ impl Checker {
             self.report(d);
             return self.unchecked_args(args);
         }
-        self.expect_type(&args[0], &Expect::of(Type::Array(Box::new(Type::U8))));
+        self.expect_type(&args[0], &Expect::of(operand));
         Type::String
     }
 }

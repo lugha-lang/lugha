@@ -313,9 +313,9 @@ pub(super) mod tests {
 
     #[test]
     fn a_built_in_types_table_holds_its_blocks_items() {
-        let ir = ir("interface Show { fun show(self): string; }\n\
-             impl Show for f64 { fun show(self): string = \"f\"; }\n\
-             impl<T: Show> Show for T[] { fun show(self): string = \"a\"; }\n\
+        let ir = ir("interface Show { fun label(self): string; }\n\
+             impl Show for f64 { fun label(self): string = \"f\"; }\n\
+             impl<T: Show> Show for T[] { fun label(self): string = \"a\"; }\n\
              fun main() { let a: Show = 1.5; let b: Show = [2.5]; }");
         let table = |name: &str| {
             ir.lines()
@@ -324,10 +324,10 @@ pub(super) mod tests {
                 .to_string()
         };
         assert!(
-            table("@lugha_vt_f64.Show = ").contains("Show@f64.show"),
+            table("@lugha_vt_f64.Show = ").contains("Show@f64.label"),
             "{ir}"
         );
         let array = table("@\"lugha_vt_f64[].Show\" = ");
-        assert!(array.contains("Show@array.show<f64>"), "{array}");
+        assert!(array.contains("Show@array.label<f64>"), "{array}");
     }
 }

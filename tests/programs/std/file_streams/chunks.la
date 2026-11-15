@@ -43,17 +43,17 @@ fun run(): Result<(), string> {
     println("{bytes} bytes of {total}");
 
     let h = fs.open("big.txt")?;
-    println(h.read_line());
+    println(h.read_line().debug());
     let next = h.read(7)?;
-    println(string_from_utf8(next));
-    println(h.read_line());
+    println(string_from_utf8(next).debug());
+    println(h.read_line().debug());
     h.close();
 
     let empty = fs.create("empty.txt")?;
     empty.close();
     let e = fs.open("empty.txt")?;
-    println(e.read_line());
-    println(e.read(1));
+    println(e.read_line().debug());
+    println(e.read(1).debug());
     e.close();
 
     let long = fs.create("long.txt")?;
@@ -68,12 +68,12 @@ fun run(): Result<(), string> {
         Some(line) => println("{line.len} {line == text}"),
         None => println("none"),
     }
-    println(l.read_line());
-    println(l.read_line());
+    println(l.read_line().debug());
+    println(l.read_line().debug());
     l.close();
     Ok(())
 }
 
 fun main() {
-    println(run());
+    println(run().debug());
 }

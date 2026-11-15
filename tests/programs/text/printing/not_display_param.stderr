@@ -1,0 +1,9 @@
+error[E0422]: `T` doesn't implement `Display`
+  --> tests/programs/text/printing/not_display_param.la:4:19
+  |
+4 |         println("{x}");
+  |                   ^
+  |
+  = help: add the bound `T: Display`, or show its debug form with `.debug()`
+
+For more about E0422, run `lughac explain E0422`.

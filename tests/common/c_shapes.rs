@@ -60,14 +60,14 @@ pub const PROGRAMS: [(&str, &str, &str); 3] = [
         "every_shape_goes_to_c_and_back",
         "fun main() {\n\
                  let red = Color { r: 230, g: 41, b: 55, a: 255 };\n\
-                 println(color_dim(red));\n\
+                 println(color_dim(red).debug());\n\
                  println(color_sum(red));\n\
-                 println(v2_add(V2 { x: 1.5, y: 2.0 }, V2 { x: 0.25, y: 3.0 }));\n\
-                 println(rect_grow(Rect { x: 10.0, y: 20.0, w: 30.0, h: 40.0 }, 1.5));\n\
-                 println(mixed_twice(Mixed { i: 21, d: 1.25 }));\n\
-                 println(fi_swap(FI { f: 7.9, n: 3 }));\n\
-                 println(tagd_bump(TagD { tag: 7, v: 1.0 }));\n\
-                 println(v3_scale(V3 { x: 1.0, y: 2.0, z: 3.0 }, 0.5));\n\
+                 println((v2_add(V2 { x: 1.5, y: 2.0 }, V2 { x: 0.25, y: 3.0 })).debug());\n\
+                 println((rect_grow(Rect { x: 10.0, y: 20.0, w: 30.0, h: 40.0 }, 1.5)).debug());\n\
+                 println((mixed_twice(Mixed { i: 21, d: 1.25 })).debug());\n\
+                 println((fi_swap(FI { f: 7.9, n: 3 })).debug());\n\
+                 println((tagd_bump(TagD { tag: 7, v: 1.0 })).debug());\n\
+                 println((v3_scale(V3 { x: 1.0, y: 2.0, z: 3.0 }, 0.5)).debug());\n\
              }\n",
         "Color { r: 115, g: 20, b: 27, a: 255 }\n581\nV2 { x: 1.75, y: 5.0 }\n\
          Rect { x: 8.5, y: 18.5, w: 33.0, h: 43.0 }\nMixed { i: 42, d: 2.5 }\nFI { f: 3.0, n: 7 }\n\
@@ -77,7 +77,7 @@ pub const PROGRAMS: [(&str, &str, &str); 3] = [
         "large_structs_and_full_registers_go_in_memory",
         "fun main() {\n\
                  let cam = Cam { offset: V2 { x: 1.0, y: 2.0 }, target: V2 { x: 3.0, y: 4.0 }, rotation: 5.0, zoom: 6.0 };\n\
-                 println(cam_zoom(cam, 2.0));\n\
+                 println((cam_zoom(cam, 2.0)).debug());\n\
                  println(cam_sum(cam));\n\
                  println(many(1, 2, 3, 4, 5, L2 { a: 6, b: 7 }, 8));\n\
                  println(floats(1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, V2 { x: 2.0, y: 3.0 }, 4.0));\n\
@@ -90,8 +90,8 @@ pub const PROGRAMS: [(&str, &str, &str); 3] = [
         "fun shade(i: i64): Color = Color { r: i as u8, g: 1, b: 2, a: 3 };\n\
              fun main() {\n\
                  let k: f32 = 2.0;\n\
-                 println(map_point(fun(p: V2): V2 = V2 { x: p.x * k, y: p.y + k }));\n\
-                 println(map_cam(fun(c: Cam): Cam = Cam { offset: c.offset, target: c.target, rotation: c.rotation, zoom: c.zoom * k }));\n\
+                 println((map_point(fun(p: V2): V2 = V2 { x: p.x * k, y: p.y + k })).debug());\n\
+                 println((map_cam(fun(c: Cam): Cam = Cam { offset: c.offset, target: c.target, rotation: c.rotation, zoom: c.zoom * k })).debug());\n\
                  println(pick(shade, 10));\n\
              }\n",
         "V2 { x: 3.0, y: 4.5 }\n27.0\n16\n",

@@ -22,7 +22,7 @@ fun main() {
         }
         t * 2
     };
-    println(last());
+    println(last().debug());
     println(count());
     println(total);
 }

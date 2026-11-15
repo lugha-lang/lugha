@@ -7,8 +7,8 @@ fun main() {
     let mut xs = [1, 2, 3];
     c.send(xs);
     xs[0] = 100;
-    println(c.recv().unwrap());
-    println(xs);
+    println(c.recv().unwrap().debug());
+    println(xs.debug());
     let p: Chan<Point> = Chan.buffered(1);
     p.send(Point { x: 1, y: 2 });
     let got = p.recv().unwrap();
@@ -16,7 +16,7 @@ fun main() {
     let t = spawn fun(): Point { Point { x: 3, y: 4 } }();
     let q = t.join();
     println("{q.x} {q.y}");
-    println(t);
-    println(c);
+    println(t.debug());
+    println(c.debug());
     println(c.is(c));
 }

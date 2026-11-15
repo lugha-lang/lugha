@@ -10,7 +10,7 @@ impl Named for Dog { fun name(self): string = "dog"; }
 
 struct Cat { lives: i64 }
 impl Named for Cat { fun name(self): string = "cat"; }
-impl Cat {
+impl Display for Cat {
     fun show(self): string = "a cat with {self.lives} lives";
 }
 
@@ -23,11 +23,11 @@ struct Pen { pet: Named, act: fun(i64): i64 }
 
 fun main() {
     let pets: Named[] = [Dog { age: 2 }, Cat { lives: 9 }];
-    println(pets);
-    println("first: {pets[0]}");
+    println(pets.debug());
+    println("first: {pets[0].debug()}");
     let src: Source<i64> = Count { n: 5 };
-    println(src);
-    println(Pen { pet: Cat { lives: 1 }, act: fun(x: i64): i64 = x + 1 });
-    let text = to_string(pets[1]);
+    println(src.debug());
+    println((Pen { pet: Cat { lives: 1 }, act: fun(x: i64): i64 = x + 1 }).debug());
+    let text = to_string(pets[1].debug());
     println(text.len);
 }

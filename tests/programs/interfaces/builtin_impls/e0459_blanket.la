@@ -1,10 +1,10 @@
 // A block is for one kind of type, not every type.
 interface Show {
-    fun show(self): string;
+    fun label(self): string;
 }
 
 impl<T> Show for T {
-    fun show(self): string = "t";
+    fun label(self): string = "t";
 }
 
 fun main() {}

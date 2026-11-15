@@ -292,6 +292,17 @@ pub(super) fn build(
     (opt, cpu, target): (OptLevel, Cpu, Target),
     exe: &Path,
 ) -> Result<(), Failure> {
+    // `debug(x)` is for development: an optimized build is a release.
+    if opt == OptLevel::O2 {
+        let found: Vec<Diagnostic> = checked(front)
+            .debug_calls
+            .iter()
+            .map(|&span| debug_in_release(span))
+            .collect();
+        if !found.is_empty() {
+            return Err(Failure::Program(front.source.clone(), found));
+        }
+    }
     // The target's own compiler unless `$LUGHA_CC` names one.
     let fallback = match target {
         Target::X86_64Linux => "cc",
@@ -318,6 +329,12 @@ pub(super) fn build(
         Some(d) => Failure::Program(front.source.clone(), vec![d]),
         None => internal(&front.source, e.to_string()),
     })
+}
+
+/// E0465: a `debug(x)` call at `span` in an optimized build.
+fn debug_in_release(span: crate::span::Span) -> Diagnostic {
+    Diagnostic::error("E0465", "`debug` is for development builds", span)
+        .with_help("remove the `debug(…)` call, or build without `-O2`")
 }
 
 /// The program's import that brings in OpenSSL's `std.<module>`:

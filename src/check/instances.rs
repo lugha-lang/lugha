@@ -252,9 +252,14 @@ impl Checker {
                     })
                     .collect()
             }
-            // A print site reaches the `show` instances of its type.
+            // A print site reaches the `show` of its type's `Display`.
             None if u.callee.key == PRINT => {
-                self.show_instances(&subst(&u.callee.args[0], generics, args), every)
+                self.display_instances(&subst(&u.callee.args[0], generics, args), every)
+            }
+            // A debug site reaches the `debug` of its type, and those of
+            // the types an interface value may hold.
+            None if u.callee.key == super::printing::DEBUG_USE => {
+                self.debug_instances(&subst(&u.callee.args[0], generics, args), every)
             }
             // An `==` reaches its type's `eq`: its own, or its
             // derive block's.

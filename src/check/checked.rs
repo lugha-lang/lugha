@@ -104,6 +104,8 @@ pub struct Checked {
     /// never decides from the syntax, since a program may have its own
     /// `derive`.
     pub derive_calls: HashMap<ExprId, String>,
+    /// Every `debug(x)` call, which an optimized build rejects (E0465).
+    pub debug_calls: Vec<crate::span::Span>,
     /// Iterator loops: the iterated expression's id, with what its
     /// `next` yields.
     pub iterations: HashMap<ExprId, Iteration>,

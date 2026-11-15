@@ -200,6 +200,16 @@ impl<'ctx> Lowerer<'ctx> {
             return self.chan_new(call, args).map(|v| Some(Value::Val(v)));
         }
         let base_type = self.ty(base);
+        // `x.debug()`: any value's debug form.
+        if name.name == "debug"
+            && self
+                .derived
+                .get(&call.id)
+                .is_some_and(|k| k == crate::check::DEBUG)
+        {
+            let value = self.get(base, &base_type)?;
+            return Ok(Some(Value::Val(self.part(value, &base_type))));
+        }
         // Through a derivable interface's bound, the covering derive
         // block's item, whatever the type.
         if let Some(method) = self.derive_method(call, &name.name, &base_type) {

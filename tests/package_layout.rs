@@ -48,7 +48,7 @@ fn text(bytes: &[u8]) -> String {
 
 const MANIFEST: &str = "[package]\nname = \"glowworm\"\nversion = \"0.1.0\"\nsource = \"src\"\n";
 const ARRAY: &str = "public fun zeros(n: i64): f64[] = [0.0; n];\n";
-const BASICS: &str = "import glowworm.array;\nfun main() { println(array.zeros(3)); }\n";
+const BASICS: &str = "import glowworm.array;\nfun main() { println(array.zeros(3).debug()); }\n";
 
 fn library() -> Temp {
     Temp::with(&[
@@ -235,12 +235,12 @@ fn import_n_reaches_the_packages_lib_la() {
         ("glow/src/lib.la", lib),
         (
             "glow/examples/entry.la",
-            "import glowworm;\nfun main() { println(glowworm.zeros(glowworm.size())); }\n",
+            "import glowworm;\nfun main() { println((glowworm.zeros(glowworm.size())).debug()); }\n",
         ),
         ("app/lugha.toml", "[packages]\nglowworm = \"../glow\"\n"),
         (
             "app/main.la",
-            "import glowworm { zeros, size };\nfun main() { println(zeros(size())); }\n",
+            "import glowworm { zeros, size };\nfun main() { println((zeros(size())).debug()); }\n",
         ),
     ]);
     for (cwd, file) in [("glow", "examples/entry.la"), ("app", "main.la")] {
@@ -275,7 +275,7 @@ fn a_package_entry_flattens_a_module_with_a_glob() {
         ("app/lugha.toml", "[packages]\nglowworm = \"../glow\"\n"),
         (
             "app/main.la",
-            "import glowworm { zeros };\nfun main() { println(zeros(2)); println(glowworm.zeros(1)); }\n",
+            "import glowworm { zeros };\nfun main() { println(zeros(2).debug()); println(glowworm.zeros(1).debug()); }\n",
         ),
     ]);
     let out = lughac(&t.0.join("app"), &t.0, &["run", "main.la"]);

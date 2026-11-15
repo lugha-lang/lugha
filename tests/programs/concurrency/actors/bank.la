@@ -23,5 +23,5 @@ fun main() {
     }
     println(account.total());
     account.stop();
-    println(account.join());
+    println(account.join().debug());
 }

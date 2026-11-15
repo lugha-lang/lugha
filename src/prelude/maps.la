@@ -124,8 +124,7 @@ impl Map<K: Key, V> {
     fun $entry(self, k: K): Result<V, string> {
         let (_, e) = $map_find(self, k);
         if e < 0 {
-            let shown = to_string([k]);
-            return Err("no key {shown.slice(1, shown.len - 1)} in the map");
+            return Err("no key {k.debug()} in the map");
         }
         Ok(self.$vals[e])
     }
@@ -134,8 +133,7 @@ impl Map<K: Key, V> {
     fun $slot(self, k: K): Result<i64, string> {
         let (_, e) = $map_find(self, k);
         if e < 0 {
-            let shown = to_string([k]);
-            return Err("no key {shown.slice(1, shown.len - 1)} in the map");
+            return Err("no key {k.debug()} in the map");
         }
         Ok(e)
     }
@@ -202,18 +200,6 @@ impl Map<K: Key, V> {
 
     /** An iterator of the entries as `(key, value)`, in order. */
     fun iter(self): Map<K, V> = Map { $at: 0, ..self };
-
-
-    /** `#{"ann": 31, "bo": 40}`. */
-    fun show(self): string {
-        let mut parts: string[] = [];
-        for (k, v) of self.iter() {
-            let ks = to_string([k]);
-            let vs = to_string([v]);
-            parts.push("{ks.slice(1, ks.len - 1)}: {vs.slice(1, vs.len - 1)}");
-        }
-        "#{{{parts.join(", ")}}}"
-    }
 }
 
 // `==` on maps needs equal values too.
@@ -312,16 +298,6 @@ impl Set<T: Key> {
             }
         }
         true
-    }
-
-    /** `#{1, 2, 3}`. */
-    fun show(self): string {
-        let mut parts: string[] = [];
-        for x of self.iter() {
-            let xs = to_string([x]);
-            parts.push(xs.slice(1, xs.len - 1));
-        }
-        "#{{{parts.join(", ")}}}"
     }
 }
 

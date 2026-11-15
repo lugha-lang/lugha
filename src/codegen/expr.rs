@@ -171,8 +171,18 @@ impl<'ctx> Lowerer<'ctx> {
                 self.os_call(expr, op, args)?
             }
             // `$string.from_bytes(bytes)` in the prelude.
-            ExprKind::Call(callee, args) if crate::check::string_op(callee).is_some() => {
-                self.string_from_bytes(args)?
+            ExprKind::Call(callee, args) if let Some(op) = crate::check::string_op(callee) => {
+                match op {
+                    "quote" => {
+                        let s = self.get(&args[0], &Type::String)?;
+                        self.call_runtime_value("lugha_rt_str_quote", &[Type::String], &[s])
+                    }
+                    "quote_char" => {
+                        let c = self.get(&args[0], &Type::Char)?;
+                        self.call_runtime_value("lugha_rt_char_quote", &[Type::Char], &[c])
+                    }
+                    _ => self.string_from_bytes(args)?,
+                }
             }
             ExprKind::Call(callee, args) if matches!(self.ty(callee), Type::Fun(..)) => {
                 return self.call_value(callee, args);

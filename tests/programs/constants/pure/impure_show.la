@@ -2,7 +2,7 @@
 // must be pure too (E0445).
 struct Point { x: i64, y: i64 }
 
-impl Point {
+impl Display for Point {
     fun show(self): string {
         println("showing a point");
         "({self.x}, {self.y})"

@@ -107,7 +107,11 @@ impl Checker {
         seen: &mut HashSet<Type>,
     ) -> Option<(String, Unmet)> {
         let at = |why: Unmet| Some((path.to_string(), why));
-        if matches!(ty, Type::Error | Type::Never) || !seen.insert(ty.clone()) {
+        // Every type has a debug form.
+        if matches!(ty, Type::Error | Type::Never)
+            || interface == super::derive::DEBUG
+            || !seen.insert(ty.clone())
+        {
             return None;
         }
         if let Type::Param(name) = ty {

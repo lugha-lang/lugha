@@ -119,7 +119,7 @@ fun main() {
     let mut w = ValUnion { int32: 0 };
     set_f64(mut w);
     println(w.float64);
-    println(w);
+    println(w.debug());
     let things = [thing_a(), thing_b(), thing_a()];
     println(count_a(things, 3));
 }

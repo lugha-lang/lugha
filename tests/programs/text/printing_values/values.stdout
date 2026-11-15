@@ -3,5 +3,5 @@ Circle(1.5)
 [Some(1), None]
 Team { name: "red", members: ["ann", "bo"] }
 $5.25
-wallet: Wallet { cash: $5.25 }
+wallet: Wallet { cash: Money { cents: 525 } }
 Stack { items: [3] }

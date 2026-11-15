@@ -2,7 +2,7 @@
 import shapes;
 
 impl shapes.Show for bool {
-    fun show(self): string = "b";
+    fun label(self): string = "b";
 }
 
 fun main() {}

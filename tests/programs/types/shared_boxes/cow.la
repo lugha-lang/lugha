@@ -6,18 +6,18 @@ fun main() {
     for i in 0..3 {
         a[i] = 0;
     }
-    println("{r.get()} {a}");
+    println("{r.get().debug()} {a.debug()}");
     let mut b = [5, 5];
     for i in 0..2 {
         b[i] += 1;
         r.set(b);
     }
     b[0] = 100;
-    println("{r.get()} {b}");
+    println("{r.get().debug()} {b.debug()}");
     let s = r;
     let mut c = s.get();
     c.push(7);
-    println("{r.get()} {c}");
+    println("{r.get().debug()} {c.debug()}");
     let grid = Ref.new([[1, 2], [3, 4]]);
     let mut g = grid.get();
     g[1][0] = 9;
@@ -26,5 +26,5 @@ fun main() {
         next[0][0] = 8;
         next
     });
-    println("{grid.get()} {g}");
+    println("{grid.get().debug()} {g.debug()}");
 }

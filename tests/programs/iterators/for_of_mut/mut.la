@@ -3,7 +3,7 @@ fun main() {
     for x of mut xs {
         x *= 2;
     }
-    println(xs);
+    println(xs.debug());
     let mut words = ["a", "b", "--", "c", "d"].iter();
     let mut first = "";
     for w of mut words {

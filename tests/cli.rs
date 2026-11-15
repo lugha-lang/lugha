@@ -420,3 +420,20 @@ fn a_reader_that_stops_early_is_not_a_failure() {
     let out = child.wait_with_output().expect("lughac finishes");
     assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
 }
+
+#[test]
+fn debug_is_e0465_in_an_optimized_build_only() {
+    let src = b"fun main() {\n    let x = debug(1 + 2);\n    println(x);\n}\n";
+    let dir = TempDir::with(&[("d.la", src)]);
+    let built = lughac(&dir.0, &["build", "-O2", "d.la"]);
+    assert_eq!(built.status.code(), Some(1));
+    let err = text(&built.stderr);
+    assert!(
+        err.contains("error[E0465]: `debug` is for development builds"),
+        "{err}"
+    );
+    let ran = lughac(&dir.0, &["run", "d.la"]);
+    assert_eq!(text(&ran.stdout), "3\n");
+    assert_eq!(text(&ran.stderr), "[d.la:2] 1 + 2 = 3\n");
+    assert_eq!(lughac(&dir.0, &["check", "d.la"]).status.code(), Some(0));
+}

@@ -40,5 +40,5 @@ fun main() {
     println(SQUARES);
     println(MIXED);
     println(UNIQUE);
-    println(DOUBLED);
+    println(DOUBLED.debug());
 }

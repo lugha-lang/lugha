@@ -131,7 +131,7 @@ impl<'ctx> Lowerer<'ctx> {
         ptr
     }
 
-    /// `print`, `println`, `to_string`, `panic` or `swap`.
+    /// `print`, `println`, `to_string`, `panic`, `swap` or `debug`.
     pub(super) fn intrinsic(
         &mut self,
         call: &Expr,
@@ -143,6 +143,13 @@ impl<'ctx> Lowerer<'ctx> {
         }
         if matches!(name, "assert" | "assert_eq" | "assert_ne" | "skip") {
             return self.assertion(call, name, args);
+        }
+        // `debug(x)`: its debug form on stderr, and `x` back.
+        if name == "debug" {
+            let ty = self.ty(&args[0]);
+            let value = self.get(&args[0], &ty)?;
+            self.debug_print(call, &args[0], &ty, value);
+            return Ok(Value::Val(value));
         }
         let arg = match args.first() {
             Some(arg) => {

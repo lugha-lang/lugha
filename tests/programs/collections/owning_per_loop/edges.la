@@ -28,7 +28,7 @@ fun main() {
             h.items[j] *= 10;
         }
     }
-    println("{hs[0].items} {hs[1].items} {cs[0][0].items} {cs[1][0].items} {cs[3][1].items}");
+    println("{hs[0].items.debug()} {hs[1].items.debug()} {cs[0][0].items.debug()} {cs[1][0].items.debug()} {cs[3][1].items.debug()}");
 
     // 2. index changed by swap
     let mut g = [[1, 2], [3, 4]];
@@ -40,7 +40,7 @@ fun main() {
         swap(i, one);
         kept.push(g[1]);
     }
-    println("{g} {kept}");
+    println("{g.debug()} {kept.debug()}");
 
     // 3. index that is an outer alias
     let mut ks = [0, 0];
@@ -53,7 +53,7 @@ fun main() {
             seen.push(m[1]);
         }
     }
-    println("{m} {seen} {ks}");
+    println("{m.debug()} {seen.debug()} {ks.debug()}");
 
     // 4. deep read of a sibling field
     let mut t = Two { a: [1], b: [2] };
@@ -63,13 +63,13 @@ fun main() {
         bs.push(t.b);
         t.b[0] += 1;
     }
-    println("{t.a} {t.b} {bs}");
+    println("{t.a.debug()} {t.b.debug()} {bs.debug()}");
 
     // 5. generic with arrays as T
     let rows = [[1], [2]];
     let row = [9];
     let filled = fill(rows, row);
-    println("{filled} {rows} {row}");
+    println("{filled.debug()} {rows.debug()} {row.debug()}");
 
     // 6. while condition copies
     let mut w = [1, 2];
@@ -79,7 +79,7 @@ fun main() {
         w[n] = 0;
         n += 1;
     }
-    println("{w} {wc}");
+    println("{w.debug()} {wc.debug()}");
 
     // 7. range bound copies (evaluated once, before the loop)
     let mut v = [1, 2];
@@ -87,7 +87,7 @@ fun main() {
     for q in 0..{ vc = v; 2 } {
         v[q] = 7;
     }
-    println("{v} {vc}");
+    println("{v.debug()} {vc.debug()}");
 
     // 8. iterator stepped in place inside an array, copied in the loop
     let mut its = [It { n: 0, log: [] }];
@@ -96,7 +96,7 @@ fun main() {
         held.push(its[0]);
         print("{x} ");
     }
-    println("{its[0].log} {held[0].log} {held[1].log}");
+    println("{its[0].log.debug()} {held[0].log.debug()} {held[1].log.debug()}");
 
     // 9. break and a write after the loop
     let mut z = [1, 2, 3];
@@ -106,7 +106,7 @@ fun main() {
         if r == 1 { break; }
     }
     z[2] = 5;
-    println("{z} {zc}");
+    println("{z.debug()} {zc.debug()}");
 
     // 10. a closure in the loop not capturing the root
     let mut y = [1, 2];
@@ -117,5 +117,5 @@ fun main() {
         y[r] = f(y[r]);
         total += y[r];
     }
-    println("{y} {yc} {total}");
+    println("{y.debug()} {yc.debug()} {total}");
 }

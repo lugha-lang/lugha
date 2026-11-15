@@ -19,7 +19,7 @@ fun main() {
     println(c.n);
     let mut words: string[] = [];
     fill(mut words, "hi", 2);
-    println(words);
+    println(words.debug());
     let mut k = 5;
     inc(mut k);
     inc(mut c.n);

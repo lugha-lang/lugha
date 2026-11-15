@@ -13,11 +13,11 @@ fun nones<T>(xs: T[]): Option<T>[] = xs.map(fun(x) = None);
 
 fun main() {
     println(nones([1, 2]).len);
-    println(evens([1, 2, 3], fun(x) = x % 2 == 0));
-    println(firsts([[1], []]));
-    println(nones_first([1, 2], fun(x) = x > 1));
+    println((evens([1, 2, 3], fun(x) = x % 2 == 0)).debug());
+    println(firsts([[1], []]).debug());
+    println((nones_first([1, 2], fun(x) = x > 1)).debug());
     let plain: Option<i64>[] = [1, 2].iter().map(
         fun(x) = if x > 1 { None } else { Some(x) },
     ).collect();
-    println(plain);
+    println(plain.debug());
 }

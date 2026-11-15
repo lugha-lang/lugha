@@ -18,7 +18,7 @@ fun max<T: Ord>(a: T, b: T): T { if a > b { a } else { b } }
 fun main() {
     let p = Point { x: 1.0 };
     let xs = [1, 2];
-    println(max(1.5, 2.5));
+    println(max('a', 'b'));
     println(p.x);
     println(xs.len);
 }
@@ -86,13 +86,13 @@ fn a_function_shows_its_header_with_the_first_parameter() {
 
 #[test]
 fn a_known_generic_call_is_filled_in_with_the_written_header_as_documentation() {
-    let (text, at) = edited("max(1.5, 2.5));", "max(1.5, ");
+    let (text, at) = edited("max('a', 'b'));", "max('a', ");
     assert_eq!(
         help(&text, at),
         Some((
-            "fun max(a: f64, b: f64): f64".to_string(),
+            "fun max(a: char, b: char): char".to_string(),
             1,
-            "b: f64".to_string(),
+            "b: char".to_string(),
             "fun max<T: Ord>(a: T, b: T): T".to_string()
         ))
     );

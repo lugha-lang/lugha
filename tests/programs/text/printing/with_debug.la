@@ -1,0 +1,4 @@
+// Every type is `Debug` already: asking for it is E0463.
+struct P { x: i64 } with Eq, Debug
+
+fun main() {}

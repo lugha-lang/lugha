@@ -263,7 +263,7 @@ mod tests {
              fun main() {\n\
                  let count = Ref.new(0);\n\
                  connect(make(), fun(w: W) { count.update(fun(n) = n + 1); }, 0);\n\
-                 connect(make(), fun(w) { println(w); }, 1);\n\
+                 connect(make(), fun(w) { println(w.debug()); }, 1);\n\
                  sort(3, by);\n\
                  sort(3, fun(a, b) = 0);\n\
              }",

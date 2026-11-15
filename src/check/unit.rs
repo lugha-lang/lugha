@@ -46,8 +46,8 @@ mod tests {
                 let o: Option<()> = Some(());\n\
                 let b = Box { u: (), n: 1 };\n\
                 println(u == ());\n\
-                println(us);\n\
-                println(\"{u} {o}\");\n\
+                println(us.debug());\n\
+                println(\"{u.debug()} {o.debug()}\");\n\
                 let c: Chan<()> = Chan.new();\n\
                 let t: Task<()> = spawn log(\"t\");\n\
                 let r: () = t.join();\n\

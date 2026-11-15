@@ -227,6 +227,11 @@ impl Checker {
     fn check_one(&mut self, owner: &str, key: &str, span: Span) {
         let shown = shown_interface(key);
         let ty = owner.rsplit('.').next().unwrap_or(owner).to_string();
+        // Every type is `Debug` already.
+        if key == super::derive::DEBUG {
+            self.report(errors::debug_asked(&ty, span));
+            return;
+        }
         let written = self
             .impls
             .get(owner)

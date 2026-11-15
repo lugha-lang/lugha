@@ -8,5 +8,5 @@ fun run(): Result<i64, string> {
 }
 
 fun main() {
-    println(run());
+    println(run().debug());
 }

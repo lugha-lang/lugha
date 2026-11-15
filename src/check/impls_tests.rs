@@ -51,7 +51,7 @@ fn a_misplaced_block_is_e0459() {
         ["E0459"]
     );
     assert_eq!(
-        codes("impl Display for C { fun show(self): string = \"c\"; }"),
+        codes("impl Iter<i64> for C { fun next(mut self): Option<i64> = None; }"),
         ["E0459"]
     );
     use crate::check::modules::test_util::errors;

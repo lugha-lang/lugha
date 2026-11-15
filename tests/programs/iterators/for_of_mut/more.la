@@ -18,13 +18,13 @@ fun main() {
         p.n += 1;
         p.bump();
     }
-    println(ps);
+    println(ps.debug());
 
     let mut flags = [true, false, true];
     for f of mut flags {
         f = !f;
     }
-    println(flags);
+    println(flags.debug());
 
     let mut xs = [1, 2, 3, 4, 5];
     for x of mut xs {
@@ -36,7 +36,7 @@ fun main() {
             break;
         }
     }
-    println(xs);
+    println(xs.debug());
 
     let mut grid = [[1, 2], [3]];
     for row of mut grid {
@@ -44,7 +44,7 @@ fun main() {
             c = -c;
         }
     }
-    println(grid);
+    println(grid.debug());
 
     let mut h = Holder { it: range(0, 10), seen: 0 };
     for n of mut h.it {
@@ -54,7 +54,7 @@ fun main() {
         }
     }
     println(h.seen);
-    println(h.it.next());
+    println(h.it.next().debug());
 
     let mut it: Iter<i64> = range(1, 6);
     for n of mut it {
@@ -62,5 +62,5 @@ fun main() {
             break;
         }
     }
-    println(it.collect());
+    println(it.collect().debug());
 }

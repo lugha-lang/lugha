@@ -12,6 +12,6 @@ error[E0462]: `Display` can't be derived for `P`, a struct
 8 | struct P { x: i64 } with Display
   |                          ^^^^^^^
   |
-  = help: a type meets `Display` with its own methods of the interface's item names, in `impl P { … }`
+  = help: `Display` has no derive blocks: write `impl Display for P { … }`
 
 For more about E0462, run `lughac explain E0462`.

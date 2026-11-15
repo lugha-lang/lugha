@@ -215,13 +215,13 @@ fun main() {{
     let a = http.get(\"http://127.0.0.1:{port}/x\").unwrap();
     println(\"{{a.status}} {{a.text().unwrap()}}\");
     let b = http.post(\"http://127.0.0.1:{port}/\", \"text/plain\", \"hi\".to_bytes()).unwrap();
-    println(\"{{b.status}} {{b.text().unwrap()}} {{b.header(\"x-thing\")}}\");
+    println(\"{{b.status}} {{b.text().unwrap()}} {{b.header(\"x-thing\").debug()}}\");
     let mut small = http.limits();
     small.body = 10;
     println(http.request_with(\"GET\", \"http://127.0.0.1:{port}/\", #{{}}, [], small).is_err());
     println(http.get(\"https://127.0.0.1:{refused}/\").is_err());
-    println(http.get(\"ftp://x\"));
-    println(http.get(\"http:///\"));
+    println(http.get(\"ftp://x\").debug());
+    println(http.get(\"http:///\").debug());
     match http.get(\"http://127.0.0.1:{refused}/\") {{
         Ok(_) => println(\"ok?\"),
         Err(e) => println(e),
@@ -358,12 +358,12 @@ import std.json;
 fun main() {{
     let body = json.Value.Object(#{{\"n\": json.Value.Array([json.Value.Integer(1), json.Value.Null])}});
     let r = http.post_json(\"http://127.0.0.1:{port}/api\", body).unwrap();
-    println(r.json());
+    println(r.json().debug());
     match http.get(\"http://127.0.0.1:{port}/\").unwrap().json() {{
         Err(e) => println(e.message()),
         Ok(_) => println(\"?\"),
     }}
-    println(http.post_json(\"http://127.0.0.1:{port}/\", json.Value.Float(f64.from_bits(9218868437227405312))));
+    println(http.post_json(\"http://127.0.0.1:{port}/\", json.Value.Float(f64.from_bits(9218868437227405312))).debug());
 }}
 "
     ));

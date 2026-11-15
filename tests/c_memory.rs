@@ -87,7 +87,7 @@ fun main() {
     let mem = memory_data();
     c_write(mem, 4, [1, 2, 3]);
     println(memory_sum());
-    println(c_read(mem, 3, 3));
+    println(c_read(mem, 3, 3).debug());
     let base = 100;
     let total = call_host(fun(args: Val[], results: Ref<Val[]>) {
         let mut out = results.get();

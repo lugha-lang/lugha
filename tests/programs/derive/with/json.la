@@ -31,5 +31,5 @@ fun main() {
     println(json.stringify(json.encode(Point { x: 1, y: 2 })).unwrap());
     let v = json.parse("{{\"title\": \"hi\", \"at\": 1}}").unwrap();
     let p: Result<Post, json.DecodeError> = json.decode(v);
-    println(p);
+    println(p.debug());
 }

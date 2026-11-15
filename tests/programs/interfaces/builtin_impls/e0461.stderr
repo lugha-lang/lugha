@@ -2,7 +2,7 @@ error[E0461]: `Show` is implemented for `Point[]` twice
    --> tests/programs/interfaces/builtin_impls/e0461.la:16:6
    |
 12 | / impl<T: Show> Show for T[] {
-13 | |     fun show(self): string = "all";
+13 | |     fun label(self): string = "all";
 14 | | }
    | \-' first implemented here
 15 |

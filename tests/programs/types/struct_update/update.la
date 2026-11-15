@@ -29,9 +29,9 @@ fun main() {
     let m = Model { count: 0, name: "", items: ["a", "b"] };
     let m = update(m, Msg.Add);
     let m = update(m, Msg.Named("ada"));
-    println("{m.count} {m.name} {m.items}");
+    println("{m.count} {m.name} {m.items.debug()}");
     let cleared = update(m, Msg.Clear);
-    println("{cleared.count} {cleared.name} {cleared.items} / {m.items}");
+    println("{cleared.count} {cleared.name} {cleared.items.debug()} / {m.items.debug()}");
 
     // Written fields first, then the base, once.
     let o = Model { count: noisy("count", 5), ..base() };
@@ -40,7 +40,7 @@ fun main() {
     // Copies: changing the copy's array leaves the base's alone.
     let mut copy = Model { count: 9, ..m };
     copy.items.push("c");
-    println("{copy.items} {m.items}");
+    println("{copy.items.debug()} {m.items.debug()}");
 
     // Generic: the base fixes the type arguments.
     let p = Pair { a: 1, b: "one" };

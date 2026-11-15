@@ -228,3 +228,15 @@ pub(in crate::check) fn derived_and_written(
         "keep one: remove `{interface}` from `with`, or the `impl` block"
     ))
 }
+
+/// E0463: `with Debug` on `ty`, which already has its debug form.
+pub(in crate::check) fn debug_asked(ty: &str, span: Span) -> Diagnostic {
+    Diagnostic::error(
+        "E0463",
+        format!("`{ty}` asks for `Debug`, which every type already implements"),
+        span,
+    )
+    .with_help(format!(
+        "remove `Debug` from `with`; write `impl Debug for {ty} {{ … }}` to change its debug form"
+    ))
+}

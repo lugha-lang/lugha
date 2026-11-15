@@ -19,7 +19,7 @@ fun main() {
     let c = Circle { r: 1.0 };
     println(total([1, 2]));
     println(c.area());
-    println(max(1.5, 2.5));
+    println(max('a', 'b'));
     println(show(c));
 }
 ";
@@ -129,8 +129,8 @@ fn functions_and_methods_show_their_signatures_where_declared_and_called() {
         code("fun total(xs: i64[]): i64", &[])
     );
     assert_eq!(
-        hover_at(&mut s, &uri, at("max(1.5", "max")),
-        code("fun max<T: Ord>(a: T, b: T): T", &["instance: max<f64>"])
+        hover_at(&mut s, &uri, at("max('a'", "max")),
+        code("fun max<T: Ord>(a: T, b: T): T", &["instance: max<char>"])
     );
     assert_eq!(s.finish(), Some(0));
 }
@@ -142,12 +142,12 @@ fn expressions_show_their_types_and_notes() {
     let at = |ctx, word| pos(PROGRAM, ctx, word);
     // The call itself, between its name and its arguments.
     assert_eq!(
-        hover_at(&mut s, &uri, at("max(1.5", "(")),
-        code("f64", &["instance: max<f64>"])
+        hover_at(&mut s, &uri, at("max('a'", "(")),
+        code("char", &["instance: max<char>"])
     );
     assert_eq!(
-        hover_at(&mut s, &uri, at("max(1.5", "1.5")),
-        code("f64", &[])
+        hover_at(&mut s, &uri, at("max('a'", "'a'")),
+        code("char", &[])
     );
     assert_eq!(
         hover_at(&mut s, &uri, at("show(c)", "c")),
@@ -258,7 +258,7 @@ fn positions_count_utf16_units() {
 
 #[test]
 fn handles_show_their_extern_type() {
-    const HANDLES: &str = "extern type Win;\nextern fun open_win(): Win;\nfun keep(w: Win): Win = w;\nfun main() { let w = keep(open_win()); println(w); }\n";
+    const HANDLES: &str = "extern type Win;\nextern fun open_win(): Win;\nfun keep(w: Win): Win = w;\nfun main() { let w = keep(open_win()); println(w.debug()); }\n";
     let t = Temp::with(&[("main.la", HANDLES)]);
     let uri = t.uri("main.la");
     let mut s = Server::start(&t, json!({}));
@@ -317,7 +317,7 @@ fn prelude_types_show_as_written() {
 #[test]
 fn a_unit_binding_shows_its_type() {
     let program =
-        "fun log() {}\n\nfun main() {\n    let done: () = log();\n    println(done);\n}\n";
+        "fun log() {}\n\nfun main() {\n    let done: () = log();\n    println(done.debug());\n}\n";
     let t = Temp::with(&[("main.la", program)]);
     let uri = t.uri("main.la");
     let mut s = Server::start(&t, json!({}));

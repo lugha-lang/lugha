@@ -59,6 +59,14 @@ impl<'ctx> Lowerer<'ctx> {
             let f = self.callees[&expr.id].clone();
             return Ok(self.order(&f, (a, b), &me).into());
         }
+        // A struct's name as written: `Point`, never `geo.Point<i64>`.
+        if op == "name" {
+            let name = match &me {
+                Type::Struct(key, _) => key.rsplit('.').next().unwrap_or(key).to_string(),
+                other => other.to_string(),
+            };
+            return Ok(self.string_literal(&name).into());
+        }
         // A variant's position, or a handle's address.
         if op == "index" || op == "address" {
             let x = self.get(&args[0], &me)?;

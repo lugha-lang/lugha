@@ -11,7 +11,7 @@ enum Tree { Leaf, Node(Tree, i64, Tree) }
 
 enum Light { Red, Green }
 
-impl Light {
+impl Display for Light {
     fun show(self): string = match self {
         Red => "stop",
         Green => "go",
@@ -33,22 +33,22 @@ impl Named for Dog {
 }
 
 fun dump<T>(x: T) {
-    println(x);
+    println(x.debug());
 }
 
 fun main() {
-    println(Line { from: geo.Pt { x: 0.5, y: 2.0 }, to: geo.Pt { x: 1.0, y: -1.0 }, tag: Some("a\"b\\c\nd") });
-    println(Tree.Node(Tree.Leaf, 1, Tree.Node(Tree.Leaf, 2, Tree.Leaf)));
+    println((Line { from: geo.Pt { x: 0.5, y: 2.0 }, to: geo.Pt { x: 1.0, y: -1.0 }, tag: Some("a\"b\\c\nd") }).debug());
+    println((Tree.Node(Tree.Leaf, 1, Tree.Node(Tree.Leaf, 2, Tree.Leaf))).debug());
     let empty: i64[] = [];
-    println(Empty {});
-    println(empty);
-    println([Light.Red, Light.Green]);
-    println(Odd { n: 3 });
+    println((Empty {}).debug());
+    println(empty.debug());
+    println([Light.Red, Light.Green].debug());
+    println((Odd { n: 3 }).debug());
     let r: Result<i64, string> = Err("no");
-    println(r);
-    let s = to_string([[1, 2], [3]]);
+    println(r.debug());
+    let s = to_string([[1, 2], [3]].debug());
     println(s.len);
-    eprintln(Some(true));
+    eprintln(Some(true).debug());
     let pet: Named = Dog { age: 4 };
     dump(pet);
     dump([pet, pet]);

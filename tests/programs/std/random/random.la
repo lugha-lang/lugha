@@ -10,6 +10,6 @@ fun main() {
     println(rng.between(10, 20));
     println(rng.normal(0.0, 1.0));
     println(rng.chance(0.5));
-    println(rng.choice(["red", "green", "blue"]));
-    println(rng.shuffle([1, 2, 3, 4, 5]));
+    println(rng.choice(["red", "green", "blue"]).debug());
+    println(rng.shuffle([1, 2, 3, 4, 5]).debug());
 }

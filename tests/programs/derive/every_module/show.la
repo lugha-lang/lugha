@@ -84,5 +84,5 @@ fun main() {
     let back: Result<Event, json.DecodeError> = json.decode(json.parse(text).unwrap());
     println(show(back.unwrap()));
     let bad: Result<Event, json.DecodeError> = json.decode(json.parse("{{\"title\": \"x\", \"on\": 5, \"shapes\": []}}").unwrap());
-    println(bad);
+    println(bad.debug());
 }

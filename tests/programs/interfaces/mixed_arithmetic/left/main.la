@@ -25,13 +25,13 @@ impl shapes.W {
 
 fun main() {
     let v = V { x: 1.0, y: 2.0 };
-    println(2.0 * v + v * v);
+    println((2.0 * v + v * v).debug());
     let b: u8 = 3;
-    println(b * v);
-    println(10.0 - v);
+    println((b * v).debug());
+    println((10.0 - v).debug());
     let w = shapes.W { k: 4.0 };
-    println(w * v);
-    println(w * w);
+    println((w * v).debug());
+    println((w * w).debug());
     let k: f64 = 0.5;
-    println(k * v);
+    println((k * v).debug());
 }

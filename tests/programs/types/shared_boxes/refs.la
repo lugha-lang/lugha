@@ -38,17 +38,17 @@ fun main() {
     let boxed = Ref.new([1, 2, 3]);
     let mut taken = boxed.get();
     taken[0] = 99;
-    println("{boxed.get()} {taken}");
+    println("{boxed.get().debug()} {taken.debug()}");
     let mut list = [7, 8];
     boxed.set(list);
     list[0] = 0;
-    println("{boxed.get()} {list}");
+    println("{boxed.get().debug()} {list.debug()}");
     boxed.update(fun(xs: i64[]): i64[] {
         let mut ys = xs;
         ys.push(9);
         ys
     });
-    println(boxed.get());
+    println(boxed.get().debug());
 
     // Generic code over boxes.
     let f = Ref.new(1.5);
@@ -57,10 +57,10 @@ fun main() {
     println("{f.get()} {n.get()}");
 
     // Printing, and a struct copy that still shares its box.
-    println(n);
+    println(n.debug());
     let mut h2 = h;
     h2.label = "h2";
     h2.r.set(42);
     println("{h.r.get()} {h.label} {h2.label}");
-    println(h2);
+    println(h2.debug());
 }

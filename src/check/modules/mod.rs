@@ -135,6 +135,7 @@ fn check_with(
             derives: checker.derives,
             derived: checker.derived,
             derive_calls: checker.derive_calls,
+            debug_calls: checker.debug_calls,
             interfaces,
             annotations: checker.annotations,
             instances: checker.instances,

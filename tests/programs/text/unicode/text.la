@@ -11,7 +11,7 @@ fun main() {
     println("{s.char_count()} chars, {s.len} bytes");
     println(shout(s));
     println(s.chars().filter(fun(c) = c.is_alphabetic()).count());
-    println(['é', 'a', '\n']);
+    println(['é', 'a', '\n'].debug());
     println('é' as u32);
-    println(char_from(55296));
+    println(char_from(55296).debug());
 }

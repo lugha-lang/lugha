@@ -49,9 +49,11 @@ public struct TimeError {
 impl TimeError {
     /** What went wrong: `no day 31 in month 2 of 2026`. */
     public fun message(self): string = self.message;
+}
 
+impl Display for TimeError {
     /** Printed as its message. */
-    public fun show(self): string = self.message;
+    fun show(self): string = self.message;
 }
 
 /** The widest offset accepted, in seconds: 26 hours. */

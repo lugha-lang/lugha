@@ -87,11 +87,9 @@ impl Checker {
         }
         if !self.eq_ok(&ty) {
             self.report(errors::bad_operands_on("==", &[ty], call.span));
-        } else if !super::printing::printable(&ty) {
-            self.report(errors::intrinsic_argument("print", ty, args[0].span));
         } else {
-            self.printed(&args[0], &ty);
-            self.printed(&args[1], &ty);
+            // A failure shows both values in their debug forms.
+            self.debug_used(&args[0], &ty);
             self.equality_used(call, &ty);
         }
         Type::Unit

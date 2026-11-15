@@ -4,11 +4,11 @@ public struct Point { public x: f64, public y: f64 }
 
 // In `Point`'s module: arrays and options of points.
 impl shapes.Show for Point[] {
-    fun show(self): string = "{self.len} points";
+    fun label(self): string = "{self.len} points";
 }
 
 impl shapes.Show for Option<Point> {
-    fun show(self): string = match self {
+    fun label(self): string = match self {
         Some(p) => "at {p.x}",
         None => "nowhere",
     };

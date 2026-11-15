@@ -27,7 +27,7 @@ fun main() {
     let is: i64[] = arange(4);
     let fs: f64[] = arange(3);
     let bs: u8[] = arange(3);
-    println("{is} {fs} {bs}");
+    println("{is.debug()} {fs.debug()} {bs.debug()}");
     println("{scale(5)} {scale(5 as u8)} {scale(2.5)} {scale(1.5 as f32)}");
     println("{half(3.0)} {half(5.0 as f32)}");
     println("{widen(10)} {widen(10 as u8)} {widen(2.0 as f32)}");

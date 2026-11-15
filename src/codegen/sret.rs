@@ -247,7 +247,7 @@ mod tests {
     fn other_results_and_main_are_unchanged() {
         let ir = ir(
             "fun n(): i64 = 1;\nfun s(): string = \"a\";\nfun xs(): i64[] = [1];\n\
-             fun main() { println(n()); println(s()); println(xs()); }",
+             fun main() { println(n()); println(s()); println(xs().debug()); }",
         );
         assert!(
             define(&ir, "@lugha_fn_n(").starts_with("define i64"),

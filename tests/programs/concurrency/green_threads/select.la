@@ -20,7 +20,7 @@ fun main() {
         b.send(7) => println("sent 7"),
         m = a.recv() => println("unexpected"),
     }
-    println(b.try_recv());
+    println(b.try_recv().debug());
     // Nobody sends in time: `after`.
     select {
         m = a.recv() => println("unexpected"),
@@ -38,6 +38,6 @@ fun main() {
     // A closed channel's arm fires with `None`.
     a.close();
     select {
-        m = a.recv() => println("closed gives {m}"),
+        m = a.recv() => println("closed gives {m.debug()}"),
     }
 }

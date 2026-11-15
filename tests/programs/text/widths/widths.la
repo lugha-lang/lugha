@@ -17,5 +17,5 @@ fun main() {
     let k = 42;
     println("[{k:é>5}]");
     let o = Some("é");
-    println("[{o:<12}]");
+    println("[{o.debug():<12}]");
 }

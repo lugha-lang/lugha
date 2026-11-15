@@ -4,17 +4,17 @@
 import std.fs;
 
 fun main() {
-    println(fs.open("missing.txt").map(fun(f: fs.File): i64 = 0));
-    println(fs.create("no/such/folder.txt").map(fun(f: fs.File): i64 = 0));
-    println(fs.append("a\0b").map(fun(f: fs.File): i64 = 0));
+    println((fs.open("missing.txt").map(fun(f: fs.File): i64 = 0)).debug());
+    println((fs.create("no/such/folder.txt").map(fun(f: fs.File): i64 = 0)).debug());
+    println((fs.append("a\0b").map(fun(f: fs.File): i64 = 0)).debug());
     let bad: u8[] = [111, 107, 10, 255, 10, 102, 105, 110, 101, 10];
     let w = write_bytes("bad.txt", bad);
     let f = fs.open("bad.txt").unwrap();
-    println(f.read(0));
-    println(f.read(16777217));
-    println(f.read_line());
-    println(f.read_line());
-    println(f.read_line());
-    println(f.read_line());
+    println(f.read(0).debug());
+    println(f.read(16777217).debug());
+    println(f.read_line().debug());
+    println(f.read_line().debug());
+    println(f.read_line().debug());
+    println(f.read_line().debug());
     f.close();
 }

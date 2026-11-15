@@ -18,12 +18,13 @@ use crate::span::Span;
 
 /// The intrinsics' call forms as a signature help shows them; a test keeps
 /// the list equal to `check::intrinsics()` and to the spec.
-const INTRINSIC_SIGNATURES: [(&str, &str); 27] = [
+const INTRINSIC_SIGNATURES: [(&str, &str); 28] = [
     ("print", "print(x)"),
     ("println", "println(x)"),
     ("panic", "panic(msg)"),
     ("to_string", "to_string(x)"),
     ("swap", "swap(a, b)"),
+    ("debug", "debug(x)"),
     ("args", "args()"),
     ("parse_i64", "parse_i64(s)"),
     ("parse_u64", "parse_u64(s)"),

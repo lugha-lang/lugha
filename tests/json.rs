@@ -79,15 +79,15 @@ fun repeat(s: string, n: i64): string {
 
 fun show(r: Result<json.Value, json.JsonError>) {
     match r {
-        Ok(v) => println("ok {v}"),
-        Err(e) => println("{e.kind}: {e.message()}"),
+        Ok(v) => println("ok {v.debug()}"),
+        Err(e) => println("{e.kind.debug()}: {e.message()}"),
     }
 }
 
 fun written(r: Result<string, json.JsonError>) {
     match r {
         Ok(s) => println(s),
-        Err(e) => println("{e.kind}: {e.message()}"),
+        Err(e) => println("{e.kind.debug()}: {e.message()}"),
     }
 }
 "#;
@@ -97,8 +97,8 @@ fn the_objective_program_runs() {
     let out = run(r#"
 fun go(): Result<(), json.JsonError> {
     let v = json.parse("{{\"user\": {{\"name\": \"ada\", \"id\": 9007199254740993}}}}")?;
-    println(json.get(v, "user").and_then(fun(u) = json.get(u, "name")).and_then(json.as_text));
-    println(json.get(v, "user").and_then(fun(u) = json.get(u, "id")).and_then(json.as_i64));
+    println((json.get(v, "user").and_then(fun(u) = json.get(u, "name")).and_then(json.as_text)).debug());
+    println((json.get(v, "user").and_then(fun(u) = json.get(u, "id")).and_then(json.as_i64)).debug());
     let reply = json.Value.Object(#{
         "ok": json.Value.Bool(true),
         "tags": json.Value.Array([json.Value.Text("a"), json.Value.Null]),
@@ -141,7 +141,7 @@ fun main() {
     show(json.parse("1e-400"));
     show(json.parse("{{\"b\": 1, \"a\": \"x\", \"c\": {{}}, \"d\": []}}"));
     let text = json.as_text(json.parse("\"\\ud834\\udd1e\\u00e9\\\"\\\\\\/\\b\\f\\n\\r\\t\"").unwrap()).unwrap();
-    println(text.to_bytes());
+    println(text.to_bytes().debug());
 }
 "#);
     assert_eq!(
@@ -321,19 +321,19 @@ fn helpers_reach_into_values() {
 fun main() {
     let v = json.parse("{{\"user\": {{\"name\": \"ada\", \"id\": 9007199254740993, \"n\": 3, \"tags\": [\"x\", null], \"ok\": true, \"r\": 0.5}}}}").unwrap();
     let u = json.get(v, "user").unwrap();
-    println(json.get(u, "name").and_then(json.as_text));
-    println(json.get(u, "id").and_then(json.as_i64));
-    println(json.get(u, "n").and_then(json.as_f64));
-    println(json.get(u, "r").and_then(json.as_f64));
-    println(json.get(u, "ok").and_then(json.as_bool));
+    println(json.get(u, "name").and_then(json.as_text).debug());
+    println(json.get(u, "id").and_then(json.as_i64).debug());
+    println(json.get(u, "n").and_then(json.as_f64).debug());
+    println(json.get(u, "r").and_then(json.as_f64).debug());
+    println(json.get(u, "ok").and_then(json.as_bool).debug());
     let tags = json.get(u, "tags").unwrap();
     println(json.as_array(tags).unwrap().len);
-    println(json.at(tags, 0).and_then(json.as_text));
+    println(json.at(tags, 0).and_then(json.as_text).debug());
     println(json.is_null(json.at(tags, 1).unwrap()));
     println("{json.at(tags, 2).is_none()} {json.at(tags, -1).is_none()} {json.at(u, 0).is_none()}");
     println("{json.get(tags, "x").is_none()} {json.get(u, "missing").is_none()}");
     println(json.as_object(u).unwrap().len);
-    println("{json.as_text(tags)} {json.as_i64(u)} {json.as_f64(json.Value.Text("1"))} {json.as_bool(json.Value.Null)} {json.as_array(u)} {json.as_object(tags)} {json.is_null(u)}");
+    println("{json.as_text(tags).debug()} {json.as_i64(u).debug()} {(json.as_f64(json.Value.Text("1"))).debug()} {json.as_bool(json.Value.Null).debug()} {json.as_array(u).debug()} {json.as_object(tags).debug()} {json.is_null(u)}");
 }
 "#);
     assert_eq!(
@@ -371,7 +371,7 @@ fn a_program_that_only_parses_compiles_no_writer() {
     // A program that only encodes compiles no decoder.
     let encodes = lughac(
         &temp.0,
-        "import std.json;\nstruct P { x: i64 } with json.Json\nfun main() { println(json.encode(P { x: 1 })); }\n",
+        "import std.json;\nstruct P { x: i64 } with json.Json\nfun main() { println(json.encode(P { x: 1 }).debug()); }\n",
         &["build", "--emit=ir", "main.la"],
     );
     let ir = String::from_utf8_lossy(&encodes.stdout);

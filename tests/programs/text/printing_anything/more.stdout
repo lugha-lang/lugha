@@ -1,5 +1,5 @@
-[Dog { age: 2 }, a cat with 9 lives]
+[Dog { age: 2 }, Cat { lives: 9 }]
 first: Dog { age: 2 }
 Count { n: 5 }
-Pen { pet: a cat with 1 lives, act: <fun> }
-18
+Pen { pet: Cat { lives: 1 }, act: <fun> }
+16

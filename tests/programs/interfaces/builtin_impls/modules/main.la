@@ -2,17 +2,17 @@
 import geo;
 import shapes;
 
-fun all<T: shapes.Show>(x: T): string = x.show();
+fun all<T: shapes.Show>(x: T): string = x.label();
 
 fun main() {
     let ps = [geo.Point { x: 1.0, y: 2.0 }, geo.Point { x: 3.0, y: 4.0 }];
-    println(ps.show());
+    println(ps.label());
     println(all(ps));
     let o: Option<geo.Point> = None;
-    println(shapes.Show.show(o));
-    println(Some(ps[1]).show());
+    println(shapes.Show.label(o));
+    println(Some(ps[1]).label());
     let items: shapes.Show[] = [ps, 2.5];
     for i of items {
-        println(i.show());
+        println(i.label());
     }
 }

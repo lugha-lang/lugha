@@ -89,8 +89,8 @@ fun main() {
     u.set_timeout(200);
     let c: Chan<i64> = Chan.new();
     spawn tick(c);
-    println(u.recv_from(100));
-    println(c.recv());
+    println(u.recv_from(100).debug());
+    println(c.recv().debug());
 }");
     assert_eq!(out, "Err(\"timed out\")\nSome(1)\n");
 }
@@ -102,16 +102,16 @@ fn bad_input_is_refused() {
     let b = net.udp_bind(\"127.0.0.1:0\").unwrap();
     b.set_timeout(2000);
     a.send_to([7 as u8; 100], b.addr()).unwrap();
-    println(b.recv_from(10));
-    println(a.send_to([], \"localhost:9\"));
-    println(a.send_to([], \"127.0.0.1\"));
-    println(b.recv_from(0));
-    println(b.recv_from(65537));
+    println(b.recv_from(10).debug());
+    println(a.send_to([], \"localhost:9\").debug());
+    println(a.send_to([], \"127.0.0.1\").debug());
+    println(b.recv_from(0).debug());
+    println(b.recv_from(65537).debug());
     // A port taken without sharing can't be bound again.
     println(net.udp_bind(a.addr()).is_err());
     a.close();
-    println(a.send_to([], b.addr()));
-    println(a.recv_from(10));
+    println((a.send_to([], b.addr())).debug());
+    println(a.recv_from(10).debug());
     println(a.addr());
 }");
     assert_eq!(
@@ -148,7 +148,7 @@ fn shared_sockets_hear_a_multicast_group_until_they_leave() {
     b.leave(group, \"\").unwrap();
     s.send_to(\"again\".to_bytes(), \"{group}:{port}\").unwrap();
     println(string_from_utf8(a.recv_from(100).unwrap().0).unwrap());
-    println(b.recv_from(100));
+    println(b.recv_from(100).debug());
     // Groups of the wrong family or that aren't multicast.
     println(a.join(\"ff02::fb\", \"\").is_err());
     println(a.join(\"10.0.0.1\", \"\").is_err());

@@ -103,9 +103,7 @@ impl Checker {
                 continue;
             };
             let ty = self.value(e, None);
-            if !super::printing::printable(&ty) && !matches!(ty, Type::Error | Type::Never) {
-                self.report(errors::not_interpolable(&ty, e.span));
-            } else {
+            if self.displayed(&ty, e.span) {
                 self.printed(e, &ty);
             }
             // `{x:spec}`: the specifier must parse and fit `x`.
@@ -141,10 +139,13 @@ mod tests {
 
     #[test]
     fn only_printable_values_interpolate() {
-        // Every value interpolates, `()` included.
-        crate::check::test_util::ok("fun f() {}\nfun main() { let t = \"{f()}\"; }");
+        // A value interpolates its `Display`; anything else, its debug form.
+        assert_eq!(
+            errors("fun f() {}\nfun main() { let t = \"{f()}\"; }"),
+            [("E0422", "f()")]
+        );
         crate::check::test_util::ok(
-            "struct P { x: i64 }\nfun main() { let t = \"{[1]} {P { x: 1 }}\"; }",
+            "struct P { x: i64 }\nfun main() { let t = \"{[1].debug()} {P { x: 1 }.debug()}\"; }",
         );
     }
 
@@ -206,7 +207,10 @@ mod tests {
             [("E0401", "1")]
         );
         assert_eq!(errors("fun main() { exit(\"x\"); }"), [("E0403", "\"x\"")]);
-        crate::check::test_util::ok("fun f() {}\nfun main() { eprint(f()); }");
+        assert_eq!(
+            errors("fun f() {}\nfun main() { eprint(f()); }"),
+            [("E0422", "f()")]
+        );
         assert_eq!(errors("fun exit() {}\nfun main() {}"), [("E0302", "exit")]);
     }
 
@@ -227,7 +231,8 @@ mod tests {
         assert_eq!(e("let t = \"{n:q}\";")[0].0, "E0431");
         assert_eq!(e("let t = \"{n:2000}\";")[0].0, "E0431");
         crate::check::test_util::ok(
-            "struct P { x: i64 }\nfun main() { let p = P { x: 1 }; let n: u8 = 3; let t = \"{p:>20} {n:#010b} {2.5:+<8.1}\"; }",
+            "struct P { x: i64 }\nimpl Display for P { fun show(self): string = \"p\"; }\n\
+             fun main() { let p = P { x: 1 }; let n: u8 = 3; let t = \"{p:>20} {n:#010b} {2.5:+<8.1}\"; }",
         );
     }
 }

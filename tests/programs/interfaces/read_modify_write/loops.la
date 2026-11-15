@@ -48,23 +48,23 @@ fun main() {
             break;
         }
     }
-    println(r.rows);
+    println(r.rows.debug());
 
     let mut spare = [7];
     swap(r[1], spare);
-    println((r.rows, spare));
+    println((r.rows, spare).debug());
     swap(r[0], r[1]);
-    println(r.rows);
+    println(r.rows.debug());
 
     let (r2, found) = first_over(Rows { rows: [[1, 5, 9]] }, 0, 6);
-    println((r2.rows, found));
+    println((r2.rows, found).debug());
 
     match parse_all(Rows { rows: [[1, 2]] }) {
-        Ok(p) => println(p.rows),
+        Ok(p) => println(p.rows.debug()),
         Err(e) => println(e),
     }
     match parse_all(Rows { rows: [[1, -2, 3]] }) {
-        Ok(p) => println(p.rows),
+        Ok(p) => println(p.rows.debug()),
         Err(e) => println(e),
     }
 
@@ -75,5 +75,5 @@ fun main() {
             continue outer;
         }
     }
-    println(g.rows[0].rows);
+    println(g.rows[0].rows.debug());
 }

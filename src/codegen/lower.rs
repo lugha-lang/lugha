@@ -177,6 +177,13 @@ impl OwnedSource {
         (file, offset - file.base.min(offset))
     }
 
+    /// The source text from `start` to `end`, as written.
+    pub(super) fn written(&self, start: usize, end: usize) -> &str {
+        let (file, local) = self.file_at(start);
+        let end = (local + end.saturating_sub(start)).min(file.text.len());
+        file.text.get(local.min(end)..end).unwrap_or("")
+    }
+
     pub(super) fn line_col(&self, offset: usize) -> (usize, usize) {
         let (file, local) = self.file_at(offset);
         SourceInfo {

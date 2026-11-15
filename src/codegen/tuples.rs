@@ -74,30 +74,6 @@ impl<'ctx> Lowerer<'ctx> {
         }
     }
 
-    /// `(a, b)`: each element's text inside a built-in form, joined.
-    pub(super) fn show_tuple(
-        &mut self,
-        value: BasicValueEnum<'ctx>,
-        fields: &[(String, Type)],
-    ) -> BasicValueEnum<'ctx> {
-        let record = value.into_struct_value();
-        let mut text: BasicValueEnum = self.string_literal("(").into();
-        for (index, (field, field_ty)) in fields.iter().enumerate() {
-            let at = u32::try_from(index).expect("element count fits in u32");
-            let raw = self
-                .builder
-                .build_extract_value(record, at, field)
-                .expect("element exists");
-            let element = self.loaded_form(raw, field_ty);
-            if index > 0 {
-                text = self.join(text, ", ");
-            }
-            let part = self.part(element, field_ty);
-            text = self.concat(text, part);
-        }
-        self.join(text, ")")
-    }
-
     /// `a op b` for an ordering `op` on tuples of type `ty`.
     pub(super) fn tuple_order(
         &mut self,

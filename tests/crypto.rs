@@ -182,10 +182,10 @@ fun main() {{
     println(crypto.ed25519_verify(cut(key, 31), message, sig) || crypto.ed25519_verify(long_key, message, sig) || crypto.ed25519_verify([], message, sig));
     println(crypto.ed25519_verify(key, message, cut(sig, 63)) || crypto.ed25519_verify(key, message, long_sig) || crypto.ed25519_verify(key, message, []));
     println(crypto.ed25519_verify([255 as u8; 32], message, sig));
-    println(crypto.ed25519_sign(cut(secret, 31), message));
+    println((crypto.ed25519_sign(cut(secret, 31), message)).debug());
     let mut long_secret = secret;
     long_secret.push(0);
-    println(crypto.ed25519_public(long_secret).map_err(fun(e: crypto.CryptoError): string = e.message()));
+    println((crypto.ed25519_public(long_secret).map_err(fun(e: crypto.CryptoError): string = e.message())).debug());
 }}
 "
         ));
@@ -215,7 +215,7 @@ fn keypairs_random_bytes_and_equality() {
     }
     println();
     println(!crypto.equal(crypto.random_bytes(32).unwrap(), crypto.random_bytes(32).unwrap()));
-    println(crypto.random_bytes(1048577));
+    println(crypto.random_bytes(1048577).debug());
     println(crypto.random_bytes(-1).is_err());
     println(\"{crypto.equal([1, 2, 3], [1, 2, 3])} {crypto.equal([1, 2, 3], [1, 2, 4])} {crypto.equal([1, 2], [1, 2, 3])} {crypto.equal([], [])}\");
 }

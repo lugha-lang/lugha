@@ -32,11 +32,11 @@ impl Model {
 fun main() {
     let mut g = G { vals: [] };
     let y = g.mul(g.sum(g.put(1.0), g.put(2.0)), g.half(g.put(8.0)));
-    println("{y} {g.vals}");
+    println("{y} {g.vals.debug()}");
 
     let mut m = Model { g: G { vals: [3.0] }, gain: 2.0 };
     let z = m.layer(0);
-    println("{z} {m.g.vals}");
+    println("{z} {m.g.vals.debug()}");
 
     let mut t: Tape = G { vals: [] };
     let a = t.sum(t.put(1.0), t.put(5.0));
@@ -47,5 +47,5 @@ fun main() {
     let keep = gs;
     let i = 1;
     let c = gs[i].sum(gs[i].put(10.0), gs[i].half(gs[i].put(4.0)));
-    println("{c} {gs[0].vals} {gs[1].vals} {keep[1].vals}");
+    println("{c} {gs[0].vals.debug()} {gs[1].vals.debug()} {keep[1].vals.debug()}");
 }

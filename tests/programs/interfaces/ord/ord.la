@@ -34,13 +34,13 @@ fun main() {
     println(Version { major: 2, minor: 0 } >= Version { major: 1, minor: 99 });
     println(Level.High > Level.Low);
     println([Score { name: "a", points: 3 }, Score { name: "b", points: 1 }].sort()[0].name);
-    println([(2, "b"), (1, "z"), (2, "a")].sort());
+    println(([(2, "b"), (1, "z"), (2, "a")].sort()).debug());
     println(1.5 < 2.5);
-    println([2.5, -0.0, 1.0].sort_by(f64.total_order));
+    println(([2.5, -0.0, 1.0].sort_by(f64.total_order)).debug());
 
     // A generic struct, an enum with payloads, tuples inside a struct.
     println(Pair { a: "x", b: 2 } < Pair { a: "x", b: 3 });
-    println([Shape.Rect(1, 2), Shape.Dot, Shape.Circle(9), Shape.Rect(1, 1)].sort());
+    println(([Shape.Rect(1, 2), Shape.Dot, Shape.Circle(9), Shape.Rect(1, 1)].sort()).debug());
     let r1 = Route { stops: ("a", (1, 'b')), level: Level.High };
     let r2 = Route { stops: ("a", (1, 'c')), level: Level.Low };
     println("{r1 < r2} {r1 == r1}");
@@ -53,10 +53,10 @@ fun main() {
     // IEEE 754's total order, as a value and called.
     let nan = 0.0 / 0.0;
     let inf = 1.0 / 0.0;
-    println([nan, 1.0, -inf, -0.0, 0.0, -2.0].sort_by(f64.total_order));
+    println(([nan, 1.0, -inf, -0.0, 0.0, -2.0].sort_by(f64.total_order)).debug());
     println("{f64.total_order(-0.0, 0.0)} {f64.total_order(0.0, -0.0)} {f64.total_order(1.0, nan)} {f64.total_order(nan, nan)}");
     let fs: f32[] = [3.0, -1.0, 2.0];
-    println(fs.sort_by(f32.total_order));
+    println(fs.sort_by(f32.total_order).debug());
     let x: f32 = -0.0;
     let y: f32 = 0.0;
     println(f32.total_order(x, y));

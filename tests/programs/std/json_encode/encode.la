@@ -45,5 +45,5 @@ fun main() {
     show(empty);
     let nan = f64.from_bits(9221120237041090560);
     println(json.stringify(json.encode([nan])).is_err());
-    println(json.encode(n8));
+    println(json.encode(n8).debug());
 }

@@ -5,6 +5,6 @@ struct P { x: i64 }
 
 impl Shape for fun(): f64 { fun area(self): f64 = 1.0; }
 
-impl Display for P { fun show(self): string = "p"; }
+impl Iter<i64> for P { fun next(mut self): Option<i64> = None; }
 
 fun main() {}

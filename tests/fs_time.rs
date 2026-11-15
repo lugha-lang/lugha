@@ -59,16 +59,16 @@ fn rename_replaces_and_set_mode_sets_bits() {
 fun main() {
     write_file(\"old\", \"old contents\").unwrap();
     write_file(\"new.tmp\", \"new contents\").unwrap();
-    println(fs.rename(\"new.tmp\", \"old\"));
-    println(read_file(\"old\"));
+    println(fs.rename(\"new.tmp\", \"old\").debug());
+    println(read_file(\"old\").debug());
     println(fs.exists(\"new.tmp\"));
-    println(fs.rename(\"missing\", \"x\"));
-    println(fs.rename(string_from_utf8([97, 0, 98]).unwrap(), \"x\"));
+    println(fs.rename(\"missing\", \"x\").debug());
+    println((fs.rename(string_from_utf8([97, 0, 98]).unwrap(), \"x\")).debug());
     write_file(\"key\", \"secret\").unwrap();
-    println(fs.set_mode(\"key\", 0o600));
-    println(fs.set_mode(\"key\", -1));
-    println(fs.set_mode(\"key\", 4096));
-    println(fs.set_mode(\"nope\", 0b110_000_000));
+    println(fs.set_mode(\"key\", 0o600).debug());
+    println(fs.set_mode(\"key\", -1).debug());
+    println(fs.set_mode(\"key\", 4096).debug());
+    println(fs.set_mode(\"nope\", 0b110_000_000).debug());
 }
 ",
     );
@@ -99,7 +99,7 @@ fn a_rename_across_devices_is_an_error() {
     let source = shm.join(format!("lugha-fst-{}", std::process::id()));
     std::fs::write(&source, "x").unwrap();
     let out = t.run(&format!(
-        "import std.fs;\n\nfun main() {{\n    println(fs.rename(\"{}\", \"here\"));\n}}\n",
+        "import std.fs;\n\nfun main() {{\n    println(fs.rename(\"{}\", \"here\").debug());\n}}\n",
         source.display()
     ));
     // Best effort: the file is ours, in shared memory.
@@ -187,12 +187,12 @@ fn sync_writes_files_and_folders_out() {
 fun main() {
     write_file(\"state\", \"old\").unwrap();
     write_file(\"state.tmp\", \"new\").unwrap();
-    println(fs.sync(\"state.tmp\"));
-    println(fs.rename(\"state.tmp\", \"state\"));
-    println(fs.sync(\".\"));
-    println(read_file(\"state\"));
-    println(fs.sync(\"missing\"));
-    println(fs.sync(string_from_utf8([97, 0, 98]).unwrap()));
+    println(fs.sync(\"state.tmp\").debug());
+    println(fs.rename(\"state.tmp\", \"state\").debug());
+    println(fs.sync(\".\").debug());
+    println(read_file(\"state\").debug());
+    println(fs.sync(\"missing\").debug());
+    println((fs.sync(string_from_utf8([97, 0, 98]).unwrap())).debug());
 }
 ",
     );

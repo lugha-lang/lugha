@@ -38,7 +38,7 @@ pub(super) fn const_owner(key: &str) -> String {
 /// Why intrinsic `name` reaches outside the program, or `None` when it doesn't.
 fn intrinsic_reason(name: &str) -> Option<&'static str> {
     Some(match name {
-        "print" | "println" | "eprint" | "eprintln" | "flush" => "prints",
+        "print" | "println" | "eprint" | "eprintln" | "flush" | "debug" => "prints",
         "read_line" | "read_stdin_bytes" => "reads input",
         "read_file" | "read_bytes" => "reads files",
         "write_file" | "append_file" | "write_bytes" | "append_bytes" => "writes files",
@@ -369,7 +369,7 @@ mod tests {
     fn a_types_own_show_and_eq_are_followed() {
         // Interpolation calls `show` without naming it.
         let src = "struct P { x: i64 }\n\
-                   impl P { fun show(self): string { println(1); \"p\" } }\n\
+                   impl Display for P { fun show(self): string { println(1); \"p\" } }\n\
                    const L: string = \"at {P { x: 0 }}\";\nfun main() {}";
         assert_eq!(one_file_errors(src)[0].0, "E0445");
         assert!(help(src).contains("`P.show`"), "{}", help(src));
@@ -384,11 +384,12 @@ mod tests {
         )]);
         assert_eq!(codes, ["E0445"]);
         // A quiet `show` stays pure.
-        ok(&[(
+        let quiet = prelude_codes(&[(
             "main.la",
-            "struct P { x: i64 }\nimpl P { fun show(self): string = \"p\"; }\n\
+            "struct P { x: i64 }\nimpl Display for P { fun show(self): string = \"p\"; }\n\
              const L: string = \"at {P { x: 0 }}\";\nfun main() {}",
         )]);
+        assert!(quiet.is_empty(), "{quiet:?}");
     }
 
     #[test]

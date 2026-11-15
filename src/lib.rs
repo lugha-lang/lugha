@@ -50,8 +50,8 @@ pub const STD: &[(&str, &str)] = &[
 ];
 
 /// The prelude, written in Lugha and loaded with every program: one module
-/// from seven files, holding the array and iterator helpers, Unicode text,
-/// operator bounds, maps and sets, and equality and hashing.
+/// from eight files, holding the array and iterator helpers, Unicode text,
+/// operator bounds, maps and sets, equality and hashing, and printing.
 pub const PRELUDE: &str = concat!(
     include_str!("prelude/core.la"),
     include_str!("prelude/iter.la"),
@@ -59,7 +59,8 @@ pub const PRELUDE: &str = concat!(
     include_str!("prelude/text.la"),
     include_str!("prelude/ops.la"),
     include_str!("prelude/maps.la"),
-    include_str!("prelude/eq.la")
+    include_str!("prelude/eq.la"),
+    include_str!("prelude/debug.la")
 );
 
 /// The language specification this compiler implements, embedded verbatim;

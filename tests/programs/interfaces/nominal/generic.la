@@ -30,12 +30,12 @@ fun make<T: From<string>>(s: string): T = T.from(s);
 
 fun main() {
     let mut st = Stack { items: [1, 2, 3] };
-    println(drain(st));
+    println(drain(st).debug());
     println(st.first());
     println(count(Stack { items: ["a"] }));
     let src: Source<i64> = Stack { items: [7] };
     let mut s2 = src;
-    println(s2.next());
+    println(s2.next().debug());
     let p: Path = make("x");
     println(p.s);
     println(Sized.size(st));

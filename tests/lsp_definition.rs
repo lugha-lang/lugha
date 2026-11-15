@@ -242,7 +242,7 @@ fn a_jump_right_after_typing_sees_the_new_text() {
 
 #[test]
 fn handle_types_jump_to_their_extern_type() {
-    const HANDLES: &str = "extern type Win;\nextern fun open_win(): Win;\nfun keep(w: Win): Win = w;\nfun main() { let w = keep(open_win()); println(w); }\n";
+    const HANDLES: &str = "extern type Win;\nextern fun open_win(): Win;\nfun keep(w: Win): Win = w;\nfun main() { let w = keep(open_win()); println(w.debug()); }\n";
     let t = Temp::with(&[("main.la", HANDLES)]);
     let uri = t.uri("main.la");
     let mut s = Server::start(&t, json!({}));

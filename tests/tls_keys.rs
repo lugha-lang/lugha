@@ -154,7 +154,7 @@ fn set_accept_changes_who_gets_in_next() {
     l.set_accept([]).unwrap();
     try(l.addr(), a, server.key);
     l.close();
-    println(l.set_accept([]));
+    println(l.set_accept([]).debug());
 }",
     )
     .runs("refused\nin\nrefused\nErr(\"closed\")\n");
@@ -180,7 +180,7 @@ fn wrong_key_lengths_are_refused() {
         Ok(_) => println(\"connected\"),
     }
     let l = tls.listen_keys(\"127.0.0.1:0\", tls.Keys { secret: a.secret, accept: [] }).unwrap();
-    println(l.set_accept([short]));
+    println(l.set_accept([short]).debug());
 }",
     )
     .runs(
@@ -202,7 +202,7 @@ fn certificates_and_keys_do_not_mix() {
     let by_cert = tls.listen(\"127.0.0.1:0\", \"self.pem\", \"self.key\").unwrap();
     spawn serve(by_cert);
     try(by_cert.addr(), a, server.key);
-    println(by_cert.set_accept([a.key]));
+    println(by_cert.set_accept([a.key]).debug());
     // A certificate connection has no peer key.
     let c = tls.connect_with(by_cert.addr(), trust).unwrap();
     println(c.peer_key().len);

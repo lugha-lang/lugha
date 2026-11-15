@@ -18,6 +18,8 @@
 //!   payloads of the variant at hand, named by the variant), nothing allocated;
 //! - `derive.index(x)`: an enum value's variant position, an `i64`;
 //! - `derive.address(x)`: in a `for handle` block, the handle's address, a `u64`;
+//! - `derive.name(x)`: a struct's name as written, without its module or
+//!   type arguments (`Point`);
 //! - `derive.all(a, b, f)`: `bool`, true if `f(name, x, y)`
 //!   holds for every pair of corresponding fields (an enum's: false for
 //!   different variants, else every payload pair), stopping at the first false.
@@ -31,7 +33,7 @@ use super::{Checker, SELF, Type, errors};
 use crate::ast::{Expr, ExprKind};
 
 /// The intrinsics' names, after `derive.`.
-pub const DERIVE_OPS: [&str; 10] = [
+pub const DERIVE_OPS: [&str; 11] = [
     "fields",
     "build",
     "variant",
@@ -40,6 +42,7 @@ pub const DERIVE_OPS: [&str; 10] = [
     "fold",
     "index",
     "address",
+    "name",
     "all",
     "order",
 ];
@@ -113,7 +116,7 @@ impl Checker {
                 matches!(block.covers, Covers::Struct | Covers::Tuple | Covers::Enum)
             }
             (Covers::Enum, o) => matches!(o, "variant" | "variants" | "build_variant" | "index"),
-            (Covers::Struct | Covers::Tuple, o) => matches!(o, "fields" | "build"),
+            (Covers::Struct | Covers::Tuple, o) => matches!(o, "fields" | "build" | "name"),
             (Covers::Handle, o) => o == "address",
             (Covers::Type(_), _) => false,
         };
@@ -125,7 +128,7 @@ impl Checker {
         }
         let count = match op {
             "variants" => 0,
-            "index" | "address" => 1,
+            "index" | "address" | "name" => 1,
             "build" => 2,
             _ => 3,
         };
@@ -140,10 +143,14 @@ impl Checker {
         if op == "all" || op == "order" {
             return self.derive_all(call, args, &block.interface, op == "order");
         }
-        // A variant's position, or a handle's address.
-        if op == "index" || op == "address" {
+        // A variant's position, a handle's address, or a struct's name.
+        if op == "index" || op == "address" || op == "name" {
             self.value(&args[0], Some(&Expect::of(me)));
-            return Ok(if op == "index" { Type::I64 } else { Type::U64 });
+            return Ok(match op {
+                "index" => Type::I64,
+                "address" => Type::U64,
+                _ => Type::String,
+            });
         }
         // The value, or the variant's name, comes before `ctx` and `f`.
         let first = match op {

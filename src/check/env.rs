@@ -8,7 +8,8 @@ use crate::ast::{Ident, Item, Program, Type as Annotation, TypeKind};
 use crate::span::Span;
 
 /// Built into the compiler; their names are reserved.
-pub(super) const INTRINSICS: [&str; 5] = ["print", "println", "panic", "to_string", "swap"];
+pub(super) const INTRINSICS: [&str; 6] =
+    ["print", "println", "panic", "to_string", "swap", "debug"];
 
 /// True for every intrinsic name, the input intrinsics (`check::input`) included.
 pub(super) fn is_intrinsic(name: &str) -> bool {
@@ -331,7 +332,7 @@ mod tests {
         );
         // C's text comes back as a copy.
         ok(
-            "extern fun getenv(k: string): Option<string>;\nfun main() { println(getenv(\"HOME\")); }",
+            "extern fun getenv(k: string): Option<string>;\nfun main() { println(getenv(\"HOME\").debug()); }",
         );
         assert_eq!(
             errors("extern fun f(): i64[];\nfun main() {}"),

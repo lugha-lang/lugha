@@ -24,24 +24,24 @@ struct Tick {
 }
 
 fun main() {
-    println(both("a", "b"));
-    println(both("a", ""));
+    println(both("a", "b").debug());
+    println(both("a", "").debug());
     let u: () = log("hi");
-    println(u);
+    println(u.debug());
     println(u == ());
     let us = [(), id(()), u];
-    println(us);
+    println(us.debug());
     println(us.len);
     let o: Option<()> = Some(());
-    println("{o} {u}");
+    println("{o.debug()} {u.debug()}");
     let t = Tick { at: 3, done: () };
-    println(t);
+    println(t.debug());
     let done: Chan<()> = Chan.buffered(1);
     done.send(());
-    println(done.recv());
+    println(done.recv().debug());
     let task: Task<()> = spawn log("from a task");
     let r: () = task.join();
-    println(r);
+    println(r.debug());
     let seen: Map<string, ()> = #{"x": ()};
     println(seen.has("x"));
 }

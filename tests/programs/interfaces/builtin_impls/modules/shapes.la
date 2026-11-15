@@ -1,7 +1,7 @@
 public interface Show {
-    fun show(self): string;
+    fun label(self): string;
 }
 
 impl Show for f64 {
-    fun show(self): string = "{self}";
+    fun label(self): string = "{self}";
 }

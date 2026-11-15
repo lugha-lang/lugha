@@ -29,7 +29,7 @@ fun main() {
     for n in 0..6 {
         groups[if n % 2 == 0 { "even" } else { "odd" }].push(n);
     }
-    println(groups["even"]);
+    println(groups["even"].debug());
 
     let mut g = Grid { w: 2, cells: [0.0; 4] };
     g[1, 1] += 2.5;

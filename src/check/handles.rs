@@ -53,8 +53,8 @@ mod tests {
                  let o: Option<W> = Some(w);\n\
                  println(w == s.w);\n\
                  println(w != make());\n\
-                 println(w);\n\
-                 println(\"{w}\");\n\
+                 println(w.debug());\n\
+                 println(\"{w.debug()}\");\n\
              }",
         ));
     }
