@@ -333,7 +333,9 @@ impl Checker {
             }
             [(a, _), (b, _), ..] => {
                 let names = [a.clone(), b.clone()];
-                self.report(errors::ambiguous_item(&name.name, ty, &names, name.span));
+                self.report(errors::ambiguous_associated(
+                    &name.name, ty, &names, name.span,
+                ));
                 Some(None)
             }
         }
@@ -471,6 +473,10 @@ mod tests {
             )),
             ["E0460"]
         );
+        let src =
+            format!("{SHAPE}{blocks}fun main() {{ let c = C {{ r: 1.0 }}; let a = c.area(); }}");
+        let help = diagnostics(&src)[0].help.clone().expect("a help");
+        assert!(help.contains("`Plot.area(c)` or `Shape.area(c)`"), "{help}");
         ok(&format!(
             "{SHAPE}{blocks}fun main() {{ let a = Plot.area(C {{ r: 1.0 }}); }}"
         ));

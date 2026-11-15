@@ -40,9 +40,7 @@ impl Checker {
             1 => found.remove(0),
             _ => {
                 let names = [found[0].to_string(), found[1].to_string()];
-                self.report(errors::ambiguous_item(
-                    &name.name, receiver, &names, name.span,
-                ));
+                self.report(errors::ambiguous_item(&name.name, receiver, &names, call));
                 return Some(None);
             }
         };

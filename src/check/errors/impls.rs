@@ -4,6 +4,7 @@
 //! block of one interface.
 
 use super::super::Type;
+use crate::ast::{Expr, ExprKind};
 use crate::diagnostic::Diagnostic;
 use crate::span::Span;
 
@@ -57,7 +58,44 @@ pub(in crate::check) fn misplaced_impl(interface: &str, why: String, span: Span)
 }
 
 /// E0460: `name` on `ty` is an item of two interfaces it implements.
+/// `call` is the call as written, `x.name(…)` or `T.name(…)`, from which
+/// the help spells the qualified calls.
 pub(in crate::check) fn ambiguous_item(
+    name: &str,
+    ty: &Type,
+    names: &[String; 2],
+    call: &Expr,
+) -> Diagnostic {
+    let [a, b] = names;
+    let (span, help) = match &call.kind {
+        ExprKind::Call(callee, args) => match &callee.kind {
+            ExprKind::Field(base, item) => {
+                let more = if args.is_empty() { "" } else { ", …" };
+                let receiver = brief(base);
+                let help = format!(
+                    "say which one you mean: `{a}.{name}({receiver}{more})` or `{b}.{name}({receiver}{more})`"
+                );
+                (item.span, help)
+            }
+            _ => (call.span, String::new()),
+        },
+        _ => (call.span, String::new()),
+    };
+    let d = Diagnostic::error(
+        "E0460",
+        format!("`{name}` on `{ty}` is an item of both `{a}` and `{b}`"),
+        span,
+    );
+    if help.is_empty() {
+        d
+    } else {
+        d.with_help(help)
+    }
+}
+
+/// E0460 for an associated function `ty.name(…)` that two interfaces
+/// `ty` implements declare, at `span`.
+pub(in crate::check) fn ambiguous_associated(
     name: &str,
     ty: &Type,
     names: &[String; 2],
@@ -70,8 +108,29 @@ pub(in crate::check) fn ambiguous_item(
         span,
     )
     .with_help(format!(
-        "say which one you mean: `{a}.{name}(x, …)` or `{b}.{name}(x, …)`"
+        "call it through a bound that names one of them, `T: {a}`, or give `{ty}` its own `{name}`"
     ))
+}
+
+/// `e` shortened for a help: names, fields, literals and calls as
+/// written, anything longer as `…`.
+fn brief(e: &Expr) -> String {
+    match &e.kind {
+        ExprKind::Name(n) => n.clone(),
+        ExprKind::Field(base, field) => format!("{}.{}", brief(base), field.name),
+        ExprKind::Int(n) => n.to_string(),
+        ExprKind::Bool(b) => b.to_string(),
+        ExprKind::Call(callee, args) => {
+            let inside = if args.is_empty() { "" } else { "…" };
+            format!("{}({inside})", brief(callee))
+        }
+        ExprKind::StructLit(lit) => match &lit.module {
+            Some(m) => format!("{}.{} {{ … }}", m.name, lit.name.name),
+            None => format!("{} {{ … }}", lit.name.name),
+        },
+        ExprKind::Index(base, _, _) => format!("{}[…]", brief(base)),
+        _ => "…".to_string(),
+    }
 }
 
 /// E0461: a second `impl interface for ty`; the first is at `first`.

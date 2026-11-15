@@ -4,6 +4,6 @@ error[E0460]: `area` on `C` is an item of both `Plot` and `Shape`
 11 |     println(C { r: 1.0 }.area());
    |                          ^^^^
    |
-   = help: say which one you mean: `Plot.area(x, …)` or `Shape.area(x, …)`
+   = help: say which one you mean: `Plot.area(C { … })` or `Shape.area(C { … })`
 
 For more about E0460, run `lughac explain E0460`.
