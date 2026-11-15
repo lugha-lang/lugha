@@ -1,0 +1,21 @@
+// Each `Result` handled or dropped on purpose: no E0467.
+fun save(text: string): Result<(), string> {
+    if text == "" {
+        return Err("nothing to save");
+    }
+    Ok(())
+}
+
+fun first(): Result<i64, string> {
+    save("a")?;
+    Ok(1)
+}
+
+fun main() {
+    let _ = save("draft");
+    match save("") {
+        Ok(()) => println("saved"),
+        Err(e) => println("not saved: {e}"),
+    }
+    println(first().unwrap());
+}

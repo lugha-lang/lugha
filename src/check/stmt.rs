@@ -65,7 +65,14 @@ impl Checker {
             StmtKind::Assign {
                 op, place, value, ..
             } => self.assign(*op, place, value),
-            StmtKind::Expr { expr, .. } => return self.expr(expr, None) == Type::Never,
+            StmtKind::Expr { expr, .. } => {
+                let ty = self.expr(expr, None);
+                // A `Result` can't be dropped silently: its error would be lost.
+                if matches!(&ty, Type::Enum(k, _) if k == super::results::RESULT) {
+                    self.report(errors::discarded_result(&ty, expr.span));
+                }
+                return ty == Type::Never;
+            }
             StmtKind::While { cond, body, .. } => {
                 self.expect_type(cond, &Expect::of(Type::Bool));
                 self.loop_body(body);
@@ -198,7 +205,7 @@ impl Checker {
 #[cfg(test)]
 mod tests {
     use crate::check::Type;
-    use crate::check::test_util::{errors, let_type};
+    use crate::check::test_util::{errors, let_type, ok};
 
     #[test]
     fn let_and_assignment_check_types() {
@@ -285,5 +292,23 @@ mod tests {
             errors("fun f(): bool { 1 }\nfun main() {}"),
             [("E0401", "1")]
         );
+    }
+
+    #[test]
+    fn a_discarded_result_is_e0467() {
+        let r = "fun get(): Result<i64, string> = Ok(1);\n";
+        let e = |body: &str| {
+            let src = format!("{r}fun main() {{ {body} }}");
+            errors(&src).iter().map(|(c, _)| *c).collect::<Vec<_>>()
+        };
+        assert_eq!(e("get();"), ["E0467"]);
+        assert_eq!(e("for i in 0..1 { get(); }"), ["E0467"]);
+        ok(&format!(
+            "{r}fun main() {{ let _ = get(); let o: Option<i64> = None; o; }}"
+        ));
+        let tail = format!("{r}fun t(): Result<i64, string> {{ get() }}\nfun main() {{}}");
+        ok(&tail);
+        let generic = format!("{r}fun run<T>(f: fun(): T) {{ f(); }}\nfun main() {{ run(get); }}");
+        ok(&generic);
     }
 }

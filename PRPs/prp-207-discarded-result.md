@@ -1,6 +1,6 @@
 ## FEATURE: A discarded `Result` is an error; `let _ = e;` discards one on purpose; milestone 175, in v18's Phase 1.
 
-**Status:** proposed 2026-11-16.
+**Status:** proposed 2026-11-16. Approved 2026-11-16.
 
 ## OBJECTIVE
 ```lugha
@@ -53,11 +53,16 @@ fun main() {
 - Warnings instead of an error.
 
 ## TESTS
-- [ ] `tests/programs/errors/discarded_result/`: the OBJECTIVE minus its errors (runs), and each discard form as an E0467 case (a call, a method call, an `if` and a `match` as statements, inside a closure, a loop and `defer`'s braces).
-- [ ] Unit tests: each form; `let _ =`, a tail and `?` stay fine; `Option` and a `T` aren't errors.
-- [ ] The full `cargo test`, since programs inside the Rust tests may discard one.
+- [x] `tests/programs/errors/discarded_result/`: the OBJECTIVE minus its errors (runs), and each discard form as an E0467 case (a call, a method call, an `if` and a `match` as statements, inside a closure, a loop and `defer`'s braces).
+- [x] Unit tests: each form; `let _ =`, a tail and `?` stay fine; `Option` and a `T` aren't errors.
+- [x] The full `cargo test`, since programs inside the Rust tests may discard one.
 
 ## ACCEPTANCE
-- [ ] The OBJECTIVE gives E0467 at its first line only, and runs once that line goes.
-- [ ] The full `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
-- [ ] Spec, CHANGELOG and the error pages updated.
+- [x] The OBJECTIVE gives E0467 at its first line only, and runs once that line goes.
+- [x] The full `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
+- [x] Spec, CHANGELOG and the error pages updated.
+
+## CHANGES DURING THE BUILD
+- **The message names the type,** "this `Result<i64, string>` is discarded", instead of a label repeating the span.
+- **E0456's help** for a deferred `Result` now reads `defer { let _ = fs.remove_file(tmp); }`, as its page does.
+

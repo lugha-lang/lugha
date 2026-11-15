@@ -22,10 +22,16 @@ pub(in crate::check) fn leaves_defer(keyword: &str, span: Span, defer: Span) -> 
     .with_help("it runs while its block is already being left; handle the case inside it instead")
 }
 
+/// E0467: a `Result` used as a statement, so its error would be lost.
+pub(in crate::check) fn discarded_result(ty: &Type, span: Span) -> Diagnostic {
+    Diagnostic::error("E0467", format!("this `{ty}` is discarded"), span)
+        .with_help("handle it with `?` or `match`, or drop it on purpose with `let _ = …;`")
+}
+
 /// A deferred statement with a value: nothing would see it.
 pub(in crate::check) fn deferred_value(ty: Type, span: Span) -> Diagnostic {
     let help = if matches!(&ty, Type::Enum(k, _) if k == crate::check::RESULT) {
-        "handle the error inside it, or discard it on purpose: `defer { fs.remove_file(tmp); }`"
+        "handle the error inside it, or discard it on purpose: `defer { let _ = fs.remove_file(tmp); }`"
     } else {
         "nothing would see its value: add `;` inside braces to discard it, `defer { e; }`"
     };

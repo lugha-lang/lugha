@@ -1,0 +1,9 @@
+error[E0467]: this `Result<(), string>` is discarded
+   --> tests/programs/errors/discarded_result/e0467.la:12:5
+   |
+12 |     save("draft");                       // E0467: this `Result` is discarded
+   |     ^^^^^^^^^^^^^
+   |
+   = help: handle it with `?` or `match`, or drop it on purpose with `let _ = …;`
+
+For more about E0467, run `lughac explain E0467`.

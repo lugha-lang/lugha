@@ -1,0 +1,34 @@
+// Every way to drop a `Result` as a statement is E0467; a tail value, `?`,
+// `let _ =`, and an `Option` are fine.
+struct Store { n: i64 }
+
+impl Store {
+    fun put(self, k: i64): Result<i64, string> = if k < 0 { Err("negative") } else { Ok(k) };
+}
+
+fun get(k: i64): Result<i64, string> = Ok(k);
+
+fun twice(k: i64): Result<i64, string> {
+    let v = get(k)?;
+    get(v)
+}
+
+fun main() {
+    let s = Store { n: 0 };
+    s.put(1);
+    if s.n == 0 { get(1) } else { get(2) };
+    match s.n {
+        0 => get(3),
+        _ => get(4),
+    };
+    let f = fun() { get(5); };
+    for i in 0..2 {
+        get(i);
+    }
+    defer {
+        get(6);
+    };
+    let _ = twice(2);
+    let o: Option<i64> = Some(1);
+    o;
+}

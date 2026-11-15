@@ -1,0 +1,52 @@
+error[E0467]: this `Result<i64, string>` is discarded
+   --> tests/programs/errors/discarded_result/forms.la:18:5
+   |
+18 |     s.put(1);
+   |     ^^^^^^^^
+   |
+   = help: handle it with `?` or `match`, or drop it on purpose with `let _ = …;`
+
+error[E0467]: this `Result<i64, string>` is discarded
+   --> tests/programs/errors/discarded_result/forms.la:19:5
+   |
+19 |     if s.n == 0 { get(1) } else { get(2) };
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: handle it with `?` or `match`, or drop it on purpose with `let _ = …;`
+
+error[E0467]: this `Result<i64, string>` is discarded
+   --> tests/programs/errors/discarded_result/forms.la:20:5
+   |
+20 | /     match s.n {
+21 | |         0 => get(3),
+22 | |         _ => get(4),
+23 | |     };
+   | \-----^
+   |
+   = help: handle it with `?` or `match`, or drop it on purpose with `let _ = …;`
+
+error[E0467]: this `Result<i64, string>` is discarded
+   --> tests/programs/errors/discarded_result/forms.la:24:21
+   |
+24 |     let f = fun() { get(5); };
+   |                     ^^^^^^
+   |
+   = help: handle it with `?` or `match`, or drop it on purpose with `let _ = …;`
+
+error[E0467]: this `Result<i64, string>` is discarded
+   --> tests/programs/errors/discarded_result/forms.la:26:9
+   |
+26 |         get(i);
+   |         ^^^^^^
+   |
+   = help: handle it with `?` or `match`, or drop it on purpose with `let _ = …;`
+
+error[E0467]: this `Result<i64, string>` is discarded
+   --> tests/programs/errors/discarded_result/forms.la:29:9
+   |
+29 |         get(6);
+   |         ^^^^^^
+   |
+   = help: handle it with `?` or `match`, or drop it on purpose with `let _ = …;`
+
+For more about E0467, run `lughac explain E0467`.

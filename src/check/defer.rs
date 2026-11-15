@@ -67,7 +67,7 @@ mod tests {
     fn a_unit_statement_or_block_is_accepted() {
         ok(&main("let x = 1; defer println(x); defer { println(2); }"));
         ok(&main("defer { let r = f(); }"));
-        ok(&main("defer { f(); }"));
+        ok(&main("defer { let _ = f(); }"));
         ok(&main("defer if true { println(1); }"));
         ok(&main("defer panic(\"no\");"));
     }
