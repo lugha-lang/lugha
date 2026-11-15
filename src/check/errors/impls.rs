@@ -4,6 +4,7 @@
 //! block of one interface.
 
 use super::super::Type;
+use super::brief;
 use crate::ast::{Expr, ExprKind};
 use crate::diagnostic::Diagnostic;
 use crate::span::Span;
@@ -110,27 +111,6 @@ pub(in crate::check) fn ambiguous_associated(
     .with_help(format!(
         "call it through a bound that names one of them, `T: {a}`, or give `{ty}` its own `{name}`"
     ))
-}
-
-/// `e` shortened for a help: names, fields, literals and calls as
-/// written, anything longer as `…`.
-fn brief(e: &Expr) -> String {
-    match &e.kind {
-        ExprKind::Name(n) => n.clone(),
-        ExprKind::Field(base, field) => format!("{}.{}", brief(base), field.name),
-        ExprKind::Int(n) => n.to_string(),
-        ExprKind::Bool(b) => b.to_string(),
-        ExprKind::Call(callee, args) => {
-            let inside = if args.is_empty() { "" } else { "…" };
-            format!("{}({inside})", brief(callee))
-        }
-        ExprKind::StructLit(lit) => match &lit.module {
-            Some(m) => format!("{}.{} {{ … }}", m.name, lit.name.name),
-            None => format!("{} {{ … }}", lit.name.name),
-        },
-        ExprKind::Index(base, _, _) => format!("{}[…]", brief(base)),
-        _ => "…".to_string(),
-    }
 }
 
 /// E0461: a second `impl interface for ty`; the first is at `first`.

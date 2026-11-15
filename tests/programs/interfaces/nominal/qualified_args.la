@@ -1,0 +1,11 @@
+// A qualified call with several arguments, as a statement and as a value.
+interface Sink {
+    fun put(self, x: i64, tag: string);
+    fun sum(self, a: i64, b: i64): i64 = a + b;
+}
+struct Shout {}
+impl Sink for Shout { fun put(self, x: i64, tag: string) { println("{tag}{x}"); } }
+fun main() {
+    Sink.put(Shout {}, 5, "#");
+    println(Sink.sum(Shout {}, 2, 3));
+}

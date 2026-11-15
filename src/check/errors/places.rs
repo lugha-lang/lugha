@@ -1,5 +1,6 @@
 //! E05xx and W01xx: places, mutability and control flow.
 
+use crate::ast::{Expr, ExprKind};
 use crate::check::Binding;
 use crate::check::Type;
 use crate::check::assign::PlaceUse;
@@ -129,15 +130,51 @@ pub(in crate::check) fn mut_self_alias(name: &str, span: Span, receiver: Span) -
 }
 
 /// E0508: the `mut` argument `name` (at `span`) is also another argument
-/// of the same call (at `other`).
-pub(in crate::check) fn mut_arg_alias(name: &str, span: Span, other: Span) -> Diagnostic {
+/// of the same call, `other`.
+pub(in crate::check) fn mut_arg_alias(name: &str, span: Span, other: &Expr) -> Diagnostic {
+    let read = super::brief(other);
     Diagnostic::error(
         "E0508",
         format!("cannot pass `{name}` as `mut` and also as another argument"),
         span,
     )
-    .with_label(other, format!("`{name}` is passed here too"))
-    .with_help(format!("copy it first: `let w = {name};` and pass `w`"))
+    .with_label(other.span, format!("`{name}` is passed here too"))
+    .with_help(format!(
+        "copy it first, so the call reads a value that doesn't change: `let w = {read};` and pass `w`"
+    ))
+}
+
+/// E0508: `name` is passed as `mut` twice in one call (at `span` and
+/// `other`).
+pub(in crate::check) fn mut_args_overlap(name: &str, span: Span, other: Span) -> Diagnostic {
+    Diagnostic::error(
+        "E0508",
+        format!("cannot pass `{name}` as `mut` twice in one call"),
+        span,
+    )
+    .with_label(other, format!("`{name}` is passed as `mut` here too"))
+    .with_help(
+        "one place can't be changed through two parameters at once: pass two different places",
+    )
+}
+
+/// E0508: `mut place` passed to a `mut self` method `method` called on
+/// `base`, which holds that place.
+pub(in crate::check) fn mut_arg_in_receiver(place: &Expr, base: &Expr, method: &str) -> Diagnostic {
+    let (written, owner) = (super::brief(place), super::brief(base));
+    let local = match &place.kind {
+        ExprKind::Field(_, field) => field.name.clone(),
+        _ => "v".to_string(),
+    };
+    Diagnostic::error(
+        "E0508",
+        format!("cannot pass `{written}` as `mut` to a `mut self` method called on `{owner}`"),
+        place.span,
+    )
+    .with_label(base.span, format!("`{owner}` is edited by this call"))
+    .with_help(format!(
+        "copy it into a variable, pass that, and put it back: `let mut {local} = {written}; {owner}.{method}(mut {local}); {written} = {local};`"
+    ))
 }
 
 /// A place diagnostic reworded for what the place was used for; the

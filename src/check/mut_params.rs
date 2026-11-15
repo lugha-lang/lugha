@@ -99,8 +99,12 @@ impl Checker {
             if root_name(other) != Some(root) {
                 continue;
             }
-            if *is_mut || self.by_pointer(other) {
-                self.report(errors::mut_arg_alias(root, place.span, other.span));
+            if *is_mut {
+                self.report(errors::mut_args_overlap(root, place.span, other.span));
+                return;
+            }
+            if self.by_pointer(other) {
+                self.report(errors::mut_arg_alias(root, place.span, other));
                 return;
             }
         }
@@ -110,13 +114,13 @@ impl Checker {
 impl Checker {
     /// E0508 for a `mut` argument rooted where the receiver `base` of a
     /// `mut self` call is: the method would change one place two ways.
-    pub(super) fn mut_receiver_alias(&mut self, base: &Expr, args: &[Expr]) {
+    pub(super) fn mut_receiver_alias(&mut self, base: &Expr, method: &str, args: &[Expr]) {
         let Some(root) = root_name(base) else { return };
         for arg in args {
             if let ExprKind::Pass(PassMode::Mut, place) = &arg.kind
                 && root_name(place) == Some(root)
             {
-                self.report(errors::mut_self_alias(root, place.span, base.span));
+                self.report(errors::mut_arg_in_receiver(place, base, method));
                 return;
             }
         }

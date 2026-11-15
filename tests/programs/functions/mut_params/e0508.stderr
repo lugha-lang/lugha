@@ -1,10 +1,10 @@
-error[E0508]: cannot pass `p` as `mut` and also as another argument
+error[E0508]: cannot pass `p` as `mut` twice in one call
    --> tests/programs/functions/mut_params/e0508.la:10:14
    |
 10 |     both(mut p, mut p);
-   |              ^      - `p` is passed here too
+   |              ^      - `p` is passed as `mut` here too
    |
-   = help: copy it first: `let w = p;` and pass `w`
+   = help: one place can't be changed through two parameters at once: pass two different places
 
 error[E0508]: cannot pass `p` as `mut` and also as another argument
    --> tests/programs/functions/mut_params/e0508.la:11:14
@@ -12,9 +12,9 @@ error[E0508]: cannot pass `p` as `mut` and also as another argument
 11 |     read(mut p, p);
    |              ^  - `p` is passed here too
    |
-   = help: copy it first: `let w = p;` and pass `w`
+   = help: copy it first, so the call reads a value that doesn't change: `let w = p;` and pass `w`
 
-error[E0508]: cannot pass `p` to a `mut self` method called on `p`
+error[E0508]: cannot pass `p.x` as `mut` to a `mut self` method called on `p`
    --> tests/programs/functions/mut_params/e0508.la:12:15
    |
 12 |     p.eat(mut p.x);
@@ -22,6 +22,6 @@ error[E0508]: cannot pass `p` to a `mut self` method called on `p`
    |     |
    |     `p` is edited by this call
    |
-   = help: copy it first: `let w = p;` and pass `w`
+   = help: copy it into a variable, pass that, and put it back: `let mut x = p.x; p.eat(mut x); p.x = x;`
 
 For more about E0508, run `lughac explain E0508`.

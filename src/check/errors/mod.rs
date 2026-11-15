@@ -46,3 +46,24 @@ fn with_reason(d: Diagnostic, reason: Option<&Label>) -> Diagnostic {
         None => d,
     }
 }
+
+/// `e` shortened for a help: names, fields, literals and calls as
+/// written, anything longer as `…`.
+pub(in crate::check) fn brief(e: &crate::ast::Expr) -> String {
+    match &e.kind {
+        crate::ast::ExprKind::Name(n) => n.clone(),
+        crate::ast::ExprKind::Field(base, field) => format!("{}.{}", brief(base), field.name),
+        crate::ast::ExprKind::Int(n) => n.to_string(),
+        crate::ast::ExprKind::Bool(b) => b.to_string(),
+        crate::ast::ExprKind::Call(callee, args) => {
+            let inside = if args.is_empty() { "" } else { "…" };
+            format!("{}({inside})", brief(callee))
+        }
+        crate::ast::ExprKind::StructLit(lit) => match &lit.module {
+            Some(m) => format!("{}.{} {{ … }}", m.name, lit.name.name),
+            None => format!("{} {{ … }}", lit.name.name),
+        },
+        crate::ast::ExprKind::Index(base, _, _) => format!("{}[…]", brief(base)),
+        _ => "…".to_string(),
+    }
+}

@@ -242,7 +242,7 @@ impl Checker {
             && !self.no_change_inside(&[base], receiver, mark)
         {
             self.no_alias(base, args);
-            self.mut_receiver_alias(base, args);
+            self.mut_receiver_alias(base, &name.name, args);
         }
         ret
     }

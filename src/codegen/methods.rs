@@ -143,7 +143,9 @@ impl<'ctx> Lowerer<'ctx> {
         let ExprKind::Field(base, name) = &callee.kind else {
             return Ok(None);
         };
-        // `Shape.area(c)`: a call of `area` on `c`.
+        // `Shape.area(c, x)`: a call of `area` on `c`. The rewritten call
+        // has the same id, so it must not be taken apart again; the id goes
+        // back for the next instance that lowers this call.
         if self.qualified.contains(&call.id)
             && let [receiver, rest @ ..] = args
         {
@@ -151,7 +153,10 @@ impl<'ctx> Lowerer<'ctx> {
                 kind: ExprKind::Field(Box::new(receiver.clone()), name.clone()),
                 ..callee.clone()
             };
-            return self.method_call(call, &callee, rest);
+            self.qualified.remove(&call.id);
+            let result = self.method_call(call, &callee, rest);
+            self.qualified.insert(call.id);
+            return result;
         }
         // `v.mul(2.0)` on a type with several `mul`s: the one the checker chose.
         if let Some(chosen) = self.overloads.get(&call.id)
