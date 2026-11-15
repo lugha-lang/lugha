@@ -110,14 +110,14 @@ The draft must cite every `approved` line exactly once as a rule, and contain no
 - SEC-02 approved — `net.only` restricts by host name; private and local addresses are refused unless `.allow_private()`.
 - SEC-03 approved — Listening and connecting are narrowed separately.
 - SEC-04 approved — `extern` requires `allow = ["ffi"]` in the root `lugha.toml` for every package that declares one, indirect dependencies included; `ffi` packages are documented as fully trusted.
-- SEC-05 approved — Process lockdown: after opening what `main` asked for, the runtime restricts the process (seccomp, Landlock) to those capabilities, containing C code too. Per program; Linux first; kernel versions and system-call lists verified before the PRP.
+- SEC-05 approved — Process lockdown: after opening what `main` asked for, the runtime restricts the process (seccomp, Landlock) to the kinds of capability `main` declared, containing C code too: without `Net`, no sockets; without `Proc`, no starting programs; without `Fs`, no files. It is as coarse as `main`'s parameters: a `main` holding `Fs` keeps the whole filesystem for C, and narrowing to a `Dir` later binds Lugha code only. Per program; Linux first; kernel versions and system-call lists verified before the PRP.
 - SEC-06 approved — Sandboxed C libraries (`sandbox = true`: C compiled through WebAssembly to bounds-checked native code), a later milestone.
 - SEC-07 approved — Running a library in a separate process is a library pattern, not a language feature.
 
 ## MEM — memory
 
 - MEM-01 approved — Precise reference counting; Boehm is removed (`third_party/bdwgc`, conservative scanning, and the "integer that looks like a pointer" known issue).
-- MEM-02 approved — Counts are non-atomic within a task, atomic once a value has crossed to another task.
+- MEM-02 approved — Counts are non-atomic within a task. When a value crosses to another task, everything reachable from it that is still task-local is marked shared (atomic counts) in one walk; parts already shared are skipped, so a send costs the size of its not-yet-shared part, once. Marking only the outer object would let two tasks change a shared child's count at once.
 - MEM-03 approved — The compiler removes most count operations using liveness (last uses become moves).
 - MEM-04 approved — Copy-on-write writes in place when the count is 1, replacing the sticky shared flag.
 - MEM-05 approved — `Weak<T>` for non-owning references: caches, observers, registries, back-links.
@@ -267,11 +267,13 @@ The draft must cite every `approved` line exactly once as a rule, and contain no
 - PRF-06 approved — The preemption countdown costs at most 5% on fib and fannkuch.
 - PRF-07 approved — Method: record a baseline with `bench/run.py --save` before any change; same machine; median of 5; `-O2`; new benchmarks get Go and Rust versions; never in CI.
 - PRF-08 approved — A small miss: more count elimination. A large miss: plan B (MEM-15).
+- PRF-09 approved — The memory prototype (ORD-03) measures the whole new cost of a call on fib together: the stack check at entry (STK-03), the countdown, cleanup paths for unwinding, and count operations, against PRF-01.
 
 ## ORD — build order
 
 - ORD-01 approved — Phase contents: capabilities include process lockdown; structured concurrency covers scopes, cancellation, the sendable rule and channels; the runtime phase covers workers, helper threads, reference counting, scheduling, stacks and virtual time. Each phase is one or more PRPs. Numbering: ORD-02.
 - ORD-02 approved — A phase before capabilities for the language-surface changes (INT, EQ, IMP, TYA, LIT, PRE), since capabilities need nominal interfaces (for fakes) and type arguments. The phases become: 0 design; 1 language surface; 2 capabilities; 3 unwinding; 4 structured concurrency; 5 runtime; 6 `Wire`; 7 replay and simulation; 8 distribution.
+- ORD-03 approved — A memory prototype comes before unwinding: reference counting with moves on last use and marking on send (MEM-02, MEM-03), measured against PRF-01–03 and PRF-09. It decides between reference counting and plan B (MEM-15) before unwinding, scopes and actors are built, since every unwinding cleanup path differs between the two. The phases become: 0 design; 1 language surface; 2 capabilities; 3 memory prototype; 4 unwinding; 5 structured concurrency; 6 runtime; 7 `Wire`; 8 replay and simulation; 9 distribution.
 
 ## OPN — open questions
 
@@ -328,6 +330,9 @@ The draft must cite every `approved` line exactly once as a rule, and contain no
 - SUP-20 — Panics skip defers → CAN-08.
 - SUP-21 — `as` truncating silently (a CLAUDE.md known issue) → IMP-03.
 - SUP-22 — Bare variant names in patterns → IMP-02.
+- SUP-23 — Sending a large value to another task costing one count; marking only the object that crosses → MEM-02.
+- SUP-24 — Process lockdown containing C to the narrowed capabilities → SEC-05 (to the kinds `main` declared).
+- SUP-25 — Unwinding as phase 3, before the memory model is settled → ORD-03.
 
 ## TODO.md items this resolves
 

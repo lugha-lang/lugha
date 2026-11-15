@@ -502,7 +502,7 @@ You approved these explicitly, as CLAUDE.md requires for security decisions. Ker
 2. `net.only` restricts by host name, and refuses private and local addresses unless `.allow_private()` is added. [SEC-02]
 3. Listening and connecting are narrowed separately. [SEC-03]
 4. A package may declare `extern` functions only if the root `lugha.toml` grants it `ffi`, indirect dependencies included. A package with `ffi` is documented as fully trusted, since C can do anything. [SEC-04]
-5. Process lockdown: once the runtime has opened what `main` asked for, it restricts the whole process to those capabilities (seccomp and Landlock on Linux), so C code can't exceed them either. It works per program, not per library. [SEC-05]
+5. Process lockdown: once the runtime has opened what `main` asked for, it restricts the whole process to the kinds of capability `main` declared (seccomp and Landlock on Linux), so C code can't exceed them either: without `Net`, no sockets; without `Proc`, no starting programs; without `Fs`, no files. It is as coarse as `main`'s parameters: a `main` that holds `Fs` leaves the whole filesystem open to C, and narrowing to a `Dir` later binds Lugha code only. It works per program, not per library. [SEC-05]
 6. Sandboxed C libraries, a later milestone: `sandbox = true` on a dependency compiles its C through WebAssembly into bounds-checked native code that can't read Lugha's memory or make system calls, and receives only the capabilities it is passed. [SEC-06]
 7. Running a library in a separate process is a library pattern, not a language feature. [SEC-07]
 
@@ -533,7 +533,7 @@ let db = net.only("db.internal:5432").allow_private();          // an internal h
 **Rules**
 
 1. Every heap object (strings, arrays, closure environments, interface boxes, `Ref` boxes, channels, tasks, actor handles) carries a count of its holders and is freed when the count reaches zero. There is no tracing garbage collector: the Boehm collector is removed. [MEM-01]
-2. A count is non-atomic while its object is reachable from one task only, and becomes atomic once the object crosses to another task (sent on a channel, passed to `spawn`, captured by a spawned call). [MEM-02]
+2. A count is non-atomic while its object is reachable from one task only. When a value crosses to another task (sent on a channel, passed to `spawn`, captured by a spawned call), everything reachable from it that is still task-local is marked shared, with atomic counts, in one walk; parts already shared are skipped. Marking the outer object alone isn't enough: a task can share a child through a copy while the other task frees the parent. [MEM-02]
 3. The compiler removes most count operations: a value's last use moves it instead of copying it, using the liveness analysis of milestone 149. Programs can't observe counts. [MEM-03]
 4. Copy-on-write writes in place when an array's count is 1, and otherwise clones it one level first. [MEM-04]
 5. `Weak<T>` refers to a `Ref<T>` without keeping it alive; reading it gives an `Option<Ref<T>>`, `.None` once the box is gone. It is the tool for caches, observer lists, registries and back-links. Like `Ref`, it isn't sendable. [MEM-05]
@@ -580,7 +580,7 @@ c_lib_store(held.pointer());
 
 **Replaces:** v17 §7's collector: the Boehm collector (`third_party/bdwgc`), conservative scanning, the sticky shared flag of copy-on-write, uncollectable memory for callback closures, and the GC hooks in `runtime/tasks.c`; the CLAUDE.md known issue that an integer looking like a pointer keeps garbage alive; the CLAUDE.md stack entry for Boehm.
 
-**Why:** Lugha's value semantics mean most objects have exactly one holder and cycles can form only through a few types, which is the case where reference counting is cheap and precise: memory is freed as soon as it's garbage, nothing pauses every core, copy-on-write can write in place, and sending a large value to another task costs one count. Alternative kept as plan B: a heap per task.
+**Why:** Lugha's value semantics mean most objects have exactly one holder and cycles can form only through a few types, which is the case where reference counting is cheap and precise: memory is freed as soon as it's garbage, nothing pauses every core, copy-on-write can write in place, and sending a large value to another task costs one walk over its not-yet-shared part, paid once. Alternative kept as plan B: a heap per task.
 
 ## 3.2 Hash seeding
 
@@ -1113,15 +1113,16 @@ Each phase is one or more PRPs, approved one at a time [ORD-01]. The order [ORD-
 | 0 | This draft | — |
 | 1 | Language surface: nominal interfaces, `with`, `Eq`/`Key`/`Ord`, operators, `.Variant`, must-use `Result`, conversions, type arguments, literals, prelude moves, size methods | Part 1 |
 | 2 | Capabilities, the `ffi` permission, `Dir` confinement, process lockdown | 2.1, 2.2 (rules 1–5) |
-| 3 | Unwinding: panics run defers and fail their scope | 4.3 (rules 7–8) |
-| 4 | Structured concurrency: scopes, cancellation, the sendable rule, channels, actors | 4.1–4.5 |
-| 5 | Runtime: workers, helper threads, scheduling, stacks and C calls, callbacks, reference counting, hash seeding, virtual time | 3.1, 3.2, 4.6–4.8 |
-| 6 | `Wire` | 5.1 (rule 1) |
-| 7 | Replay and cluster simulation | 5.1 (rule 11), 5.2 |
-| 8 | Distribution: nodes, `Remote<T>`, monitors | 5.1 |
+| 3 | Memory prototype: reference counting with moves on last use and marking on send, measured against 7.2; it decides between reference counting and plan B | 3.1 (rules 1–4, 15) |
+| 4 | Unwinding: panics run defers and fail their scope | 4.3 (rules 7–8) |
+| 5 | Structured concurrency: scopes, cancellation, the sendable rule, channels, actors | 4.1–4.5 |
+| 6 | Runtime: workers, helper threads, scheduling, stacks and C calls, callbacks, reference counting, hash seeding, virtual time | 3.1, 3.2, 4.6–4.8 |
+| 7 | `Wire` | 5.1 (rule 1) |
+| 8 | Replay and cluster simulation | 5.1 (rule 11), 5.2 |
+| 9 | Distribution: nodes, `Remote<T>`, monitors | 5.1 |
 | later | Sandboxed C libraries | 2.2 (rule 6) |
 
-Phase 1 comes first because capabilities rely on nominal interfaces (for fakes) and type arguments. Each phase breaks programs; the migration tool is planned separately [PRI-05].
+Phase 1 comes first because capabilities rely on nominal interfaces (for fakes) and type arguments. The memory prototype comes before unwinding because every unwinding cleanup path differs between reference counting and plan B, so the memory model is settled by measurement before unwinding, scopes and actors are built on it [ORD-03]. Each phase breaks programs; the migration tool is planned separately [PRI-05].
 
 ## 7.2 Performance targets
 
@@ -1140,6 +1141,8 @@ Baseline: `bench/RESULTS.md`, 2026-10-31, commit `5d5ab18`, Intel i5-4308U. The 
 | step countdown on fib, fannkuch | (to measure) | at most 5% [PRF-06] |
 
 **Method** [PRF-07]: the same machine, the median of 5 runs, `-O2`; new benchmarks get Go and Rust versions, as the existing ones have; `bench/` stays out of CI.
+
+**The prototype's measurement** [PRF-09]: fib carries every new cost of a call at once (the stack check at entry, the countdown, cleanup paths for unwinding, count operations), so Phase 3 measures them together against the fib target, not one at a time.
 
 **If a target is missed** [PRF-08]: a small miss on allocation-heavy code calls for more count elimination; a large miss calls for plan B, a heap per task with tracing collection (3.1 rule 15).
 
