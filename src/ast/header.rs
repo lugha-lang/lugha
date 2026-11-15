@@ -94,6 +94,8 @@ pub struct InterfaceDecl {
     pub name: Ident,
     /// Type parameters, `interface Source<T>`; empty when none.
     pub type_params: Vec<TypeParam>,
+    /// The interfaces it extends, `interface Key: Eq`; empty when none.
+    pub extends: Vec<Bound>,
     /// Required methods and associated functions, in order.
     pub items: Vec<InterfaceItem>,
     /// From `interface` to the closing brace.

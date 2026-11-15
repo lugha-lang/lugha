@@ -154,18 +154,18 @@ fn program_monos(src: &str) -> Vec<String> {
 
 #[test]
 fn eq_reaches_the_preludes_blocks_through_a_bound() {
-    // `K: Eq` is all a map needs; its keys reach `Eq`'s blocks.
+    // `K: Key` is all a map needs; its keys reach `Key`'s blocks.
     let found = program_monos(
-        "struct P { x: i64 }\n\
-         fun count<K: Eq>(xs: K[]): i64 { let mut m: Map<K, i64> = #{}; for x of xs { m.insert(x, 1); } m.len }\n\
+        "struct P { x: i64 } with Key\n\
+         fun count<K: Key>(xs: K[]): i64 { let mut m: Map<K, i64> = #{}; for x of xs { m.insert(x, 1); } m.len }\n\
          fun main() { let n = count([P { x: 1 }]); }",
     );
     assert!(
-        found.iter().any(|m| m == "$prelude.Eq@struct.hash<P>"),
+        found.iter().any(|m| m == "$prelude.Key@struct.hash<P>"),
         "{found:?}"
     );
     assert!(
-        found.iter().any(|m| m.starts_with("$prelude.Eq@i64.hash")),
+        found.iter().any(|m| m.starts_with("$prelude.Key@i64.hash")),
         "{found:?}"
     );
     // `==` on numbers compiles no `Eq` item at all.
@@ -192,32 +192,33 @@ fn codes_of(src: &str) -> Vec<&'static str> {
 }
 
 #[test]
-fn a_types_own_eq_needs_its_own_hash() {
+fn a_written_eq_replaces_the_block_and_key_needs_eq() {
     let pair = "struct U { id: i64, name: string }\n\
-        impl U { fun eq(self, other: U): bool = self.id == other.id; fun hash(self, h: u64): u64 = self.id.hash(h); }\n\
+        impl Eq for U { fun eq(self, other: U): bool = self.id == other.id; }\n\
+        impl Key for U { fun hash(self, mut h: Hasher) { h.add(self.id); } }\n\
         fun main() { let s = U { id: 1, name: \"a\" } == U { id: 1, name: \"b\" }; }";
     let found = program_monos(pair);
     assert!(
         !found.iter().any(|m| m.contains("Eq@struct.eq<U>")),
         "{found:?}"
     );
-    let half = "struct U { id: i64 }\nimpl U { fun eq(self, other: U): bool = true; }\n\
-        fun main() { let s = U { id: 1 } == U { id: 2 }; }";
+    let half = "struct U { id: i64 }\nimpl Key for U { fun hash(self, mut h: Hasher) {} }\n\
+        fun main() {}";
     let codes: Vec<&str> = crate::check::test_util::diagnostics(half)
         .iter()
         .map(|d| d.code)
         .collect();
-    assert_eq!(codes, ["E0454"]);
+    assert_eq!(codes, ["E0422"]);
 }
 
 #[test]
 fn eq_through_a_bound_reaches_eq_and_hash() {
     let found = program_monos(
-        "struct P { x: i64 }\n\
-         fun same<T: Eq>(a: T, b: T): bool = a == b && a.hash(1) == b.hash(1);\n\
+        "struct P { x: i64 } with Key\n\
+         fun same<T: Key>(a: T, b: T): bool { let mut h = Hasher.new(); a.hash(mut h); a == b }\n\
          fun main() { let s = same(P { x: 1 }, P { x: 1 }); }",
     );
-    for want in ["$prelude.Eq@struct.eq<P>", "$prelude.Eq@struct.hash<P>"] {
+    for want in ["$prelude.Eq@struct.eq<P>", "$prelude.Key@struct.hash<P>"] {
         assert!(found.iter().any(|m| m == want), "{want}: {found:?}");
     }
 }

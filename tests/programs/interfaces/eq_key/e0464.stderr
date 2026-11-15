@@ -1,0 +1,9 @@
+error[E0464]: `Greeter` extends `Named`, so it can't be a type
+  --> tests/programs/interfaces/eq_key/e0464.la:5:14
+  |
+5 | fun hello(g: Greeter): string = g.greet();
+  |              ^^^^^^^
+  |
+  = help: use it as a bound: `fun f<T: Greeter>(x: T)`, or use an interface that extends none
+
+For more about E0464, run `lughac explain E0464`.

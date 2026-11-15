@@ -375,9 +375,8 @@ mod tests {
         assert!(help(src).contains("`P.show`"), "{}", help(src));
         // `==` calls `eq` without naming it (with the prelude's `Eq`).
         let eq = "struct P { x: i64 }\n\
-                  impl P {\n\
+                  impl Eq for P {\n\
                       fun eq(self, other: P): bool { println(1); self.x == other.x }\n\
-                      fun hash(self, h: u64): u64 = h;\n\
                   }\n";
         let codes = prelude_codes(&[(
             "main.la",

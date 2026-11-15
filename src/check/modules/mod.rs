@@ -247,6 +247,7 @@ impl Checker {
             self.enter(unit);
             self.check_with(unit.program);
         }
+        self.settle_keys();
         for unit in units {
             self.enter(unit);
             self.visibility_rules(unit.program);

@@ -39,12 +39,12 @@ public struct Civil {
     public second: i64,
     /** 0 to 999. */
     public ms: i64,
-}
+} with Key
 
 /** Why a date, offset or moment can't be used. */
 public struct TimeError {
     public message: string,
-}
+} with Eq
 
 impl TimeError {
     /** What went wrong: `no day 31 in month 2 of 2026`. */

@@ -2,7 +2,7 @@
 struct Wrap<T> {
     v: T,
     n: i64,
-}
+} with Eq
 
 fun log(s: string) {
     println(s);

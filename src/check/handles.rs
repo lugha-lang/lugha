@@ -148,7 +148,7 @@ mod extern_struct_tests {
     #[test]
     fn extern_structs_are_ordinary_structs_that_cross_to_c() {
         ok("extern type W;\n\
-            extern struct Color { r: u8, g: u8, b: u8, a: u8 }\n\
+            extern struct Color { r: u8, g: u8, b: u8, a: u8 } with Eq\n\
             extern struct V2 { x: f32, y: f32 }\n\
             extern struct Cam { at: V2, zoom: f32, ok: bool, c: char, w: W }\n\
             extern fun draw(at: V2, c: Color): Cam;\n\

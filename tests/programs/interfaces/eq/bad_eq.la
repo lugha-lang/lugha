@@ -1,10 +1,8 @@
-// A method named like one of `Eq`'s items must have its
-// shape, or it is E0422.
+// A hand-written `impl Eq` must match `Eq`: `eq` returns a `bool` (E0422).
 struct Point { x: i64, y: i64 }
 
-impl Point {
+impl Eq for Point {
     fun eq(self, other: Point): i64 = 1;
-    fun hash(self, h: u64): u64 = h;
 }
 
 fun main() {

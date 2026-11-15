@@ -3,7 +3,7 @@
 // program's own methods.
 import std.json;
 
-struct Person { name: string, age: i64 } with json.Json
+struct Person { name: string, age: i64 } with json.Json, Eq
 
 struct Pair<T> { a: T, b: T }
 

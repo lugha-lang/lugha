@@ -3,7 +3,7 @@ interface Counter {
     fun value(self): i64;
 }
 
-struct Tally { n: i64 }
+struct Tally { n: i64 } with Eq
 
 impl Counter for Tally {
     fun bump(mut self, by: i64) { self.n += by; }

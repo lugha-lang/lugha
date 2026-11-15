@@ -17,8 +17,6 @@ pub(super) fn describe(why: &Unmet) -> String {
         }
         Unmet::Bound(_, key) => format!("a map with `{key}` keys"),
         Unmet::Union(itself) => super::derive_meets::union_part(*itself),
-        Unmet::Mismatch(problem) => problem.clone(),
-        Unmet::HalfPair(has) => format!("its own `{has}` alone"),
         Unmet::NotAsked(ty) => format!("`{ty}`, which doesn't derive or implement `json.Json`"),
         Unmet::Missing(ty) => match ty {
             Type::Fun(..) => "a function".to_string(),

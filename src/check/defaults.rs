@@ -23,13 +23,14 @@ impl Checker {
     pub(super) fn register_defaults(&mut self, key: &str, items: &[Requirement]) {
         let own = self.interface_generics(key);
         for r in items.iter().filter(|r| r.default.is_some()) {
-            let bounds = Bounds {
+            // `Self` also has what the interface extends.
+            let bounds = self.with_extended(Bounds {
                 interfaces: vec![Applied {
                     key: key.to_string(),
                     args: params(&own),
                 }],
                 ..Bounds::default()
-            };
+            });
             let method = Method {
                 receiver: r.receiver,
                 params: r.params.clone(),

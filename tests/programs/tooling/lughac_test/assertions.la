@@ -1,6 +1,6 @@
 // `assert`, `assert_eq` and `assert_ne` in ordinary code;
 // a `@test` function is left out of `lughac run`.
-struct P { x: i64, name: string }
+struct P { x: i64, name: string } with Eq
 
 fun main() {
     assert(1 < 2);

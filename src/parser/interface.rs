@@ -4,11 +4,18 @@ use crate::lexer::TokenKind;
 use crate::span::Span;
 
 impl Parser<'_> {
-    /// `interface Name { fun area(self): f64; … }`.
+    /// `interface Name[: I, J] { fun area(self): f64; … }`.
     pub(super) fn interface_decl(&mut self) -> PResult<InterfaceDecl> {
         let start = self.bump().start;
         let name = self.ident("interface name")?;
         let type_params = self.type_params()?;
+        let mut extends = Vec::new();
+        if self.eat(&TokenKind::Colon) {
+            extends.push(self.bound()?);
+            while self.eat(&TokenKind::Comma) {
+                extends.push(self.bound()?);
+            }
+        }
         let open = self.expect(&TokenKind::LBrace)?;
         let mut items = Vec::new();
         while !self.at(&TokenKind::RBrace) {
@@ -25,6 +32,7 @@ impl Parser<'_> {
             visibility: None,
             name,
             type_params,
+            extends,
             items,
             span: Span::new(start, self.prev_end()),
         })

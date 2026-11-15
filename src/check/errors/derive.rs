@@ -76,20 +76,6 @@ pub(in crate::check) fn block_unsatisfied(
     .with_help(problems.join("; "))
 }
 
-/// E0454: a struct or enum with its own `eq` but not `hash`, or the other
-/// way round: `has` is the one it has.
-pub(in crate::check) fn half_pair(ty: &Type, has: &str, span: Span) -> Diagnostic {
-    let missing = if has == "eq" { "hash" } else { "eq" };
-    Diagnostic::error(
-        "E0454",
-        format!("`{ty}` has its own `{has}` but no `{missing}`: equal values must hash equal"),
-        span,
-    )
-    .with_help(format!(
-        "write `fun {missing}` too, from the same fields as `{has}` uses, or remove `{has}` to compare every field"
-    ))
-}
-
 /// E0453: a field intrinsic used wrongly; `why` says how.
 pub(in crate::check) fn bad_intrinsic(op: &str, why: &str, span: Span) -> Diagnostic {
     Diagnostic::error("E0453", format!("`derive.{op}` {why}"), span).with_help(
@@ -122,6 +108,18 @@ pub(in crate::check) fn not_json(ty: &Type, path: &str, what: &str, span: Span) 
     )
     .with_help(
         "JSON holds data: numbers, `bool`, `char`, `string`, arrays, tuples, maps with string or integer keys, sets, `Option`, and structs and enums of these that ask for it with `with json.Json`",
+    )
+}
+
+/// E0451: `ty` isn't `Key` because of a float, at `path` inside it.
+pub(in crate::check) fn float_key(ty: &Type, path: &str, span: Span) -> Diagnostic {
+    let place = if path.is_empty() {
+        "it is a float".to_string()
+    } else {
+        format!("`{}` is a float", path.trim_start_matches('.'))
+    };
+    Diagnostic::error("E0451", format!("`{ty}` can't be a key: {place}"), span).with_help(
+        "floats compare with `==` but aren't `Key`: `NaN != NaN`, so a float key could never be found again; use an integer",
     )
 }
 

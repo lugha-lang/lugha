@@ -25,14 +25,14 @@ public enum Value {
     Array(Value[]),
     /** A table, its keys in the file's order. */
     Table(Map<string, Value>),
-}
+} with Eq
 
 /** A calendar date, as written: no time-zone arithmetic. */
 public struct Date {
     public year: i64,
     public month: i64,
     public day: i64,
-}
+} with Key
 
 /** A time of day; `nanosecond` keeps up to 9 digits of the written fraction. */
 public struct Time {
@@ -40,7 +40,7 @@ public struct Time {
     public minute: i64,
     public second: i64,
     public nanosecond: i64,
-}
+} with Key
 
 /** What kind of mistake a `TomlError` is. */
 public enum ErrorKind {
@@ -56,7 +56,7 @@ public enum ErrorKind {
     BadValue,
     /** A limit passed: the text's size, the nesting depth or the count of values. */
     Limit,
-}
+} with Key
 
 /** Why a text isn't (acceptable) TOML, and where: line and column from 1, columns in characters. */
 public struct TomlError {
@@ -64,7 +64,7 @@ public struct TomlError {
     public detail: string,
     public line: i64,
     public column: i64,
-}
+} with Eq
 
 impl TomlError {
     /** The error as a sentence: `a key defined twice: app.name (line 7, column 1)`. */
@@ -79,7 +79,7 @@ public struct Limits {
     public depth: i64,
     /** Every value and table made (1000000). */
     public values: i64,
-}
+} with Eq
 
 /** The default limits. */
 public fun limits(): Limits = Limits { bytes: 1048576, depth: 100, values: 1000000 };

@@ -265,8 +265,8 @@ mod tests {
         assert_eq!(e("let b = double == double;")[0].0, "E0404");
         assert_eq!(
             e("let b = Button { label: \"\", on_click: double }; let c = b == b;")[0].0,
-            // A struct is `Eq` through its fields.
-            "E0451"
+            // A struct is `Eq` only when it asks.
+            "E0422"
         );
         assert_eq!(e("let fs = [double]; let c = fs == fs;")[0].0, "E0451");
         let eq = "fun has<T: Eq>(xs: T[], x: T): bool = false;\n";

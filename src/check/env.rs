@@ -204,8 +204,8 @@ impl Checker {
             // `m.T`, `T<args>`, `m.T<args>`.
             TypeKind::Applied(applied) => {
                 let resolved = self.resolve_applied(applied, ty.span);
-                // `Map<f64, V>` or `Set<f64>` written anywhere is E0441.
-                self.float_keys(&resolved, ty.span);
+                // A map's keys and a set's values must be `Key`.
+                self.key_types(&resolved, ty.span);
                 resolved
             }
             TypeKind::Fun(params, ret) => self.resolve_fun(params, ret.as_deref()),

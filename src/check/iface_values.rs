@@ -37,6 +37,16 @@ impl Checker {
             self.report(errors::interface_not_value(&shown, &item, span));
             return Some(Type::Error);
         }
+        // Values of an interface that extends another come later.
+        if let Some(first) = info.extends.first() {
+            let shown = module.map_or_else(
+                || name.name.clone(),
+                |m| format!("{}.{}", m.name, name.name),
+            );
+            let extended = super::derive_with::shown_interface(&first.key);
+            self.report(errors::extending_not_value(&shown, &extended, span));
+            return Some(Type::Error);
+        }
         if let Some(item) = info.uses_self.clone() {
             let shown = module.map_or_else(
                 || name.name.clone(),

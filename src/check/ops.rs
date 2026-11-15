@@ -78,7 +78,8 @@ impl Checker {
                 BinOp::Add if matches!(l, Type::String | Type::Array(_)) => true,
                 // Every type has deep equality, numbers and strings are
                 // ordered, and a parameter has what its bounds give.
-                BinOp::Eq | BinOp::Ne => self.eq_ok(&l),
+                // A type compared through `Eq` was judged by it just above.
+                BinOp::Eq | BinOp::Ne => super::derive::compared_through_eq(&l) || self.eq_ok(&l),
                 BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge => self.ord_ok(&l),
                 // Bits are for integers; a shift's amount has the value's type.
                 _ if op.is_bitwise() => l.is_integer(),
@@ -299,7 +300,7 @@ mod tests {
 
     #[test]
     fn equality_is_deep_and_strings_are_ordered() {
-        let types = "struct P { xs: i64[][], s: string }\nenum E { A(P), B }\n";
+        let types = "struct P { xs: i64[][], s: string } with Eq\nenum E { A(P), B } with Eq\n";
         let src = format!(
             "{types}fun main() {{ let p = P {{ xs: [[1]], s: \"a\" }}; let e = E.A(p); \
              let a = p == p; let b = e != E.B; let c = [[1.5]] == [[2.5]]; let d = \"a\" < \"b\"; }}"

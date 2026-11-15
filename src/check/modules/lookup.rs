@@ -13,7 +13,14 @@ impl Checker {
     /// `private` type.
     pub(in crate::check) fn type_named_by(&mut self, expr: &Expr) -> Option<Type> {
         let key = match &expr.kind {
-            ExprKind::Name(t) if self.local(t).is_none() => self.key(t),
+            // `Hasher.new()`: the prelude's, unless the module declares one.
+            ExprKind::Name(t) if self.local(t).is_none() => {
+                let here = self.key(t);
+                match self.named_type(&here) {
+                    Some(_) => here,
+                    None => self.prelude_type(t).unwrap_or(here),
+                }
+            }
             ExprKind::Field(base, t) => self.member_through(&Self::module_name(base)?, t)?,
             _ => return None,
         };

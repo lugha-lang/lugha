@@ -90,7 +90,7 @@ mod tests {
             [("E0404", "a == a")]
         );
         assert_eq!(
-            errors("struct H { r: Ref<i64> }\nfun main() { let h = H { r: Ref.new(1) }; let b = h == h; }")[0].0,
+            errors("struct H { r: Ref<i64> } with Eq\nfun main() { let h = H { r: Ref.new(1) }; let b = h == h; }")[0].0,
             // A struct is `Eq` through its fields.
             "E0451"
         );

@@ -1,0 +1,9 @@
+error[E0422]: `Tag` implements `Key` but not `Eq`, which `Key` extends
+  --> tests/programs/interfaces/eq/key_without_eq.la:5:6
+  |
+5 | impl Key for Tag {
+  |      ^^^
+  |
+  = help: add `with Eq`, or write `impl Eq for Tag { … }`
+
+For more about E0422, run `lughac explain E0422`.

@@ -1,9 +1,9 @@
 // Deep == and string order.
-struct Item { name: string, tags: string[], counts: i64[][], ok: bool }
+struct Item { name: string, tags: string[], counts: i64[][], ok: bool } with Eq
 
-enum Shape { Circle(f64), Rect(f64, f64), Empty }
+enum Shape { Circle(f64), Rect(f64, f64), Empty } with Eq
 
-enum List { Nil, Cons(i64, List) }
+enum List { Nil, Cons(i64, List) } with Eq
 
 fun list(n: i64): List {
     let mut l = List.Nil;

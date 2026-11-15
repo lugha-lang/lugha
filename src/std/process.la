@@ -8,7 +8,7 @@
  */
 
 /** What a finished program left: its exit code (`128 + n` when signal `n` ended it), and everything it wrote to stdout and stderr. */
-public struct Output { public code: i32, public stdout: string, public stderr: string }
+public struct Output { public code: i32, public stdout: string, public stderr: string } with Eq
 
 /**
  * Runs a program with an argument list, its stdin empty, capturing its output. Never through a shell: `cmd` and each argument reach it exactly as given; a `cmd` without `/` is looked up on `PATH`.

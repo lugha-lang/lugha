@@ -3,7 +3,7 @@
 enum Node<M> {
     Leaf(string),
     Wrapped(Node<M>, i64),
-}
+} with Eq
 
 impl Node<M> {
     fun pad(self, n: i64): Node<M> = Node.Wrapped(self, n);

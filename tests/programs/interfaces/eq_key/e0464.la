@@ -1,0 +1,7 @@
+// An interface that extends another is a bound, not a type.
+interface Named { fun name(self): string; }
+interface Greeter: Named { fun greet(self): string; }
+
+fun hello(g: Greeter): string = g.greet();
+
+fun main() {}

@@ -1,9 +1,9 @@
 // Inference from siblings: a call that only its result
 // can type takes the type its siblings fix — kivuli's `text("hi")` compared
 // with a `View<Msg>`.
-enum View<M> { Text(string), Button(string, M) }
+enum View<M> { Text(string), Button(string, M) } with Eq
 
-enum Msg { Go, Stop }
+enum Msg { Go, Stop } with Eq
 
 fun text<M>(s: string): View<M> = View.Text(s);
 

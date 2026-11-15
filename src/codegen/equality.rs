@@ -81,8 +81,10 @@ mod tests {
 
     #[test]
     fn structs_compare_through_their_eq_block() {
-        let ir = ir("struct P { xs: i64[], s: string, ok: bool, f: f64 }\n\
-             fun main() { let p = P { xs: [1], s: \"a\", ok: true, f: 1.5 }; let a = p == p; let b = p != p; }");
+        let ir = ir(
+            "struct P { xs: i64[], s: string, ok: bool, f: f64 } with Eq\n\
+             fun main() { let p = P { xs: [1], s: \"a\", ok: true, f: 1.5 }; let a = p == p; let b = p != p; }",
+        );
         let eq = "@\"lugha_fn_$prelude/Eq@struct.eq<P>\"(";
         assert_eq!(
             ir.matches(&format!("define internal zeroext i1 {eq}"))
@@ -124,7 +126,7 @@ mod tests {
 
     #[test]
     fn enums_compare_their_variants_first() {
-        let ir = ir("enum L { N, C(i64, L) }\n\
+        let ir = ir("enum L { N, C(i64, L) } with Eq\n\
              fun main() { let l = L.C(1, L.N); let e = l == l; let o: Option<L> = None; let f = o == None; }");
         let enum_eq = body(&ir, "\"lugha_fn_$prelude/Eq@enum.eq<L>\"");
         assert!(

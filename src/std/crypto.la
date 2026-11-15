@@ -29,7 +29,7 @@ public enum CryptoError {
     NotAuthentic,
     /** A key that mustn't be used, and why: a low-order X25519 peer key. */
     BadKey(string),
-}
+} with Eq
 
 impl CryptoError {
     /** The error as a sentence. */

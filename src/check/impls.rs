@@ -105,9 +105,9 @@ impl Checker {
     }
 
     /// True for an interface a type may implement through `impl I for T`:
-    /// any but the prelude's.
+    /// any but the prelude's, except its `Eq` and `Key`.
     pub(super) fn by_block(&self, key: &str) -> bool {
-        module_of(key) != "$prelude"
+        module_of(key) != "$prelude" || key == super::derive::EQ || key == super::derive::KEY
     }
 
     /// True for an interface a type meets only through `impl I for T`:
@@ -146,7 +146,7 @@ impl Checker {
             self.report(errors::misplaced_impl(written, why, i.ty.span));
             return false;
         }
-        if module_of(&key) == "$prelude" {
+        if !self.by_block(&key) {
             let why = format!(
                 "names `{written}`, which a type still meets by its methods' names: write them in `impl {} {{ … }}`",
                 i.ty.name
@@ -248,6 +248,11 @@ impl Checker {
         if !problems.is_empty() {
             let d = errors::bad_impl(&self_ty, &applied.to_string(), &problems, b.span);
             self.report(d);
+        }
+        if let Some(missing) = self.missing_extended(owner, &entry.key) {
+            let shown = super::derive_with::shown_interface(&missing);
+            let me = super::derive_with::shown_interface(&entry.key);
+            self.report(errors::extended_missing(ty, &me, &shown, b.span));
         }
     }
 

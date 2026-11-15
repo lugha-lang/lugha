@@ -313,8 +313,8 @@ fun main(): i32 {
 /// agreeing at -O0 and -O2.
 #[test]
 fn split_struct_values_behave_as_whole_ones() {
-    let src = "struct In { a: i64, b: bool }
-struct Out { i: In, n: i64 }
+    let src = "struct In { a: i64, b: bool } with Eq
+struct Out { i: In, n: i64 } with Eq
 enum Shape { Dot, Box(i64, i64), Ring(In) }
 interface Area { fun area(self): i64; }
 struct Sq { s: i64 }

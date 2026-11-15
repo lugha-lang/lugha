@@ -3,8 +3,8 @@
 // different orders are one key.
 extern "malloc" fun c_malloc(n: u64): CPtr;
 
-struct P { x: i64, tag: string, at: (i8, u16) }
-enum Tree { Leaf(i64), Node(Tree, Tree), Empty }
+struct P { x: i64, tag: string, at: (i8, u16) } with Key
+enum Tree { Leaf(i64), Node(Tree, Tree), Empty } with Key
 
 fun main() {
     // The same numbers, the other way round: equal sets, one key.

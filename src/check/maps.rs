@@ -3,11 +3,9 @@
 //! floats (E0441), and equal literal keys (W0105).
 
 use super::expr::Expect;
-use super::generics::subst;
 use super::{Checker, Type};
 use crate::ast::{AssignOp, Expr, ExprKind, HashKind, HashLiteral, Ident};
 use crate::diagnostic::Diagnostic;
-use crate::span::Span;
 
 /// The prelude's map and set types.
 pub(super) const MAP: &str = "$prelude.Map";
@@ -22,39 +20,6 @@ pub(super) fn key_of(ty: &Type) -> Option<&Type> {
     match ty {
         Type::Struct(k, args) if k == MAP || k == SET => args.first(),
         _ => None,
-    }
-}
-
-/// True if `ty` holds a float anywhere a key's hash would reach.
-fn has_float(checker: &Checker, ty: &Type, seen: &mut Vec<String>) -> bool {
-    match ty {
-        Type::F32 | Type::F64 => true,
-        Type::Array(inner) | Type::Option(inner) => has_float(checker, inner, seen),
-        Type::Struct(key, args) | Type::Enum(key, args) => {
-            let name = ty.to_string();
-            if seen.contains(&name) {
-                return false;
-            }
-            seen.push(name);
-            if args.iter().any(|a| has_float(checker, a, seen)) {
-                return true;
-            }
-            let members: Vec<Type> = match (checker.structs.get(key), checker.enums.get(key)) {
-                (Some(s), _) => s
-                    .fields
-                    .iter()
-                    .map(|(_, t)| subst(t, &s.generics, args))
-                    .collect(),
-                (_, Some(e)) => e
-                    .variants
-                    .iter()
-                    .flat_map(|(_, ts)| ts.iter().map(|t| subst(t, &e.generics, args)))
-                    .collect(),
-                _ => Vec::new(),
-            };
-            members.iter().any(|t| has_float(checker, t, seen))
-        }
-        _ => false,
     }
 }
 
@@ -96,7 +61,7 @@ impl Checker {
         };
         // A written type was checked where it was written; an inferred one here.
         if expect.is_none() {
-            self.float_keys(&ty, expr.span);
+            self.key_types(&ty, expr.span);
         }
         ty
     }
@@ -146,23 +111,6 @@ impl Checker {
     pub(super) fn equality_used(&mut self, at: &Expr, ty: &Type) {
         if !ty.is_numeric() && !matches!(ty, Type::Bool | Type::String | Type::Char | Type::Error) {
             self.used(at, EQUAL, std::slice::from_ref(ty));
-        }
-    }
-
-    /// E0441 at `at` if `ty` is a map or set whose keys hold a float.
-    pub(super) fn float_keys(&mut self, ty: &Type, at: Span) {
-        let Some(key) = key_of(ty) else { return };
-        if has_float(self, key, &mut Vec::new()) {
-            let what = if matches!(ty, Type::Struct(k, _) if k == SET) {
-                "a set's values"
-            } else {
-                "a map's keys"
-            };
-            let d = Diagnostic::error("E0441", format!("{what} can't hold a float: `{key}`"), at)
-                .with_help(
-                    "`NaN != NaN`, so a float key could never be found again; use an integer",
-                );
-            self.report(d);
         }
     }
 
@@ -223,9 +171,10 @@ mod tests {
     }
 
     #[test]
-    fn keys_hold_no_floats_and_entries_change_by_assignment() {
-        assert_eq!(errors("fun f(s: Set<f64>) {}\nfun main() {}")[0].0, "E0441");
-        assert_eq!(errors("fun main() { let m = #{1.5: 1}; }")[0].0, "E0441");
+    fn keys_are_key_and_entries_change_by_assignment() {
+        // Floats are `Eq` but not `Key`.
+        assert_eq!(errors("fun f(s: Set<f64>) {}\nfun main() {}")[0].0, "E0451");
+        assert_eq!(errors("fun main() { let m = #{1.5: 1}; }")[0].0, "E0451");
         assert_eq!(
             errors("fun main() { let m = #{\"a\": 1}; m[\"a\"] = 2; }"),
             [("E0501", "m")]

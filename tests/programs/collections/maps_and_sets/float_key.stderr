@@ -1,9 +1,17 @@
-error[E0441]: a set's values can't hold a float: `f64`
+error[E0451]: `f64` can't be a key: it is a float
   --> tests/programs/collections/maps_and_sets/float_key.la:2:12
   |
 2 |     let s: Set<f64> = #{1.5};
   |            ^^^^^^^^
   |
-  = help: `NaN != NaN`, so a float key could never be found again; use an integer
+  = help: floats compare with `==` but aren't `Key`: `NaN != NaN`, so a float key could never be found again; use an integer
 
-For more about E0441, run `lughac explain E0441`.
+error[E0451]: `f64` can't be a key: it is a float
+  --> tests/programs/collections/maps_and_sets/float_key.la:2:23
+  |
+2 |     let s: Set<f64> = #{1.5};
+  |                       ^^^^^^
+  |
+  = help: floats compare with `==` but aren't `Key`: `NaN != NaN`, so a float key could never be found again; use an integer
+
+For more about E0451, run `lughac explain E0451`.

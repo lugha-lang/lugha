@@ -60,6 +60,9 @@ pub(super) struct InterfaceInfo {
     pub not_value: Option<String>,
     /// Its first method whose written signature uses `Self` (E0427).
     pub uses_self: Option<String>,
+    /// The interfaces it extends, in its own parameters (`Key: Eq`); set
+    /// with its parameters' bounds.
+    pub extends: Vec<Applied>,
 }
 
 impl Checker {
@@ -91,6 +94,7 @@ impl Checker {
                     span,
                     not_value: not_value.map(|it| it.name.name.clone()),
                     uses_self: super::self_type::written_self_use(i),
+                    extends: Vec::new(),
                 };
                 self.interfaces.insert(key, info);
             }
@@ -109,9 +113,59 @@ impl Checker {
                 .is_some_and(|info| info.span == i.name.span)
             {
                 let generics = self.generics(&i.type_params);
-                self.interfaces.get_mut(&key).expect("just found").generics = generics;
+                self.interfaces.get_mut(&key).expect("just found").generics = generics.clone();
+                let extends = self.extended(&i.extends, generics);
+                self.interfaces.get_mut(&key).expect("just found").extends = extends;
             }
         }
+    }
+
+    /// The interfaces `extends` names, resolved with the interface's own
+    /// parameters `generics` in scope: E0315 for one that isn't an
+    /// interface.
+    fn extended(&mut self, extends: &[Bound], generics: Vec<Generic>) -> Vec<Applied> {
+        let saved = std::mem::replace(&mut self.type_params, generics);
+        let mut found = Vec::new();
+        for b in extends {
+            // `Eq` is the prelude's, written as it is in a bound.
+            let key = match b.module.is_none() && b.name.name == "Eq" {
+                true => Some(super::derive::EQ.to_string()),
+                false => self.interface_key(b),
+            };
+            let Some(key) = key else {
+                let is_type = b.module.is_none() && self.is_type_name(&b.name.name);
+                self.report(errors::unknown_bound(&b.name.name, b.span, is_type));
+                continue;
+            };
+            self.item_visible(&key, b.span);
+            self.define_bound(b, &key);
+            if let Some(applied) = self.applied_bound(key, b) {
+                found.push(applied);
+            }
+        }
+        self.type_params = saved;
+        found
+    }
+
+    /// `bounds` with every interface its interfaces extend, at their
+    /// arguments, transitively; `Eq` among them sets the `eq` flag.
+    pub(super) fn with_extended(&self, mut bounds: Bounds) -> Bounds {
+        let mut i = 0;
+        while i < bounds.interfaces.len() {
+            let a = bounds.interfaces[i].clone();
+            if let Some(info) = self.interfaces.get(&a.key) {
+                for e in &info.extends {
+                    let e = e.subst(&info.generics, &a.args);
+                    if e.key == super::derive::EQ {
+                        bounds.eq = true;
+                    } else if !bounds.interfaces.contains(&e) {
+                        bounds.interfaces.push(e);
+                    }
+                }
+            }
+            i += 1;
+        }
+        bounds
     }
 
     /// Pass 2: every item's signature, in concrete types and the
@@ -178,7 +232,7 @@ impl Checker {
                 }
             }
         }
-        bounds
+        self.with_extended(bounds)
     }
 
     /// The key of the interface `b` names, here or through an import.
@@ -319,5 +373,46 @@ mod tests {
         ok(&format!(
             "{factory}fun g<T: Factory>(x: T): i64 = T.make();\nfun main() {{}}"
         ));
+    }
+
+    #[test]
+    fn an_interface_extends_others() {
+        let src = "interface Named { fun name(self): string; }\n\
+            interface Greeter: Named { fun greet(self): string = \"hi {self.name()}\"; }\n\
+            struct D {}\n\
+            impl Named for D { fun name(self): string = \"d\"; }\n\
+            impl Greeter for D {}\n\
+            fun first<T: Named>(x: T): string = x.name();\n\
+            fun both<T: Greeter>(x: T): string = first(x) + x.greet();\n";
+        ok(&format!("{src}fun main() {{ let s = both(D {{}}); }}"));
+        // Implementing it needs what it extends.
+        assert_eq!(
+            errors(
+                "interface Named { fun name(self): string; }\n\
+                 interface Greeter: Named { fun greet(self): string; }\n\
+                 struct D {}\nimpl Greeter for D { fun greet(self): string = \"g\"; }\nfun main() {}"
+            ),
+            [("E0422", "Greeter")]
+        );
+        assert_eq!(
+            errors("interface Greeter: Nope {}\nfun main() {}"),
+            [("E0315", "Nope")]
+        );
+    }
+
+    #[test]
+    fn key_extends_eq_and_hasher_hashes_equal_values_equally() {
+        ok("struct P { x: i64 } with Key\n\
+            fun hashed<T: Key>(x: T): u64 { let mut h = Hasher.new(); h.add(x); h.finish() }\n\
+            fun same<T: Key>(a: T, b: T): bool = a == b && hashed(a) == hashed(b);\n\
+            fun main() { let b = same(P { x: 1 }, P { x: 1 }); }");
+        assert_eq!(
+            errors("struct P { x: i64 }\nfun main() { let b = P { x: 1 } == P { x: 1 }; }")[0].0,
+            "E0422"
+        );
+        assert_eq!(
+            errors("struct P { x: f64 } with Key\nfun main() {}")[0].0,
+            "E0451"
+        );
     }
 }

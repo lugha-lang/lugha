@@ -24,19 +24,13 @@ pub(super) enum Unmet {
     Bound(String, Type),
     /// A C union (`true`) or a struct holding one (`false`).
     Union(bool),
-    /// A struct's or enum's own method named like an item, with another
-    /// signature (E0422): what it should be.
-    Mismatch(String),
-    /// A struct or enum with its own `eq` but no `hash`, or the other way
-    /// round (E0454): the one it has.
-    HalfPair(String),
     /// A struct or enum that didn't ask for the interface (E0422).
     NotAsked(Type),
 }
 
 impl Checker {
-    /// E0450 for `Json`, E0451 for any other interface, E0422 for an own
-    /// method of the wrong shape, unless `arg` meets derivable interface
+    /// E0450 for `Json`, E0451 for any other interface, E0422 for a type
+    /// that didn't ask for it, unless `arg` meets derivable interface
     /// `interface`.
     pub(super) fn meets_derived(&mut self, interface: &str, arg: &Type, span: Span) -> bool {
         let Some((path, why)) = self.unmet_derived(interface, arg, "", &mut HashSet::new()) else {
@@ -48,19 +42,12 @@ impl Checker {
                 let shown = super::derive_with::shown_interface(interface);
                 errors::not_asked(arg, part, (&path, &shown), span)
             }
-            Unmet::HalfPair(has) => errors::half_pair(arg, has, span),
-            Unmet::Mismatch(problem) => {
-                let shown = if interface == super::json::BOUND {
-                    "json.Json"
-                } else {
-                    name
-                };
-                // `json.Value`, as programs write it, not its key.
-                let problem = problem.replace("std.$json_value.", "json.");
-                errors::unsatisfied(arg, shown, &[problem], span)
-            }
             _ if interface == super::json::BOUND => {
                 errors::not_json(arg, &path, &super::json::describe(&why), span)
+            }
+            // Floats are `Eq` but never keys: say why, not what is.
+            Unmet::Missing(Type::F32 | Type::F64) if interface == super::derive::KEY => {
+                errors::float_key(arg, &path, span)
             }
             _ => {
                 let covered = self.derives.covered(interface);
@@ -72,60 +59,15 @@ impl Checker {
         false
     }
 
-    /// Whether struct or enum `owner` has its own item `name` of derivable
-    /// interface `interface`: `Some(true)` with the item's exact signature,
-    /// `Some(false)` with another, `None` without one.
-    pub(super) fn own_item(&self, interface: &str, owner: &str, name: &str) -> Option<bool> {
-        let m = self.methods.get(owner)?.get(name)?;
-        let args = super::generics::params(&m.generics[..m.outer]);
-        let me = if self.enums.contains_key(owner) {
-            Type::Enum(owner.to_string(), args)
-        } else {
-            Type::Struct(owner.to_string(), args)
-        };
-        let applied = super::applied::Applied {
-            key: interface.to_string(),
-            args: Vec::new(),
-        };
-        let req = self
-            .items_for(&applied, &me)
-            .into_iter()
-            .find(|r| r.name == name)?;
-        let fits = m.generics.len() == m.outer
-            && req.receiver == m.receiver
-            && req.params == m.params
-            && req.ret == m.ret;
-        Some(fits)
-    }
-
-    /// After every module's declarations: the items structs and enums
-    /// supply themselves, so calls reach them instead of a block's.
+    /// After every module's declarations: the types that implement a
+    /// derivable interface by hand, so calls reach their block's methods
+    /// instead of a derive block's. Such an `impl` supplies every item of
+    /// the interface, its defaults included.
     pub(super) fn derive_owners(&mut self) {
         let mut own = Vec::new();
-        for interface in self.derives.interfaces() {
-            let items: Vec<String> = self.interfaces[&interface]
-                .items
-                .iter()
-                .map(|r| r.name.clone())
-                .collect();
-            let owners = self.structs.keys().chain(self.enums.keys());
-            for owner in owners {
-                // Only `Eq` is still met by a type's own methods.
-                if interface != super::derive::EQ {
-                    continue;
-                }
-                for name in &items {
-                    if self.own_item(&interface, owner, name) == Some(true) {
-                        own.push((owner.clone(), name.clone()));
-                    }
-                }
-            }
-        }
-        // A hand-written `impl I for T` supplies every item of `I`, its
-        // defaults included.
         for (owner, entries) in &self.impls {
             for e in entries {
-                if e.key == super::derive::EQ || !self.derives.derivable(&e.key) {
+                if !self.derives.derivable(&e.key) {
                     continue;
                 }
                 for r in &self.interfaces[&e.key].items {
@@ -160,54 +102,13 @@ impl Checker {
             };
         }
         // A struct or enum that implements the interface by hand meets it.
-        if interface != super::derive::EQ
-            && let Type::Struct(owner, _) | Type::Enum(owner, _) = ty
+        if let Type::Struct(owner, _) | Type::Enum(owner, _) = ty
             && self
                 .impls
                 .get(owner)
                 .is_some_and(|es| es.iter().any(|e| e.key == interface))
         {
             return None;
-        }
-        // `Eq`'s items may still be a struct's or enum's own, of the item's
-        // exact shape; one that supplies both needs no block.
-        if interface == super::derive::EQ
-            && let Type::Struct(owner, _) | Type::Enum(owner, _) = ty
-            && let Some(info) = self.interfaces.get(interface)
-        {
-            let all = info
-                .items
-                .iter()
-                .all(|r| self.own_item(interface, owner, &r.name) == Some(true));
-            if all {
-                return None;
-            }
-            for r in &info.items {
-                if self.own_item(interface, owner, &r.name) == Some(false) {
-                    let applied = super::applied::Applied {
-                        key: interface.to_string(),
-                        args: Vec::new(),
-                    };
-                    let req = self.items_for(&applied, ty);
-                    let req = req.iter().find(|q| q.name == r.name).unwrap_or(r);
-                    let should = super::satisfy::shown(req);
-                    return at(Unmet::Mismatch(format!(
-                        "`{}` should be `{should}`",
-                        r.name
-                    )));
-                }
-            }
-        }
-        // `eq` and `hash` come together: equal values must hash equal.
-        if interface == super::derive::EQ
-            && let Type::Struct(owner, _) | Type::Enum(owner, _) = ty
-        {
-            let has = |n: &str| self.own_item(interface, owner, n) == Some(true);
-            match (has("eq"), has("hash")) {
-                (true, false) => return at(Unmet::HalfPair("eq".into())),
-                (false, true) => return at(Unmet::HalfPair("hash".into())),
-                _ => {}
-            }
         }
         let union = |key: &str| self.holds_union(key);
         let Some((block, args)) = self.derives.find(interface, ty, union) else {
@@ -267,11 +168,15 @@ impl Checker {
                     return None;
                 };
                 // The block is a template: a struct uses it when it asks.
-                if interface != super::derive::EQ && !self.asks(key, interface) {
+                if !self.asks(key, interface) {
                     return at(Unmet::NotAsked(ty.clone()));
                 }
                 // Reported at the declaration already.
-                if self.broken.contains(&(key.clone(), interface.to_string())) {
+                if self
+                    .asking
+                    .broken
+                    .contains(&(key.clone(), interface.to_string()))
+                {
                     return None;
                 }
                 let info = self.structs.get(key)?;
@@ -292,11 +197,15 @@ impl Checker {
                 let (Type::Struct(key, targs) | Type::Enum(key, targs)) = ty else {
                     return None;
                 };
-                if interface != super::derive::EQ && !self.asks(key, interface) {
+                if !self.asks(key, interface) {
                     return at(Unmet::NotAsked(ty.clone()));
                 }
                 // Reported at the declaration already.
-                if self.broken.contains(&(key.clone(), interface.to_string())) {
+                if self
+                    .asking
+                    .broken
+                    .contains(&(key.clone(), interface.to_string()))
+                {
                     return None;
                 }
                 let variants = self.enum_variants(key, targs).unwrap_or_default();
@@ -346,6 +255,16 @@ impl Checker {
         })
     }
 
+    /// The method of `owner`'s hand-written `impl Eq`, if it has one.
+    fn written_eq(&self, owner: &str) -> Option<&super::methods::Method> {
+        let entry = self
+            .impls
+            .get(owner)?
+            .iter()
+            .find(|e| e.key == super::derive::EQ)?;
+        self.methods.get(owner)?.get(&entry.method("eq"))
+    }
+
     /// The `eq` an `==` on concrete type `ty` calls:
     /// a struct's or enum's own (listed when generic or the prelude's), or
     /// the covering block's. Nothing for types compared inline.
@@ -361,8 +280,8 @@ impl Checker {
                 .derives
                 .own
                 .contains(&(owner.clone(), "eq".to_string()))
+            && let Some(m) = self.written_eq(owner)
         {
-            let m = &self.methods[owner]["eq"];
             let listed = every || !m.generics.is_empty() || super::instances::lazy_key(&m.key);
             return if listed {
                 vec![super::instances::Instance {
@@ -423,8 +342,6 @@ pub(super) fn describe(name: &str, why: &Unmet) -> String {
             format!("`{ty}`, which doesn't meet `{other}`")
         }
         Unmet::Union(itself) => union_part(*itself),
-        Unmet::Mismatch(problem) => problem.clone(),
-        Unmet::HalfPair(has) => format!("its own `{has}` alone"),
         Unmet::NotAsked(ty) => format!("`{ty}`, which doesn't derive or implement `{name}`"),
     }
 }

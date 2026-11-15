@@ -1,0 +1,27 @@
+// Equality and map keys are asked for: `with Key` (which implies `Eq`),
+// `with Eq` alone, or written by hand; floats are `Eq` but not `Key`.
+struct Point { x: i64, y: i64 } with Key
+
+struct Reading { at: i64, value: f64 } with Eq
+
+struct Email { address: string }
+
+impl Eq for Email {
+    fun eq(self, other: Email): bool = self.address.trim() == other.address.trim();
+}
+
+impl Key for Email {
+    fun hash(self, mut h: Hasher) { h.add(self.address.trim()); }
+}
+
+struct Note { text: string }
+
+fun main() {
+    let seen = #{Point { x: 1, y: 2 }: "a"};
+    println(seen[Point { x: 1, y: 2 }]);
+    println(Reading { at: 1, value: 0.5 } == Reading { at: 1, value: 0.5 });
+    let users = #{Email { address: "Ann@x.com" }: 1};
+    println(users.has(Email { address: " Ann@x.com " }));
+    println(1.5 == 1.5);
+    assert_key_laws(Email { address: "Ann@x.com" }, Email { address: " Ann@x.com" });
+}

@@ -332,8 +332,14 @@ impl Printer<'_> {
     }
 
     fn interface(&mut self, i: &InterfaceDecl) -> Doc {
+        let extends = if i.extends.is_empty() {
+            String::new()
+        } else {
+            let names: Vec<String> = i.extends.iter().map(|b| self.bound(b)).collect();
+            format!(": {}", names.join(", "))
+        };
         let head = format!(
-            "{}interface {}{} ",
+            "{}interface {}{}{extends} ",
             visibility(i.visibility),
             self.ident(&i.name),
             self.type_params(&i.type_params)

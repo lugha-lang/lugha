@@ -313,7 +313,7 @@ public struct Interface {
     public multicast: bool,
     /** Its IPv4 and IPv6 addresses as text; link-local IPv6 ones carry `%name`. */
     public addresses: string[],
-}
+} with Eq
 
 /**
  * This machine's network interfaces, each once, in the system's order.

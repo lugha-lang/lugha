@@ -22,6 +22,9 @@ use crate::span::Span;
 /// (the `eq` flag of a bound) means.
 pub const EQ: &str = "$prelude.Eq";
 
+/// The prelude's `Key`, which extends `Eq`: map keys and set values.
+pub const KEY: &str = "$prelude.Key";
+
 /// True if a parameter with `bounds` has `==`, and so `Eq`'s items:
 /// `Eq`, or `Num`/`Float`, which give `==` too.
 pub(super) fn implies_eq(bounds: &Bounds) -> bool {
@@ -149,14 +152,6 @@ impl Derives {
     /// interface.
     pub fn has_own(&self, owner: &str, name: &str) -> bool {
         self.own.contains(&(owner.to_string(), name.to_string()))
-    }
-
-    /// Every interface that has blocks, each once.
-    pub(super) fn interfaces(&self) -> Vec<String> {
-        let mut keys: Vec<String> = self.blocks.iter().map(|b| b.interface.clone()).collect();
-        keys.sort();
-        keys.dedup();
-        keys
     }
 
     /// The types `interface` has blocks for, as written: `i64`, `T[]`, `struct`s.

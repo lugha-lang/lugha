@@ -27,7 +27,7 @@ public enum Value {
     Array(Value[]),
     /** An object, its keys in the text's order. */
     Object(Map<string, Value>),
-}
+} with Eq
 
 /** What kind of mistake a `JsonError` is. */
 public enum ErrorKind {
@@ -43,7 +43,7 @@ public enum ErrorKind {
     Limit,
     /** Writing a float that is NaN or an infinity, which JSON can't hold. */
     NotFinite,
-}
+} with Key
 
 /**
  * Why a text isn't (acceptable) JSON, or a value can't be written, and
@@ -54,7 +54,7 @@ public struct JsonError {
     public detail: string,
     public line: i64,
     public column: i64,
-}
+} with Eq
 
 impl JsonError {
     /** The error as a sentence: `a key defined twice: a (line 1, column 10)`. */
@@ -69,7 +69,7 @@ public struct Limits {
     public depth: i64,
     /** Every value made, arrays and objects included (1000000). */
     public values: i64,
-}
+} with Eq
 
 /** The default limits. */
 public fun limits(): Limits = Limits { bytes: 1048576, depth: 100, values: 1000000 };
@@ -110,7 +110,7 @@ public interface Json {
 public struct DecodeError {
     public path: string,
     public detail: string,
-}
+} with Eq
 
 impl DecodeError {
     /** `people[2].age: expected an integer, found a string`, or the detail alone at the top. */
@@ -256,7 +256,7 @@ derive<T: Json> Json for Option<T> {
 }
 
 /** An object, its keys as text: a string as it is, an integer in decimal. */
-derive<K: Eq + $JsonKey, V: Json> Json for Map<K, V> {
+derive<K: Key + $JsonKey, V: Json> Json for Map<K, V> {
     fun to_json(self): Value {
         let mut out: Map<string, Value> = #{};
         for (k, x) of self {
@@ -280,7 +280,7 @@ derive<K: Eq + $JsonKey, V: Json> Json for Map<K, V> {
 }
 
 /** An array with no element twice. */
-derive<T: Eq + Json> Json for Set<T> {
+derive<T: Key + Json> Json for Set<T> {
     fun to_json(self): Value {
         let mut out: Value[] = [];
         for x of self {

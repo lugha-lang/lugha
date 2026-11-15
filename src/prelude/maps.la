@@ -2,7 +2,7 @@
 // A compact table: entries in insertion order (removed ones marked and
 // compacted when half are), and `$slots`, open addressing with linear probing
 // at a load of at most 2/3 over indexes into the entries. Values, like arrays:
-// copies are independent. Keys are hashed by `Eq`'s `hash`, which matches `==`.
+// copies are independent. Keys are hashed by `Key`'s `hash`, which matches `==`.
 
 /**
  * A map from keys to values, visited in insertion order: `#{"ann": 31}`.
@@ -28,9 +28,11 @@ struct Set<T> {
 }
 
 /** The slot `k` is in (`.0`) and its entry, or -1 when it has none (`.1`). */
-fun $map_find<K: Eq, V>(m: Map<K, V>, k: K): (i64, i64) {
+fun $map_find<K: Key, V>(m: Map<K, V>, k: K): (i64, i64) {
     let mask = m.$slots.len - 1;
-    let mut i = (k.hash(14695981039346656037) & (mask as u64)) as i64;
+    let mut h = Hasher.new();
+    k.hash(mut h);
+    let mut i = (h.finish() & (mask as u64)) as i64;
     while true {
         let s = m.$slots[i];
         if s == 0 {
@@ -46,7 +48,7 @@ fun $map_find<K: Eq, V>(m: Map<K, V>, k: K): (i64, i64) {
 }
 
 /** A map of `keys[i]` to `vals[i]`; a later key replaces an earlier one's value. */
-fun $map_of<K: Eq, V>(keys: K[], vals: V[]): Map<K, V> {
+fun $map_of<K: Key, V>(keys: K[], vals: V[]): Map<K, V> {
     let mut m: Map<K, V> = Map { len: 0, $keys: [], $vals: [], $live: [], $slots: [0; 8], $at: 0 };
     for i in 0..keys.len {
         m.$put(keys[i], vals[i]);
@@ -55,7 +57,7 @@ fun $map_of<K: Eq, V>(keys: K[], vals: V[]): Map<K, V> {
 }
 
 /** A set of `xs`, each once, in their first order. */
-fun $set_of<T: Eq>(xs: T[]): Set<T> {
+fun $set_of<T: Key>(xs: T[]): Set<T> {
     let mut s: Set<T> = Set { len: 0, $map: $map_of([], []) };
     for x of xs {
         s.insert(x);
@@ -63,7 +65,7 @@ fun $set_of<T: Eq>(xs: T[]): Set<T> {
     s
 }
 
-impl Map<K: Eq, V> {
+impl Map<K: Key, V> {
     /**
      * Sets `k` to `v` in place: replaced, or added at the end, after growing
      * the table when it is full. Everything here changes `self` where it is,
@@ -215,7 +217,7 @@ impl Map<K: Eq, V> {
 }
 
 // `==` on maps needs equal values too.
-impl Map<K: Eq, V: Eq> {
+impl Map<K: Key, V: Eq> {
     /** True if both have the same keys with equal values, in any order: `==`. */
     fun same(self, other: Map<K, V>): bool {
         if self.len != other.len {
@@ -230,7 +232,7 @@ impl Map<K: Eq, V: Eq> {
     }
 }
 
-impl Set<T: Eq> {
+impl Set<T: Key> {
     /** True if `x` is in the set. */
     fun has(self, x: T): bool = self.$map.has(x);
 
@@ -324,7 +326,7 @@ impl Set<T: Eq> {
 }
 
 /** A map of an iterator's `(key, value)` pairs; a later key replaces an earlier one's value. */
-fun iter_collect_map<K: Eq, V>(it: Iter<(K, V)>): Map<K, V> {
+fun iter_collect_map<K: Key, V>(it: Iter<(K, V)>): Map<K, V> {
     let mut m: Map<K, V> = $map_of([], []);
     for (k, v) of it {
         m.insert(k, v);
@@ -333,7 +335,7 @@ fun iter_collect_map<K: Eq, V>(it: Iter<(K, V)>): Map<K, V> {
 }
 
 /** A set of an iterator's values. */
-fun iter_collect_set<T: Eq>(it: Iter<T>): Set<T> {
+fun iter_collect_set<T: Key>(it: Iter<T>): Set<T> {
     let mut s: Set<T> = $set_of([]);
     for x of it {
         s.insert(x);

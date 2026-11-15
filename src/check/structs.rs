@@ -232,7 +232,7 @@ mod tests {
     use crate::check::Type;
     use crate::check::test_util::{diagnostics, errors, let_type, ok};
 
-    const POINT: &str = "struct P { x: f64, y: f64 }\n";
+    const POINT: &str = "struct P { x: f64, y: f64 } with Eq\n";
 
     #[test]
     fn structs_resolve_in_any_order() {

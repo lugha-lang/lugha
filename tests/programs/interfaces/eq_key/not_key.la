@@ -1,0 +1,8 @@
+// A map key or set value must be `Key`: a type that only asks for `Eq`
+// isn't, and neither is a float.
+struct Reading { at: i64, value: f64 } with Eq
+
+fun main() {
+    let m = #{Reading { at: 1, value: 0.5 }: 1};
+    let s: Set<f64> = #{};
+}

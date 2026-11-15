@@ -1,0 +1,11 @@
+// `Key` extends `Eq`: a type implementing `Key` by hand must be `Eq` too,
+// so equal values can hash equal (E0422).
+struct Tag { text: string }
+
+impl Key for Tag {
+    fun hash(self, mut h: Hasher) {
+        h.add(self.text);
+    }
+}
+
+fun main() {}

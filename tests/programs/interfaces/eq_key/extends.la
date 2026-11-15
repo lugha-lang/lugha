@@ -1,0 +1,28 @@
+// An interface may extend others: implementing it needs them too, and a
+// bound on it gives their items.
+interface Named { fun name(self): string; }
+
+interface Greeter: Named {
+    fun greet(self): string = "hello, {self.name()}";
+}
+
+struct Dog { called: string }
+
+impl Named for Dog { fun name(self): string = self.called; }
+impl Greeter for Dog {}
+
+fun both<T: Greeter>(x: T): string = "{x.name()}: {x.greet()}";
+
+fun first<T: Named>(x: T): string = x.name();
+
+fun pass<T: Greeter>(x: T): string = first(x);
+
+struct Pair<T> { a: T, b: T } with Key
+
+fun main() {
+    let d = Dog { called: "rex" };
+    println(both(d));
+    println(pass(d));
+    let seen = #{Pair { a: 1, b: 2 }: "one-two"};
+    println(seen.get(Pair { a: 1, b: 2 }));
+}

@@ -1,8 +1,8 @@
-// A type that isn't `Eq`: E0451 names the part, at
-// `==` and at a `T: Eq` bound alike.
-struct Job { id: i64, run: fun(i64): i64 }
-struct Shelf { jobs: Job[] }
-enum Slot { Empty, Holding(Job) }
+// A type that asks for `Eq` but has a part that isn't: E0451 names the
+// part at the declaration. A type that doesn't ask isn't `Eq` (E0422).
+struct Job { id: i64, run: fun(i64): i64 } with Eq
+struct Shelf { jobs: Job[] } with Eq
+struct Note { text: string }
 
 fun same<T: Eq>(a: T, b: T): bool = a == b;
 
@@ -10,5 +10,5 @@ fun main() {
     let j = Job { id: 1, run: fun(x: i64): i64 = x };
     let a = j == j;
     let b = same(Shelf { jobs: [j] }, Shelf { jobs: [] });
-    let c = Slot.Holding(j) != Slot.Empty;
+    let c = Note { text: "a" } == Note { text: "a" };
 }

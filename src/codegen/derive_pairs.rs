@@ -27,7 +27,8 @@ impl<'ctx> Lowerer<'ctx> {
             Type::Struct(owner, targs) | Type::Enum(owner, targs)
                 if self.derives.has_own(owner, "eq") =>
             {
-                let key = format!("{owner}.eq");
+                // The method of the type's `impl Eq`.
+                let key = format!("{owner}.{}", self.block_method(ty, EQ, &[], "eq"));
                 self.monos
                     .get(&instance_name(&key, targs))
                     .or_else(|| self.methods.get(&key))

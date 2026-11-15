@@ -1,4 +1,4 @@
-struct Point { x: i64, y: i64 }
+struct Point { x: i64, y: i64 } with Eq
 
 fun contains<T: Eq>(xs: T[], x: T): bool {
     for y of xs {
@@ -16,7 +16,7 @@ fun largest<T: Ord>(xs: T[]): Option<T> {
     Some(best)
 }
 
-struct Pair<A, B> { a: A, b: B }
+struct Pair<A, B> { a: A, b: B } with Eq
 
 fun main() {
     let ps = [Point { x: 1, y: 2 }, Point { x: 3, y: 4 }];

@@ -2,7 +2,7 @@
 // `fun cmp(self, other: Self): Ordering` is `Ord`.
 import std.math;
 
-struct Score { loss: f64, name: string }
+struct Score { loss: f64, name: string } with Eq
 
 impl Score {
     fun cmp(self, o: Score): Ordering =

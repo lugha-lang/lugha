@@ -1,100 +1,209 @@
-// Equality and hashing: `Eq`
-// is derivable, with a block per kind of type: `==` on anything but a
-// number, `bool`, `char`, `string` or handle calls its `eq`, and maps and
-// sets hash keys with its `hash`, FNV-1a over the same structure `eq`
-// compares, so equal values hash equal. A struct or enum may write both
-// itself. Not cryptographic.
+// Equality and hashing: `Eq` gives `==`, and `Key`, which extends it,
+// lets a value be a map's key or a set's value, hashing it into a
+// `Hasher`: FNV-1a over the same structure `eq` compares, so equal values
+// hash equal. Both are derivable, with a block per kind of type: a struct
+// or enum asks with `with Eq` or `with Key`. Not cryptographic.
 
-/**
- * Values that can be compared with `==`, and hashed for maps and sets.
- * A struct or enum gets both from its fields; one that writes its own `eq`
- * must write its own `hash`, so that equal values hash equal.
- */
+/** Values that can be compared with `==`. */
 public interface Eq {
     /** True if `self` and `other` are equal: what `==` does. */
     fun eq(self, other: Self): bool;
-    /** `self` folded into FNV-1a state `h` (start a whole value at `14695981039346656037`). */
-    fun hash(self, h: u64): u64;
 }
 
-/** FNV-1a's step: xor `bits` in, then multiply by its prime, wrapping. */
-fun $mix(h: u64, bits: u64): u64 = (h ^ bits).wrapping_mul(1099511628211);
+/**
+ * Values that can be map keys and set values: equal values hash equal,
+ * and every value equals itself (`assert_key_laws` checks both).
+ */
+public interface Key: Eq {
+    /** `self` fed into `h`, part by part, as `eq` compares them. */
+    fun hash(self, mut h: Hasher);
+}
 
-/** A field or payload, folded in. */
-fun $part<F: Eq>(h: u64, name: string, x: F): u64 = x.hash(h);
+/** The running state of a hash: feed values with `add`, read it with `finish`. */
+public struct Hasher {
+    private state: u64,
+}
+
+impl Hasher {
+    /** An empty hash. */
+    fun new(): Hasher = Hasher { state: 14695981039346656037 };
+
+    /** `x` fed in. */
+    fun add<T: Key>(mut self, x: T) {
+        x.hash(mut self);
+    }
+
+    /** The hash of everything fed in so far. */
+    fun finish(self): u64 = self.state;
+
+    /** FNV-1a's step: xor `bits` in, then multiply by its prime, wrapping. */
+    fun $word(mut self, bits: u64) {
+        self.state = (self.state ^ bits).wrapping_mul(1099511628211);
+    }
+
+    /** A string's bytes fed in. */
+    fun $text(mut self, s: string) {
+        self.state = $hash.text(s, self.state);
+    }
+}
+
+/**
+ * Panics unless `a` equals itself and, when `a == b`, both hash the same:
+ * what a map needs of its keys.
+ */
+fun assert_key_laws<T: Key>(a: T, b: T) {
+    if a != a {
+        panic("assert_key_laws: a value isn't equal to itself");
+    }
+    if b != b {
+        panic("assert_key_laws: a value isn't equal to itself");
+    }
+    if a == b {
+        let mut ha = Hasher.new();
+        a.hash(mut ha);
+        let mut hb = Hasher.new();
+        b.hash(mut hb);
+        if ha.finish() != hb.finish() {
+            panic("assert_key_laws: equal values hash differently");
+        }
+    }
+}
+
+/** A field or payload, fed in. */
+fun $part<F: Key>(h: Hasher, name: string, x: F): Hasher {
+    let mut g = h;
+    x.hash(mut g);
+    g
+}
 
 /** A pair of fields or payloads, compared. */
 fun $same<F: Eq>(name: string, x: F, y: F): bool = x.eq(y);
 
 derive Eq for i8 {
     fun eq(self, other: i8): bool = self == other;
-    fun hash(self, h: u64): u64 = $mix(h, self as u64);
+}
+
+derive Key for i8 {
+    fun hash(self, mut h: Hasher) {
+        h.$word(self as u64);
+    }
 }
 
 derive Eq for i16 {
     fun eq(self, other: i16): bool = self == other;
-    fun hash(self, h: u64): u64 = $mix(h, self as u64);
+}
+
+derive Key for i16 {
+    fun hash(self, mut h: Hasher) {
+        h.$word(self as u64);
+    }
 }
 
 derive Eq for i32 {
     fun eq(self, other: i32): bool = self == other;
-    fun hash(self, h: u64): u64 = $mix(h, self as u64);
+}
+
+derive Key for i32 {
+    fun hash(self, mut h: Hasher) {
+        h.$word(self as u64);
+    }
 }
 
 derive Eq for i64 {
     fun eq(self, other: i64): bool = self == other;
-    fun hash(self, h: u64): u64 = $mix(h, self as u64);
+}
+
+derive Key for i64 {
+    fun hash(self, mut h: Hasher) {
+        h.$word(self as u64);
+    }
 }
 
 derive Eq for u8 {
     fun eq(self, other: u8): bool = self == other;
-    fun hash(self, h: u64): u64 = $mix(h, self as u64);
+}
+
+derive Key for u8 {
+    fun hash(self, mut h: Hasher) {
+        h.$word(self as u64);
+    }
 }
 
 derive Eq for u16 {
     fun eq(self, other: u16): bool = self == other;
-    fun hash(self, h: u64): u64 = $mix(h, self as u64);
+}
+
+derive Key for u16 {
+    fun hash(self, mut h: Hasher) {
+        h.$word(self as u64);
+    }
 }
 
 derive Eq for u32 {
     fun eq(self, other: u32): bool = self == other;
-    fun hash(self, h: u64): u64 = $mix(h, self as u64);
+}
+
+derive Key for u32 {
+    fun hash(self, mut h: Hasher) {
+        h.$word(self as u64);
+    }
 }
 
 derive Eq for u64 {
     fun eq(self, other: u64): bool = self == other;
-    fun hash(self, h: u64): u64 = $mix(h, self);
 }
 
-/** Floats by their bits (they can't be keys themselves, E0441). */
+derive Key for u64 {
+    fun hash(self, mut h: Hasher) {
+        h.$word(self);
+    }
+}
+
+/** Floats compare by IEEE rules, `NaN != NaN`, so they are never keys. */
 derive Eq for f32 {
     fun eq(self, other: f32): bool = self == other;
-    fun hash(self, h: u64): u64 = $mix(h, self.to_bits() as u64);
 }
 
 derive Eq for f64 {
     fun eq(self, other: f64): bool = self == other;
-    fun hash(self, h: u64): u64 = $mix(h, self.to_bits());
 }
 
 derive Eq for bool {
     fun eq(self, other: bool): bool = self == other;
-    fun hash(self, h: u64): u64 = $mix(h, if self { 1 } else { 0 });
+}
+
+derive Key for bool {
+    fun hash(self, mut h: Hasher) {
+        h.$word(if self { 1 } else { 0 });
+    }
 }
 
 derive Eq for char {
     fun eq(self, other: char): bool = self == other;
-    fun hash(self, h: u64): u64 = $mix(h, self as u64);
+}
+
+derive Key for char {
+    fun hash(self, mut h: Hasher) {
+        h.$word(self as u64);
+    }
 }
 
 derive Eq for string {
     fun eq(self, other: string): bool = self == other;
-    fun hash(self, h: u64): u64 = $hash.text(self, h);
+}
+
+derive Key for string {
+    fun hash(self, mut h: Hasher) {
+        h.$text(self);
+    }
 }
 
 derive Eq for () {
     fun eq(self, other: ()): bool = true;
-    fun hash(self, h: u64): u64 = h;
+}
+
+derive Key for () {
+    fun hash(self, mut h: Hasher) {}
 }
 
 /** The length, then each element. */
@@ -112,61 +221,95 @@ derive<T: Eq> Eq for T[] {
         }
         true
     }
+}
 
-    fun hash(self, h: u64): u64 {
-        let mut s = $mix(h, self.len as u64);
+derive<T: Key> Key for T[] {
+    fun hash(self, mut h: Hasher) {
+        h.$word(self.len as u64);
         for x of self {
-            s = x.hash(s);
+            x.hash(mut h);
         }
-        s
     }
 }
 
 /** Each field, in declaration order. */
 derive Eq for struct {
     fun eq(self, other: Self): bool = derive.all(self, other, $same);
-    fun hash(self, h: u64): u64 = derive.fold(self, h, $part);
+}
+
+derive Key for struct {
+    fun hash(self, mut h: Hasher) {
+        h = derive.fold(self, h, $part);
+    }
 }
 
 derive Eq for tuple {
     fun eq(self, other: Self): bool = derive.all(self, other, $same);
-    fun hash(self, h: u64): u64 = derive.fold(self, h, $part);
+}
+
+derive Key for tuple {
+    fun hash(self, mut h: Hasher) {
+        h = derive.fold(self, h, $part);
+    }
 }
 
 /** The same variant with equal payloads; hashed by the variant's position, then its payloads. */
 derive Eq for enum {
     fun eq(self, other: Self): bool = derive.all(self, other, $same);
-    fun hash(self, h: u64): u64 = derive.fold(self, $mix(h, derive.index(self) as u64), $part);
+}
+
+derive Key for enum {
+    fun hash(self, mut h: Hasher) {
+        h.$word(derive.index(self) as u64);
+        h = derive.fold(self, h, $part);
+    }
 }
 
 /** The same C object: one address. */
 derive Eq for handle {
     fun eq(self, other: Self): bool = derive.address(self) == derive.address(other);
-    fun hash(self, h: u64): u64 = $mix(h, derive.address(self));
 }
 
-/** Equal keys with equal values, in any order; entries hash by wrapping sum, so order doesn't matter. */
-derive<K: Eq, V: Eq> Eq for Map<K, V> {
-    fun eq(self, other: Map<K, V>): bool = self.same(other);
+derive Key for handle {
+    fun hash(self, mut h: Hasher) {
+        h.$word(derive.address(self));
+    }
+}
 
-    fun hash(self, h: u64): u64 {
+/** Equal keys with equal values, in any order. */
+derive<K: Key, V: Eq> Eq for Map<K, V> {
+    fun eq(self, other: Map<K, V>): bool = self.same(other);
+}
+
+/** Entries hash by wrapping sum, so their order doesn't matter. */
+derive<K: Key, V: Key> Key for Map<K, V> {
+    fun hash(self, mut h: Hasher) {
         let mut sum: u64 = 0;
         for (k, x) of self {
-            sum = sum.wrapping_add(x.hash(k.hash(14695981039346656037)));
+            let mut e = Hasher.new();
+            k.hash(mut e);
+            x.hash(mut e);
+            sum = sum.wrapping_add(e.finish());
         }
-        $mix($mix(h, self.len as u64), sum)
+        h.$word(self.len as u64);
+        h.$word(sum);
     }
 }
 
 /** The same elements, in any order. */
-derive<T: Eq> Eq for Set<T> {
+derive<T: Key> Eq for Set<T> {
     fun eq(self, other: Set<T>): bool = self.same(other);
+}
 
-    fun hash(self, h: u64): u64 {
+derive<T: Key> Key for Set<T> {
+    fun hash(self, mut h: Hasher) {
         let mut sum: u64 = 0;
         for x of self {
-            sum = sum.wrapping_add(x.hash(14695981039346656037));
+            let mut e = Hasher.new();
+            x.hash(mut e);
+            sum = sum.wrapping_add(e.finish());
         }
-        $mix($mix(h, self.len as u64), sum)
+        h.$word(self.len as u64);
+        h.$word(sum);
     }
 }

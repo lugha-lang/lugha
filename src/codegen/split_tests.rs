@@ -38,7 +38,7 @@ fn struct_ops(text: &str) -> Vec<&str> {
         .collect()
 }
 
-const P: &str = "struct P { x: i64, y: i64 }\n";
+const P: &str = "struct P { x: i64, y: i64 } with Eq\n";
 
 #[test]
 fn fields_are_read_built_and_copied_without_struct_values() {

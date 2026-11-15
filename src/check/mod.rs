@@ -241,8 +241,7 @@ impl Checker {
             through_index: std::collections::HashSet::new(),
             overload_choices: HashMap::new(),
             impls: HashMap::new(),
-            asked: HashMap::new(),
-            broken: std::collections::HashSet::new(),
+            asking: derive_with::Asking::default(),
             nominal_calls: HashMap::new(),
             qualified: std::collections::HashSet::new(),
             impl_owners: HashMap::new(),
@@ -410,12 +409,8 @@ pub(super) struct Checker {
     overload_choices: HashMap<ExprId, String>,
     /// See `Checked::impls`.
     impls: impls::Impls,
-    /// The derivable interfaces each struct or enum asks for (`with I`,
-    /// `impl I for T = derive;`), by type and interface key, with where.
-    asked: HashMap<(String, String), Span>,
-    /// Asked-for derivations already reported at the declaration (E0450,
-    /// E0451): their uses aren't reported again.
-    broken: std::collections::HashSet<(String, String)>,
+    /// See `derive_with::Asking`.
+    asking: derive_with::Asking,
     /// See `Checked::nominal_calls`.
     nominal_calls: HashMap<ExprId, applied::Applied>,
     /// See `Checked::qualified`.

@@ -38,7 +38,7 @@ impl Checker {
     }
 
     /// The prelude's key for a type name no module declares: `Result`,
-    /// `Ordering`, `Map` and `Set`, or an iterator type.
+    /// `Ordering`, `Map`, `Set` and `Hasher`, or an iterator type.
     pub(super) fn prelude_type(&self, name: &str) -> Option<String> {
         if name == "Result" && self.enums.contains_key(RESULT) {
             return Some(RESULT.to_string());
@@ -46,8 +46,8 @@ impl Checker {
         if name == "Ordering" && self.enums.contains_key(super::ordering::ORDERING) {
             return Some(super::ordering::ORDERING.to_string());
         }
-        // Maps and sets.
-        for key in [super::maps::MAP, super::maps::SET] {
+        // Maps and sets, and the hasher that keys feed.
+        for key in [super::maps::MAP, super::maps::SET, "$prelude.Hasher"] {
             if key.strip_prefix("$prelude.") == Some(name) && self.structs.contains_key(key) {
                 return Some(key.to_string());
             }

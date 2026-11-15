@@ -1,5 +1,5 @@
 // Nested patterns and guards.
-enum Shape { Circle(f64), Rect(f64, f64), Empty }
+enum Shape { Circle(f64), Rect(f64, f64), Empty } with Eq
 
 enum List { Nil, Cons(i64, List) }
 

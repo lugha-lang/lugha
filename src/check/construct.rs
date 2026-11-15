@@ -167,7 +167,7 @@ mod tests {
     use crate::check::Type;
     use crate::check::test_util::{errors, let_type};
 
-    const SHAPE: &str = "enum Shape { Circle(f64), Rect(f64, f64), Empty }\n";
+    const SHAPE: &str = "enum Shape { Circle(f64), Rect(f64, f64), Empty } with Eq\n";
 
     #[test]
     fn construction_checks_variants_and_payloads() {

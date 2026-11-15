@@ -1,6 +1,6 @@
 ## FEATURE: `Eq` and `Key`: equality and map keys asked for, not given; interfaces that extend interfaces; `Hasher`; milestone 167, in v18's Phase 1.
 
-**Status:** proposed 2026-11-15. Waiting for approval.
+**Status:** proposed 2026-11-15. Approved 2026-11-15.
 
 ## OBJECTIVE
 ```lugha
@@ -79,6 +79,14 @@ fun email_is_a_good_key() {
 - `Ord`, `with Ord`, the tuple ordering block, float sorting (PRP-200); built-in types implementing a program's interfaces (its own PRP after that).
 - Seeded hashing (runtime phase); `@caller_location` (the printing PRP).
 - A grace period for types that compared without asking [PRI-03].
+
+## CHANGES DURING THE BUILD (for review)
+1. **A map or set key that mentions a type parameter is checked where the map is used**, not where the type is written: a struct's parameters can't have bounds, so `struct Index<K> { m: Map<K, i64> }` couldn't otherwise be written. Every map operation asks `K: Key`, so nothing gets through.
+2. **Float keys say why:** E0451 "`f64` can't be a key: it is a float", with the `NaN != NaN` help, rather than listing every type that has a `Key` block. A written `Set<f64>` with a literal reports at both, the annotation and the literal.
+3. **`Eq` and `Key` resolve like `Iter` and `Display`:** a module's own `Eq` or `Key` means its own; `Hasher` is a prelude type like `Map`; `assert_key_laws` falls back to the prelude like `range`.
+4. **E0422's examples in OBJECTIVE:** a float key is E0451 (a part that no block covers), as other derivable interfaces report, not E0422.
+5. **The example compares emails ignoring spaces** (`trim`): strings have no `to_lower`.
+6. **Fixed on the way:** an associated call on a prelude type (`Hasher.new()`) was taken for a prelude helper called on a value and crashed codegen; `==` on a struct that asks for `Eq` with a function field reported E0404 after the declaration's E0451.
 
 ## DESIGN
 - **New diagnostic:** E0464 "`Key` extends `Eq`, so it can't be a type: use it as a bound". Implementing `Key` without `Eq` is E0422 at the block: "`Email` implements `Key` but not `Eq`, which `Key` extends".

@@ -5,13 +5,35 @@
 //! not implementations. `Eq` is still met without asking; `with Eq` is
 //! checked all the same.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use super::derive::{Covers, EQ};
+use super::derive_meets::Unmet;
 use super::generics::has_param;
 use super::{Checker, Type, errors};
 use crate::ast::{Bound, Item, Program};
 use crate::span::Span;
+
+/// What structs and enums ask to derive, and what is still to check.
+#[derive(Default)]
+pub(super) struct Asking {
+    /// The derivable interfaces each struct or enum asks for (`with I`,
+    /// `impl I for T = derive;`), by type and interface key, with where.
+    pub asked: HashMap<(String, String), Span>,
+    /// Asked-for derivations already reported at the declaration (E0450,
+    /// E0451): their uses aren't reported again.
+    pub broken: HashSet<(String, String)>,
+    /// Map and set keys written before every type has said what it
+    /// derives: checked for `Key` once it has.
+    pub keys: Vec<(Type, Span)>,
+    /// True once every module's declarations are in: keys are checked at
+    /// once from then on.
+    pub settled: bool,
+}
+
+/// Where an interface that a listed one extends is asked for: nowhere
+/// written, so its checks are the listed one's.
+const IMPLIED: Span = Span { start: 0, end: 0 };
 
 impl Checker {
     /// Pass 3, after the derive blocks: every `with` list and
@@ -51,8 +73,11 @@ impl Checker {
         }
     }
 
-    /// Records that struct or enum `owner` asks to derive each of `asked`.
+    /// Records that struct or enum `owner` asks to derive each of `asked`,
+    /// and the interfaces those extend (`with Key` is `with Eq, Key`),
+    /// unless it implements one by hand.
     fn ask(&mut self, owner: &str, kind: Covers, asked: &[Bound]) {
+        let mut explicit = Vec::new();
         for b in asked {
             // `Eq` is written as the built-in bound.
             let eq = b.module.is_none() && b.name.name == "Eq" && b.args.is_empty();
@@ -64,7 +89,7 @@ impl Checker {
             self.item_visible(&key, b.span);
             self.define_bound(b, &key);
             let shown = shown_interface(&key);
-            if key != EQ && !self.derives.covers(&key, &kind) {
+            if !self.derives.covers(&key, &kind) {
                 let covered = self.derives.covered(&key);
                 let what = match kind {
                     Covers::Enum => "an enum",
@@ -77,13 +102,61 @@ impl Checker {
                 continue;
             }
             let at = (owner.to_string(), key);
-            if let Some(first) = self.asked.get(&at) {
+            if let Some(first) = self.asking.asked.get(&at) {
                 let ty = Type::Struct(owner.to_string(), Vec::new());
                 self.report(errors::duplicate_impl(&shown, &ty, b.span, *first));
                 continue;
             }
-            self.asked.insert(at, b.span);
+            explicit.push(at.1.clone());
+            self.asking.asked.insert(at, b.span);
         }
+        for key in explicit {
+            for extended in self.extended_keys(&key) {
+                let at = (owner.to_string(), extended);
+                let written = self
+                    .impls
+                    .get(owner)
+                    .is_some_and(|es| es.iter().any(|e| e.key == at.1));
+                if !written
+                    && !self.asking.asked.contains_key(&at)
+                    && self.derives.covers(&at.1, &kind)
+                {
+                    self.asking.asked.insert(at, IMPLIED);
+                }
+            }
+        }
+    }
+
+    /// Every interface `key` extends, transitively, by key.
+    pub(super) fn extended_keys(&self, key: &str) -> Vec<String> {
+        let mut found: Vec<String> = Vec::new();
+        let mut next = vec![key.to_string()];
+        while let Some(k) = next.pop() {
+            for e in self
+                .interfaces
+                .get(&k)
+                .map(|i| i.extends.clone())
+                .unwrap_or_default()
+            {
+                if !found.contains(&e.key) {
+                    found.push(e.key.clone());
+                    next.push(e.key);
+                }
+            }
+        }
+        found
+    }
+
+    /// The first interface that `key` extends and struct or enum `owner`
+    /// neither derives nor implements by hand, if any.
+    pub(super) fn missing_extended(&self, owner: &str, key: &str) -> Option<String> {
+        self.extended_keys(key).into_iter().find(|e| {
+            !self.asks(owner, e)
+                && !self
+                    .impls
+                    .get(owner)
+                    .is_some_and(|es| es.iter().any(|x| x.key == *e))
+        })
     }
 
     /// True if struct or enum `owner` asked to derive `interface`. The
@@ -92,6 +165,7 @@ impl Checker {
     pub(super) fn asks(&self, owner: &str, interface: &str) -> bool {
         owner.starts_with("$prelude.")
             || self
+                .asking
                 .asked
                 .contains_key(&(owner.to_string(), interface.to_string()))
     }
@@ -125,12 +199,23 @@ impl Checker {
         }
         for (owner, span) in asked {
             let found = self
+                .asking
                 .asked
                 .iter()
                 .find(|((o, _), s)| *o == owner && **s == span)
                 .map(|((_, k), _)| k.clone());
             if let Some(key) = found {
                 self.check_one(&owner, &key, span);
+                if let Some(missing) = self.missing_extended(&owner, &key) {
+                    let ty = Type::Struct(owner.clone(), Vec::new());
+                    let d = errors::extended_missing(
+                        &ty,
+                        &shown_interface(&key),
+                        &shown_interface(&missing),
+                        span,
+                    );
+                    self.report(d);
+                }
             }
         }
     }
@@ -155,8 +240,12 @@ impl Checker {
             }
             if let Some((inner, why)) = self.unmet_derived(key, &part, &path, &mut HashSet::new()) {
                 let me = Type::Struct(ty.clone(), Vec::new());
+                let float = matches!(why, Unmet::Missing(Type::F32 | Type::F64));
                 let d = match key == super::json::BOUND {
                     true => errors::not_json(&me, &inner, &super::json::describe(&why), span),
+                    false if float && key == super::derive::KEY => {
+                        errors::float_key(&me, &inner, span)
+                    }
                     false => {
                         let name = key.rsplit('.').next().unwrap_or(key);
                         let what = super::derive_meets::describe(name, &why);
@@ -166,7 +255,9 @@ impl Checker {
                 };
                 self.report(d);
                 // Uses of the type aren't reported again.
-                self.broken.insert((owner.to_string(), key.to_string()));
+                self.asking
+                    .broken
+                    .insert((owner.to_string(), key.to_string()));
                 return;
             }
         }
@@ -194,6 +285,35 @@ impl Checker {
                     .map(move |(i, t)| (format!(".{v}.{i}"), t.clone()))
             })
             .collect()
+    }
+}
+
+impl Checker {
+    /// The key of map or set type `ty`, written at `at`, must be `Key`:
+    /// now, or once every type has said what it derives. A key that
+    /// mentions a type parameter is checked where the map is used instead,
+    /// since every map operation asks for `K: Key` (a struct's parameters
+    /// have no bounds to give it).
+    pub(super) fn key_types(&mut self, ty: &Type, at: Span) {
+        let Some(key) = super::maps::key_of(ty).cloned() else {
+            return;
+        };
+        if has_param(&key) {
+            return;
+        }
+        if self.asking.settled {
+            self.meets_derived(super::derive::KEY, &key, at);
+        } else {
+            self.asking.keys.push((key, at));
+        }
+    }
+
+    /// Every key waiting for the declarations, checked.
+    pub(super) fn settle_keys(&mut self) {
+        self.asking.settled = true;
+        for (key, at) in std::mem::take(&mut self.asking.keys) {
+            self.meets_derived(super::derive::KEY, &key, at);
+        }
     }
 }
 

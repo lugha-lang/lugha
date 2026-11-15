@@ -209,8 +209,8 @@ fn mentions(ty: &Type, name: &str) -> bool {
 mod tests {
     use crate::check::test_util::{errors, ok, test_mode};
 
-    const VIEW: &str = "enum View<M> { Text(string), Button(string, M) }\n\
-        enum Msg { Go }\n\
+    const VIEW: &str = "enum View<M> { Text(string), Button(string, M) } with Eq\n\
+        enum Msg { Go } with Eq\n\
         fun text<M>(s: string): View<M> = View.Text(s);\n";
 
     #[test]
@@ -326,7 +326,7 @@ mod tests {
 
     #[test]
     fn unwrap_and_expect_pass_the_wanted_type_back() {
-        let lib = "struct Person { name: string }\n\
+        let lib = "struct Person { name: string } with Eq\n\
             fun decode<T>(s: string): Result<T, string> = Err(s);\n\
             fun maybe<T>(): Option<T> = None;\n\
             fun take(p: Person) {}\n";

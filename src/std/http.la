@@ -32,7 +32,7 @@ public struct Request {
     public body: u8[],
     /** The client's address, `host:port`. */
     public peer: string,
-}
+} with Eq
 
 /** A response: what a handler returns, and what the client receives. */
 public struct Response {
@@ -42,7 +42,7 @@ public struct Response {
     public headers: Map<string, string>,
     /** The body's bytes. */
     public body: u8[],
-}
+} with Eq
 
 /** How much the server reads before it refuses a request (`limits()` gives the defaults). */
 public struct Limits {
@@ -56,7 +56,7 @@ public struct Limits {
     public body: i64,
     /** Milliseconds for a whole request to arrive, and for a write (30000). */
     public timeout_ms: i64,
-}
+} with Eq
 
 /** The default limits. */
 public fun limits(): Limits = Limits {

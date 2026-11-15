@@ -1,0 +1,16 @@
+// `assert_key_laws` catches a `Key` whose equal values hash differently.
+struct Name { text: string }
+
+impl Eq for Name {
+    fun eq(self, other: Name): bool = self.text.trim() == other.text.trim();
+}
+
+impl Key for Name {
+    fun hash(self, mut h: Hasher) {
+        h.add(self.text);
+    }
+}
+
+fun main() {
+    assert_key_laws(Name { text: "ann" }, Name { text: " ann " });
+}
