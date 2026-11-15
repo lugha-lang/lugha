@@ -1,0 +1,9 @@
+error[E0460]: `describe` on `P` is an item of both `Named` and `Shown`
+   --> tests/programs/interfaces/self_everywhere/e0460.la:19:24
+   |
+19 |     println(P { x: 1 }.describe());
+   |                        ^^^^^^^^
+   |
+   = help: say which one you mean: `Named.describe(x, …)` or `Shown.describe(x, …)`
+
+For more about E0460, run `lughac explain E0460`.

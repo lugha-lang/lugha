@@ -202,8 +202,8 @@ mod tests {
                 fun next(mut self): Option<T>;\n\
                 fun skip(mut self): bool = match self.next() { Some(_) => true, None => false };\n\
             }\n\
-            struct Count { n: i64 }\nimpl Count { fun next(mut self): Option<i64> = Some(self.n); }\n\
-            struct Words { at: i64 }\nimpl Words { fun next(mut self): Option<string> = None; }\n\
+            struct Count { n: i64 }\nimpl Source<i64> for Count { fun next(mut self): Option<i64> = Some(self.n); }\n\
+            struct Words { at: i64 }\nimpl Source<string> for Words { fun next(mut self): Option<string> = None; }\n\
             fun main() {\n\
                 let mut s: Source<i64> = Count { n: 1 };\n\
                 let b = s.skip();\n\
@@ -214,7 +214,10 @@ mod tests {
             .lines()
             .find(|l| l.starts_with("@\"lugha_vt_Count.Source<i64>\" = "))
             .unwrap_or_else(|| panic!("a table for Count as Source<i64>: {ir}"));
-        assert!(table.contains("@lugha_fn_Count.next"), "{table}");
+        assert!(
+            table.contains("@\"lugha_fn_Count.next@Source<i64>\""),
+            "{table}"
+        );
         assert!(
             table.contains("@\"lugha_fn_Source<i64>.skip<Count>\""),
             "the default's slot: {table}"

@@ -49,7 +49,7 @@ mod tests {
     fn a_defaulted_slot_points_at_the_defaults_instance() {
         let ir = ir(
             "interface Error { fun message(self): string; fun report(self): string = \"e: {self.message()}\"; }\n\
-            struct P { t: string }\nimpl P { fun message(self): string = self.t; }\n\
+            struct P { t: string }\nimpl Error for P { fun message(self): string = self.t; }\n\
             fun main() { let e: Error = P { t: \"x\" }; println(e.report()); }",
         );
         let table = ir
@@ -67,7 +67,7 @@ mod tests {
     fn a_generic_interfaces_default_compiles_per_type_and_argument() {
         let ir = ir(
             "interface Source<T> { fun next(mut self): Option<T>; fun skip(mut self): bool = match self.next() { Some(_) => true, None => false }; }\n\
-            struct Count { n: i64 }\nimpl Count { fun next(mut self): Option<i64> = Some(self.n); }\n\
+            struct Count { n: i64 }\nimpl Source<i64> for Count { fun next(mut self): Option<i64> = Some(self.n); }\n\
             fun drop<T, S: Source<T>>(s: S): bool { let mut t = s; t.skip() }\n\
             fun main() { let b = drop(Count { n: 1 }); }",
         );

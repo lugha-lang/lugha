@@ -54,6 +54,12 @@ impl Pairs {
     }
 }
 
+// Indexing calls the type's own `index` and `set_index`; `Table` uses them too.
+impl Table for Pairs {
+    fun index(self, k: string): i64 = self.index(k);
+    fun set_index(mut self, k: string, v: i64) { self.set_index(k, v); }
+}
+
 fun first<T: Table>(t: T): i64 = t["a"];
 
 fun fill(t: Table): Table {

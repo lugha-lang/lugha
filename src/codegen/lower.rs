@@ -99,6 +99,12 @@ pub(super) struct Lowerer<'ctx> {
     pub(super) through_index: std::collections::HashSet<ExprId>,
     /// The overload each arithmetic call chose (`Checked::overloads`).
     pub(super) overloads: HashMap<ExprId, String>,
+    /// See `Checked::impls`.
+    pub(super) impls: crate::check::Impls,
+    /// See `Checked::nominal_calls`.
+    pub(super) nominal_calls: HashMap<ExprId, (String, Vec<Type>)>,
+    /// See `Checked::qualified`.
+    pub(super) qualified: std::collections::HashSet<ExprId>,
     /// `impl f64 { … }` blocks' types (`Checked::impl_owners`).
     pub(super) impl_owners: HashMap<crate::span::Span, Type>,
     /// A generic interface's arguments at a call that may reach its
@@ -228,6 +234,9 @@ pub(super) fn lower<'ctx>(
         try_conversions: checked.try_conversions.clone(),
         through_index: checked.through_index.clone(),
         overloads: checked.overloads.clone(),
+        impls: checked.impls.clone(),
+        nominal_calls: checked.nominal_calls.clone(),
+        qualified: checked.qualified.clone(),
         impl_owners: checked.impl_owners.clone(),
         default_args: checked.default_args.clone(),
         derives: checked.derives.clone(),

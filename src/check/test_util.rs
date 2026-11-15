@@ -61,6 +61,7 @@ pub fn partial(src: &str) -> super::Partial {
 fn program(src: &str) -> crate::ast::Program {
     let (tokens, _) = lexer::lex(src).expect("test source lexes");
     let mut program = parser::parse(&tokens).expect("test source parses").0;
+    crate::modules::impls::name_impls(&mut program, "");
     crate::modules::overloads::name_overloads(&mut program, src, 0, "");
     program
 }
@@ -141,9 +142,9 @@ fn visit(block: &crate::ast::Block, name: &str, found: &mut Option<u32>) {
 /// tests.
 pub const SHAPES: &str = "interface Shape { fun area(self): f64; fun grow(mut self, k: f64); }\n\
     struct Circle { r: f64 }\n\
-    impl Circle { fun area(self): f64 = 3.0 * self.r * self.r; fun grow(mut self, k: f64) { self.r *= k; } }\n\
+    impl Shape for Circle { fun area(self): f64 = 3.0 * self.r * self.r; fun grow(mut self, k: f64) { self.r *= k; } }\n\
     struct Square { side: f64 }\n\
-    impl Square { fun area(self): f64 = self.side * self.side; fun grow(mut self, k: f64) { self.side *= k; } }\n";
+    impl Shape for Square { fun area(self): f64 = self.side * self.side; fun grow(mut self, k: f64) { self.side *= k; } }\n";
 
 /// `src` lexed as a bundled source, where `$` names are allowed, then checked: its `Checked`, or
 /// every diagnostic.
@@ -151,6 +152,7 @@ pub fn bundled(src: &str) -> Result<Checked, Vec<Diagnostic>> {
     let (tokens, _) =
         lexer::lex_bundled(src).unwrap_or_else(|d| panic!("{src:?} does not lex: {d:?}"));
     let (mut program, _) = parser::parse(&tokens).unwrap_or_else(|d| panic!("{src:?}: {d:?}"));
+    crate::modules::impls::name_impls(&mut program, "");
     crate::modules::overloads::name_overloads(&mut program, src, 0, "");
     check(&program).map(|(checked, _)| checked)
 }

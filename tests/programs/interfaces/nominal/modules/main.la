@@ -1,0 +1,16 @@
+// Blocks in the type's module and in the interface's.
+import geo;
+import shapes;
+fun total(xs: shapes.Shape[]): f64 {
+    let mut t = 0.0;
+    for x of xs { t += x.area(); }
+    t
+}
+fun main() {
+    let sq = geo.Square { s: 2.0 };
+    let c = geo.Circle { r: 1.0 };
+    println(total([sq, c]));
+    println(sq.name());
+    println(c.name());
+    println(shapes.Shape.area(sq));
+}

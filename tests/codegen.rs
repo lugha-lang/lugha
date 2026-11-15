@@ -272,7 +272,7 @@ fn aggregate_results_survive_every_kind_of_call() {
 enum E { A(i64), B(P), C }
 interface Make { fun make(self, n: i64): P; }
 struct M { k: i64 }
-impl M { fun make(self, n: i64): P = P { x: n * self.k, y: 1 }; }
+impl Make for M { fun make(self, n: i64): P = P { x: n * self.k, y: 1 }; }
 impl P {
     fun flip(self): P = P { x: self.y, y: self.x };
     fun add(self, o: P): P = P { x: self.x + o.x, y: self.y + o.y };
@@ -318,7 +318,7 @@ struct Out { i: In, n: i64 }
 enum Shape { Dot, Box(i64, i64), Ring(In) }
 interface Area { fun area(self): i64; }
 struct Sq { s: i64 }
-impl Sq { fun area(self): i64 = self.s * self.s; }
+impl Area for Sq { fun area(self): i64 = self.s * self.s; }
 fun pick(c: bool, x: Out, y: Out): Out = if c { x } else { y };
 fun size(s: Shape): i64 = match s { Dot => 1, Box(w, h) => w * h, Ring(i) => if i.b { i.a } else { 0 } };
 fun twice(f: fun(i64): i64, n: i64): i64 = f(f(n));

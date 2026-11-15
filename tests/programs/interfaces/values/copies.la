@@ -6,7 +6,7 @@ interface Shape {
 
 struct Poly { sides: f64[] }
 
-impl Poly {
+impl Shape for Poly {
     fun area(self): f64 {
         let mut t = 0.0;
         for s of self.sides {
@@ -22,7 +22,7 @@ impl Poly {
 
 struct Circle { r: f64 }
 
-impl Circle {
+impl Shape for Circle {
     fun area(self): f64 = self.r;
     fun grow(mut self, k: f64) { self.r *= k; }
 }

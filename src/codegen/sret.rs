@@ -229,7 +229,7 @@ mod tests {
     fn calls_through_values_and_interfaces_pass_the_slot() {
         let ir = ir(&format!(
             "{P}interface Make {{ fun make(self): P; }}\n\
-             struct M {{ n: i64 }}\nimpl M {{ fun make(self): P = P {{ x: self.n, y: 0 }}; }}\n\
+             struct M {{ n: i64 }}\nimpl Make for M {{ fun make(self): P = P {{ x: self.n, y: 0 }}; }}\n\
              fun via(m: Make): P = m.make();\n\
              fun main() {{ let f = fun(n: i64): P = P {{ x: n, y: n }}; let p = f(3); let q = via(M {{ n: 1 }}); println(p.x + q.x); }}"
         ));
@@ -239,7 +239,7 @@ mod tests {
             ir.contains("call void %"),
             "an indirect call with the slot: {ir}"
         );
-        let def = define(&ir, "@lugha_fn_M.make(");
+        let def = define(&ir, "@\"lugha_fn_M.make@Make\"(");
         assert!(def.contains("sret(%P)"), "{def}");
     }
 

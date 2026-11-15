@@ -5,13 +5,13 @@ interface Error {
 
 struct ParseError { text: string }
 
-impl ParseError {
+impl Error for ParseError {
     fun message(self): string = "not a number: {self.text}";
 }
 
 struct RangeError { n: i64 }
 
-impl RangeError {
+impl Error for RangeError {
     fun message(self): string = "{self.n} is out of range";
     fun report(self): string = "range error: {self.message()}";
 }

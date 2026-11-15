@@ -7,7 +7,7 @@ interface Source<T> {
 
 struct Count { n: i64, end: i64 }
 
-impl Count {
+impl Source<i64> for Count {
     fun next(mut self): Option<i64> {
         if self.n == self.end {
             return None;
@@ -19,7 +19,7 @@ impl Count {
 
 struct Words { xs: string[], at: i64 }
 
-impl Words {
+impl Source<string> for Words {
     fun next(mut self): Option<string> {
         if self.at == self.xs.len {
             return None;
@@ -31,7 +31,7 @@ impl Words {
 
 struct Repeat<T> { x: T, left: i64 }
 
-impl Repeat<T> {
+impl Source<T> for Repeat<T> {
     fun next(mut self): Option<T> {
         if self.left == 0 {
             return None;
@@ -43,7 +43,7 @@ impl Repeat<T> {
 
 struct Pipe { from: Source<i64>, label: string }
 
-// `T` is read off the argument's methods when it isn't an interface value yet.
+// `T` is read off the argument's `impl` when it isn't an interface value yet.
 fun count<T>(s: Source<T>): i64 {
     let mut src = s;
     let mut n = 0;
@@ -65,7 +65,7 @@ interface Problem<T> {
 
 struct Bad { code: i64 }
 
-impl Bad {
+impl Problem<i64> for Bad {
     fun detail(self): i64 = self.code;
 }
 

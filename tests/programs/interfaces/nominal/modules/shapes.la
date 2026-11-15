@@ -1,0 +1,3 @@
+import geo;
+interface Shape { fun area(self): f64; fun name(self): string = "shape"; }
+impl Shape for geo.Square { fun area(self): f64 = self.s * self.s; }

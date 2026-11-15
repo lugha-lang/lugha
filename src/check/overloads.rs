@@ -205,6 +205,7 @@ mod tests {
     fn an_interface_takes_the_fitting_one() {
         ok(&format!(
             "{V}interface Scales {{ fun mul(self, k: f64): Self; }}\n\
+             impl Scales for V {{ fun mul(self, k: f64): V = V {{ x: self.x * k }}; }}\n\
              fun twice<T: Scales>(s: T): T = s * 2.0;\n\
              fun main() {{ let v = twice(V {{ x: 1.0 }}); }}"
         ));

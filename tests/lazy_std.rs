@@ -82,6 +82,9 @@ import std.random;
 
 interface Draw { fun uniform(mut self): f64; }
 interface Bits { fun next_u64(mut self): u64; }
+// The blocks pass each call on to the std type's own method.
+impl Draw for random.Rng { fun uniform(mut self): f64 = self.uniform(); }
+impl Bits for random.Rng { fun next_u64(mut self): u64 = self.next_u64(); }
 
 fun first<B: Bits>(b: B): u64 {
     let mut c = b;

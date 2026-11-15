@@ -4,11 +4,6 @@
 struct G { vals: f64[] }
 
 impl G {
-    fun put(mut self, x: f64): i64 {
-        self.vals.push(x);
-        self.vals.len - 1
-    }
-    fun sum(mut self, a: i64, b: i64): i64 = self.put(self.vals[a] + self.vals[b]);
     fun mul(mut self, a: i64, b: i64): i64 = self.put(self.vals[a] * self.vals[b]);
     fun half(mut self, a: i64): i64 = self.put(self.vals[a] / 2.0);
 }
@@ -17,6 +12,14 @@ interface Tape {
     fun put(mut self, x: f64): i64;
     fun sum(mut self, a: i64, b: i64): i64;
     fun twice(mut self, a: i64): i64 = self.sum(a, a);
+}
+
+impl Tape for G {
+    fun put(mut self, x: f64): i64 {
+        self.vals.push(x);
+        self.vals.len - 1
+    }
+    fun sum(mut self, a: i64, b: i64): i64 = self.put(self.vals[a] + self.vals[b]);
 }
 
 struct Model { g: G, gain: f64 }

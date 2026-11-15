@@ -252,7 +252,8 @@ mod tests {
 
     const SQ: &str = "interface Shape { fun area(self): i64; }\n\
         struct Sq { side: i64, tag: i64 }\n\
-        impl Sq { fun base(): Sq = Sq { side: 1, tag: 0 }; fun area(self): i64 = self.side * self.side; }\n\
+        impl Sq { fun base(): Sq = Sq { side: 1, tag: 0 }; }\n\
+        impl Shape for Sq { fun area(self): i64 = self.side * self.side; }\n\
         struct Box { w: i64 }\n";
 
     #[test]
@@ -281,7 +282,7 @@ mod tests {
         // Generic: the base fixes the type arguments, then the value converts.
         ok("interface Named { fun name(self): string; }\n\
             struct W<T> { v: T, n: string }\n\
-            impl W<T> { fun name(self): string = self.n; }\n\
+            impl Named for W<T> { fun name(self): string = self.n; }\n\
             fun main() { let w = W { v: 1, n: \"a\" }; let s: Named = W { n: \"b\", ..w }; println(s.name()); }");
     }
 

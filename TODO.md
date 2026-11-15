@@ -16,7 +16,6 @@ What's next. Shipped work is in CHANGELOG.md (and the spec's §11 milestone tabl
 - [ ] **One-element tuples.**
 - [ ] **Explicit type arguments and `.len()`.**
 - [ ] **Format specifiers chosen at run time.**
-- [ ] **Interfaces implemented once per type argument (`From<T>`).** Needs overloading by type.
 - [ ] **Literal patterns on `f64`.**
 - [ ] **Warnings:** an irrefutable `if let`, and a `show` of the wrong shape.
 - [ ] **Small values stored inline in interface values** (an optimisation only).

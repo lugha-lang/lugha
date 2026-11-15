@@ -152,7 +152,13 @@ impl Checker {
         let (Type::Struct(owner, targs) | Type::Enum(owner, targs)) = &concrete else {
             return None;
         };
-        let m = self.methods.get(owner)?.get(name)?;
+        // An item of a nominal interface: the method of the type's block.
+        let name = match self.bound_impl_item((generics, args), param, name, &concrete) {
+            Some(Some(method)) => method,
+            Some(None) => return None,
+            None => name.to_string(),
+        };
+        let m = self.methods.get(owner)?.get(&name)?;
         // A prelude type's methods compile only when reached, generic or not.
         let listed = !m.generics.is_empty() || lazy_key(&m.key);
         listed.then(|| Instance {
@@ -286,9 +292,15 @@ impl Checker {
         let (Type::Struct(owner, targs) | Type::Enum(owner, targs)) = &concrete else {
             return Vec::new();
         };
+        // A nominal interface's item: the method of the type's block.
+        let name = match self.bound_impl_item((generics, args), param, name, &concrete) {
+            Some(Some(method)) => method,
+            Some(None) => return Vec::new(),
+            None => name.to_string(),
+        };
         self.methods
             .get(owner)
-            .and_then(|m| m.get(name))
+            .and_then(|m| m.get(&name))
             .map(|m| Instance {
                 key: m.key.clone(),
                 args: targs.clone(),
@@ -409,10 +421,10 @@ mod tests {
     fn calls_through_bounds_reach_generic_methods() {
         let src = "interface Sized { fun size(self): i64; }\n\
             struct Stack<T> { items: T[] }\n\
-            impl Stack<T> { fun size(self): i64 = self.items.len; }\n\
+            impl Sized for Stack<T> { fun size(self): i64 = self.items.len; }\n\
             fun count<T: Sized>(x: T): i64 = x.size();\n\
             fun main() { let n = count(Stack { items: [true] }); }";
-        assert_eq!(monos(src), ["count<Stack<bool>>", "Stack.size<bool>"]);
+        assert_eq!(monos(src), ["count<Stack<bool>>", "Stack.size@Sized<bool>"]);
     }
 
     #[test]

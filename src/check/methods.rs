@@ -62,6 +62,12 @@ impl Checker {
                 continue;
             }
             let outer = self.impl_generics(&declared, &i.params);
+            if !self.register_impl(i, owner, &ty, &outer) {
+                continue;
+            }
+            // An interface's block may be for another module's type, and
+            // holds the interface's items, not arithmetic.
+            let foreign = foreign && i.interface.is_none();
             self.in_actor = i.actor.then(|| owner.clone());
             for f in &i.methods {
                 let name = &f.name.name;
@@ -83,6 +89,7 @@ impl Checker {
                 // `mul` of another shape, a second one is a duplicate.
                 let plain = crate::modules::overloads::written_name(name);
                 if plain != name
+                    && i.interface.is_none()
                     && let Some(first) = self.methods.get(owner).and_then(|m| m.get(plain))
                     && !(first.receiver == Some(false)
                         && first.params.len() == 1
@@ -96,7 +103,10 @@ impl Checker {
                     self.report(errors::method_named_like(name, what, owner, f.name.span));
                     continue;
                 }
-                self.register_method(owner, name, f.visibility);
+                // An interface's items are as visible as the interface.
+                if i.interface.is_none() {
+                    self.register_method(owner, name, f.visibility);
+                }
                 let receiver = f.receiver.map(|r| r.mutable);
                 let sig = super::Sig::of(
                     &self.type_params,
@@ -143,6 +153,7 @@ impl Checker {
                 }
             };
             self.in_actor = i.actor.then(|| owner.clone());
+            self.check_impl(i, &owner, &ty);
             for f in &i.methods {
                 let Some(m) = self.methods.get(&owner).and_then(|m| m.get(&f.name.name)) else {
                     continue;

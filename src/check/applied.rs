@@ -122,7 +122,7 @@ pub(super) mod tests {
 
     pub(in crate::check) const SOURCE: &str = "interface Source<T> { fun next(mut self): Option<T>; }\n\
         struct Count { n: i64, end: i64 }\n\
-        impl Count {\n\
+        impl Source<i64> for Count {\n\
             fun next(mut self): Option<i64> {\n\
                 if self.n == self.end { return None; }\n\
                 self.n += 1;\n\
@@ -130,7 +130,7 @@ pub(super) mod tests {
             }\n\
         }\n\
         struct Repeat<T> { x: T, left: i64 }\n\
-        impl Repeat<T> {\n\
+        impl Source<T> for Repeat<T> {\n\
             fun next(mut self): Option<T> {\n\
                 if self.left == 0 { return None; }\n\
                 self.left -= 1;\n\
@@ -172,10 +172,10 @@ pub(super) mod tests {
         assert_eq!(errors(&src).len(), 1);
         let d = &diagnostics(&src)[0];
         assert_eq!(d.code, "E0422");
-        assert_eq!(d.message, "`Count` doesn't satisfy `Source<string>`");
+        assert_eq!(d.message, "`Count` doesn't implement `Source<string>`");
         let help = d.help.as_deref().expect("a help");
         assert!(
-            help.contains("`next` should be `fun next(mut self): Option<string>`"),
+            help.contains("add `impl Source<string> for Count"),
             "{help}"
         );
     }
@@ -212,7 +212,7 @@ pub(super) mod tests {
         let d = &diagnostics(&src)[0];
         assert_eq!(d.code, "E0422");
         let help = d.help.as_deref().expect("a help");
-        assert!(help.contains("Option<string>"), "{help}");
+        assert!(help.contains("impl Source<string> for Count"), "{help}");
         assert_eq!(
             codes("fun w(s: Source<string>) {}\nfun f(s: Source<i64>) { w(s); }"),
             ["E0403"]

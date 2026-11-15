@@ -114,7 +114,10 @@ impl Checker {
         name: &str,
         concrete: &Type,
     ) -> Option<Instance> {
+        let nominal = self.bound_impl_item((generics, args), param, name, concrete);
         let lacks = match concrete {
+            // A nominal interface's item: the block's method, if it has one.
+            _ if nominal.is_some() => matches!(nominal, Some(None)),
             Type::Struct(owner, _) | Type::Enum(owner, _) => {
                 self.methods.get(owner).and_then(|m| m.get(name)).is_none()
             }
@@ -147,9 +150,9 @@ mod tests {
             fun report(self): string = \"error: {self.message()}\";\n\
         }\n\
         struct Plain { text: string }\n\
-        impl Plain { fun message(self): string = self.text; }\n\
+        impl Error for Plain { fun message(self): string = self.text; }\n\
         struct Own { n: i64 }\n\
-        impl Own { fun message(self): string = \"own\"; fun report(self): string = \"mine\"; }\n";
+        impl Error for Own { fun message(self): string = \"own\"; fun report(self): string = \"mine\"; }\n";
 
     fn e(body: &str) -> Vec<(&'static str, String)> {
         let src = format!("{ERR}{body}\nfun main() {{}}");
@@ -173,9 +176,9 @@ mod tests {
             "{ERR}fun tell<T: Error>(x: T): string = x.report();\n\
              fun main() {{ let a: Error = Plain {{ text: \"p\" }}; let b: Error = Own {{ n: 1 }}; let s = a.report() + tell(Plain {{ text: \"q\" }}); }}"
         ));
-        let clash = "struct Bad {}\nimpl Bad { fun message(self): string = \"b\"; fun report(self): i64 = 1; }\n\
+        let clash = "struct Bad {}\nimpl Error for Bad { fun message(self): string = \"b\"; fun report(self): i64 = 1; }\n\
                      fun f() { let x: Error = Bad {}; }";
-        assert_eq!(e(clash), [("E0422", "Bad {}".into())]);
+        assert_eq!(e(clash), [("E0422", "Error".into())]);
     }
 
     #[test]
@@ -203,7 +206,7 @@ mod tests {
 
     #[test]
     fn a_default_is_a_method_only_of_types_that_satisfy_it() {
-        // `Plain` satisfies `Error`, so the default applies to it directly.
+        // `Plain` implements `Error`, so the default applies to it directly.
         ok(&format!(
             "{ERR}fun main() {{ let p = Plain {{ text: \"p\" }}; let s: string = p.report(); }}"
         ));
@@ -243,7 +246,7 @@ mod tests {
                 fun first(mut self, d: T): T = match self.next() { Some(x) => x, None => d };\n\
             }\n\
             struct Count { n: i64 }\n\
-            impl Count { fun next(mut self): Option<i64> = Some(self.n); }\n\
+            impl Source<i64> for Count { fun next(mut self): Option<i64> = Some(self.n); }\n\
             fun pick<T, S: Source<T>>(s: S, d: T): T { let mut t = s; t.first(d) }\n";
         let found = monos(&format!(
             "{source}fun main() {{ let n = pick(Count {{ n: 1 }}, 0); }}"

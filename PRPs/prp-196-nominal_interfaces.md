@@ -1,6 +1,6 @@
 ## FEATURE: Nominal interfaces: a type implements an interface only through `impl I for T`; milestone 164, the first of v18's Phase 1.
 
-**Status:** proposed 2026-11-15. Waiting for approval.
+**Status:** proposed 2026-11-15. Approved 2026-11-15.
 
 ## OBJECTIVE
 ```lugha
@@ -68,6 +68,13 @@ A struct with a matching `area` and no `impl Shape for Circle` no longer satisfi
 - `with`, deriving changes, `Eq`/`Key`/`Ord`, operators, printing, `Iter`, `Json` (decisions 1–2).
 - `Sendable` (needs the sendable rule, Phase 5); blanket impls; `impl<T>` syntax; explicit type arguments.
 - Keep a structural fallback, a flag or a warning period for nominal interfaces: v18 is a breaking change [PRI-03].
+
+## CHANGES DURING THE BUILD (for review)
+1. **Built-in types can't implement interfaces yet** (narrows decision 4). `impl I for i64`, `string`, `V[]` and so on is E0459 for now: the header parser takes only a type name, and dot calls and dispatch on numbers go through their own built-in paths. Built-in impls arrive with PRP-198, where the prelude needs `impl Key for i64`. Until then an empty `interface Any {}` can't hold numbers or strings (`tests/programs/interfaces/values/any.la` now holds structs and enums).
+2. **Symbols** (refines decision 11): a block's method is `lugha_fn_Circle.area@Shape`, not `lugha_fn_Circle.Shape.area`, since a method key is split at its last `.`. The interface is written as in the source, its `.`s as `/`s (`area@geo/Shape`, `from@From<string>`); a block for another module's type adds that module's path (`area@Shape@shapes`). The parser gives the names, so every way of building a program gets them.
+3. **Associated functions** (extends decision 6): `Widget.make()` reaches an associated function of an implemented interface in sight when the type has none of its own, like `c.area()` for methods.
+4. **Indexing stays by name**, with the other built-in behaviours (decision 2): `a[i]` uses a type's own `index`/`set_index`.
+5. **A test was near its stack limit:** `parser::expr::tests::deep_nesting_is_e0206_not_a_stack_overflow` overflowed the 2 MiB test thread after unrelated code moved; it now parses on an 8 MiB thread, the size of `lughac`'s main thread.
 
 ## DESIGN
 - **New diagnostics:** E0459 "`impl Shape for Circle` must be written in the module that declares `Shape` or the one that declares `Circle`" (also: can't implement for an interface value or type parameter); E0460 "`c.area()` is ambiguous: `Shape` and `Named` both supply `area`", help `Shape.area(c)` / `Named.area(c)`; E0461 "`Shape` is implemented for `Circle` twice". E0422 reworded for nominal interfaces.

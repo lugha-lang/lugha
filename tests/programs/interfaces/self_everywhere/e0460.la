@@ -9,9 +9,11 @@ interface Shown {
 
 struct P { x: i64 }
 
-impl P {
+impl Named for P {
     fun name(self): string = "p";
 }
+
+impl Shown for P {}
 
 fun main() {
     println(P { x: 1 }.describe());

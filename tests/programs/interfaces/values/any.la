@@ -1,12 +1,23 @@
-// An interface with no methods holds anything; primitives are boxed too.
+// An interface with no methods holds any type that implements it, with an
+// empty `impl`; primitives join once built-in types can implement interfaces.
 interface Any {}
 
 struct P { x: i64 }
 
+enum Coin { Heads, Tails }
+
+struct Q {}
+
+impl Any for P {}
+
+impl Any for Coin {}
+
+impl Any for Q {}
+
 fun count(xs: Any[]): i64 = xs.len;
 
 fun main() {
-    let xs: Any[] = [1, "two", P { x: 3 }, 4.5];
+    let xs: Any[] = [Coin.Heads, Q {}, P { x: 3 }, Coin.Tails];
     let ys = xs;
     println(count(ys) + count(xs));
 }

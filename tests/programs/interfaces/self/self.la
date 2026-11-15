@@ -7,13 +7,13 @@ interface Ordered {
 
 struct Money { cents: i64 }
 
-impl Money {
+impl Ordered for Money {
     fun less(self, other: Money): bool = self.cents < other.cents;
 }
 
 struct Version { major: i64, minor: i64 }
 
-impl Version {
+impl Ordered for Version {
     fun less(self, other: Version): bool =
         self.major < other.major || (self.major == other.major && self.minor < other.minor);
 }

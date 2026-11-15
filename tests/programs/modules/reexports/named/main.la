@@ -4,7 +4,7 @@ import geo.all { Vec2, add, Dir, Sized };
 
 struct Box { n: i64 }
 
-impl Box {
+impl Sized for Box {
     fun size(self): i64 = self.n;
 }
 

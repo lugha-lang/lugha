@@ -6,16 +6,16 @@ interface Named { fun name(self): string; }
 interface Source<T> { fun next(mut self): Option<T>; }
 
 struct Dog { age: i64 }
-impl Dog { fun name(self): string = "dog"; }
+impl Named for Dog { fun name(self): string = "dog"; }
 
 struct Cat { lives: i64 }
+impl Named for Cat { fun name(self): string = "cat"; }
 impl Cat {
-    fun name(self): string = "cat";
     fun show(self): string = "a cat with {self.lives} lives";
 }
 
 struct Count { n: i64 }
-impl Count {
+impl Source<i64> for Count {
     fun next(mut self): Option<i64> = None;
 }
 

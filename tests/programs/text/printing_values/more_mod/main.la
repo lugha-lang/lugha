@@ -28,7 +28,7 @@ interface Named { fun name(self): string; }
 
 struct Dog { age: i64 }
 
-impl Dog {
+impl Named for Dog {
     fun name(self): string = "dog";
 }
 

@@ -11,14 +11,18 @@ interface Pet {
 
 struct Dog { called: string }
 
-impl Dog {
+impl Named for Dog {
+    fun name(self): string = self.called;
+}
+
+impl Pet for Dog {
     fun name(self): string = self.called;
     fun sound(self): string = "woof";
 }
 
 struct Cat { called: string }
 
-impl Cat {
+impl Pet for Cat {
     fun name(self): string = self.called;
     fun sound(self): string = "meow";
 }

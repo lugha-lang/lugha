@@ -8,16 +8,22 @@ interface Sized {
 
 struct Box { n: i64 }
 
-impl Box {
+impl Sized for Box {
     fun size(self): i64 = self.n;
     fun grow(mut self) { self.n += 1; }
 }
 
 struct Stack<T> { items: T[] }
 
-impl Stack<T> {
+impl Sized for Stack<T> {
     fun size(self): i64 = self.items.len;
     fun grow(mut self) { self.items.clear(); }
+}
+
+// Another module's type, implementing this module's interface with its own methods.
+impl Sized for geo.Crate {
+    fun size(self): i64 = self.size();
+    fun grow(mut self) { self.grow(); }
 }
 
 fun name(s: Sized): string = match s {

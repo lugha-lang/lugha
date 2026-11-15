@@ -13,7 +13,7 @@ const SHAPES: &str = "interface Shape {
 
 struct Circle { r: f64 }
 
-impl Circle {
+impl Shape for Circle {
     fun area(self): f64 = 3.0 * self.r * self.r;
     fun name(self): string = \"circle\";
     fun grow(mut self, k: f64) { self.r *= k; }
@@ -21,7 +21,7 @@ impl Circle {
 
 struct Square { side: f64 }
 
-impl Square {
+impl Shape for Square {
     fun area(self): f64 = self.side * self.side;
     fun name(self): string = \"square\";
     fun grow(mut self, k: f64) { self.side *= k; }
@@ -52,7 +52,7 @@ struct Dir(PathBuf);
 /// `?` converting a `Bad` into an `Error`.
 const ERRORS: &str = "interface Error { fun message(self): string; }
 struct Bad { t: string }
-impl Bad { fun message(self): string = self.t; }
+impl Error for Bad { fun message(self): string = self.t; }
 fun get(): Result<i64, Bad> = Err(Bad { t: \"no\" });
 fun read(): Result<i64, Error> { let n = get()?; Ok(n) }
 fun main() { match read() { Ok(n) => println(n), Err(e) => println(e.message()), } }

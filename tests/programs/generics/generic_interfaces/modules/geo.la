@@ -13,7 +13,7 @@ interface Source<T> {
 
 struct Letters { s: string, at: i64 }
 
-impl Letters {
+impl Source<u8> for Letters {
     fun next(mut self): Option<u8> {
         if self.at == self.s.len {
             return None;

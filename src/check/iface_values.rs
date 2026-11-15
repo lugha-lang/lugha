@@ -149,7 +149,7 @@ mod tests {
         let files = [
             (
                 "main.la",
-                "import geo;\nstruct Dot {}\nimpl Dot { fun size(self): i64 = 1; }\n\
+                "import geo;\nstruct Dot {}\nimpl geo.Sized for Dot { fun size(self): i64 = 1; }\n\
                  fun f(s: geo.Sized): i64 = s.size();\n\
                  fun main() { let n = f(Dot {}); }\n",
             ),
@@ -249,7 +249,7 @@ mod tests {
         );
         let src = format!("{SHAPES}{dot}fun f() {{ let s: Shape = Dot {{}}; }}\nfun main() {{}}");
         let help = diagnostics(&src)[0].help.clone().expect("a help");
-        assert!(help.contains("no method `grow`"), "{help}");
+        assert!(help.contains("add `impl Shape for Dot"), "{help}");
     }
 
     #[test]
@@ -271,7 +271,12 @@ mod tests {
 
     #[test]
     fn literals_take_their_default_type_and_convert() {
-        ok("interface Any {}\nfun main() { let x: Any = 1; let xs: Any[] = [1, 4.5, -2]; }");
+        ok("interface Any {}\nstruct P {}\nimpl Any for P {}\nfun main() { let x: Any = P {}; }");
+        // A number implements no interface of a program's yet.
+        assert_eq!(
+            errors("interface Any {}\nfun main() { let x: Any = 1; }"),
+            [("E0422", "1")]
+        );
         assert_eq!(e("fun f() { let s: Shape = 1; }"), [("E0422", "1".into())]);
     }
 

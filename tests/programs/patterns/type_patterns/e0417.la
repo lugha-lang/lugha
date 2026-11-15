@@ -4,7 +4,7 @@ interface Shape {
 
 struct Sq { side: f64 }
 
-impl Sq {
+impl Shape for Sq {
     fun area(self): f64 = self.side * self.side;
 }
 

@@ -12,6 +12,7 @@ pub mod cache;
 mod entry_tests;
 pub mod fetch;
 pub mod git;
+pub mod impls;
 mod inline;
 pub mod layout;
 pub mod link_table;

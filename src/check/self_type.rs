@@ -85,13 +85,13 @@ mod tests {
         }\n\
         interface Number { fun zero(): Self; fun plus(self, other: Self): Self; }\n\
         struct Money { cents: i64 }\n\
-        impl Money {\n\
-            fun less(self, other: Money): bool = self.cents < other.cents;\n\
+        impl Ordered for Money { fun less(self, other: Money): bool = self.cents < other.cents; }\n\
+        impl Number for Money {\n\
             fun zero(): Money = Money { cents: 0 };\n\
             fun plus(self, other: Money): Money = Money { cents: self.cents + other.cents };\n\
         }\n\
         struct Stack<T> { items: T[] }\n\
-        impl Stack<T> { fun less(self, other: Stack<T>): bool = self.items.len < other.items.len; }\n\
+        impl Ordered for Stack<T> { fun less(self, other: Stack<T>): bool = self.items.len < other.items.len; }\n\
         struct Bad { n: i64 }\n\
         impl Bad { fun less(self, other: i64): bool = false; }\n";
 
@@ -124,7 +124,8 @@ mod tests {
              fun main() {{ let m = big(Money {{ cents: 1 }}, Money {{ cents: 2 }}); let s = big(Stack {{ items: [1] }}, Stack {{ items: [2] }}); }}"
         ));
         let src = format!(
-            "{ORD}fun big<T: Ordered>(a: T, b: T): T = a.max(b);\nfun main() {{ let m = big(Bad {{ n: 1 }}, Bad {{ n: 2 }}); }}"
+            "{ORD}impl Ordered for Bad {{ fun less(self, other: i64): bool = false; }}\n\
+             fun big<T: Ordered>(a: T, b: T): T = a.max(b);\nfun main() {{ let m = big(Bad {{ n: 1 }}, Bad {{ n: 2 }}); }}"
         );
         let d = &diagnostics(&src)[0];
         assert_eq!(d.code, "E0422");
@@ -186,7 +187,7 @@ mod tests {
     fn inference_reads_through_self() {
         let src = "interface Pick<T> { fun pick(self, other: Self): T; }\n\
             struct P { n: i64 }\n\
-            impl P { fun pick(self, other: P): i64 = other.n; }\n\
+            impl Pick<i64> for P { fun pick(self, other: P): i64 = other.n; }\n\
             fun g<T, O: Pick<T>>(o: O): T = o.pick(o);\n\
             fun main() { let x = g(P { n: 1 }); }";
         assert_eq!(let_type(src, "x"), Type::I64);

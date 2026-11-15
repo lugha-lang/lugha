@@ -238,7 +238,7 @@ mod tests {
     fn question_mark_converts_into_an_interface_error() {
         let base = "interface Error { fun message(self): string; }\n\
             struct ParseError { text: string }\n\
-            impl ParseError { fun message(self): string = self.text; }\n\
+            impl Error for ParseError { fun message(self): string = self.text; }\n\
             interface Other { fun message(self): string; }\n\
             fun parse(s: string): Result<i64, ParseError> = Err(ParseError { text: s });\n";
         ok(&format!(

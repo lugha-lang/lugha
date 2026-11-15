@@ -1,0 +1,10 @@
+// A block for a number, or for an interface met by method names.
+interface Shape { fun area(self): f64; }
+
+struct P { x: i64 }
+
+impl Shape for f64 { fun area(self): f64 = self; }
+
+impl Display for P { fun show(self): string = "p"; }
+
+fun main() {}

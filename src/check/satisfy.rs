@@ -62,6 +62,9 @@ impl Checker {
             return None;
         }
         self.bound_used(call, param, &name.name);
+        if self.nominal(&applied.key) {
+            self.nominal_calls.insert(call.id, applied.clone());
+        }
         // Codegen finds a derivable interface's item through its blocks.
         if self.derives.derivable(&applied.key) {
             self.derived.insert(call.id, applied.key.clone());
@@ -92,7 +95,11 @@ impl Checker {
             return true;
         }
         let shown = interface.to_string();
-        self.report(errors::unsatisfied(arg, &shown, &problems, span));
+        if self.nominal(&interface.key) && !matches!(arg, Type::Param(_) | Type::Interface(..)) {
+            self.report_not_implemented(arg, &shown, span);
+        } else {
+            self.report(errors::unsatisfied(arg, &shown, &problems, span));
+        }
         false
     }
 
@@ -102,6 +109,14 @@ impl Checker {
         // The numbers and `string` meet the prelude's operator bounds as built-ins.
         if let Some(problems) = self.builtin_operator(arg, &interface.key) {
             return problems;
+        }
+        // A nominal interface is met only through `impl I for T`; a type
+        // parameter and an interface value still offer their items.
+        if self.nominal(&interface.key) && !matches!(arg, Type::Param(_) | Type::Interface(..)) {
+            return match self.impl_for(arg, interface) {
+                Some(_) => Vec::new(),
+                None => vec![format!("no `impl {interface} for {arg}`")],
+            };
         }
         let mut problems = Vec::new();
         for req in &self.items_for(interface, arg) {
@@ -214,12 +229,12 @@ mod tests {
 
     const SHAPES: &str = "interface Shape { fun area(self): f64; fun name(self): string; }\n\
         struct Circle { r: f64 }\n\
-        impl Circle {\n\
+        impl Shape for Circle {\n\
             fun area(self): f64 = 3.0 * self.r * self.r;\n\
             fun name(self): string = \"circle\";\n\
-            fun make(r: f64): Circle = Circle { r: r };\n\
-            fun grow(mut self, by: f64) { self.r = self.r + by; }\n\
         }\n\
+        impl Make for Circle { fun make(r: f64): Circle = Circle { r: r }; }\n\
+        impl Grow for Circle { fun grow(mut self, by: f64) { self.r = self.r + by; } }\n\
         interface Make { fun make(r: f64): Circle; }\n\
         interface Grow { fun grow(mut self, by: f64); }\n\
         fun total<T: Shape>(xs: T[]): f64 { let mut sum = 0.0; for x of xs { sum += x.area(); } sum }\n";
@@ -273,13 +288,24 @@ mod tests {
         let d = diagnostics(&format!(
             "{SHAPES}fun f() {{ let n = total([1, 2]); }}\nfun main() {{}}"
         ));
-        assert_eq!(d[0].message, "`i64` doesn't satisfy `Shape`");
+        assert_eq!(d[0].message, "`i64` doesn't implement `Shape`");
         assert!(
-            d[0].help.as_deref().unwrap().contains("no method `area`"),
+            d[0].help
+                .as_deref()
+                .unwrap()
+                .contains("wrap it in a struct"),
             "{:?}",
             d[0].help
         );
-        let wrong = "struct Sq { s: f64 }\nimpl Sq { fun area(self): i64 = 1; fun name(self): string = \"sq\"; }\n";
+        // Methods of the right shape don't make a type a `Shape`.
+        let alike = "struct Sq { s: f64 }\nimpl Sq { fun area(self): f64 = 1.0; fun name(self): string = \"sq\"; }\n";
+        assert_eq!(
+            at(&format!(
+                "{alike}fun f() {{ let n = total([Sq {{ s: 1.0 }}]); }}"
+            )),
+            ["E0422"]
+        );
+        let wrong = "struct Sq { s: f64 }\nimpl Shape for Sq { fun area(self): i64 = 1; fun name(self): string = \"sq\"; }\n";
         assert_eq!(
             at(&format!(
                 "{wrong}fun f() {{ let n = total([Sq {{ s: 1.0 }}]); }}"
@@ -323,7 +349,7 @@ mod tests {
     fn generic_types_and_parameters_satisfy_too() {
         ok("interface Sized { fun size(self): i64; }\n\
             struct Stack<T> { items: T[] }\n\
-            impl Stack<T> { fun size(self): i64 = self.items.len; }\n\
+            impl Sized for Stack<T> { fun size(self): i64 = self.items.len; }\n\
             fun count<T: Sized>(x: T): i64 = x.size();\n\
             fun pass<U: Sized>(u: U): i64 = count(u);\n\
             fun main() { let s = Stack { items: [1] }; let n = count(s); let m = pass(s); }");

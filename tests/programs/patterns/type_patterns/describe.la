@@ -4,13 +4,13 @@ interface Shape {
 
 struct Circle { r: f64 }
 
-impl Circle {
+impl Shape for Circle {
     fun area(self): f64 = 3.0 * self.r * self.r;
 }
 
 struct Square { side: f64 }
 
-impl Square {
+impl Shape for Square {
     fun area(self): f64 = self.side * self.side;
 }
 

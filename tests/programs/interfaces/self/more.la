@@ -9,15 +9,14 @@ interface Number {
 
 struct Cents { n: i64 }
 
-impl Cents {
+impl Number for Cents {
     fun zero(): Cents = Cents { n: 0 };
     fun plus(self, other: Cents): Cents = Cents { n: self.n + other.n };
-    fun better(self, other: Cents): bool = self.n > other.n;
 }
 
 struct Pair<T> { a: T, b: T }
 
-impl Pair<T> {
+impl Number for Pair<T> {
     fun zero(): Pair<T> = panic("no zero pair");
     fun plus(self, other: Pair<T>): Pair<T> = other;
     // Its own `twice` replaces the default.
@@ -47,6 +46,10 @@ interface Pick {
         Some(x) => x,
         None => self,
     };
+}
+
+impl Pick for Cents {
+    fun better(self, other: Cents): bool = self.n > other.n;
 }
 
 fun choose<T: Pick>(start: T, rest: T[]): T = start.best(rest);

@@ -74,6 +74,23 @@ impl Checker {
         names: &[&str],
         bound: &mut HashMap<String, Type>,
     ) {
+        // A nominal interface's arguments are the type's one block's.
+        if self.nominal(&applied.key)
+            && let Type::Struct(owner, targs) | Type::Enum(owner, targs) = concrete
+        {
+            let mut blocks = self
+                .impls
+                .get(owner)
+                .into_iter()
+                .flatten()
+                .filter(|e| e.key == applied.key);
+            if let (Some(only), None) = (blocks.next(), blocks.next()) {
+                for (declared, actual) in applied.args.iter().zip(only.args_at(targs)) {
+                    unify(declared, &actual, names, bound);
+                }
+            }
+            return;
+        }
         for req in self.items_for(applied, concrete) {
             let Some(offered) = self.offered(concrete, &req.name) else {
                 continue;
@@ -127,13 +144,13 @@ mod tests {
     const SOURCE: &str = "interface Source<T> { fun next(mut self): Option<T>; }\n\
         interface Box<T> { fun get(self): T; }\n\
         struct Count { n: i64 }\n\
-        impl Count { fun next(mut self): Option<i64> = Some(self.n); }\n\
+        impl Source<i64> for Count { fun next(mut self): Option<i64> = Some(self.n); }\n\
         struct Words { xs: string[] }\n\
-        impl Words { fun next(mut self): Option<string> = None; }\n\
+        impl Source<string> for Words { fun next(mut self): Option<string> = None; }\n\
         struct Repeat<T> { x: T }\n\
-        impl Repeat<T> { fun next(mut self): Option<T> = Some(self.x); }\n\
+        impl Source<T> for Repeat<T> { fun next(mut self): Option<T> = Some(self.x); }\n\
         struct Holder { c: Count }\n\
-        impl Holder { fun get(self): Count = self.c; }\n\
+        impl Box<Count> for Holder { fun get(self): Count = self.c; }\n\
         fun collect<T, S: Source<T>>(src: S): T[] = [];\n\
         fun first<T, S: Source<T>>(src: S, d: T): T = d;\n\
         fun deep<T, S: Source<T>, B: Box<S>>(b: B): T[] = [];\n\

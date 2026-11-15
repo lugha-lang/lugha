@@ -55,6 +55,7 @@ mod iface_calls;
 mod iface_tables;
 mod iface_values;
 mod impl_bounds;
+mod impls;
 mod includes;
 mod indexing;
 mod infer;
@@ -88,6 +89,7 @@ mod partial;
 mod patterns;
 mod printing;
 mod purity;
+mod qualified;
 mod read_modify_write;
 mod reexports;
 mod refs;
@@ -127,6 +129,7 @@ pub use float_bits::{bits_of, from_bits};
 pub use float_ops::{float_op, os_op, os_signature, string_op};
 pub use hashing::hash_op;
 pub use iface_tables::{InterfaceMethod, InterfaceShape};
+pub use impls::{ImplEntry, Impls, find as find_impl};
 pub use includes::{Included, MAX_INCLUDE};
 pub use input::prelude_helper;
 pub use instances::{Instance, lazy_key};
@@ -232,6 +235,9 @@ impl Checker {
             try_conversions: HashMap::new(),
             through_index: std::collections::HashSet::new(),
             overload_choices: HashMap::new(),
+            impls: HashMap::new(),
+            nominal_calls: HashMap::new(),
+            qualified: std::collections::HashSet::new(),
             impl_owners: HashMap::new(),
             default_args: HashMap::new(),
             iterations: HashMap::new(),
@@ -392,6 +398,12 @@ pub(super) struct Checker {
     through_index: std::collections::HashSet<ExprId>,
     /// See `Checked::overloads`.
     overload_choices: HashMap<ExprId, String>,
+    /// See `Checked::impls`.
+    impls: impls::Impls,
+    /// See `Checked::nominal_calls`.
+    nominal_calls: HashMap<ExprId, applied::Applied>,
+    /// See `Checked::qualified`.
+    qualified: std::collections::HashSet<ExprId>,
     /// See `Checked::impl_owners`.
     impl_owners: HashMap<Span, Type>,
     /// See `Checked::default_args`.

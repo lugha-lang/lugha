@@ -1,0 +1,42 @@
+// Generic impls take the type's parameters; a generic interface may be
+// implemented once per argument list.
+interface Source<T> {
+    fun next(mut self): Option<T>;
+    fun first(mut self): T = match self.next() { Some(x) => x, None => panic("empty") };
+}
+interface From<T> { fun from(x: T): Self; }
+interface Sized { fun size(self): i64; }
+
+struct Stack<T> { items: T[] }
+impl Source<T> for Stack<T> {
+    fun next(mut self): Option<T> = self.items.pop();
+}
+impl Sized for Stack<T> {
+    fun size(self): i64 = self.items.len;
+}
+
+struct Path { s: string }
+impl From<string> for Path { fun from(x: string): Path = Path { s: x }; }
+impl From<i64> for Path { fun from(x: i64): Path = Path { s: "#{x}" }; }
+
+fun drain<T, S: Source<T>>(src: S): T[] {
+    let mut s = src;
+    let mut out: T[] = [];
+    while true { match s.next() { Some(x) => out.push(x), None => { return out; } } }
+    out
+}
+fun count<T: Sized>(x: T): i64 = x.size();
+fun make<T: From<string>>(s: string): T = T.from(s);
+
+fun main() {
+    let mut st = Stack { items: [1, 2, 3] };
+    println(drain(st));
+    println(st.first());
+    println(count(Stack { items: ["a"] }));
+    let src: Source<i64> = Stack { items: [7] };
+    let mut s2 = src;
+    println(s2.next());
+    let p: Path = make("x");
+    println(p.s);
+    println(Sized.size(st));
+}

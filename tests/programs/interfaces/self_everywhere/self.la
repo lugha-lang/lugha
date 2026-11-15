@@ -9,6 +9,9 @@ impl Point {
     fun origin(): Self = Self { x: 0, y: 0 };
     fun plus(self, other: Self): Self = Self { x: self.x + other.x, y: self.y + other.y };
     fun unit(): Self = Self.origin().plus(Self { x: 1, y: 1 });
+}
+
+impl Describe for Point {
     fun name(self): string = "({self.x}, {self.y})";
 }
 

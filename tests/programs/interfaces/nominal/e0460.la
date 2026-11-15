@@ -1,0 +1,12 @@
+// Two implemented interfaces declare `area`: say which one.
+interface Shape { fun area(self): f64; }
+interface Plot { fun area(self): f64; }
+
+struct C { r: f64 }
+impl Shape for C { fun area(self): f64 = 1.0; }
+impl Plot for C { fun area(self): f64 = 2.0; }
+
+fun main() {
+    println(Plot.area(C { r: 1.0 }));
+    println(C { r: 1.0 }.area());
+}

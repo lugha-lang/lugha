@@ -75,7 +75,7 @@ mod tests {
     #[test]
     fn interface_values_print_by_identity() {
         let ir = ir("interface Named { fun name(self): string; }\n\
-            struct Dog { age: i64 }\nimpl Dog { fun name(self): string = \"d\"; }\n\
+            struct Dog { age: i64 }\nimpl Named for Dog { fun name(self): string = \"d\"; }\n\
             fun dump<T>(x: T) { println(x); }\n\
             fun main() { let n: Named = Dog { age: 1 }; dump(n); }");
         let f = &ir[ir.find("define internal ptr @lugha_show_").unwrap()..];

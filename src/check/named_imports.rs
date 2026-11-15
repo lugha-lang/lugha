@@ -209,7 +209,7 @@ mod tests {
             (
                 "main.la",
                 "import vec { Vec2, add, Dir, Sized };\n\
-                 struct Box { n: i64 }\nimpl Box { fun size(self): i64 = self.n; }\n\
+                 struct Box { n: i64 }\nimpl Sized for Box { fun size(self): i64 = self.n; }\n\
                  fun big<T: Sized>(t: T): bool = t.size() > 1;\n\
                  fun main() {\n\
                  let v: Vec2 = add(Vec2 { x: 1, y: 2 }, vec.Vec2 { x: 3, y: 4 });\n\

@@ -27,6 +27,10 @@ struct V { x: f64 }
 impl V {
     fun mul(self, w: V): V = V { x: self.x * w.x };
     fun mul(self, k: f64): V = V { x: self.x * k };
+}
+
+impl Scales for V {
+    fun mul(self, k: f64): V = V { x: self.x * k };
     fun get(self): f64 = self.x;
 }
 

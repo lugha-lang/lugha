@@ -91,7 +91,7 @@ impl<'ctx> Lowerer<'ctx> {
     /// Declares every instance: `lugha_fn_max<i64>`, `lugha_fn_Stack<string>.push`.
     pub(super) fn declare_instances(&mut self, units: &[Unit], monos: &[Instance]) {
         for mono in monos {
-            let source = find(units, &mono.key, &self.derives);
+            let source = find(units, &mono.key, (&self.derives, &self.impl_owners));
             self.enter(&source, &mono.args);
             let f = source.f;
             let params: Vec<Type> = f
@@ -139,7 +139,7 @@ impl<'ctx> Lowerer<'ctx> {
         monos: &[Instance],
     ) -> Result<(), CodegenError> {
         for mono in monos {
-            let source = find(units, &mono.key, &self.derives);
+            let source = find(units, &mono.key, (&self.derives, &self.impl_owners));
             let method = self.monos[&instance_name(&mono.key, &mono.args)].clone();
             self.enter(&source, &mono.args);
             let receiver = match (&source.owner, method.receiver) {
@@ -183,8 +183,13 @@ impl<'ctx> Lowerer<'ctx> {
     }
 }
 
-/// The declaration of function or method `key`.
-fn find<'a>(units: &[Unit<'a>], key: &str, derives: &Derives) -> Source<'a> {
+/// The declaration of function or method `key`; `owners` are the types of
+/// `impl` blocks for another module's type (`Checked::impl_owners`).
+fn find<'a>(
+    units: &[Unit<'a>],
+    key: &str,
+    (derives, owners): (&Derives, &HashMap<crate::span::Span, Type>),
+) -> Source<'a> {
     for unit in units {
         for item in &unit.program.items {
             match item {
@@ -229,7 +234,10 @@ fn find<'a>(units: &[Unit<'a>], key: &str, derives: &Derives) -> Source<'a> {
                     }
                 }
                 Item::Impl(i) => {
-                    let owner = qualify(unit.path, &i.ty.name);
+                    let owner = match owners.get(&i.span) {
+                        Some(Type::Struct(k, _) | Type::Enum(k, _)) => k.clone(),
+                        _ => qualify(unit.path, &i.ty.name),
+                    };
                     let found = i
                         .methods
                         .iter()

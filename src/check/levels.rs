@@ -125,10 +125,8 @@ mod tests {
     const MANIFEST: &str = "[packages]\ngeo = \"libs/geo\"\n";
 
     const GEO: &str = "public struct Circle { r: f64, public tag: i64 }\n\
-        impl Circle {\n\
-            public fun area(self): f64 = 3.0 * self.r * self.r;\n\
-            fun diameter(self): f64 = 2.0 * self.r;\n\
-        }\n\
+        impl Circle { fun diameter(self): f64 = 2.0 * self.r; }\n\
+        impl Shape for Circle { fun area(self): f64 = 3.0 * self.r * self.r; }\n\
         public fun circle(r: f64): Circle = Circle { r: r, tag: 0 };\n\
         fun helper(): i64 = 1;\n\
         struct Hidden { n: i64 }\n\

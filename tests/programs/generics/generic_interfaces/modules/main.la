@@ -3,7 +3,7 @@ import geo;
 
 struct Down { n: i64 }
 
-impl Down {
+impl geo.Source<i64> for Down {
     fun next(mut self): Option<i64> {
         if self.n == 0 {
             return None;

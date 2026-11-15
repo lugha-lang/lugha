@@ -1,0 +1,33 @@
+error[E0422]: `Circle` doesn't implement `Shape`
+   --> tests/programs/interfaces/nominal/e0422.la:14:13
+   |
+14 |     println(total([Circle { r: 1.0 }]));
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: add `impl Shape for Circle { … }`
+
+error[E0422]: `Circle` doesn't implement `Shape`
+   --> tests/programs/interfaces/nominal/e0422.la:15:20
+   |
+15 |     let s: Shape = Circle { r: 1.0 };
+   |                    ^^^^^^^^^^^^^^^^^
+   |
+   = help: add `impl Shape for Circle { … }`
+
+error[E0422]: `Circle` doesn't implement `Shape`
+   --> tests/programs/interfaces/nominal/e0422.la:16:24
+   |
+16 |     println(Shape.area(Circle { r: 1.0 }));
+   |                        ^^^^^^^^^^^^^^^^^
+   |
+   = help: add `impl Shape for Circle { … }`
+
+error[E0422]: `impl Shape for Square` doesn't match `Shape`
+  --> tests/programs/interfaces/nominal/e0422.la:9:6
+  |
+9 | impl Shape for Square { fun area(self): i64 = 1; fun extra(self) {} }
+  |      ^^^^^
+  |
+  = help: `area` should be `fun area(self): f64`; `extra` isn't an item of `Shape`
+
+For more about E0422, run `lughac explain E0422`.

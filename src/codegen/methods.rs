@@ -138,6 +138,16 @@ impl<'ctx> Lowerer<'ctx> {
         let ExprKind::Field(base, name) = &callee.kind else {
             return Ok(None);
         };
+        // `Shape.area(c)`: a call of `area` on `c`.
+        if self.qualified.contains(&call.id)
+            && let [receiver, rest @ ..] = args
+        {
+            let callee = Expr {
+                kind: ExprKind::Field(Box::new(receiver.clone()), name.clone()),
+                ..callee.clone()
+            };
+            return self.method_call(call, &callee, rest);
+        }
         // `v.mul(2.0)` on a type with several `mul`s: the one the checker chose.
         if let Some(chosen) = self.overloads.get(&call.id)
             && *chosen != name.name
@@ -263,6 +273,11 @@ impl<'ctx> Lowerer<'ctx> {
                     [operand] => self.overload_for(owner, &name.name, &self.ty(operand)),
                     _ => name.name.clone(),
                 };
+                // An item of a nominal interface: the method of the type's
+                // block, or the default when it has none.
+                let chosen = self
+                    .impl_method(call, &base_type, &name.name)
+                    .unwrap_or(chosen);
                 (Some(key(owner, &chosen)), Some(base))
             }
             Type::Handle(owner) => (Some(key(owner, &name.name)), Some(base)),

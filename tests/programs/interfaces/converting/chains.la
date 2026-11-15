@@ -27,7 +27,16 @@ interface Animal {
 
 struct Dog { called: string }
 
-impl Dog {
+impl Named for Dog {
+    fun name(self): string = self.called;
+}
+
+impl Pet for Dog {
+    fun name(self): string = self.called;
+    fun sound(self): string = "woof";
+}
+
+impl Animal for Dog {
     fun name(self): string = self.called;
     fun sound(self): string = "woof";
     fun rename(mut self, to: string) { self.called = to; }
@@ -51,7 +60,7 @@ interface ParseProblem {
 
 struct BadChar { pos: i64 }
 
-impl BadChar {
+impl ParseProblem for BadChar {
     fun text(self): string = "bad char at {self.pos}";
     fun at(self): i64 = self.pos;
 }

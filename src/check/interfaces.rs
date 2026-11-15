@@ -237,7 +237,11 @@ mod tests {
             .split("```\n")
             .nth(1)
             .expect("a fenced block follows");
-        ok(code);
+        // The draft's types met `Shape` by their methods; now they say so.
+        let code = code
+            .replace("impl Circle {", "impl Shape for Circle {")
+            .replace("impl Square {", "impl Shape for Square {");
+        ok(&code);
     }
 
     #[test]

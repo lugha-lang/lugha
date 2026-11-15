@@ -71,6 +71,21 @@ pub struct Bound {
     pub span: Span,
 }
 
+impl Bound {
+    /// The bound as written, without spaces: `Shape`, `geo.Source<i64>`.
+    pub fn written(&self) -> String {
+        let mut out = match &self.module {
+            Some(m) => format!("{}.{}", m.name, self.name.name),
+            None => self.name.name.clone(),
+        };
+        if !self.args.is_empty() {
+            let args: Vec<String> = self.args.iter().map(Type::written).collect();
+            out.push_str(&format!("<{}>", args.join(",")));
+        }
+        out
+    }
+}
+
 /// `interface Name { fun area(self): f64; … }`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct InterfaceDecl {

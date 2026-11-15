@@ -231,7 +231,7 @@ pub struct Variant {
     pub span: Span,
 }
 
-/// An `impl` block.
+/// An `impl` block: `impl T { … }` or `impl I for T { … }`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImplDecl {
     /// `m` in `impl m.Type`.
@@ -247,6 +247,14 @@ pub struct ImplDecl {
     pub span: Span,
     /// The methods of an actor, declared in its body.
     pub actor: bool,
+    /// `Shape` in `impl Shape for Circle`: the interface the block
+    /// implements; `None` for a type's own methods. Boxed, as `Item`
+    /// sits on the parser's stack at every nesting level.
+    pub interface: Option<Box<Bound>>,
+    /// The interface as written, which the parser puts after each of the
+    /// block's method names (`area@Shape`), and `modules::impls` adds the
+    /// module to for another module's type; empty for a type's own methods.
+    pub tag: Box<str>,
 }
 
 /// A typed name: a function parameter.

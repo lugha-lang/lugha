@@ -94,7 +94,7 @@ impl Printer<'_> {
         format!("<{}>", shown.join(", "))
     }
 
-    fn bound(&self, b: &Bound) -> String {
+    pub(super) fn bound(&self, b: &Bound) -> String {
         let mut out = match &b.module {
             Some(m) => format!("{}.", self.ident(m)),
             None => String::new(),

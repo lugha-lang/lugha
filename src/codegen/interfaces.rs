@@ -161,10 +161,12 @@ impl<'ctx> Lowerer<'ctx> {
         args: &[Type],
         name: &str,
     ) -> FunctionValue<'ctx> {
+        // A nominal interface's item: the method of the type's block.
+        let method = &self.block_method(ty, key, args, name);
         let own = match ty {
-            Type::Handle(owner) => self.methods.get(&method_key(owner, name)),
+            Type::Handle(owner) => self.methods.get(&method_key(owner, method)),
             Type::Struct(owner, targs) | Type::Enum(owner, targs) => {
-                let k = method_key(owner, name);
+                let k = method_key(owner, method);
                 match targs.is_empty() {
                     true => self.methods.get(&k).or_else(|| self.monos.get(&k)),
                     false => self.monos.get(&instance_name(&k, targs)),
@@ -238,9 +240,9 @@ pub(super) mod tests {
 
     pub(in crate::codegen) const SHAPES: &str = "interface Shape { fun area(self): f64; fun grow(mut self, k: f64); }\n\
         struct Circle { r: f64 }\n\
-        impl Circle { fun area(self): f64 = self.r; fun grow(mut self, k: f64) { self.r *= k; } }\n\
+        impl Shape for Circle { fun area(self): f64 = self.r; fun grow(mut self, k: f64) { self.r *= k; } }\n\
         struct Square { side: f64 }\n\
-        impl Square { fun area(self): f64 = self.side; fun grow(mut self, k: f64) { self.side *= k; } }\n";
+        impl Shape for Square { fun area(self): f64 = self.side; fun grow(mut self, k: f64) { self.side *= k; } }\n";
 
     pub(in crate::codegen) fn body<'a>(ir: &'a str, function: &str) -> &'a str {
         // The definition, wherever it is: rewritten functions move to the
@@ -267,8 +269,8 @@ pub(super) mod tests {
             .find(|l| l.starts_with("@lugha_vt_Circle.Shape = "))
             .unwrap();
         let (area, grow) = (
-            table.find("@lugha_fn_Circle.area"),
-            table.find("@lugha_fn_Circle.grow"),
+            table.find("@\"lugha_fn_Circle.area@Shape\""),
+            table.find("@\"lugha_fn_Circle.grow@Shape\""),
         );
         assert!(
             area.is_some() && area < grow,

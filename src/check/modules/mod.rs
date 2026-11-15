@@ -122,6 +122,13 @@ fn check_with(
             try_conversions: checker.try_conversions,
             through_index: checker.through_index,
             overloads: checker.overload_choices,
+            impls: checker.impls,
+            nominal_calls: checker
+                .nominal_calls
+                .into_iter()
+                .map(|(id, a)| (id, (a.key, a.args)))
+                .collect(),
+            qualified: checker.qualified,
             impl_owners: checker.impl_owners,
             default_args: checker.default_args,
             iterations: checker.iterations,

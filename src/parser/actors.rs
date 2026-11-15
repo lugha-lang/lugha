@@ -56,6 +56,8 @@ impl Parser<'_> {
             methods,
             span,
             actor: true,
+            interface: None,
+            tag: Box::default(),
         };
         Ok((state, methods))
     }

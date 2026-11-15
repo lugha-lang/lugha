@@ -51,8 +51,35 @@ impl Checker {
             self.record(callee, Type::Unit);
             return Some(self.chan_new(call, name, args, expect));
         }
+        // `Shape.area(c)`: an interface's item, called on its first argument.
+        if let Some(key) = self.interface_named_by(base)
+            && self.type_named_by(base).is_none()
+        {
+            self.record(base, Type::Unit);
+            self.record(callee, Type::Unit);
+            return Some(self.qualified_call(call, &key, name, args, expect));
+        }
         if let Some(ty) = self.type_named_by(base) {
-            let method = self.method(&ty, &name.name);
+            let mut method = self.method(&ty, &name.name);
+            // `Widget.make()`: an associated function of an interface the
+            // type implements, when the type has none of its own.
+            let found;
+            let name = match method
+                .is_none()
+                .then(|| self.associated_item(&ty, name))
+                .flatten()
+            {
+                Some(Some((block, m))) => {
+                    method = Some(m);
+                    found = Ident {
+                        name: block,
+                        span: name.span,
+                    };
+                    &found
+                }
+                Some(None) => return Some(self.unchecked(args)),
+                None => name,
+            };
             // `E.V(..)`: a variant, or E0415 from construction. A `self` method
             // may share a variant's name; the path is the variant's.
             if matches!(ty, Type::Enum(_, _))

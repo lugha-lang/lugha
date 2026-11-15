@@ -8,8 +8,11 @@ interface Sized {
 struct Stack<T> { items: T[] }
 
 impl Stack<T> {
-    fun size(self): i64 = self.items.len;
     fun push(mut self, x: T) { self.items.push(x); }
+}
+
+impl Sized for Stack<T> {
+    fun size(self): i64 = self.items.len;
 }
 
 interface Shape {
@@ -18,7 +21,7 @@ interface Shape {
 
 struct Sq { s: f64 }
 
-impl Sq {
+impl Shape for Sq {
     fun area(self): f64 = self.s * self.s;
 }
 

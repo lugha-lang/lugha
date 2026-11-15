@@ -49,10 +49,12 @@ fn intrinsic_reason(name: &str) -> Option<&'static str> {
     })
 }
 
-/// A key as people write it: `time.now_ms`, `Map.insert`.
+/// A key as people write it: `time.now_ms`, `Map.insert`, and
+/// `Loud.size` for an interface's item (`Loud.size@Measure`).
 fn shown(key: &str) -> String {
     let key = key.strip_prefix("$prelude.").unwrap_or(key);
-    key.strip_prefix("std.").unwrap_or(key).to_string()
+    let key = key.strip_prefix("std.").unwrap_or(key);
+    key.split('@').next().unwrap_or(key).to_string()
 }
 
 /// "`a` calls `b`, which calls `c`, which reads files", shortened past [`SHOWN`].
@@ -337,7 +339,7 @@ mod tests {
         assert!(help(src).contains("`loud`"), "{}", help(src));
         // An interface value whose type's method prints.
         let src = "interface Size { fun size(self): i64; }\n\
-                   struct Loud {}\nimpl Loud { fun size(self): i64 { println(1); 1 } }\n\
+                   struct Loud {}\nimpl Size for Loud { fun size(self): i64 { println(1); 1 } }\n\
                    fun measure(s: Size): i64 = s.size();\n\
                    const A: i64 = measure(Loud {});\nfun main() {}";
         assert_eq!(one_file_errors(src)[0].0, "E0445");
@@ -346,8 +348,8 @@ mod tests {
     #[test]
     fn generics_are_judged_at_their_real_types() {
         let lib = "interface Measure { fun size(self): i64; }\n\
-                   struct Quiet {}\nimpl Quiet { fun size(self): i64 = 1; }\n\
-                   struct Loud {}\nimpl Loud { fun size(self): i64 { println(2); 2 } }\n\
+                   struct Quiet {}\nimpl Measure for Quiet { fun size(self): i64 = 1; }\n\
+                   struct Loud {}\nimpl Measure for Loud { fun size(self): i64 { println(2); 2 } }\n\
                    fun total<T: Measure>(x: T): i64 = x.size() + 1;\n";
         ok(&[(
             "main.la",

@@ -28,6 +28,11 @@ interface Source<T> {
     fun next(mut self): Option<T>;
 }
 
+// Loops find `next` by name; a program's own interface needs an `impl`.
+impl Source<i64> for Count {
+    fun next(mut self): Option<i64> = self.next();
+}
+
 // A type parameter iterates through its bound.
 fun join_all<I: Iter<string>>(it: I): string {
     let mut out = "";

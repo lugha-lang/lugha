@@ -53,7 +53,7 @@ interface Scaled { fun mul(self, k: f64): Scaled; fun show(self): string; }
 
 struct Len { m: f64 }
 
-impl Len {
+impl Scaled for Len {
     fun mul(self, k: f64): Scaled = Len { m: self.m * k };
     fun show(self): string = "{self.m}m";
 }

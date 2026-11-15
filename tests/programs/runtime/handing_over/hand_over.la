@@ -30,7 +30,7 @@ interface Grows {
     fun grown(self, k: i64): Self;
 }
 
-impl Bag {
+impl Grows for Bag {
     fun grown(self, k: i64): Bag = self.with(k);
 }
 

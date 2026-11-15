@@ -1,5 +1,5 @@
 //! Diagnostics for interfaces: interface values (E0425, and the E0403 help for converting
-//! between interfaces), interfaces that use `Self` (E0427) and default methods (E0430).
+//! between interfaces), interfaces that use `Self` (E0427).
 
 use crate::check::Type;
 use crate::diagnostic::{Diagnostic, Label};
@@ -106,22 +106,4 @@ pub(in crate::check) fn undeclared(
         span,
     )
     .with_help(problems.join("; "))
-}
-
-/// E0430: two visible interfaces, `names`, supply default `name` for `ty`.
-pub(in crate::check) fn two_defaults(
-    name: &str,
-    ty: &Type,
-    names: &[String; 2],
-    span: Span,
-) -> Diagnostic {
-    let [a, b] = names;
-    Diagnostic::error(
-        "E0430",
-        format!("`{name}` on `{ty}` is a default method of both `{a}` and `{b}`"),
-        span,
-    )
-    .with_help(format!(
-        "call it through a value or bound of the one you mean: `let x: {a} = …;` or `T: {a}`"
-    ))
 }

@@ -6,7 +6,7 @@ interface Source<T> {
 
 struct Count { n: i64 }
 
-impl Count {
+impl Source<i64> for Count {
     fun next(mut self): Option<i64> = Some(self.n);
 }
 

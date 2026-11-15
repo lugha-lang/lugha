@@ -1,0 +1,20 @@
+// An associated function of an implemented interface is called on the
+// type, as through a bound.
+interface Maker {
+    fun make(): Self;
+    fun name(self): string;
+}
+
+struct Widget { id: i64 }
+
+impl Maker for Widget {
+    fun make(): Widget = Widget { id: 1 };
+    fun name(self): string = "widget {self.id}";
+}
+
+fun build<T: Maker>(sample: T): string = T.make().name();
+
+fun main() {
+    println(Widget.make().name());
+    println(build(Widget { id: 2 }));
+}

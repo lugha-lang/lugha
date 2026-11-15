@@ -42,9 +42,17 @@ impl Parser<'_> {
         })
     }
 
-    /// `impl [m.]Type[<T, …>] { [pub] fun … }`.
+    /// `impl [m.]Type[<T, …>] { [pub] fun … }`, or `impl [m.]I[<A, …>] for
+    /// [m.]Type[<T, …>] { … }` for an interface's items.
     pub(super) fn impl_decl(&mut self) -> PResult<ImplDecl> {
         let start = self.bump().start;
+        let interface = if self.for_ahead() {
+            let bound = self.bound()?;
+            self.expect(&TokenKind::For)?;
+            Some(Box::new(bound))
+        } else {
+            None
+        };
         // `impl f64 { … }`: arithmetic with a number on the left.
         let number = number_type(self.peek());
         let first = match number {
@@ -63,7 +71,19 @@ impl Parser<'_> {
         let open = self.expect(&TokenKind::LBrace)?;
         // `Self` means this type throughout the block.
         let names: Vec<Ident> = params.iter().map(|p| p.name.clone()).collect();
-        let methods = self.in_impl(&ty, &names, |p| p.impl_methods(open))?;
+        let mut methods = self.in_impl(&ty, &names, |p| p.impl_methods(open))?;
+        // An interface's methods are named apart from the type's own:
+        // `area@Shape`, the interface as written, its `.`s as `/`s (a
+        // method's key is split at its last `.`). No program's name has `@`.
+        let tag: Box<str> = match &interface {
+            Some(b) => b.written().replace('.', "/").into(),
+            None => Box::default(),
+        };
+        if !tag.is_empty() {
+            for m in &mut methods {
+                m.name.name = format!("{}@{tag}", m.name.name);
+            }
+        }
         Ok(ImplDecl {
             module,
             ty,
@@ -71,7 +91,18 @@ impl Parser<'_> {
             methods,
             span: Span::new(start, self.prev_end()),
             actor: false,
+            interface,
+            tag,
         })
+    }
+
+    /// True if the `impl` header ahead names an interface: a `for` comes
+    /// before the block's `{`.
+    fn for_ahead(&self) -> bool {
+        (0..)
+            .map(|n| self.peek_at(n))
+            .take_while(|t| !matches!(t, TokenKind::LBrace | TokenKind::Eof | TokenKind::Semi))
+            .any(|t| *t == TokenKind::For)
     }
 
     /// The methods of an `impl` up to and including its `}`.

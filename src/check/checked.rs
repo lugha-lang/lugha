@@ -79,6 +79,15 @@ pub struct Checked {
     /// Arithmetic calls that chose among a type's overloads (`v * 2.0`,
     /// `v.mul(2.0)`): the method's name in the type's table, `mul(f64)`.
     pub overloads: HashMap<ExprId, String>,
+    /// Every `impl I for T` block, by `T`'s key.
+    pub impls: super::Impls,
+    /// Calls of an item of an interface met through `impl I for T`, by
+    /// a bound, on a struct or enum, or qualified (`Shape.area(c)`): the
+    /// interface and its arguments, in the caller's type parameters.
+    /// Codegen finds the method in the block for the receiver's type.
+    pub nominal_calls: HashMap<ExprId, (String, Vec<Type>)>,
+    /// Qualified calls, `Shape.area(c)`: the first argument is the receiver.
+    pub qualified: HashSet<ExprId>,
     /// `impl f64 { … }` and `impl shapes.W { … }` blocks (by their span):
     /// the type their methods belong to, which isn't the module's own.
     pub impl_owners: HashMap<crate::span::Span, Type>,

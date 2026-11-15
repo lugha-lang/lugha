@@ -1,0 +1,8 @@
+// One block per interface and argument list.
+interface Shape { fun area(self): f64; }
+
+struct C { r: f64 }
+impl Shape for C { fun area(self): f64 = 1.0; }
+impl Shape for C { fun area(self): f64 = 2.0; }
+
+fun main() {}

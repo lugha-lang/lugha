@@ -5,7 +5,7 @@ interface Counter {
 
 struct Tally { n: i64 }
 
-impl Tally {
+impl Counter for Tally {
     fun bump(mut self, by: i64) { self.n += by; }
     fun value(self): i64 = self.n;
 }

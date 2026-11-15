@@ -1,0 +1,11 @@
+error[E0461]: `Shape` is implemented for `C` twice
+  --> tests/programs/interfaces/nominal/e0461.la:6:6
+  |
+5 | impl Shape for C { fun area(self): f64 = 1.0; }
+  |      ----- first implemented here
+6 | impl Shape for C { fun area(self): f64 = 2.0; }
+  |      ^^^^^
+  |
+  = help: keep one of the two blocks
+
+For more about E0461, run `lughac explain E0461`.

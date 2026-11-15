@@ -193,7 +193,7 @@ mod tests {
     #[test]
     fn interface_values_print_and_unwrap_shows_the_error() {
         ok(&format!(
-            "{TYPES}struct C {{ r: f64 }}\nimpl C {{ fun area(self): f64 = self.r; }}\n\
+            "{TYPES}struct C {{ r: f64 }}\nimpl Shape for C {{ fun area(self): f64 = self.r; }}\n\
              fun main() {{ let s: Shape = C {{ r: 1.0 }}; println(s); let t = \"{{s}}\"; let u = to_string([s]); }}"
         ));
         let found =

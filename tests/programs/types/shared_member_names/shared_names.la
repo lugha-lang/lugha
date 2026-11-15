@@ -9,8 +9,11 @@ struct P {
     count: i64,
 }
 
-impl P {
+impl Named for P {
     fun name(self): string = "Dr. {self.name}";
+}
+
+impl P {
     fun count(mut self) {
         self.count += 1;
     }

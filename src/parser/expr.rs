@@ -242,11 +242,22 @@ mod tests {
 
     #[test]
     fn deep_nesting_is_e0206_not_a_stack_overflow() {
-        let src = format!("fun t() {{ {}1{} }}", "(".repeat(300), ")".repeat(300));
-        let codes: Vec<_> = errors(&src).into_iter().map(|(code, _)| code).collect();
-        assert_eq!(codes, ["E0206"]);
-        let src = format!("fun t() {{ {}x }}", "-".repeat(5_000));
-        assert_eq!(errors(&src).len(), 1);
+        // `lughac` parses on the main thread, 8 MiB on Linux; a test thread
+        // gets 2 MiB, where the nesting limit sits too close to the edge
+        // for the result to say anything about the compiler.
+        let run = || {
+            let src = format!("fun t() {{ {}1{} }}", "(".repeat(300), ")".repeat(300));
+            let codes: Vec<_> = errors(&src).into_iter().map(|(code, _)| code).collect();
+            assert_eq!(codes, ["E0206"]);
+            let src = format!("fun t() {{ {}x }}", "-".repeat(5_000));
+            assert_eq!(errors(&src).len(), 1);
+        };
+        std::thread::Builder::new()
+            .stack_size(8 << 20)
+            .spawn(run)
+            .expect("a thread starts")
+            .join()
+            .expect("no overflow");
     }
 
     #[test]

@@ -1,5 +1,7 @@
+import api;
+
 struct Tag { text: string }
 
-impl Tag {
+impl api.Named for Tag {
     fun label(self): string = self.text;
 }

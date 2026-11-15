@@ -14,7 +14,9 @@ impl Count {
         self.n += 1;
         Some(self.n)
     }
+}
 
+impl Iter for Count {
     fun size(self): i64 = self.end - self.n;
 }
 

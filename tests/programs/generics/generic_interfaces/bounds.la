@@ -1,5 +1,5 @@
 // Generic interfaces as bounds: `S: Source<T>` with `T`
-// inferred from the concrete type's methods, defaults per (type, T).
+// inferred from the concrete type's `impl`, defaults per (type, T).
 
 interface Source<T> {
     fun next(mut self): Option<T>;
@@ -8,7 +8,7 @@ interface Source<T> {
 
 struct Count { n: i64, end: i64 }
 
-impl Count {
+impl Source<i64> for Count {
     fun next(mut self): Option<i64> {
         if self.n == self.end {
             return None;
@@ -20,7 +20,7 @@ impl Count {
 
 struct Words { xs: string[], at: i64 }
 
-impl Words {
+impl Source<string> for Words {
     fun next(mut self): Option<string> {
         if self.at == self.xs.len {
             return None;
@@ -29,7 +29,7 @@ impl Words {
         Some(self.xs[self.at - 1])
     }
 
-    // Its own `skip` replaces the default: it skips two words.
+    // Its `skip` replaces the default: it skips two words.
     fun skip(mut self): bool {
         self.at += 2;
         self.at <= self.xs.len
@@ -38,7 +38,7 @@ impl Words {
 
 struct Repeat<T> { x: T, left: i64 }
 
-impl Repeat<T> {
+impl Source<T> for Repeat<T> {
     fun next(mut self): Option<T> {
         if self.left == 0 {
             return None;
@@ -73,7 +73,7 @@ interface Holder<S> {
 
 struct Box { c: Count }
 
-impl Box {
+impl Holder<Count> for Box {
     fun source(self): Count = self.c;
 }
 

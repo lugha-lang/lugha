@@ -94,7 +94,7 @@ mod tests {
              import shapes.circle as c;\n\
              import shapes.vec { Vec2 as V, add };\n\
              struct Box { s: i64 }\n\
-             impl Box { fun size(self): i64 = self.s; }\n\
+             impl shapes.vec.Sized for Box { fun size(self): i64 = self.s; }\n\
              fun g<T: shapes.vec.Sized>(t: T): i64 = t.size();\n\
              fun main() {\n\
                  let a = shapes.vec.Vec2 { x: 1, y: 2 };\n\

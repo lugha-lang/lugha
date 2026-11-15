@@ -127,6 +127,9 @@ impl Printer<'_> {
             Top::Item(Item::Enum(e)) => self.enumeration(e),
             Top::Item(Item::Impl(i)) => {
                 let mut head = "impl ".to_string();
+                if let Some(b) = &i.interface {
+                    head.push_str(&format!("{} for ", self.bound(b)));
+                }
                 if let Some(m) = &i.module {
                     head.push_str(&format!("{}.", self.ident(m)));
                 }

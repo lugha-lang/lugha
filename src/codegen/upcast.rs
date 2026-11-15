@@ -217,7 +217,8 @@ mod tests {
     const PETS: &str = "interface Named { fun name(self): string; }\n\
         interface Pet { fun name(self): string; fun sound(self): string; }\n\
         struct Dog { n: string }\n\
-        impl Dog { fun name(self): string = self.n; fun sound(self): string = \"woof\"; }\n";
+        impl Pet for Dog { fun name(self): string = self.n; fun sound(self): string = \"woof\"; }\n\
+        impl Named for Dog { fun name(self): string = self.n; }\n";
 
     #[test]
     fn a_conversion_finds_the_derived_table_at_run_time() {
@@ -243,7 +244,7 @@ mod tests {
         assert!(
             table.contains("@lugha_type_Dog")
                 && table.contains("@lugha_copy_3Dog_box")
-                && table.contains("@lugha_fn_Dog.name"),
+                && table.contains("@\"lugha_fn_Dog.name@Pet\""),
             "{table}"
         );
     }

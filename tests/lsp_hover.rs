@@ -9,7 +9,7 @@ mod lsp_client;
 use lsp_client::{Server, Temp};
 
 const PROGRAM: &str = "struct Circle { r: f64 }
-impl Circle { fun area(self): f64 = 3.0 * self.r * self.r; }
+impl Shape for Circle { fun area(self): f64 = 3.0 * self.r * self.r; }
 interface Shape { fun area(self): f64; }
 fun show(s: Shape): f64 = s.area();
 fun max<T: Ord>(a: T, b: T): T { if a > b { a } else { b } }

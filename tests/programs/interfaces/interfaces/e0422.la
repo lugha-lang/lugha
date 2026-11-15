@@ -1,5 +1,12 @@
+// Having an `area` method isn't enough: `Circle` needs `impl Shape for Circle`.
 interface Shape {
     fun area(self): f64;
+}
+
+struct Circle { r: f64 }
+
+impl Circle {
+    fun area(self): f64 = 3.0 * self.r * self.r;
 }
 
 fun total<T: Shape>(xs: T[]): f64 {
@@ -11,5 +18,5 @@ fun total<T: Shape>(xs: T[]): f64 {
 }
 
 fun main() {
-    println(total([1, 2]));
+    println(total([Circle { r: 1.0 }]));
 }

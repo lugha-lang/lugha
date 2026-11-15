@@ -1,9 +1,9 @@
-error[E0422]: `i64` doesn't satisfy `Shape`
-   --> tests/programs/interfaces/interfaces/e0422.la:14:13
+error[E0422]: `Circle` doesn't implement `Shape`
+   --> tests/programs/interfaces/interfaces/e0422.la:21:13
    |
-14 |     println(total([1, 2]));
-   |             ^^^^^^^^^^^^^
+21 |     println(total([Circle { r: 1.0 }]));
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
-   = help: no method `area`
+   = help: add `impl Shape for Circle { … }`
 
 For more about E0422, run `lughac explain E0422`.

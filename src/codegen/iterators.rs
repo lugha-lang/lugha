@@ -188,7 +188,8 @@ mod tests {
 
     const COUNT: &str = "struct Count { n: i64 }\n\
         impl Count { fun next(mut self): Option<i64> = None; }\n\
-        interface Source<T> { fun next(mut self): Option<T>; }\n";
+        interface Source<T> { fun next(mut self): Option<T>; }\n\
+        impl Source<i64> for Count { fun next(mut self): Option<i64> = None; }\n";
 
     #[test]
     fn a_loop_calls_next_on_its_own_copy() {

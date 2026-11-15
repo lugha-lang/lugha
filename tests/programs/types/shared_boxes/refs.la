@@ -2,11 +2,11 @@
 // every copy sees one box; what `get` hands out is a value of its own.
 struct Holder { r: Ref<i64>, label: string }
 
-impl Holder {
+interface Reader { fun read(self): i64; }
+
+impl Reader for Holder {
     fun read(self): i64 = self.r.get();
 }
-
-interface Reader { fun read(self): i64; }
 
 fun same(r: Ref<i64>): Ref<i64> = r;
 

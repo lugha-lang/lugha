@@ -64,4 +64,4 @@ pub const PRELUDE: &str = concat!(
 
 /// The language specification this compiler implements, embedded verbatim;
 /// `lughac spec` prints it ("LLM-ready spec").
-pub const SPEC: &str = include_str!("../docs/specs/Language v17 Specification.md");
+pub const SPEC: &str = include_str!("../docs/specs/Language v18 Specification.md");

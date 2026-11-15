@@ -41,8 +41,12 @@ impl Checker {
             Type::Param(_) => Some((format!("`{found}` is a type parameter; {concrete}"), None)),
             _ => {
                 let unmet = self.unmet(&found, &interface);
+                let verb = match self.nominal(&interface.key) {
+                    true => "implement",
+                    false => "satisfy",
+                };
                 let message =
-                    format!("`{found}` doesn't satisfy `{ty}`, so this arm can never match");
+                    format!("`{found}` doesn't {verb} `{ty}`, so this arm can never match");
                 (!unmet.is_empty()).then(|| (message, Some(unmet.join("; "))))
             }
         };
@@ -104,7 +108,11 @@ mod tests {
         );
         let dot = "struct Dot {}\nfun f(s: Shape): i64 = match s { d: Dot => 1, _ => 0 };";
         assert_eq!(e(dot), [("E0426", "d: Dot".into())]);
-        assert!(help(dot).contains("no method `area`"), "{}", help(dot));
+        assert!(
+            help(dot).contains("no `impl Shape for Dot`"),
+            "{}",
+            help(dot)
+        );
         assert_eq!(
             e(
                 "struct Stack<T> { items: T[] }\nfun f(s: Shape): i64 = match s { x: Stack => 1, _ => 0 };"

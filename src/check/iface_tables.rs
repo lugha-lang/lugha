@@ -63,7 +63,14 @@ impl Checker {
                     continue;
                 }
             }
+            // A nominal interface's item is the method of the type's block.
+            let found = self.impl_item(ty, interface, name);
+            let name = match &found {
+                Some(Some(method)) => method,
+                _ => name,
+            };
             let own = match ty {
+                Type::Struct(_, _) | Type::Enum(_, _) if matches!(found, Some(None)) => None,
                 Type::Struct(owner, _) | Type::Enum(owner, _) => {
                     self.methods.get(owner).and_then(|m| m.get(name))
                 }
@@ -146,7 +153,7 @@ mod tests {
     fn converted_generic_types_compile_their_methods() {
         let checked = ok("interface Sized { fun size(self): i64; }\n\
             struct Stack<T> { items: T[] }\n\
-            impl Stack<T> { fun size(self): i64 = self.items.len; }\n\
+            impl Sized for Stack<T> { fun size(self): i64 = self.items.len; }\n\
             fun conv<T: Sized>(x: T): Sized = x;\n\
             fun main() { let s: Sized = Stack { items: [1] }; let t = conv(Stack { items: [\"a\"] }); }");
         let monos: Vec<String> = checked
@@ -154,9 +161,12 @@ mod tests {
             .iter()
             .map(|i| format!("{}{:?}", i.key, i.args))
             .collect();
-        assert!(monos.contains(&"Stack.size[I64]".to_string()), "{monos:?}");
         assert!(
-            monos.contains(&"Stack.size[String]".to_string()),
+            monos.contains(&"Stack.size@Sized[I64]".to_string()),
+            "{monos:?}"
+        );
+        assert!(
+            monos.contains(&"Stack.size@Sized[String]".to_string()),
             "{monos:?}"
         );
     }

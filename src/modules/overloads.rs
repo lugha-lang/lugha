@@ -32,6 +32,10 @@ pub(crate) fn name_overloads(program: &mut Program, text: &str, base: usize, mod
     let mut found: HashMap<(String, &str), Vec<(usize, usize)>> = HashMap::new();
     for (i, item) in program.items.iter().enumerate() {
         let Item::Impl(block) = item else { continue };
+        // An interface's methods are named apart already (`modules::impls`).
+        if block.interface.is_some() {
+            continue;
+        }
         let owner = match &block.module {
             Some(m) => format!("{}.{}", m.name, block.ty.name),
             None => block.ty.name.clone(),
@@ -109,9 +113,9 @@ fn shaped(m: &FunDecl) -> bool {
 }
 
 /// The name a program wrote for `name`, which may be an overload's
-/// `mul(f64)`.
+/// `mul(f64)` or an interface's `area@Shape` (`modules::impls`).
 pub fn written_name(name: &str) -> &str {
-    name.split('(').next().unwrap_or(name)
+    name.split(['(', '@']).next().unwrap_or(name)
 }
 
 #[cfg(test)]

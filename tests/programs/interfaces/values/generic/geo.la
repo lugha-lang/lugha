@@ -4,6 +4,6 @@ interface Named {
 
 struct Cat { called: string }
 
-impl Cat {
+impl Named for Cat {
     fun name(self): string = self.called;
 }

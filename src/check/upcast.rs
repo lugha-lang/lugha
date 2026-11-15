@@ -50,7 +50,8 @@ mod tests {
         interface Source<T> { fun next(mut self): Option<T>; fun size(self): i64; }\n\
         interface Sized { fun size(self): i64; }\n\
         struct Dog { n: string }\n\
-        impl Dog { fun name(self): string = self.n; fun sound(self): string = \"woof\"; }\n\
+        impl Pet for Dog { fun name(self): string = self.n; fun sound(self): string = \"woof\"; }\n\
+        impl Named for Dog { fun name(self): string = self.n; }\n\
         struct Wrap { n: Named }\n";
 
     fn codes(body: &str) -> Vec<&'static str> {

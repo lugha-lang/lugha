@@ -1,9 +1,9 @@
-error[E0422]: `Dot` doesn't satisfy `Shape`
+error[E0422]: `Dot` doesn't implement `Shape`
    --> tests/programs/interfaces/values/e0422.la:13:20
    |
 13 |     let s: Shape = Dot {};
    |                    ^^^^^^
    |
-   = help: no method `name`
+   = help: add `impl Shape for Dot { … }`
 
 For more about E0422, run `lughac explain E0422`.

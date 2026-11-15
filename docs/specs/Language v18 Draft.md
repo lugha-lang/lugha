@@ -1,6 +1,6 @@
 # Lugha v18 — Draft (delta against v17)
 
-**Status:** design approved in discussion (November 2026); nothing built. The phases are in Part 7; each becomes one or more PRPs.
+**Status:** design approved in discussion (November 2026). Phase 1 is being built: nominal interfaces landed as milestone 164 (PRP-196); the rest is not built yet. The phases are in Part 7; each becomes one or more PRPs.
 
 **Base:** `Language v17 Specification.md` at milestone 162 (commit `c8c6b30`). Everything not mentioned keeps its v17 meaning.
 

@@ -41,7 +41,7 @@ interface Source<T> {
 
 struct Count { n: i64 }
 
-impl Count {
+impl Source<i64> for Count {
     fun next(mut self): Option<i64> {
         self.n += 1;
         Some(self.n)
@@ -56,8 +56,11 @@ interface Named {
 
 struct Dog { called: string }
 
-impl Dog {
+impl Named for Dog {
     fun name(self): string = self.called;
+}
+
+impl Dog {
     fun intro(self): string = self.shout();
 }
 

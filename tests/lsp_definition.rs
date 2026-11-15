@@ -14,7 +14,7 @@ import std.math;
 struct Circle { r: f64 }
 enum Shape { Round(f64), Dot }
 interface Area { fun area(self): f64; }
-impl Circle { fun area(self): f64 = 3.0 * self.r * self.r; }
+impl Area for Circle { fun area(self): f64 = 3.0 * self.r * self.r; }
 fun measure(a: Area): f64 = a.area();
 // A comment.
 fun main() {
@@ -125,7 +125,7 @@ fn types_fields_and_variants_jump_to_their_declarations() {
         here("struct Circle", "Circle")
     );
     assert_eq!(
-        jump(&mut s, &uri, at("impl Circle", "Circle")),
+        jump(&mut s, &uri, at("for Circle", "Circle")),
         here("struct Circle", "Circle")
     );
     assert_eq!(

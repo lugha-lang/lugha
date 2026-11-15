@@ -42,6 +42,7 @@ mod hashing;
 mod heap;
 mod hoist;
 mod hoist_scan;
+mod impls;
 mod includes;
 mod input;
 mod instances;
@@ -364,6 +365,7 @@ pub(crate) mod test_util {
     pub fn ir(src: &str) -> String {
         let (tokens, _) = lexer::lex(src).expect("test source lexes");
         let (mut program, _) = parser::parse(&tokens).expect("test source parses");
+        crate::modules::impls::name_impls(&mut program, "");
         crate::modules::overloads::name_overloads(&mut program, src, 0, "");
         let main = crate::modules::Module {
             path: Vec::new(),
