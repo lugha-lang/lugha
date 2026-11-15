@@ -1,66 +1,13 @@
+//! The prelude's methods on built-in types, `s.trim()` and `xs.map(f)`:
+//! calls of a method of the prelude's block covering the receiver
+//! (`check::own_blocks`), the block's parameters bound from it and the
+//! rest inferred as for any generic call.
+
 use super::expr::Expect;
 use super::generics::subst;
 use super::infer::bind;
-use super::results::RESULT;
-use super::{Checker, Type, errors, qualify};
+use super::{Checker, Type, errors};
 use crate::ast::{Expr, Ident};
-use crate::modules::PRELUDE_PATH;
-
-/// The prelude function behind method `method` on `receiver`, if it is a
-/// helper: the array helpers keep their names, the others are prefixed by
-/// the receiver's kind (`str_trim`, `option_map`, `result_map_err`).
-pub(super) fn helper_function(receiver: &Type, method: &str) -> Option<String> {
-    const ARRAY: [&str; 7] = ["map", "filter", "fold", "sort_by", "sort", "any", "all"];
-    const STRING: [&str; 6] = [
-        "lines",
-        "split",
-        "trim",
-        "contains",
-        "starts_with",
-        "ends_with",
-    ];
-    const CHAR: [&str; 7] = [
-        "is_alphabetic",
-        "is_digit",
-        "is_whitespace",
-        "is_upper",
-        "is_lower",
-        "to_upper",
-        "to_lower",
-    ];
-    const OPTION: [&str; 6] = [
-        "unwrap_or",
-        "ok_or",
-        "map",
-        "is_some",
-        "is_none",
-        "and_then",
-    ];
-    const RESULTS: [&str; 7] = [
-        "unwrap_or",
-        "ok",
-        "map",
-        "map_err",
-        "is_ok",
-        "is_err",
-        "and_then",
-    ];
-    let name = match receiver {
-        Type::Array(e) if method == "join" && **e == Type::String => "str_join".to_string(),
-        // The iterator sources.
-        Type::Array(_) if method == "iter" => "array_iter".to_string(),
-        Type::String if method == "bytes" => "str_bytes".to_string(),
-        // Characters.
-        Type::String if matches!(method, "chars" | "char_count") => format!("str_{method}"),
-        Type::Char if CHAR.contains(&method) => format!("char_{method}"),
-        Type::Array(_) if ARRAY.contains(&method) => method.to_string(),
-        Type::String if STRING.contains(&method) => format!("str_{method}"),
-        Type::Option(_) if OPTION.contains(&method) => format!("option_{method}"),
-        Type::Enum(k, _) if k == RESULT && RESULTS.contains(&method) => format!("result_{method}"),
-        _ => return None,
-    };
-    Some(name)
-}
 
 impl Checker {
     /// `xs.m(args)` where `xs` is an array and `m` a helper: a call of the
@@ -74,36 +21,38 @@ impl Checker {
         args: &[Expr],
         expect: Option<&Expect>,
     ) -> Option<Type> {
-        let function = helper_function(receiver, &name.name)?;
-        let key = qualify(&[PRELUDE_PATH.to_string()], &function);
-        let sig = self.functions.get(&key)?;
-        let (generics, params, ret) = (sig.generics.clone(), sig.params.clone(), sig.ret.clone());
-        if args.len() + 1 != params.len() {
+        let (block, bindings) = self.own_block(receiver, &name.name)?;
+        let m = self.methods.get(&block.owner)?.get(&name.name)?.clone();
+        // `[2.5].sort()`: the block's bounds (`impl<T: Ord> T[]`) are the call's.
+        let outer = &block.generics;
+        if !self.meets_bounds(outer, &bindings, call.span) {
+            return Some(self.unchecked_args(args));
+        }
+        if args.len() != m.params.len() {
             self.report(errors::arity(
                 &name.name,
-                params.len() - 1,
+                m.params.len(),
                 args.len(),
                 call.span,
             ));
             return Some(self.unchecked_args(args));
         }
-        // The receiver was checked already: it only binds the element type.
-        let bound = bind(&params[0], receiver, &generics);
+        // The receiver was checked already: it binds the block's parameters.
+        let generics = m.generics.clone();
+        let bound = bind(&block.self_type(), receiver, &generics);
         let inputs: Vec<_> = args
             .iter()
-            .zip(&params[1..])
+            .zip(&m.params)
             .map(|(a, t)| (a, Expect::of(t.clone())))
             .collect();
-        self.callees.insert(call.id, key.clone());
-        // Hover, definitions and docs reach the prelude function.
-        if let Some(decl) = self.functions.get(&key).map(|sig| sig.span) {
-            self.hover.function(name.span, decl, Some(call));
-        }
+        self.callees.insert(call.id, m.key.clone());
+        // Hover, definitions and docs reach the prelude's method.
+        self.hover.function(name.span, m.span, Some(call));
         Some(
-            match self.infer(call, &generics, bound, Some((&ret, expect)), &inputs) {
+            match self.infer(call, &generics, bound, Some((&m.ret, expect)), &inputs) {
                 Some(targs) => {
-                    self.used(call, &key, &targs);
-                    subst(&ret, &generics, &targs)
+                    self.used(call, &m.key, &targs);
+                    subst(&m.ret, &generics, &targs)
                 }
                 None => Type::Error,
             },

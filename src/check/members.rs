@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use super::generics::{Generic, subst};
 use super::member_names::{CANDIDATES, MORE_CANDIDATES};
-use super::{Checker, Partial, Type, builtins, helpers, iter_helpers};
+use super::{Checker, Partial, Type, builtins, iter_helpers};
 use crate::modules::PRELUDE_PATH;
 use crate::span::Span;
 
@@ -235,8 +235,6 @@ pub fn value_members(partial: &Partial, ty: &Type) -> Vec<Member> {
                 detail: Detail::Text(text),
                 decl: None,
             });
-        } else if let Some(function) = helpers::helper_function(ty, name) {
-            out.push(helper(partial, name, &function));
         }
     }
     // The items of a built-in type's blocks; its own methods win.
@@ -248,15 +246,16 @@ pub fn value_members(partial: &Partial, ty: &Type) -> Vec<Member> {
         .iter()
         .map(|b| &b.interface)
         .collect();
+    interfaces.sort();
     interfaces.dedup();
+    // The prelude's own methods (interface "") and every interface's blocks.
     for key in interfaces.into_iter().filter(|_| builtin) {
-        let Some((b, _)) = partial.derives.find(key, ty, |_| false) else {
-            continue;
-        };
-        let items = partial.members.get(&b.owner).filter(|_| b.written);
-        for m in items.into_iter().flat_map(|t| &t.members) {
-            if !out.iter().any(|o| o.name == m.name) {
-                out.push(m.clone());
+        for (b, _) in partial.derives.blocks_for(key, ty) {
+            let items = partial.members.get(&b.owner);
+            for m in items.into_iter().flat_map(|t| &t.members) {
+                if !out.iter().any(|o| o.name == m.name) {
+                    out.push(m.clone());
+                }
             }
         }
     }
@@ -483,9 +482,9 @@ fun main() { }
             Type::Chan(Box::new(Type::I64)),
         ];
         for name in CANDIDATES.iter().chain(&MORE_CANDIDATES) {
-            let resolves = receivers.iter().any(|r| {
-                builtins::builtin(r, name).is_some() || helpers::helper_function(r, name).is_some()
-            });
+            let resolves = receivers
+                .iter()
+                .any(|r| builtins::builtin(r, name).is_some());
             assert!(
                 resolves,
                 "{name} resolves for no receiver: a stale candidate"

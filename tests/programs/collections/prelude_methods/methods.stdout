@@ -1,0 +1,22 @@
+a+b
+20
+X
+[3, 2]
+6
+true false
+[3, 2, 1]
+[9, 1, 4]
+["  one", "two", "three  "]
+["a", "b", "", "c"]
+[one
+two
+three]
+true true true
+6 5 5
+true true true false true É q
+true true Err("missing")
+Some(6)
+4 0 Some(4) true true
+Ok(5)
+Err(3)
+Err("no 4")

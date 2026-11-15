@@ -321,14 +321,24 @@ fun iter_collect_set<T: Key>(it: Iter<T>): Set<T> {
 
 // ---- `and_then`: at the prelude's end, so no earlier line moves ----
 
-/** `f` of the value, or `None`: chains steps that may each give nothing: `o.and_then(f)`. */
-fun option_and_then<T, U>(o: Option<T>, f: fun(T): Option<U>): Option<U> = match o {
-    Some(x) => f(x),
-    None => None,
-};
+impl<T> Option<T> {
+    /** `f` of the value, or `None`: chains steps that may each give nothing: `o.and_then(f)`. */
+    fun and_then<U>(self, f: fun(T): Option<U>): Option<U> {
+        let o = self;
+        match o {
+        Some(x) => f(x),
+        None => None,
+    }
+    }
+}
 
-/** `f` of the `Ok` value, or the `Err` unchanged: chains steps that may each fail: `r.and_then(f)`. */
-fun result_and_then<T, E, U>(r: Result<T, E>, f: fun(T): Result<U, E>): Result<U, E> = match r {
-    Ok(x) => f(x),
-    Err(e) => Err(e),
-};
+impl Result<T, E> {
+    /** `f` of the `Ok` value, or the `Err` unchanged: chains steps that may each fail: `r.and_then(f)`. */
+    fun and_then<U>(self, f: fun(T): Result<U, E>): Result<U, E> {
+        let r = self;
+        match r {
+        Ok(x) => f(x),
+        Err(e) => Err(e),
+    }
+    }
+}

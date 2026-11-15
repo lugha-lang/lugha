@@ -52,7 +52,7 @@ impl Checker {
 }
 
 /// E0466: `impl T { … }` for a type `T` this module doesn't declare.
-fn own_methods_elsewhere(i: &ImplDecl) -> Diagnostic {
+pub(super) fn own_methods_elsewhere(i: &ImplDecl) -> Diagnostic {
     let ty = match &i.module {
         Some(m) => format!("{}.{}", m.name, i.ty.name),
         None => i.ty.name.clone(),
@@ -63,7 +63,7 @@ fn own_methods_elsewhere(i: &ImplDecl) -> Diagnostic {
             "write them in `{ty}`'s own module; for an operator with `{ty}` on the left, write `impl Mul<V> for {ty} {{ … }}` in `V`'s module"
         ),
         None => format!(
-            "a number has no methods of a program's; for `{ty} * v`, write `impl Mul<V> for {ty} {{ fun mul(self, v: V): … }}` in `V`'s module"
+            "a built-in type has no methods of a program's; for `{ty} * v`, write `impl Mul<V> for {ty} {{ fun mul(self, v: V): … }}` in `V`'s module, and for anything else a function"
         ),
     };
     Diagnostic::error("E0466", message, i.ty.span).with_help(help)

@@ -150,5 +150,10 @@ fun $total_key_f32(x: f32): i32 {
     if bits < 0 { bits ^ 2147483647 } else { bits }
 }
 
-/** A sorted copy, stable, in the type's order: `xs.sort()`. */
-fun sort<T: Ord>(xs: T[]): T[] = sort_by(xs, fun(a: T, b: T): bool = a < b);
+impl<T: Ord> T[] {
+    /** A sorted copy, stable, in the type's order: `xs.sort()`. */
+    fun sort(self): T[] {
+        let xs = self;
+        xs.sort_by(fun(a: T, b: T): bool = a < b)
+    }
+}

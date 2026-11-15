@@ -49,42 +49,43 @@ impl Parser<'_> {
     /// [m.]Type[<T, …>] { … }` for an interface's items.
     pub(super) fn impl_decl(&mut self) -> PResult<ImplDecl> {
         let start = self.bump().start;
-        // `impl<T: B> I for T[]`: the block's parameters, for a built-in type.
+        // `impl<T: B> I for T[]` and `impl<T> T[]`: the block's parameters,
+        // for a built-in type.
         let generic = self.at(&TokenKind::Lt);
         let outer = self.impl_params()?;
-        let interface = if generic || self.for_ahead() {
+        let interface = if self.for_ahead() {
             let bound = self.bound()?;
             self.expect(&TokenKind::For)?;
             Some(Box::new(bound))
         } else {
             None
         };
-        let (module, ty, params, target) =
-            if interface.is_some() && (generic || !self.named_ahead()) {
-                // Any other type: `f64`, `Point[]`, `(A, B)`, `Map<string, V>`.
-                let t = self.ty()?;
-                let name = Ident {
-                    name: t.written(),
-                    span: t.span,
-                };
-                (None, name, outer, Some(Box::new(t)))
-            } else {
-                // `impl f64 { … }`: arithmetic with a number on the left.
-                let number = number_type(self.peek());
-                let first = match number {
-                    Some(name) => Ident {
-                        name: name.to_string(),
-                        span: self.bump(),
-                    },
-                    None => self.ident("type name")?,
-                };
-                let (module, ty) = if self.eat(&TokenKind::Dot) {
-                    (Some(first), self.ident("type name")?)
-                } else {
-                    (None, first)
-                };
-                (module, ty, self.impl_params()?, None)
+        let (module, ty, params, target) = if generic || !self.named_ahead() {
+            // Any other type: `f64`, `Point[]`, `(A, B)`, `Map<string, V>`;
+            // without an interface, the prelude's `impl<T> T[] { … }`.
+            let t = self.ty()?;
+            let name = Ident {
+                name: t.written(),
+                span: t.span,
             };
+            (None, name, outer, Some(Box::new(t)))
+        } else {
+            // `impl f64 { … }`: arithmetic with a number on the left.
+            let number = number_type(self.peek());
+            let first = match number {
+                Some(name) => Ident {
+                    name: name.to_string(),
+                    span: self.bump(),
+                },
+                None => self.ident("type name")?,
+            };
+            let (module, ty) = if self.eat(&TokenKind::Dot) {
+                (Some(first), self.ident("type name")?)
+            } else {
+                (None, first)
+            };
+            (module, ty, self.impl_params()?, None)
+        };
         // `impl I for T = derive;`: the items come from `I`'s derive blocks.
         let derive = interface.is_some() && self.eat(&TokenKind::Eq);
         let mut methods = Vec::new();
@@ -371,6 +372,20 @@ mod tests {
             assert_eq!(target.written(), written, "{src}");
             assert_eq!(i.params.len(), params, "{src}");
             assert_eq!(i.ty.name, written, "{src}");
+        }
+        // Without an interface: a built-in type's own methods.
+        for (src, written) in [
+            ("impl<T> T[] { fun first(self): T = self[0]; }", "T[]"),
+            ("impl string { fun shout(self): string = self; }", "string"),
+            ("impl<T: Ord> T[] { }", "T[]"),
+        ] {
+            let i = block(src);
+            assert!(i.interface.is_none(), "{src}");
+            assert_eq!(
+                i.target.map(|t| t.written()).as_deref(),
+                Some(written),
+                "{src}"
+            );
         }
         let i = block("impl<T: Show> Show for T[] { fun show(self): string = \"\"; }");
         assert_eq!(i.methods[0].name.name, "show@Show");

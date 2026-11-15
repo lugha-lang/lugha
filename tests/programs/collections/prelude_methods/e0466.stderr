@@ -1,0 +1,9 @@
+error[E0466]: methods for `string`, which this module doesn't declare
+  --> tests/programs/collections/prelude_methods/e0466.la:2:6
+  |
+2 | impl string {
+  |      ^^^^^^
+  |
+  = help: a built-in type has no methods of a program's; for `string * v`, write `impl Mul<V> for string { fun mul(self, v: V): … }` in `V`'s module, and for anything else a function
+
+For more about E0466, run `lughac explain E0466`.

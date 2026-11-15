@@ -19,9 +19,6 @@ impl ArrayIter<T> {
     }
 }
 
-/** An iterator over the elements of `xs`, in order: `xs.iter()`. */
-fun array_iter<T>(xs: T[]): ArrayIter<T> = ArrayIter { xs: xs, at: 0 };
-
 // The bytes of a string: `s.bytes()`.
 struct Bytes { s: string, at: i64 }
 
@@ -34,9 +31,6 @@ impl Bytes {
         Some(self.s[self.at - 1])
     }
 }
-
-/** An iterator over the bytes of `s` (`u8`): `s.bytes()`. */
-fun str_bytes(s: string): Bytes = Bytes { s: s, at: 0 };
 
 // `from`, `from + 1`, … up to `to - 1`: `range(from, to)`.
 struct Range { at: i64, end: i64 }
@@ -208,3 +202,19 @@ fun iter_sum<T: Num>(it: Iter<T>): T {
 // A type's own text: a struct or enum with this `show`
 // prints through it; every other value has a built-in form.
 interface Display { fun show(self): string; }
+
+impl<T> T[] {
+    /** An iterator over the elements of `xs`, in order: `xs.iter()`. */
+    fun iter(self): ArrayIter<T> {
+        let xs = self;
+        ArrayIter { xs: xs, at: 0 }
+    }
+}
+
+impl string {
+    /** An iterator over the bytes of `s` (`u8`): `s.bytes()`. */
+    fun bytes(self): Bytes {
+        let s = self;
+        Bytes { s: s, at: 0 }
+    }
+}

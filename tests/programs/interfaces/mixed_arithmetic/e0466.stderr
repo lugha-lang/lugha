@@ -4,7 +4,7 @@ error[E0466]: methods for `f64`, which this module doesn't declare
 4 | impl f64 {
   |      ^^^
   |
-  = help: a number has no methods of a program's; for `f64 * v`, write `impl Mul<V> for f64 { fun mul(self, v: V): … }` in `V`'s module
+  = help: a built-in type has no methods of a program's; for `f64 * v`, write `impl Mul<V> for f64 { fun mul(self, v: V): … }` in `V`'s module, and for anything else a function
 
 error[E0459]: this `impl Add for …` must be written in the module that declares `Add`
    --> tests/programs/interfaces/mixed_arithmetic/e0466.la:12:1

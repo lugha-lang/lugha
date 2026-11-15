@@ -106,7 +106,10 @@ impl Checker {
     }
 
     fn collect_builtin_impl(&mut self, i: &ImplDecl, target: &crate::ast::Type) {
-        let Some(b) = &i.interface else { return };
+        // A block of the type's own methods (`check::own_blocks`).
+        let Some(b) = &i.interface else {
+            return self.collect_own_block(i, target);
+        };
         let Some(key) = self.interface_key(b) else {
             let is_type = b.module.is_none() && self.is_type_name(&b.name.name);
             self.report(errors::unknown_bound(&b.name.name, b.span, is_type));

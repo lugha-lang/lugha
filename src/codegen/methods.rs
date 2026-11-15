@@ -208,12 +208,17 @@ impl<'ctx> Lowerer<'ctx> {
         {
             return self.call_method(method, Some(&**base), &base_type, args);
         }
-        // `xs.map(f)`, `s.trim()`, `o.unwrap_or(d)`: helpers call the prelude
-        // with the receiver first. `Hasher.new()` names a type, not a value:
+        // `xs.map(f)`, `s.trim()`, `o.unwrap_or(d)`: the prelude's methods,
+        // and `it.map(f)`, an iterator helper called with the receiver first. `Hasher.new()` names a type, not a value:
         // an associated call, found below.
         let callee = self.callees.get(&call.id).cloned();
         let helper = callee.filter(|k| k.starts_with("$prelude.") && base_type != Type::Unit);
         if let Some(helper) = helper.and_then(|k| self.prelude_target(call, &k)) {
+            // A prelude block's method (`s.trim()`) takes its receiver as
+            // any method does.
+            if helper.receiver.is_some() {
+                return self.call_method(helper, Some(&**base), &base_type, args);
+            }
             let params = &helper.signature.params;
             let mut values = self.arguments(std::slice::from_ref(base), &params[..1], false)?;
             values.extend(self.arguments(args, &params[1..], false)?);

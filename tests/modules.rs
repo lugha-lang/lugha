@@ -192,7 +192,10 @@ fn the_prelude_shows_only_as_compiled_instances() {
         "{ast}"
     );
     let ir = text(&lughac(f.path(), &["build", "--emit=ir", "main.la"]).stdout);
-    assert!(ir.contains("@\"lugha_fn_$prelude/map<i64, i64>\""), "{ir}");
+    assert!(
+        ir.contains("@\"lugha_fn_$prelude/$array.map<i64, i64>\""),
+        "{ir}"
+    );
     assert!(!ir.contains("sort_by"), "only what is used compiles: {ir}");
     let plain = text(&lughac(f.path(), &["build", "--emit=ir", "plain.la"]).stdout);
     assert!(!plain.contains("prelude"), "{plain}");
@@ -200,7 +203,7 @@ fn the_prelude_shows_only_as_compiled_instances() {
 
 #[test]
 fn only_the_prelude_functions_a_program_reaches_compile() {
-    // Non-generic prelude helpers compile only when reached.
+    // The prelude's methods compile only when reached, generic or not.
     let f = Fixture::new();
     f.file("trim.la", "fun main() { println(\" x \".trim()); }\n")
         .file(
@@ -208,15 +211,18 @@ fn only_the_prelude_functions_a_program_reaches_compile() {
             "fun main() { println(\"a,b\".split(\",\").len); }\n",
         );
     let ir = text(&lughac(f.path(), &["build", "--emit=ir", "trim.la"]).stdout);
-    assert!(ir.contains("@\"lugha_fn_$prelude/str_trim\""), "{ir}");
+    assert!(ir.contains("@\"lugha_fn_$prelude/$string.trim\""), "{ir}");
     assert!(
-        !ir.contains("str_lines") && !ir.contains("str_split"),
+        !ir.contains("$string.lines") && !ir.contains("$string.split"),
         "{ir}"
     );
     // A helper's own calls are reached through it.
     let ir = text(&lughac(f.path(), &["build", "--emit=ir", "split.la"]).stdout);
-    assert!(ir.contains("str_split") && ir.contains("str_at"), "{ir}");
-    assert!(!ir.contains("str_trim"), "{ir}");
+    assert!(
+        ir.contains("$string.split") && ir.contains("str_at"),
+        "{ir}"
+    );
+    assert!(!ir.contains("$string.trim"), "{ir}");
 }
 
 /// A program with a `lugha.toml` and one package.

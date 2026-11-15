@@ -1,0 +1,4 @@
+// `sort` is in a block for `T: Ord`: floats aren't.
+fun main() {
+    let xs = [2.5, 1.0].sort();
+}

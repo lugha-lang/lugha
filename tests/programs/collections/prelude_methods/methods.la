@@ -1,0 +1,36 @@
+// The prelude's methods on built-in types, each once: blocks of each
+// type's own methods (`impl string`, `impl<T> T[]`, …), chained with the
+// compiler's built-ins and the iterator helpers.
+fun main() {
+    println(["b", "a"].sort().map(fun(s: string): string = s.trim()).join("+"));
+    println(Some(2).map(fun(n: i64): i64 = n * 10).unwrap_or(0));
+    println('x'.to_upper());
+
+    let xs = [3, 1, 2];
+    println(xs.filter(fun(n: i64): bool = n > 1).debug());
+    println(xs.fold(0, fun(a: i64, n: i64): i64 = a + n));
+    println("{xs.any(fun(n: i64): bool = n > 2)} {xs.all(fun(n: i64): bool = n > 2)}");
+    println(xs.sort_by(fun(a: i64, b: i64): bool = a > b).debug());
+    println(xs.iter().map(fun(n: i64): i64 = n * n).collect().debug());
+
+    let s = "  one\ntwo\r\nthree  ";
+    println(s.lines().debug());
+    println("a,b,,c".split(",").debug());
+    println("[{s.trim()}]");
+    println("{s.contains("two")} {"abc".starts_with("ab")} {"abc".ends_with("bc")}");
+    println("{"héllo".bytes().count()} {"héllo".chars().count()} {"héllo".char_count()}");
+
+    let c = 'é';
+    println("{c.is_alphabetic()} {'7'.is_digit()} {' '.is_whitespace()} {c.is_upper()} {c.is_lower()} {c.to_upper()} {'Q'.to_lower()}");
+
+    let none: Option<i64> = None;
+    println("{none.is_none()} {Some(1).is_some()} {none.ok_or("missing").debug()}");
+    println(Some(3).and_then(fun(n: i64): Option<i64> = if n > 2 { Some(n * 2) } else { None }).debug());
+
+    let ok: Result<i64, string> = Ok(4);
+    let err: Result<i64, string> = Err("bad");
+    println("{ok.unwrap_or(0)} {err.unwrap_or(0)} {ok.ok().debug()} {err.is_err()} {ok.is_ok()}");
+    println(ok.map(fun(n: i64): i64 = n + 1).debug());
+    println(err.map_err(fun(e: string): i64 = e.len).debug());
+    println(ok.and_then(fun(n: i64): Result<i64, string> = Err("no {n}")).debug());
+}

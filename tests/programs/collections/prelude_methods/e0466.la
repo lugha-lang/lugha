@@ -1,0 +1,6 @@
+// Only the prelude adds methods to built-in types.
+impl string {
+    fun shout(self): string = self;
+}
+
+fun main() {}

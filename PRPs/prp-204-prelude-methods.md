@@ -1,6 +1,6 @@
 ## FEATURE: The prelude's methods on built-in types are ordinary `impl` blocks: `impl string`, `impl<T> T[]`, `impl char`, `impl<T> Option<T>`, `impl Result<T, E>`; milestone 172, in v18's Phase 1.
 
-**Status:** proposed 2026-11-15.
+**Status:** proposed 2026-11-15. Approved 2026-11-15.
 
 ## OBJECTIVE
 What the prelude now holds (`src/prelude/core.la`), instead of free functions behind a table of method names:
@@ -89,13 +89,21 @@ fun main() {
 - **Security:** none: no external input, `unsafe`, dependency, `git` or process changes.
 
 ## TESTS
-- [ ] `tests/programs/collections/prelude_methods/`: the OBJECTIVE, every moved method once, and chains mixing them with compiler built-ins and iterator helpers.
-- [ ] Errors: `impl string { … }` in a program (E0466); `[2.5].sort()` (E0451); `map(xs, f)` as a function (E0301).
-- [ ] Unit tests: the parser's own-method blocks for built-in types; method lookup order; completion and hover on a moved method.
-- [ ] The full `cargo test`, since every program uses these methods; bench before and after.
+- [x] `tests/programs/collections/prelude_methods/`: the OBJECTIVE, every moved method once, and chains mixing them with compiler built-ins and iterator helpers.
+- [x] Errors: `impl string { … }` in a program (E0466); `[2.5].sort()` (E0451); `map(xs, f)` as a function (E0301).
+- [x] Unit tests: the parser's own-method blocks for built-in types; method lookup order; completion and hover on a moved method.
+- [x] The full `cargo test`, since every program uses these methods; bench before and after.
 
 ## ACCEPTANCE
-- [ ] The OBJECTIVE prints the lines shown; each commented line gives its error.
-- [ ] Every existing program passes unchanged.
-- [ ] The full `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
-- [ ] Every `pub` item documented; spec, CHANGELOG, TODO updated.
+- [x] The OBJECTIVE prints the lines shown; each commented line gives its error.
+- [x] Every existing program passes unchanged.
+- [x] The full `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
+- [x] Every `pub` item documented; spec, CHANGELOG, TODO updated.
+
+## CHANGES DURING THE BUILD
+- **Each method begins `let xs = self;`** (or `s`, `o`, `r`, `c`): the old function bodies moved unchanged, so no body was rewritten by hand. Arrays are copy-on-write and strings pointers, so the copy costs nothing.
+- **The parser** reads `impl<T> T[] { … }` and `impl string { … }` without `for`; a program's `impl f64 { … }` now reaches E0466 through the same path.
+- **E0466's help** names any built-in type, not only numbers.
+- **Completion's candidate list** keeps only the compiler's built-ins (`join` among them, for tasks and actors); the prelude's methods come from the blocks.
+- **Three panic messages** quote prelude lines, which moved: `bad_key`, `overflow`, `split_panic` (outputs regenerated).
+

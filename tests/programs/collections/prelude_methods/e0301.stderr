@@ -1,0 +1,7 @@
+error[E0301]: cannot find `map` in this scope
+  --> tests/programs/collections/prelude_methods/e0301.la:3:14
+  |
+3 |     let ys = map([1], fun(n: i64): i64 = n);
+  |              ^^^
+
+For more about E0301, run `lughac explain E0301`.

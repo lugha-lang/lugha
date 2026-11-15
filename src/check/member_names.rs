@@ -1,9 +1,10 @@
-//! The names completion may offer after `.` on a value: every built-in
-//! method and prelude helper.
+//! The names completion may offer after `.` on a value for the compiler's
+//! built-in methods; the prelude's methods come from its blocks.
 
-/// Every name a built-in method or prelude helper may have; each receiver
-/// keeps only those the checker's resolvers accept for it.
-pub(super) const CANDIDATES: [&str; 47] = [
+/// Every name a built-in method may have; each receiver keeps only those
+/// the checker's resolvers accept for it.
+pub(super) const CANDIDATES: [&str; 27] = [
+    "join",
     "push",
     "pop",
     "clear",
@@ -30,51 +31,7 @@ pub(super) const CANDIDATES: [&str; 47] = [
     "count_ones",
     "leading_zeros",
     "trailing_zeros",
-    "map",
-    "filter",
-    "fold",
-    "sort_by",
-    "sort",
-    "any",
-    "all",
-    "lines",
-    "split",
-    "trim",
-    "contains",
-    "starts_with",
-    "ends_with",
-    "join",
-    "iter",
-    "bytes",
-    "chars",
-    "char_count",
-    "unwrap_or",
-    "ok_or",
-    "is_some",
 ];
 
 /// More helper names, kept apart so each list stays readable.
-pub(super) const MORE_CANDIDATES: [&str; 19] = [
-    "is_none",
-    "ok",
-    "map_err",
-    "is_ok",
-    "is_err",
-    "is_alphabetic",
-    "is_digit",
-    "is_whitespace",
-    "is_upper",
-    "is_lower",
-    "to_upper",
-    "to_lower",
-    // A task's and a channel's.
-    "join",
-    "send",
-    "recv",
-    "try_recv",
-    "close",
-    // A float's bits.
-    "to_bits",
-    // `Option` and `Result`.
-    "and_then",
-];
+pub(super) const MORE_CANDIDATES: [&str; 5] = ["send", "recv", "try_recv", "close", "to_bits"];

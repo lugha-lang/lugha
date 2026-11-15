@@ -1,0 +1,9 @@
+error[E0451]: `f64` isn't `Ord`: floats have `<` but no order of their own
+  --> tests/programs/collections/prelude_methods/e0451.la:3:14
+  |
+3 |     let xs = [2.5, 1.0].sort();
+  |              ^^^^^^^^^^^^^^^^^
+  |
+  = help: sort them with `xs.sort_by(f64.total_order)`, IEEE 754's total order
+
+For more about E0451, run `lughac explain E0451`.

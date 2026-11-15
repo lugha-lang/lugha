@@ -94,6 +94,7 @@ mod or_patterns;
 mod ordering;
 mod out_params;
 mod overloads;
+mod own_blocks;
 mod partial;
 mod patterns;
 mod printing;

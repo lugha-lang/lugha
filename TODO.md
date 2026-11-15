@@ -58,6 +58,7 @@ Done: portable x86-64 binaries (`--cpu`), the collector built in, `$LUGHA_CC`, L
 - [ ] **Go to Symbol in Workspace** (`workspace/symbol`, `Ctrl+T`).
 - [ ] **Highlight uses** (`textDocument/documentHighlight`).
 - [ ] **Inlay hints** (`textDocument/inlayHint`) — a `let`'s inferred type and parameter names at calls.
+- [ ] **Iterator helpers as methods:** `it.map(f)` and the other helpers of any `Iter` still come from a name table (`check/iter_helpers.rs`); make them `Iter`'s default methods once interface defaults can take their own type parameters.
 - [ ] **`min`/`max` on floats:** `math.min`, `math.max` and `math.clamp` take `T: Ord`, which floats aren't since milestone 168; give floats their own (`math.fmin`/`fmax` following IEEE `minNum`, or `T: Float` versions), decided in a PRP.
 - [ ] **Imported enum qualifiers:** in `Msg.Launched` with `Msg` imported (`import m { Msg };`) the checker records no definition for `Msg`, so Go to Definition, References and semantic tokens miss it (found building milestone 154).
 - [ ] **Run from the editor** — a "▶ Run" code lens running `lughac run`; needs a security review (it starts programs).

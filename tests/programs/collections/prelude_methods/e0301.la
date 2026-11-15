@@ -1,0 +1,4 @@
+// The methods are no longer free functions.
+fun main() {
+    let ys = map([1], fun(n: i64): i64 = n);
+}
