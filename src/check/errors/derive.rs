@@ -113,14 +113,17 @@ pub(in crate::check) fn not_json(ty: &Type, path: &str, what: &str, span: Span) 
 
 /// E0451: `ty` isn't `Key` because of a float, at `path` inside it.
 pub(in crate::check) fn float_key(ty: &Type, path: &str, span: Span) -> Diagnostic {
-    let place = if path.is_empty() {
-        "it is a float".to_string()
+    let (place, instead) = if path.is_empty() {
+        ("it is a float".to_string(), "use an integer")
     } else {
-        format!("`{}` is a float", path.trim_start_matches('.'))
+        (
+            format!("`{}` is a float", path.trim_start_matches('.')),
+            "key by the other parts, or hold the number as an integer (cents, `x.to_bits()`)",
+        )
     };
-    Diagnostic::error("E0451", format!("`{ty}` can't be a key: {place}"), span).with_help(
-        "floats compare with `==` but aren't `Key`: `NaN != NaN`, so a float key could never be found again; use an integer",
-    )
+    Diagnostic::error("E0451", format!("`{ty}` can't be a key: {place}"), span).with_help(format!(
+        "floats compare with `==` but aren't `Key`: `NaN != NaN`, so a float key could never be found again; {instead}"
+    ))
 }
 
 /// E0422: `ty` meets derivable interface `interface` only by asking, and

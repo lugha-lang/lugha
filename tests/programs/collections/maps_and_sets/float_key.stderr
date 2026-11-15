@@ -6,12 +6,4 @@ error[E0451]: `f64` can't be a key: it is a float
   |
   = help: floats compare with `==` but aren't `Key`: `NaN != NaN`, so a float key could never be found again; use an integer
 
-error[E0451]: `f64` can't be a key: it is a float
-  --> tests/programs/collections/maps_and_sets/float_key.la:2:23
-  |
-2 |     let s: Set<f64> = #{1.5};
-  |                       ^^^^^^
-  |
-  = help: floats compare with `==` but aren't `Key`: `NaN != NaN`, so a float key could never be found again; use an integer
-
 For more about E0451, run `lughac explain E0451`.

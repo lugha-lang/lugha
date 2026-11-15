@@ -72,10 +72,13 @@ fn recursive_and_generic_types_meet_it_through_their_parts() {
 
 #[test]
 fn a_part_no_block_covers_misses_the_bound() {
-    // Without `with Show`, a struct doesn't meet it at all.
+    // Without `with Show`, a struct doesn't meet it; one whose parts
+    // couldn't meet it either gets the part named, not a `with` to add.
     let fun_field = "struct Job { run: fun(i64): i64 }\n\
             fun main() { let s = show(Job { run: fun(x: i64): i64 = x }); }";
-    assert_eq!(codes(fun_field), ["E0422"]);
+    assert_eq!(codes(fun_field), ["E0451"]);
+    let plain = "struct Job { id: i64 }\nfun main() { let s = show(Job { id: 1 }); }";
+    assert_eq!(codes(plain), ["E0422"]);
     // With it, a field that can't be shown is E0451 at the declaration.
     let asked = "struct Job { run: fun(i64): i64 } with Show\nfun main() {}";
     assert_eq!(codes(asked), ["E0451"]);

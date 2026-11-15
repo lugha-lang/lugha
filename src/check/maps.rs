@@ -23,6 +23,12 @@ pub(super) fn key_of(ty: &Type) -> Option<&Type> {
     }
 }
 
+/// True for a diagnostic saying a key type isn't `Key`.
+fn is_key_miss(d: &Diagnostic) -> bool {
+    matches!(d.code, "E0422" | "E0451")
+        && (d.message.contains("can't be a key") || d.message.contains("`Key`"))
+}
+
 impl Checker {
     /// `#{ … }`: a call of `$map_of(keys, values)` or `$set_of(keys)` with
     /// this expression's id; `#{}` takes which from `expect` (E0412 without).
@@ -48,6 +54,7 @@ impl Checker {
             (kind, _) => kind,
         };
         self.duplicate_keys(lit);
+        let reported = self.diagnostics.len();
         let ty = match kind {
             HashKind::Set => {
                 let key = super::qualify(&["$prelude".to_string()], "$set_of");
@@ -59,9 +66,20 @@ impl Checker {
                 self.call_key(expr, &key, &args, expect)
             }
         };
-        // A written type was checked where it was written; an inferred one here.
+        // A written type was checked where it was written, so the literal's
+        // own `Key` requirement on the same key would only repeat it; an
+        // inferred one is checked here.
         if expect.is_none() {
             self.key_types(&ty, expr.span);
+        } else {
+            let mut i = reported;
+            while i < self.diagnostics.len() {
+                if self.diagnostics[i].span == expr.span && is_key_miss(&self.diagnostics[i]) {
+                    self.diagnostics.remove(i);
+                } else {
+                    i += 1;
+                }
+            }
         }
         ty
     }

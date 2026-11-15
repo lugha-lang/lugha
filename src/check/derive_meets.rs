@@ -36,6 +36,23 @@ impl Checker {
         let Some((path, why)) = self.unmet_derived(interface, arg, "", &mut HashSet::new()) else {
             return true;
         };
+        // A type that didn't ask, but whose parts couldn't meet it if it did:
+        // name that part, rather than suggest a `with` that would fail.
+        let (path, why) = match &why {
+            Unmet::NotAsked(Type::Struct(owner, _) | Type::Enum(owner, _)) => {
+                let at = (owner.clone(), interface.to_string());
+                self.asking.asked.insert(at.clone(), Span::new(0, 0));
+                let asked = self.unmet_derived(interface, arg, "", &mut HashSet::new());
+                self.asking.asked.remove(&at);
+                match asked {
+                    Some((inner, deeper)) if !matches!(deeper, Unmet::NotAsked(_)) => {
+                        (inner, deeper)
+                    }
+                    _ => (path, why),
+                }
+            }
+            _ => (path, why),
+        };
         let name = interface.rsplit('.').next().unwrap_or(interface);
         let d = match &why {
             Unmet::NotAsked(part) => {

@@ -1,10 +1,10 @@
-error[E0422]: `Reading` doesn't implement `Key`
+error[E0451]: `Reading` can't be a key: `value` is a float
   --> tests/programs/interfaces/eq_key/not_key.la:6:13
   |
 6 |     let m = #{Reading { at: 1, value: 0.5 }: 1};
   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   |
-  = help: add `with Key` after `Reading`'s declaration, or implement it by hand with `impl Key for Reading`
+  = help: floats compare with `==` but aren't `Key`: `NaN != NaN`, so a float key could never be found again; key by the other parts, or hold the number as an integer (cents, `x.to_bits()`)
 
 error[E0451]: `f64` can't be a key: it is a float
   --> tests/programs/interfaces/eq_key/not_key.la:7:12
@@ -14,12 +14,4 @@ error[E0451]: `f64` can't be a key: it is a float
   |
   = help: floats compare with `==` but aren't `Key`: `NaN != NaN`, so a float key could never be found again; use an integer
 
-error[E0451]: `f64` can't be a key: it is a float
-  --> tests/programs/interfaces/eq_key/not_key.la:7:23
-  |
-7 |     let s: Set<f64> = #{};
-  |                       ^^^
-  |
-  = help: floats compare with `==` but aren't `Key`: `NaN != NaN`, so a float key could never be found again; use an integer
-
-For more about E0422 and E0451, run `lughac explain <code>`.
+For more about E0451, run `lughac explain E0451`.
