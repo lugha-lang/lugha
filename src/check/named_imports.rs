@@ -213,7 +213,7 @@ mod tests {
                  fun big<T: Sized>(t: T): bool = t.size() > 1;\n\
                  fun main() {\n\
                  let v: Vec2 = add(Vec2 { x: 1, y: 2 }, vec.Vec2 { x: 3, y: 4 });\n\
-                 let d = match Dir.Up { Up => 1, Down => 2 };\n\
+                 let d = match Dir.Up { .Up => 1, .Down => 2 };\n\
                  let b = big(Box { n: 2 });\n}",
             ),
             ("vec.la", VEC),

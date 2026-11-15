@@ -1,6 +1,6 @@
 ## FEATURE: Enum variants in patterns take a leading dot, `.Some(x)`, `.None`, `.Circle(r)`; a bare name in a pattern always binds; milestone 176, in v18's Phase 1.
 
-**Status:** proposed 2026-11-16.
+**Status:** proposed 2026-11-16. Approved 2026-11-16.
 
 ## OBJECTIVE
 ```lugha
@@ -68,13 +68,21 @@ fun main() {
 - Completions after `.` in patterns.
 
 ## TESTS
-- [ ] `tests/programs/patterns/dot_variants/`: the OBJECTIVE minus its error (runs), E0212 and E0468 cases, a top-level binding arm with W0102 after it.
-- [ ] Parser unit tests: dotted forms nest; `Name(` is E0212; bare names are bindings.
-- [ ] Checker unit tests: each form; E0468 at top level and in a slot; a binding named like another type's variant is fine; E0417 prints dots.
-- [ ] Formatter round-trip.
-- [ ] The full `cargo test`, since the change reaches every program with a `match`.
+- [x] `tests/programs/patterns/dot_variants/`: the OBJECTIVE minus its error (runs), E0212 and E0468 cases, a top-level binding arm with W0102 after it.
+- [x] Parser unit tests: dotted forms nest; `Name(` is E0212; bare names are bindings.
+- [x] Checker unit tests: each form; E0468 at top level and in a slot; a binding named like another type's variant is fine; E0417 prints dots.
+- [x] Formatter round-trip.
+- [x] The full `cargo test`, since the change reaches every program with a `match`.
 
 ## ACCEPTANCE
-- [ ] The OBJECTIVE gives E0468 at the `None =>` arm only, and runs once that line is `.None`.
-- [ ] The full `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
-- [ ] Spec, CHANGELOG and the error pages updated.
+- [x] The OBJECTIVE gives E0468 at the `None =>` arm only, and runs once that line is `.None`.
+- [x] The full `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
+- [x] Spec, CHANGELOG and the error pages updated.
+
+## CHANGES DURING THE BUILD
+- **A block arm ends at its `}`.** `{ … }` followed by `.Ok(v) =>` parsed as a method call on the block; the arm's body is now just the block when it starts with `{`, as in Rust.
+- **`mut None` is E0468,** like a bare `None`, instead of E0428; E0428 is now only about alternatives that bind differently.
+- **The language server's fixes write dots:** "Change to `.Empty`" for a misspelled binding (W0103), and the missing arms it adds. W0103's help says to write the variant with a dot.
+- **Snippets:** the extension's `if let` and `let … else` snippets use `.Some(v)`; the extension's version is bumped.
+- **Two tests read old documents:** the test that parsed the v2 draft's programs is gone (that syntax no longer parses; the spec's own programs are checked by `tests/spec.rs`), and the generics-program check reads the current spec instead of the v2 draft.
+- **Migration** was driven by the compiler: every E0212 and E0468 site got its dot, prelude and std included; inline programs in Rust tests and the docs' code blocks were rewritten at pattern positions and checked by the tests.

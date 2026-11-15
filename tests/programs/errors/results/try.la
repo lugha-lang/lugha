@@ -37,8 +37,8 @@ fun first_ok<T>(xs: Result<T, string>[]): Result<T, string> {
 
 fun show(r: Result<i64, string>) {
     match r {
-        Ok(n) => println("ok {n}"),
-        Err(e) => println("err {e}"),
+        .Ok(n) => println("ok {n}"),
+        .Err(e) => println("err {e}"),
     }
 }
 
@@ -49,13 +49,13 @@ fun main() {
     show(Parser { text: "4x" }.two());
     show(Parser { text: "4" }.two());
     match last_doubled([1, 2, 3]) {
-        Some(n) => println(n),
-        None => println("none"),
+        .Some(n) => println(n),
+        .None => println("none"),
     }
     let empty: i64[] = [];
     match last_doubled(empty) {
-        Some(n) => println(n),
-        None => println("none"),
+        .Some(n) => println(n),
+        .None => println("none"),
     }
     let checked = fun(n: i64): Result<i64, string> {
         let h = half(n)?;

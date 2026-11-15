@@ -12,8 +12,8 @@ fun main() {
     save("draft");                       // E0467: this `Result` is discarded
     let _ = save("draft");               // a deliberate discard
     match save("") {
-        Ok(()) => println("saved"),
-        Err(e) => println("not saved: {e}"),
+        .Ok(()) => println("saved"),
+        .Err(e) => println("not saved: {e}"),
     }
     defer {
         let _ = fs.remove_file("tmp.txt");   // a discard inside `defer`'s braces

@@ -19,10 +19,10 @@ fun main() {
     let mut more = true;
     while more {
         match small.pop() {
-            Some(v) => {
+            .Some(v) => {
                 popped += v;
             }
-            None => {
+            .None => {
                 more = false;
             }
         }

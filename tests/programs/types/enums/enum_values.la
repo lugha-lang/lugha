@@ -3,8 +3,8 @@
 enum Job { Batch(i64[]), Idle }
 
 fun first(j: Job): i64 = match j {
-    Batch(xs) => xs[0],
-    Idle => -1,
+    .Batch(xs) => xs[0],
+    .Idle => -1,
 };
 
 fun main() {
@@ -14,12 +14,12 @@ fun main() {
     println(first(a));
 
     match a {
-        Batch(v) => {
+        .Batch(v) => {
             let mut w = v;
             w[0] = 7;
             println(w[0]);
         }
-        Idle => {}
+        .Idle => {}
     }
     println(first(a));
 

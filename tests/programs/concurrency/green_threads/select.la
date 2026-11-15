@@ -30,8 +30,8 @@ fun main() {
     spawn later(a, 5, "late hello");
     select {
         m = a.recv() => match m {
-            Some(text) => println(text),
-            None => println("closed"),
+            .Some(text) => println(text),
+            .None => println("closed"),
         },
         after(2000) => println("too slow"),
     }

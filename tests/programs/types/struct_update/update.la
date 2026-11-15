@@ -5,9 +5,9 @@ struct Model { count: i64, name: string, items: string[] }
 enum Msg { Add, Named(string), Clear }
 
 fun update(m: Model, msg: Msg): Model = match msg {
-    Add => Model { count: m.count + 1, ..m },
-    Named(n) => Model { name: n, ..m },
-    Clear => Model { items: [], count: 0, ..m },
+    .Add => Model { count: m.count + 1, ..m },
+    .Named(n) => Model { name: n, ..m },
+    .Clear => Model { items: [], count: 0, ..m },
 };
 
 fun noisy(label: string, v: i64): i64 {

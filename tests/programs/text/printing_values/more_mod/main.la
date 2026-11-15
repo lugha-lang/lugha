@@ -13,8 +13,8 @@ enum Light { Red, Green }
 
 impl Display for Light {
     fun show(self): string = match self {
-        Red => "stop",
-        Green => "go",
+        .Red => "stop",
+        .Green => "go",
     };
 }
 

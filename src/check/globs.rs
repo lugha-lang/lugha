@@ -175,7 +175,7 @@ mod tests {
                  fun keep(w: Widget): raw.Widget = w;\n\
                  fun main() {\n\
                      let p: raw.Point = Point { x: twice(1) };\n\
-                     let d = match Dir.Up { Up => 1, Down => 2 };\n\
+                     let d = match Dir.Up { .Up => 1, .Down => 2 };\n\
                      let q = gtk.Point { x: gtk.twice(p.x) };\n\
                  }",
             ),

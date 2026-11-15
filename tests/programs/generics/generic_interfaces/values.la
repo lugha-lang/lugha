@@ -98,15 +98,15 @@ fun main() {
     println("{p.label} {count(p.from)}");
     let o: Option<Source<i64>> = Some(Count { n: 1, end: 2 });
     match o {
-        Some(x) => println(count(x)),
-        None => println("none"),
+        .Some(x) => println(count(x)),
+        .None => println("none"),
     }
 
     println(count(Count { n: 0, end: 4 }));
     for n of [3, 50] {
         match run(n) {
-            Ok(v) => println(v),
-            Err(e) => println(e.detail()),
+            .Ok(v) => println(v),
+            .Err(e) => println(e.detail()),
         }
     }
 }

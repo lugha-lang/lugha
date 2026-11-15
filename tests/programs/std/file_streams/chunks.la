@@ -18,11 +18,11 @@ fun run(): Result<(), string> {
     let mut last = "";
     while true {
         match f.read_line()? {
-            Some(line) => {
+            .Some(line) => {
                 count += 1;
                 last = line;
             }
-            None => {
+            .None => {
                 break;
             }
         }
@@ -65,8 +65,8 @@ fun run(): Result<(), string> {
     long.close();
     let l = fs.open("long.txt")?;
     match l.read_line()? {
-        Some(line) => println("{line.len} {line == text}"),
-        None => println("none"),
+        .Some(line) => println("{line.len} {line == text}"),
+        .None => println("none"),
     }
     println(l.read_line().debug());
     println(l.read_line().debug());

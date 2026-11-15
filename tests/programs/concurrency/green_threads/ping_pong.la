@@ -1,6 +1,6 @@
 // An unbuffered channel hands each value over: `send` waits for `recv`.
 fun ponger(pings: Chan<i64>, pongs: Chan<i64>) {
-    while let Some(n) = pings.recv() {
+    while let .Some(n) = pings.recv() {
         println("pong {n}");
         pongs.send(n + 1);
     }

@@ -53,9 +53,10 @@ impl Printer<'_> {
         let all = |ps: &[Pattern]| ps.iter().map(|p| self.pattern(p)).collect::<Vec<_>>();
         match &p.kind {
             PatternKind::Wildcard => "_".to_string(),
-            PatternKind::Variant(name, None) => self.ident(name),
+            PatternKind::Binding(name) => self.ident(name),
+            PatternKind::Variant(name, None) => format!(".{}", self.ident(name)),
             PatternKind::Variant(name, Some(slots)) => {
-                format!("{}({})", self.ident(name), all(slots).join(", "))
+                format!(".{}({})", self.ident(name), all(slots).join(", "))
             }
             PatternKind::Int { .. } | PatternKind::Bool(_) => self.name(p.span),
             PatternKind::Str(_) => self.text(p.span).to_string(),

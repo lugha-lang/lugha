@@ -18,12 +18,12 @@ enum Shape { Circle(f64), Square(f64) }
 
 impl Shape {
     fun grow(self, k: f64): Self = match self {
-        Circle(r) => Self.Circle(r * k),
-        Square(s) => Self.Square(s * k),
+        .Circle(r) => Self.Circle(r * k),
+        .Square(s) => Self.Square(s * k),
     };
     fun side(self): f64 = match self {
-        Circle(r) => r,
-        Square(s) => s,
+        .Circle(r) => r,
+        .Square(s) => s,
     };
     fun all(): Self[] {
         let make = fun(x: f64): Self = Self.Square(x);
@@ -34,8 +34,8 @@ impl Shape {
 interface Source<T> {
     fun next(mut self): Option<T>;
     fun first(mut self): T = match self.next() {
-        Some(x) => x,
-        None => panic("empty"),
+        .Some(x) => x,
+        .None => panic("empty"),
     };
 }
 

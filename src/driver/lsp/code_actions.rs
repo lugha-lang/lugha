@@ -223,28 +223,28 @@ mod tests {
 
     #[test]
     fn arms_go_after_the_last_at_its_indentation() {
-        let text = "    match s {\n        A(r) => r,\n    }\n";
+        let text = "    match s {\n        .A(r) => r,\n    }\n";
         assert_eq!(
-            applied(text, &["B(_, _)", "C"]),
-            "    match s {\n        A(r) => r,\n        B(_, _) => panic(\"not handled\"),\n        C => panic(\"not handled\"),\n    }\n"
+            applied(text, &[".B(_, _)", ".C"]),
+            "    match s {\n        .A(r) => r,\n        .B(_, _) => panic(\"not handled\"),\n        .C => panic(\"not handled\"),\n    }\n"
         );
     }
 
     #[test]
     fn a_last_arm_without_a_comma_gets_one() {
-        let text = "    match s {\n        A(r) => { r }\n    }\n";
+        let text = "    match s {\n        .A(r) => { r }\n    }\n";
         assert_eq!(
-            applied(text, &["C"]),
-            "    match s {\n        A(r) => { r },\n        C => panic(\"not handled\"),\n    }\n"
+            applied(text, &[".C"]),
+            "    match s {\n        .A(r) => { r },\n        .C => panic(\"not handled\"),\n    }\n"
         );
     }
 
     #[test]
     fn a_one_line_match_is_opened_up() {
-        let text = "    match s { A => 1 }\n";
+        let text = "    match s { .A => 1 }\n";
         assert_eq!(
             applied(text, &["_"]),
-            "    match s { A => 1,\n        _ => panic(\"not handled\"),\n    }\n"
+            "    match s { .A => 1,\n        _ => panic(\"not handled\"),\n    }\n"
         );
     }
 
@@ -252,14 +252,14 @@ mod tests {
     fn an_empty_match_gets_its_first_arms() {
         let text = "match s {\n}\n";
         assert_eq!(
-            applied(text, &["A"]),
-            "match s {\n    A => panic(\"not handled\"),\n}\n"
+            applied(text, &[".A"]),
+            "match s {\n    .A => panic(\"not handled\"),\n}\n"
         );
     }
 
     #[test]
     fn braces_in_strings_and_comments_are_skipped() {
-        let text = "match s {\n    A => \"}\", // }\n    /* } /* } */ */\n}\n";
+        let text = "match s {\n    .A => \"}\", // }\n    /* } /* } */ */\n}\n";
         assert_eq!(
             matching_close(text, text.find('{').unwrap()),
             Some(text.rfind('}').unwrap())

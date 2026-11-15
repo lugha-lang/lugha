@@ -7,8 +7,8 @@ enum Tree<T> { Leaf, Node(Self, T, Self) }
 struct Chain { value: i64, rest: Self[] }
 
 fun depth<T>(t: Tree<T>): i64 = match t {
-    Leaf => 0,
-    Node(l, _, r) => {
+    .Leaf => 0,
+    .Node(l, _, r) => {
         let a = depth(l);
         let b = depth(r);
         1 + if a > b { a } else { b }

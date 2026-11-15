@@ -19,8 +19,8 @@ enum Light { Red, Green }
 
 impl Light {
     fun toggle(self): Self = match self {
-        Red => Self.Green,
-        Green => Self.Red,
+        .Red => Self.Green,
+        .Green => Self.Red,
     };
 }
 
@@ -29,7 +29,7 @@ fun main() {
     println(p.name());
     println(p.describe());
     match Light.Red.toggle() {
-        Green => println("green"),
-        Red => println("red"),
+        .Green => println("green"),
+        .Red => println("red"),
     }
 }

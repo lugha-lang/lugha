@@ -83,16 +83,16 @@ fun tagged(kind: string, value: string): string = "{{\"type\": {quote(kind)}, \"
 
 fun json(v: toml.Value): string {
     match v {
-        Text(s) => tagged("string", s),
-        Integer(n) => tagged("integer", "{n}"),
-        Float(x) => tagged("float", "bits:{x.to_bits()}"),
-        Boolean(b) => tagged("bool", "{b}"),
-        OffsetDateTime(d, t, o) => tagged("datetime", date(d) + "T" + time(t) + offset(o)),
-        LocalDateTime(d, t) => tagged("datetime-local", date(d) + "T" + time(t)),
-        LocalDate(d) => tagged("date-local", date(d)),
-        LocalTime(t) => tagged("time-local", time(t)),
-        Array(xs) => "[" + xs.map(json).join(", ") + "]",
-        Table(m) => table(m),
+        .Text(s) => tagged("string", s),
+        .Integer(n) => tagged("integer", "{n}"),
+        .Float(x) => tagged("float", "bits:{x.to_bits()}"),
+        .Boolean(b) => tagged("bool", "{b}"),
+        .OffsetDateTime(d, t, o) => tagged("datetime", date(d) + "T" + time(t) + offset(o)),
+        .LocalDateTime(d, t) => tagged("datetime-local", date(d) + "T" + time(t)),
+        .LocalDate(d) => tagged("date-local", date(d)),
+        .LocalTime(t) => tagged("time-local", time(t)),
+        .Array(xs) => "[" + xs.map(json).join(", ") + "]",
+        .Table(m) => table(m),
     }
 }
 
@@ -107,15 +107,15 @@ fun table(m: Map<string, toml.Value>): string {
 fun main() {
     let path = args()[1];
     let text = match string_from_utf8(read_bytes(path).unwrap()) {
-        Ok(t) => t,
-        Err(_) => {
+        .Ok(t) => t,
+        .Err(_) => {
             println("ERROR Utf8 not UTF-8");
             exit(1);
         }
     };
     match toml.parse(text) {
-        Ok(doc) => println(table(doc)),
-        Err(e) => {
+        .Ok(doc) => println(table(doc)),
+        .Err(e) => {
             println("ERROR {e.kind.debug()} {e.message()}");
             exit(1);
         }
@@ -304,8 +304,8 @@ fun repeat(s: string, n: i64): string {
 
 fun show(r: Result<Map<string, toml.Value>, toml.TomlError>) {
     match r {
-        Ok(_) => println("ok"),
-        Err(e) => println("{e.kind.debug()}: {e.message()}"),
+        .Ok(_) => println("ok"),
+        .Err(e) => println("{e.kind.debug()}: {e.message()}"),
     }
 }
 "#;
@@ -417,7 +417,7 @@ fun main() {
     println(\"{toml.as_array(app[\"tags\"]).unwrap().len} {toml.as_table(app[\"inner\"]).unwrap().len}\");
     println(\"{toml.as_text(app[\"port\"]).debug()} {toml.as_i64(app[\"name\"]).debug()} {toml.as_bool(app[\"ratio\"]).debug()} {toml.as_array(app[\"name\"]).debug()} {toml.as_table(app[\"tags\"]).debug()}\");
     match toml.as_date_time(app[\"when\"]) {
-        Some((Some(d), Some(t), Some(o))) => println(\"{d.year}-{d.month}-{d.day} {t.hour}:{t.minute} {o}\"),
+        .Some((.Some(d), .Some(t), .Some(o))) => println(\"{d.year}-{d.month}-{d.day} {t.hour}:{t.minute} {o}\"),
         _ => println(\"?\"),
     }
     println(toml.as_date_time(app[\"port\"]).is_none());

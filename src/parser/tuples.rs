@@ -179,7 +179,7 @@ mod tests {
         );
         assert_eq!(body("let x: () = ();"), "(block (let x (tuple) (tuple)))");
         assert_eq!(body("let () = f();"), "(block (let-pat (tuple) (call f)))");
-        assert!(body("match o { Some(()) => 1, _ => 2 }").contains("(Some (tuple))"));
+        assert!(body("match o { .Some(()) => 1, _ => 2 }").contains("(.Some (tuple))"));
     }
 
     #[test]

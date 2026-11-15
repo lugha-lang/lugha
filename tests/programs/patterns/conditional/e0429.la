@@ -1,7 +1,7 @@
 // The `else` of a `let … else` must leave.
 
 fun main() {
-    let Some(n) = parse_i64("x") else {
+    let .Some(n) = parse_i64("x") else {
         println("no number");
     };
     println(n);

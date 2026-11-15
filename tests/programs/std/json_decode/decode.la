@@ -92,8 +92,8 @@ fun main() {
     let e21: Result<Person, json.DecodeError> = parse("{{\"name\": \"a\", \"age\": 1, \"email\": 5, \"tags\": []}}");
     println(e21.debug());
     match e21 {
-        Err(e) => println("{e.path} | {e.detail} | {e.message()}"),
-        Ok(_) => {}
+        .Err(e) => println("{e.path} | {e.detail} | {e.message()}"),
+        .Ok(_) => {}
     }
 }
 

@@ -248,10 +248,11 @@ fn select_arm(arm: &SelectArm) -> String {
 fn pattern(pattern: &Pattern) -> String {
     match &pattern.kind {
         PatternKind::Wildcard => "_".into(),
-        PatternKind::Variant(name, None) => name.name.clone(),
+        PatternKind::Binding(name) => name.name.clone(),
+        PatternKind::Variant(name, None) => format!(".{}", name.name),
         PatternKind::Variant(name, Some(slots)) => {
             let slots: Vec<String> = slots.iter().map(self::pattern).collect();
-            format!("({} {})", name.name, slots.join(" "))
+            format!("(.{} {})", name.name, slots.join(" "))
         }
         PatternKind::Int { value, negative } => {
             format!("{}{value}", if *negative { "-" } else { "" })

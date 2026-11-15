@@ -17,10 +17,10 @@ fun main() {
         w.run();
         w.stop();
         match w.join() {
-            None => {
+            .None => {
                 break;
             }
-            Some(why) => println("restarting after: {why}"),
+            .Some(why) => println("restarting after: {why}"),
         }
         attempt += 1;
     }

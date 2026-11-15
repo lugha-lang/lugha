@@ -109,7 +109,7 @@ mod tests {
         ok(&format!(
             "{CHANS}
             select {{
-                m = a.recv() => match m {{ Some(n) => println(n), None => println(\"closed\") }},
+                m = a.recv() => match m {{ .Some(n) => println(n), .None => println(\"closed\") }},
                 _ = b.recv() => println(\"b\"),
                 b.send(\"x\") => {{ println(\"sent\"); }}
                 after(500) => println(\"timed out\"),

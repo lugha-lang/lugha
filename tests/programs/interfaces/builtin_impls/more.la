@@ -40,8 +40,8 @@ impl<V: Show> Show for Map<string, V> {
 
 impl<T: Show, E: Show> Show for Result<T, E> {
     fun label(self): string = match self {
-        Ok(x) => "ok " + x.label(),
-        Err(e) => "err " + e.label(),
+        .Ok(x) => "ok " + x.label(),
+        .Err(e) => "err " + e.label(),
     };
 }
 

@@ -1,6 +1,6 @@
 fun main() {
     match read_line() {
-        Some(line) => println("got " + line),
-        None => println("no input"),
+        .Some(line) => println("got " + line),
+        .None => println("no input"),
     }
 }

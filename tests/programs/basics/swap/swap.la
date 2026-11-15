@@ -11,8 +11,8 @@ enum Shape { Circle(i64), Square(i64) }
 
 impl Shape {
     fun side(self): i64 = match self {
-        Circle(r) => 0 - r,
-        Square(s) => s,
+        .Circle(r) => 0 - r,
+        .Square(s) => s,
     };
 }
 

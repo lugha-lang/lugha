@@ -13,8 +13,8 @@ enum Tree {
 struct Item { value: i64, next: Option<Item> }
 
 fun insert(t: Tree, v: i64): Tree = match t {
-    Leaf => Tree.Node(Tree.Leaf, v, Tree.Leaf),
-    Node(l, x, r) => if v < x {
+    .Leaf => Tree.Node(Tree.Leaf, v, Tree.Leaf),
+    .Node(l, x, r) => if v < x {
         Tree.Node(insert(l, v), x, r)
     } else {
         Tree.Node(l, x, insert(r, v))
@@ -22,14 +22,14 @@ fun insert(t: Tree, v: i64): Tree = match t {
 };
 
 fun sum_tree(t: Tree): i64 = match t {
-    Leaf => 0,
-    Node(l, x, r) => sum_tree(l) + x + sum_tree(r),
+    .Leaf => 0,
+    .Node(l, x, r) => sum_tree(l) + x + sum_tree(r),
 };
 
 fun in_order(t: Tree) {
     match t {
-        Leaf => {}
-        Node(l, x, r) => {
+        .Leaf => {}
+        .Node(l, x, r) => {
             in_order(l);
             print(x);
             print(" ");
@@ -44,11 +44,11 @@ fun length(l: List): i64 {
     let mut more = true;
     while more {
         match cur {
-            Cons(_, rest) => {
+            .Cons(_, rest) => {
                 n += 1;
                 cur = rest;
             }
-            Nil => {
+            .Nil => {
                 more = false;
             }
         }
@@ -67,11 +67,11 @@ fun main() {
     let mut more = true;
     while more {
         match cur {
-            Cons(x, rest) => {
+            .Cons(x, rest) => {
                 total += x;
                 cur = rest;
             }
-            Nil => {
+            .Nil => {
                 more = false;
             }
         }
@@ -94,11 +94,11 @@ fun main() {
     let mut going = true;
     while going {
         match node {
-            Some(it) => {
+            .Some(it) => {
                 sum += it.value;
                 node = it.next;
             }
-            None => {
+            .None => {
                 going = false;
             }
         }

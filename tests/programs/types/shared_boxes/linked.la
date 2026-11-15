@@ -21,14 +21,14 @@ fun main() {
     link(b, c);
     let mut forward: i64[] = [];
     let mut at: Option<Ref<Node>> = Some(a);
-    while let Some(r) = at {
+    while let .Some(r) = at {
         let n = r.get();
         forward.push(n.value);
         at = n.next;
     }
     let mut backward: i64[] = [];
     at = Some(c);
-    while let Some(r) = at {
+    while let .Some(r) = at {
         let n = r.get();
         backward.push(n.value);
         at = n.prev;

@@ -64,10 +64,10 @@ impl Drop for Case {
 
 const ECHO: &str = "fun serve(conn: net.Conn) {
     match conn.read(4096) {
-        Ok(bytes) => {
+        .Ok(bytes) => {
             let _ = conn.write(bytes);
         }
-        Err(e) => eprintln(e),
+        .Err(e) => eprintln(e),
     }
     conn.close();
 }
@@ -75,10 +75,10 @@ const ECHO: &str = "fun serve(conn: net.Conn) {
 fun accept_all(listener: net.Listener, n: i64) {
     for _ in 0..n {
         match listener.accept() {
-            Ok(conn) => {
+            .Ok(conn) => {
                 spawn serve(conn);
             }
-            Err(e) => eprintln(e),
+            .Err(e) => eprintln(e),
         }
     }
 }
@@ -175,8 +175,8 @@ fun main() {
     let free = gone.addr();
     gone.close();
     match net.connect(free) {
-        Ok(_) => println(\"connected?\"),
-        Err(e) => println(e),
+        .Ok(_) => println(\"connected?\"),
+        .Err(e) => println(e),
     }
     println(net.listen(\"nope\").debug());
     println(net.listen(\"127.0.0.1:70000\").debug());
@@ -201,7 +201,7 @@ fn ipv6_works_where_the_host_has_it() {
         "{ECHO}
 fun main() {{
     match net.listen(\"[::1]:0\") {{
-        Ok(listener) => {{
+        .Ok(listener) => {{
             let addr = listener.addr();
             spawn accept_all(listener, 1);
             let conn = net.connect(addr).unwrap();
@@ -209,7 +209,7 @@ fun main() {{
             println(string_from_utf8(conn.read(10).unwrap()).unwrap());
             println(addr.starts_with(\"[::1]:\"));
         }}
-        Err(_) => println(\"six\\ntrue\"),
+        .Err(_) => println(\"six\\ntrue\"),
     }}
 }}
 "

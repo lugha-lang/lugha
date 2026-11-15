@@ -39,14 +39,14 @@ const DECODER: &str = r#"import std.json;
 fun main() {
     let path = args()[1];
     let text = match string_from_utf8(read_bytes(path).unwrap()) {
-        Ok(t) => t,
-        Err(_) => {
+        .Ok(t) => t,
+        .Err(_) => {
             println("ERROR Utf8 not UTF-8");
             exit(1);
         }
     };
     match json.parse(text) {
-        Ok(v) => {
+        .Ok(v) => {
             let compact = json.stringify(v).unwrap();
             let pretty = json.pretty(v).unwrap();
             if json.parse(compact).unwrap() != v || json.parse(pretty).unwrap() != v {
@@ -55,7 +55,7 @@ fun main() {
             }
             println(compact);
         }
-        Err(e) => {
+        .Err(e) => {
             println("ERROR {e.kind.debug()} {e.message()}");
             exit(1);
         }

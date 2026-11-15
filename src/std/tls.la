@@ -134,8 +134,8 @@ fun accepted(accept: u8[][]): Result<(), string> {
 /** `address`, which must be an IP literal, at `port`, with an IPv6 address in brackets. */
 fun at(address: string, port: string): Result<string, string> {
     let ip = match $os.net_resolve(address, 1) {
-        Ok(ip) => ip,
-        Err(_) => {
+        .Ok(ip) => ip,
+        .Err(_) => {
             return Err("address must be an IP address: {address}");
         }
     };
@@ -278,7 +278,7 @@ impl Conn {
 
 fun name(fd: i64, peer: i64): string {
     match $os.net_name(fd, peer) {
-        Ok(text) => text,
-        Err(_) => "",
+        .Ok(text) => text,
+        .Err(_) => "",
     }
 }

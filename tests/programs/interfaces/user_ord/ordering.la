@@ -19,9 +19,9 @@ enum Level { Low, Mid, High } with Eq
 
 impl Level {
     fun rank(self): i64 = match self {
-        Low => 0,
-        Mid => 1,
-        High => 2,
+        .Low => 0,
+        .Mid => 1,
+        .High => 2,
     };
 }
 

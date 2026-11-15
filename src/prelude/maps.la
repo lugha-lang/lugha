@@ -249,8 +249,8 @@ impl Set<T: Key> {
 
     /** The values, in order: `for x of s`. */
     fun next(mut self): Option<T> = match self.$map.next() {
-        Some((x, _)) => Some(x),
-        None => None,
+        .Some((x, _)) => Some(x),
+        .None => None,
     };
 
     /** An iterator of the values, in order. */
@@ -326,8 +326,8 @@ impl<T> Option<T> {
     fun and_then<U>(self, f: fun(T): Option<U>): Option<U> {
         let o = self;
         match o {
-        Some(x) => f(x),
-        None => None,
+        .Some(x) => f(x),
+        .None => None,
     }
     }
 }
@@ -337,8 +337,8 @@ impl Result<T, E> {
     fun and_then<U>(self, f: fun(T): Result<U, E>): Result<U, E> {
         let r = self;
         match r {
-        Ok(x) => f(x),
-        Err(e) => Err(e),
+        .Ok(x) => f(x),
+        .Err(e) => Err(e),
     }
     }
 }

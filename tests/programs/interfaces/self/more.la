@@ -43,8 +43,8 @@ interface Pick {
         top
     }
     fun first(self, maybe: Option<Self>): Self = match maybe {
-        Some(x) => x,
-        None => self,
+        .Some(x) => x,
+        .None => self,
     };
 }
 

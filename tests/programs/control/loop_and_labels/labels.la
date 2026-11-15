@@ -18,7 +18,7 @@ fun main() {
 
     let mut it = [5, 6, 7, 8].iter();
     let mut seen = 0;
-    items: while let Some(x) = it.next() {
+    items: while let .Some(x) = it.next() {
         for d in 0..x {
             if d == 1 {
                 seen += 1;

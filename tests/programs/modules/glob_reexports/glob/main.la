@@ -8,6 +8,6 @@ fun main() {
     let p: raw.Point = Point { x: twice(2), y: gtk.twice(3) };
     let q: gtk.Point = p;
     println(q.x + q.y);
-    println(match Dir.Up { Up => "up", Down => "down" });
+    println(match Dir.Up { .Up => "up", .Down => "down" });
     println(gtk.run());
 }

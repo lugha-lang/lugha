@@ -55,7 +55,7 @@ struct Bad { t: string }
 impl Error for Bad { fun message(self): string = self.t; }
 fun get(): Result<i64, Bad> = Err(Bad { t: \"no\" });
 fun read(): Result<i64, Error> { let n = get()?; Ok(n) }
-fun main() { match read() { Ok(n) => println(n), Err(e) => println(e.message()), } }
+fun main() { match read() { .Ok(n) => println(n), .Err(e) => println(e.message()), } }
 ";
 
 impl Dir {

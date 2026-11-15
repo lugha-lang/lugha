@@ -178,7 +178,7 @@ mod tests {
     fn a_generic_interfaces_arguments_come_from_the_type() {
         ok("interface Source<T> {\n\
             fun next(mut self): Option<T>;\n\
-            fun first(mut self): T = match self.next() { Some(x) => x, None => panic(\"empty\") };\n\
+            fun first(mut self): T = match self.next() { .Some(x) => x, .None => panic(\"empty\") };\n\
             }\n\
             struct C { n: i64 }\n\
             impl Source<i64> for C { fun next(mut self): Option<i64> = Some(self.n); }\n\
@@ -212,7 +212,7 @@ mod tests {
         ok("struct P { x: i64 }\n\
             impl P { fun o(): Self = Self { x: 0 }; fun up(self): Self = Self { x: self.x + 1 }; }\n\
             enum L { Red, Green }\n\
-            impl L { fun flip(self): Self = match self { Red => Self.Green, Green => Self.Red }; }\n\
+            impl L { fun flip(self): Self = match self { .Red => Self.Green, .Green => Self.Red }; }\n\
             fun main() { let p: P = P.o().up(); let l: L = L.Red.flip(); }");
         // `Self` in a declaration is the declared type.
         ok("struct N { kids: Self[] }\nfun main() {}");

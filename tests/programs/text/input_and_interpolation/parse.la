@@ -1,14 +1,14 @@
 fun show_i(s: string) {
     match parse_i64(s) {
-        Some(n) => println("i64 {s} -> {n}"),
-        None => println("i64 {s} -> none"),
+        .Some(n) => println("i64 {s} -> {n}"),
+        .None => println("i64 {s} -> none"),
     }
 }
 
 fun show_f(s: string) {
     match parse_f64(s) {
-        Some(x) => println("f64 {s} -> {x}"),
-        None => println("f64 {s} -> none"),
+        .Some(x) => println("f64 {s} -> {x}"),
+        .None => println("f64 {s} -> none"),
     }
 }
 

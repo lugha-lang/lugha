@@ -103,21 +103,21 @@ fun shape(i: i64): Shape = match i % 4 {
 };
 
 fun grow(s: Shape): Shape = match s {
-    Dot => Shape.Line(wide(1)),
-    Line(w) => Shape.Box(w, wide(w.g0 + 1)),
-    Box(a, b) => if a.g0 > b.g0 {
+    .Dot => Shape.Line(wide(1)),
+    .Line(w) => Shape.Box(w, wide(w.g0 + 1)),
+    .Box(a, b) => if a.g0 > b.g0 {
         Shape.Named("big", a)
     } else {
         Shape.Named("small", b)
     },
-    Named(n, w) => Shape.Line(Wide { g0: w.g0 + n.len, ..w }),
+    .Named(n, w) => Shape.Line(Wide { g0: w.g0 + n.len, ..w }),
 };
 
 fun weight(s: Shape): i64 = match s {
-    Dot => 0,
-    Line(w) => w.g0 + w.g79,
-    Box(a, b) => a.g0 + b.g79,
-    Named(n, w) => n.len + w.g0,
+    .Dot => 0,
+    .Line(w) => w.g0 + w.g79,
+    .Box(a, b) => a.g0 + b.g79,
+    .Named(n, w) => n.len + w.g0,
 };
 
 fun main() {
@@ -127,13 +127,13 @@ fun main() {
     while i < 12 {
         let s = shape(i);
         let g = match s {
-            Dot => grow(grow(s)),
-            Line(_) => grow(s),
+            .Dot => grow(grow(s)),
+            .Line(_) => grow(s),
             _ => match grow(s) {
-                Line(w) => Shape.Line(wide(w.g0 * 3)),
-                Box(a, b) => Shape.Box(b, a),
-                Named(n, w) => Shape.Named(n + "!", w),
-                Dot => Shape.Dot,
+                .Line(w) => Shape.Line(wide(w.g0 * 3)),
+                .Box(a, b) => Shape.Box(b, a),
+                .Named(n, w) => Shape.Named(n + "!", w),
+                .Dot => Shape.Dot,
             },
         };
         total += weight(g);

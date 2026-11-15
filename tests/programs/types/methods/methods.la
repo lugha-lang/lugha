@@ -34,13 +34,13 @@ enum Shape { Circle(f64), Square(f64) }
 impl Shape {
     fun unit(): Shape = Shape.Square(1.0);
     fun area(self): f64 = match self {
-        Circle(r) => 3.0 * r * r,
-        Square(s) => s * s,
+        .Circle(r) => 3.0 * r * r,
+        .Square(s) => s * s,
     };
     fun grow(mut self) {
         self = match self {
-            Circle(r) => Shape.Circle(r + 1.0),
-            Square(s) => Shape.Square(s + 1.0),
+            .Circle(r) => Shape.Circle(r + 1.0),
+            .Square(s) => Shape.Square(s + 1.0),
         };
     }
 }

@@ -191,6 +191,15 @@ pub(in crate::check) fn no_variant(variant: &str, ty: &Type, span: Span) -> Diag
     Diagnostic::error("E0415", format!("no variant `{variant}` on `{ty}`"), span)
 }
 
+/// A bare name in a pattern that names a variant of the matched type.
+pub(in crate::check) fn undotted_variant(variant: &str, ty: &Type, span: Span) -> Diagnostic {
+    let message =
+        format!("a variant in a pattern takes a leading dot: `{variant}` is a variant of `{ty}`");
+    Diagnostic::error("E0468", message, span).with_help(format!(
+        "write `.{variant}`; a bare name in a pattern is always a new binding"
+    ))
+}
+
 pub(in crate::check) fn payload_count(
     what: &str,
     expected: usize,

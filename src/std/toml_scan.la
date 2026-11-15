@@ -159,12 +159,12 @@ fun number(t: u8[], i: i64): Result<Value, Oops> {
     let mut magnitude: u64 = 0;
     for d of digits {
         let next = match magnitude.checked_mul(10) {
-            Some(m) => m.checked_add((d - 48) as u64),
-            None => None,
+            .Some(m) => m.checked_add((d - 48) as u64),
+            .None => None,
         };
         magnitude = match next {
-            Some(m) => m,
-            None => {
+            .Some(m) => m,
+            .None => {
                 return Err(oops(ErrorKind.Overflow, "an integer too large for i64: {text(t)}", i));
             }
         };
@@ -252,8 +252,8 @@ fun floating(body: u8[], neg: bool, i: i64): Result<Value, Oops> {
         return Err(syntax("not a float: {text(body)}", i));
     }
     match parse_f64(text(clean)) {
-        Some(v) => Ok(Value.Float(if neg { -v } else { v })),
-        None => Err(syntax("not a float: {text(body)}", i)),
+        .Some(v) => Ok(Value.Float(if neg { -v } else { v })),
+        .None => Err(syntax("not a float: {text(body)}", i)),
     }
 }
 

@@ -1,8 +1,8 @@
 enum List<T> { Nil, Cons(T, List<T>) }
 
 fun count<T>(l: List<T>): i64 = match l {
-    Nil => 0,
-    Cons(_, rest) => 1 + count(rest),
+    .Nil => 0,
+    .Cons(_, rest) => 1 + count(rest),
 };
 
 fun prepend<T>(x: T, l: List<T>): List<T> = List.Cons(x, l);
@@ -13,7 +13,7 @@ fun main() {
     println(count(nums));
     println(count(flags));
     match nums {
-        Cons(first, _) => println(first),
-        Nil => println(-1),
+        .Cons(first, _) => println(first),
+        .Nil => println(-1),
     }
 }

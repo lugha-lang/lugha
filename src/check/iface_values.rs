@@ -139,7 +139,7 @@ mod tests {
             "{SHAPES}struct Scene {{ main: Shape, all: Shape[] }}\n\
              enum Slot {{ Full(Shape), Empty }}\n\
              fun apply(f: fun(Shape): f64, s: Shape): f64 = f(s);\n\
-             fun pick(o: Option<Shape>): f64 = match o {{ Some(s) => s.area(), None => 0.0 }};\n\
+             fun pick(o: Option<Shape>): f64 = match o {{ .Some(s) => s.area(), .None => 0.0 }};\n\
              fun main() {{}}"
         ));
         let shape = Type::Interface("Shape".into(), Vec::new());

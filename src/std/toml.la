@@ -35,7 +35,7 @@ public fun get(table: Map<string, Value>, path: string): Option<Value> {
     let mut here = Value.Table(table);
     for key of path.split(".") {
         here = match here {
-            Table(t) => t.get(key)?,
+            .Table(t) => t.get(key)?,
             _ => {
                 return None;
             }
@@ -45,35 +45,35 @@ public fun get(table: Map<string, Value>, path: string): Option<Value> {
 }
 
 /** The string, if `v` is one: `toml.get(doc, "app.name").and_then(toml.as_text)`. */
-public fun as_text(v: Value): Option<string> = match v { Text(s) => Some(s), _ => None };
+public fun as_text(v: Value): Option<string> = match v { .Text(s) => Some(s), _ => None };
 
 /** The integer, if `v` is one. */
-public fun as_i64(v: Value): Option<i64> = match v { Integer(n) => Some(n), _ => None };
+public fun as_i64(v: Value): Option<i64> = match v { .Integer(n) => Some(n), _ => None };
 
 /** The float, if `v` is one or an integer (widened). */
 public fun as_f64(v: Value): Option<f64> = match v {
-    Float(x) => Some(x),
-    Integer(n) => Some(n as f64),
+    .Float(x) => Some(x),
+    .Integer(n) => Some(n as f64),
     _ => None,
 };
 
 /** The boolean, if `v` is one. */
-public fun as_bool(v: Value): Option<bool> = match v { Boolean(b) => Some(b), _ => None };
+public fun as_bool(v: Value): Option<bool> = match v { .Boolean(b) => Some(b), _ => None };
 
 /** The array's values, if `v` is an array. */
-public fun as_array(v: Value): Option<Value[]> = match v { Array(xs) => Some(xs), _ => None };
+public fun as_array(v: Value): Option<Value[]> = match v { .Array(xs) => Some(xs), _ => None };
 
 /** The table, if `v` is one. */
-public fun as_table(v: Value): Option<Map<string, Value>> = match v { Table(t) => Some(t), _ => None };
+public fun as_table(v: Value): Option<Map<string, Value>> = match v { .Table(t) => Some(t), _ => None };
 
 /**
  * Any of the four date-time kinds as its parts: the date, the time and the
  * offset in minutes, each there only if written.
  */
 public fun as_date_time(v: Value): Option<(Option<Date>, Option<Time>, Option<i64>)> = match v {
-    OffsetDateTime(d, t, o) => Some((Some(d), Some(t), Some(o))),
-    LocalDateTime(d, t) => Some((Some(d), Some(t), None)),
-    LocalDate(d) => Some((Some(d), None, None)),
-    LocalTime(t) => Some((None, Some(t), None)),
+    .OffsetDateTime(d, t, o) => Some((Some(d), Some(t), Some(o))),
+    .LocalDateTime(d, t) => Some((Some(d), Some(t), None)),
+    .LocalDate(d) => Some((Some(d), None, None)),
+    .LocalTime(t) => Some((None, Some(t), None)),
     _ => None,
 };

@@ -12,8 +12,8 @@ fun main() {
     println(shapes.round.area(3));
     let d = shapes.vec.Dir.Up;
     match d {
-        Up => println("up"),
-        Down => println("down"),
+        .Up => println("up"),
+        .Down => println("down"),
     }
     let f = shapes.vec.add;
     println(f(a, a).debug());

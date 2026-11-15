@@ -9,10 +9,10 @@ struct Zip<A, B> { a: Iter<A>, b: Iter<B> }
 
 impl Zip<A, B> {
     fun next(mut self): Option<(A, B)> {
-        let Some(x) = self.a.next() else {
+        let .Some(x) = self.a.next() else {
             return None;
         };
-        let Some(y) = self.b.next() else {
+        let .Some(y) = self.b.next() else {
             return None;
         };
         Some((x, y))
@@ -28,7 +28,7 @@ struct Chain<T> { a: Iter<T>, b: Iter<T>, second: bool }
 impl Chain<T> {
     fun next(mut self): Option<T> {
         if !self.second {
-            if let Some(x) = self.a.next() {
+            if let .Some(x) = self.a.next() {
                 return Some(x);
             }
             self.second = true;
@@ -48,7 +48,7 @@ impl TakeWhile<T> {
         if self.done {
             return None;
         }
-        if let Some(x) = self.src.next() {
+        if let .Some(x) = self.src.next() {
             if self.keep(x) {
                 return Some(x);
             }
@@ -70,7 +70,7 @@ impl SkipWhile<T> {
             return self.src.next();
         }
         self.started = true;
-        while let Some(x) = self.src.next() {
+        while let .Some(x) = self.src.next() {
             if !self.skip(x) {
                 return Some(x);
             }
@@ -90,12 +90,12 @@ impl FlatMap<T, U, I> {
     fun next(mut self): Option<U> {
         while true {
             if self.cur.len == 1 {
-                if let Some(x) = self.cur[0].next() {
+                if let .Some(x) = self.cur[0].next() {
                     return Some(x);
                 }
                 self.cur.clear();
             }
-            let Some(v) = self.src.next() else {
+            let .Some(v) = self.src.next() else {
                 return None;
             };
             self.cur.push(self.f(v));

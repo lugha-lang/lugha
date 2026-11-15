@@ -408,7 +408,7 @@ mod tests {
     #[test]
     fn recursion_at_the_same_arguments_adds_nothing() {
         let src = "enum List<T> { Nil, Cons(T, List<T>) }\n\
-            fun count<T>(l: List<T>): i64 = match l { Nil => 0, Cons(_, rest) => 1 + count(rest) };\n\
+            fun count<T>(l: List<T>): i64 = match l { .Nil => 0, .Cons(_, rest) => 1 + count(rest) };\n\
             fun main() { let l: List<bool> = List.Cons(true, List.Nil); let n = count(l); }";
         assert_eq!(monos(src), ["count<bool>"]);
     }

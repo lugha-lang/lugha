@@ -10,10 +10,10 @@ fun main() {
     }
     let found: Option<()> = Some(());
     match found {
-        Some(()) => println("some"),
-        None => println("none"),
+        .Some(()) => println("some"),
+        .None => println("none"),
     }
-    if let Some(()) = found {
+    if let .Some(()) = found {
         println("again");
     }
     let ((), n) = ((), 7);

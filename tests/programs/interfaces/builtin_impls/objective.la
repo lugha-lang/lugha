@@ -19,8 +19,8 @@ impl<T: Show> Show for T[] {                       // every array of a `Show` ty
 
 impl<T: Show> Show for Option<T> {
     fun label(self): string = match self {
-        Some(x) => "some " + x.label(),
-        None => "none",
+        .Some(x) => "some " + x.label(),
+        .None => "none",
     };
 }
 

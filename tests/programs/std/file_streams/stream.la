@@ -19,8 +19,8 @@ fun run(): Result<(), string> {
     let copy = f;
     while true {
         match f.read_line()? {
-            Some(line) => println("[{line}]"),
-            None => {
+            .Some(line) => println("[{line}]"),
+            .None => {
                 break;
             }
         }

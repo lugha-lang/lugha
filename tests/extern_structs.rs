@@ -129,7 +129,7 @@ fn nullable_handle_fields() {
              let mut s = Slot { n: 0, w: None };\n\
              println(sum(s));\n\
              fill(out s, 1);\n\
-             if let Some(w) = s.w { println(peek(w)); }\n\
+             if let .Some(w) = s.w { println(peek(w)); }\n\
              println(sum(s));\n\
              fill(out s, 0);\n\
              println(s.w.is_none());\n\
@@ -157,7 +157,7 @@ fn option_handles_held_anywhere() {
          enum Slot { Empty, Full(Option<W>, i64) }\n\
          fun total(xs: Option<W>[]): i64 {\n\
              let mut sum = 0;\n\
-             for x of xs { if let Some(w) = x { sum += peek(w); } }\n\
+             for x of xs { if let .Some(w) = x { sum += peek(w); } }\n\
              sum\n\
          }\n\
          fun main() {\n\
@@ -172,19 +172,19 @@ fn option_handles_held_anywhere() {
              println(h.w.is_none());\n\
              h.w = xs[0];\n\
              h.nested = Some(xs[1]);\n\
-             if let Some(Some(w)) = h.nested { println(peek(w)); }\n\
+             if let .Some(.Some(w)) = h.nested { println(peek(w)); }\n\
              let copy = h;\n\
              println(copy.w == h.w);\n\
              let s = Slot.Full(h.w, 2);\n\
-             match s { Full(Some(w), n) => println(peek(w) * n), _ => println(0) }\n\
+             match s { .Full(.Some(w), n) => println(peek(w) * n), _ => println(0) }\n\
              let r = Ref.new(xs[0]);\n\
              r.set(None);\n\
              println(r.get().is_none());\n\
              let t = (xs[1], 5);\n\
-             match t { (Some(w), n) => println(peek(w) + n), (None, _) => println(0) }\n\
-             match xs[0] { Some(w) => println(peek(w)), None => println(0) }\n\
+             match t { (.Some(w), n) => println(peek(w) + n), (.None, _) => println(0) }\n\
+             match xs[0] { .Some(w) => println(peek(w)), .None => println(0) }\n\
              let ys: (Option<W>, i64)[] = [(None, 1), (Some(make(1)), 2)];\n\
-             for (o, k) of ys { if let Some(w) = o { println(peek(w) * k); } }\n\
+             for (o, k) of ys { if let .Some(w) = o { println(peek(w) * k); } }\n\
          }\n",
         side,
     )

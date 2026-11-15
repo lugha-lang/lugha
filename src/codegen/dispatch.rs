@@ -205,7 +205,7 @@ mod tests {
     fn generic_interface_values_use_tables_named_with_their_arguments() {
         let ir = ir("interface Source<T> {\n\
                 fun next(mut self): Option<T>;\n\
-                fun skip(mut self): bool = match self.next() { Some(_) => true, None => false };\n\
+                fun skip(mut self): bool = match self.next() { .Some(_) => true, .None => false };\n\
             }\n\
             struct Count { n: i64 }\nimpl Source<i64> for Count { fun next(mut self): Option<i64> = Some(self.n); }\n\
             struct Words { at: i64 }\nimpl Source<string> for Words { fun next(mut self): Option<string> = None; }\n\

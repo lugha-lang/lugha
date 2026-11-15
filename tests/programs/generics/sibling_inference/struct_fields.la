@@ -18,8 +18,8 @@ struct App<S, M> {
 fun run<S, M>(app: App<S, M>): S {
     let (s, cmd) = app.init;
     match cmd {
-        Nothing => s,
-        Send(m) => (app.update)(s, m),
+        .Nothing => s,
+        .Send(m) => (app.update)(s, m),
     }
 }
 

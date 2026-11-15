@@ -14,8 +14,8 @@ fun make(depth: i64): Tree = if depth == 0 {
 };
 
 fun check(t: Tree): i64 = match t {
-    Leaf => 0,
-    Node(l, r) => 1 + check(l) + check(r),
+    .Leaf => 0,
+    .Node(l, r) => 1 + check(l) + check(r),
 };
 
 fun main() {

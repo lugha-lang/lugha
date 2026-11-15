@@ -43,7 +43,7 @@ impl<'ctx> Lowerer<'ctx> {
         next: BasicBlock<'ctx>,
         top: bool,
     ) {
-        if let PatternKind::Variant(name, None) = &inner.kind {
+        if let PatternKind::Binding(name) = &inner.kind {
             let value = self.load_subject(subject, ty);
             let value = if ty.is_deep(&self.structs) {
                 self.deep_copy(value, ty)
@@ -82,7 +82,7 @@ mod tests {
     #[test]
     fn alternatives_share_one_binding_slot_in_the_arm_chain() {
         let ir = ir("enum S { A(i64), B(i64), C }\n\
-            fun f(s: S): i64 = match s { A(x) | B(x) => x, C => 0 };\nfun main() {}");
+            fun f(s: S): i64 = match s { .A(x) | .B(x) => x, .C => 0 };\nfun main() {}");
         let start = ir.find("define i64 @lugha_fn_f(").expect("f is defined");
         let f = &ir[start..start + ir[start..].find("\n}").expect("f ends")];
         assert!(!f.contains("switch"), "{f}");

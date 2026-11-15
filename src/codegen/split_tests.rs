@@ -73,8 +73,8 @@ fn enum_payloads_and_options_are_fields_too() {
     let ir = ir("enum E { A(i64), B(i64, i64), C }\n\
          fun e(n: i64): E = if n > 0 { E.B(n, n) } else { E.C };\n\
          fun o(n: i64): Option<i64> = if n > 0 { Some(n) } else { None };\n\
-         fun main() { let s = match e(2) { B(a, b) => a + b, A(a) => a, C => 0 }; \
-         let t = match o(1) { Some(v) => v, None => 0 }; println(s + t); }");
+         fun main() { let s = match e(2) { .B(a, b) => a + b, .A(a) => a, .C => 0 }; \
+         let t = match o(1) { .Some(v) => v, .None => 0 }; println(s + t); }");
     for f in [
         "void @lugha_fn_e",
         "void @lugha_fn_o",

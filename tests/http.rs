@@ -223,8 +223,8 @@ fun main() {{
     println(http.get(\"ftp://x\").debug());
     println(http.get(\"http:///\").debug());
     match http.get(\"http://127.0.0.1:{refused}/\") {{
-        Ok(_) => println(\"ok?\"),
-        Err(e) => println(e),
+        .Ok(_) => println(\"ok?\"),
+        .Err(e) => println(e),
     }}
 }}
 "
@@ -282,8 +282,8 @@ import std.json;
 fun handle(req: http.Request): http.Response {
     match req.path {
         \"/echo\" => match req.json() {
-            Ok(v) => http.json(200, json.Value.Object(#{\"echo\": v})),
-            Err(e) => http.text(400, e.message()),
+            .Ok(v) => http.json(200, json.Value.Object(#{\"echo\": v})),
+            .Err(e) => http.text(400, e.message()),
         },
         \"/nan\" => http.json(200, json.Value.Array([json.Value.Float(f64.from_bits(9221120237041090560))])),
         _ => http.text(404, \"not found\"),
@@ -360,8 +360,8 @@ fun main() {{
     let r = http.post_json(\"http://127.0.0.1:{port}/api\", body).unwrap();
     println(r.json().debug());
     match http.get(\"http://127.0.0.1:{port}/\").unwrap().json() {{
-        Err(e) => println(e.message()),
-        Ok(_) => println(\"?\"),
+        .Err(e) => println(e.message()),
+        .Ok(_) => println(\"?\"),
     }}
     println(http.post_json(\"http://127.0.0.1:{port}/\", json.Value.Float(f64.from_bits(9218868437227405312))).debug());
 }}

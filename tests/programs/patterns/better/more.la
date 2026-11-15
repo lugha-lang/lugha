@@ -23,15 +23,15 @@ impl Shape for Square {
 }
 
 fun warm(c: Color): bool = match c {
-    Red | Green => true,
-    Blue => false,
+    .Red | .Green => true,
+    .Blue => false,
 };
 
 fun small(n: Option<i64>): string = match n {
-    Some(0 | 1 | 2) => "small",
-    Some(x) if x < 0 => "negative",
-    Some(_) => "big",
-    None => "none",
+    .Some(0 | 1 | 2) => "small",
+    .Some(x) if x < 0 => "negative",
+    .Some(_) => "big",
+    .None => "none",
 };
 
 fun kind(s: Shape): string = match s {
@@ -57,15 +57,15 @@ fun main() {
     // a `mut` binding of an array is the arm's own copy
     let o = Some([1, 2, 3]);
     match o {
-        Some(mut xs) => {
+        .Some(mut xs) => {
             xs.push(4);
             println(xs.len);
         }
-        None => {}
+        .None => {}
     }
     match o {
-        Some(xs) => println(xs.len),
-        None => {}
+        .Some(xs) => println(xs.len),
+        .None => {}
     }
     match 5 {
         mut n => {

@@ -19,8 +19,8 @@ fun sum<S: geo.Source<i64>>(src: S): i64 {
     let mut more = true;
     while more {
         match s.next() {
-            Some(x) => { total += x; }
-            None => { more = false; }
+            .Some(x) => { total += x; }
+            .None => { more = false; }
         }
     }
     total

@@ -44,15 +44,13 @@ fn arrays_on(place: &Expr, out: &mut Vec<Expr>) {
     }
 }
 
-/// Every name a pattern may bind (a bare payload name may be a variant;
-/// counting it errs towards not hoisting).
+/// Every name a pattern binds.
 fn pattern_names(pattern: &Pattern, out: &mut HashSet<String>) {
     match &pattern.kind {
-        PatternKind::Variant(name, subs) => {
-            out.insert(name.name.clone());
+        PatternKind::Variant(_, subs) => {
             subs.iter().flatten().for_each(|p| pattern_names(p, out));
         }
-        PatternKind::Type(Some(name), _) => {
+        PatternKind::Binding(name) | PatternKind::Type(Some(name), _) => {
             out.insert(name.name.clone());
         }
         PatternKind::Tuple(subs) | PatternKind::Or(subs) => {

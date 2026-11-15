@@ -1,0 +1,10 @@
+fun main() {
+    let o = Some(1);
+    match o {
+        Some(n) => println(n),
+        .None => {}
+    }
+    if let Some(n) = o {
+        println(n);
+    }
+}

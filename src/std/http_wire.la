@@ -15,36 +15,36 @@ enum Stream {
 impl Stream {
     fun read(self, max: i64): Result<u8[], string> {
         match self {
-            Plain(c) => c.read(max),
-            Secure(c) => c.read(max),
+            .Plain(c) => c.read(max),
+            .Secure(c) => c.read(max),
         }
     }
 
     fun write(self, bytes: u8[]): Result<(), string> {
         match self {
-            Plain(c) => c.write(bytes),
-            Secure(c) => c.write(bytes),
+            .Plain(c) => c.write(bytes),
+            .Secure(c) => c.write(bytes),
         }
     }
 
     fun set_timeout(self, ms: i64) {
         match self {
-            Plain(c) => c.set_timeout(ms),
-            Secure(c) => c.set_timeout(ms),
+            .Plain(c) => c.set_timeout(ms),
+            .Secure(c) => c.set_timeout(ms),
         }
     }
 
     fun peer(self): string {
         match self {
-            Plain(c) => c.peer(),
-            Secure(c) => c.peer(),
+            .Plain(c) => c.peer(),
+            .Secure(c) => c.peer(),
         }
     }
 
     fun close(self) {
         match self {
-            Plain(c) => c.close(),
-            Secure(c) => c.close(),
+            .Plain(c) => c.close(),
+            .Secure(c) => c.close(),
         }
     }
 }
@@ -72,7 +72,7 @@ impl Reader {
         }
         self.conn.set_timeout(left);
         match self.conn.read(65536) {
-            Ok(more) => {
+            .Ok(more) => {
                 if self.pos > 0 {
                     self.buf = cut(self.buf, self.pos, self.buf.len);
                     self.pos = 0;
@@ -82,7 +82,7 @@ impl Reader {
                 }
                 Ok(more.len > 0)
             }
-            Err(e) => Err(if e == "timed out" { Fail.Status(408) } else { Fail.Gone(e) }),
+            .Err(e) => Err(if e == "timed out" { Fail.Status(408) } else { Fail.Gone(e) }),
         }
     }
 
@@ -148,8 +148,8 @@ impl Reader {
         let mut count = 0;
         while true {
             let line = match self.line(bytes - used, 431)? {
-                Some(line) => line,
-                None => {
+                .Some(line) => line,
+                .None => {
                     return Err(Fail.Status(400));
                 }
             };
@@ -163,8 +163,8 @@ impl Reader {
             }
             let (name, value) = split_header(line)?;
             let joined = match found.get(name) {
-                Some(before) => before + ", " + value,
-                None => value,
+                .Some(before) => before + ", " + value,
+                .None => value,
             };
             found[name] = joined;
         }
@@ -178,13 +178,13 @@ impl Reader {
         if framing.is_some() && length.is_some() {
             return Err(Fail.Status(400));
         }
-        if let Some(coding) = framing {
+        if let .Some(coding) = framing {
             if lower(coding.trim()) != "chunked" {
                 return Err(Fail.Status(501));
             }
             return self.chunked(max);
         }
-        if let Some(text) = length {
+        if let .Some(text) = length {
             let n = digits(text.trim()).ok_or(Fail.Status(400))?;
             if n > max {
                 return Err(Fail.Status(413));
@@ -234,8 +234,8 @@ impl Reader {
     // An empty line before the request line is allowed (RFC 9112).
     while line.len == 0 {
         line = match self.line(line_max, 414)? {
-            Some(l) => l,
-            None => {
+            .Some(l) => l,
+            .None => {
                 return Ok(None);
             }
         };

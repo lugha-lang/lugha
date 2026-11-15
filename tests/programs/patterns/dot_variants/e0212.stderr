@@ -1,0 +1,17 @@
+error[E0212]: a variant in a pattern takes a leading dot
+  --> tests/programs/patterns/dot_variants/e0212.la:4:9
+  |
+4 |         Some(n) => println(n),
+  |         ^^^^
+  |
+  = help: write `.Some(…)`
+
+error[E0212]: a variant in a pattern takes a leading dot
+  --> tests/programs/patterns/dot_variants/e0212.la:7:12
+  |
+7 |     if let Some(n) = o {
+  |            ^^^^
+  |
+  = help: write `.Some(…)`
+
+For more about E0212, run `lughac explain E0212`.

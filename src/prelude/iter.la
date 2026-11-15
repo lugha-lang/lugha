@@ -53,8 +53,8 @@ struct Mapped<T, U> { src: Iter<T>, f: fun(T): U }
 
 impl Mapped<T, U> {
     fun next(mut self): Option<U> = match self.src.next() {
-        Some(x) => Some(self.f(x)),
-        None => None,
+        .Some(x) => Some(self.f(x)),
+        .None => None,
     };
 }
 
@@ -66,7 +66,7 @@ struct Filter<T> { src: Iter<T>, keep: fun(T): bool }
 
 impl Filter<T> {
     fun next(mut self): Option<T> {
-        while let Some(x) = self.src.next() {
+        while let .Some(x) = self.src.next() {
             if self.keep(x) {
                 return Some(x);
             }
@@ -101,7 +101,7 @@ impl Skip<T> {
     fun next(mut self): Option<T> {
         while self.left > 0 {
             self.left -= 1;
-            if let None = self.src.next() {
+            if let .None = self.src.next() {
                 self.left = 0;
                 return None;
             }
@@ -120,11 +120,11 @@ struct Enumerate<T> { src: Iter<T>, at: i64 }
 
 impl Enumerate<T> {
     fun next(mut self): Option<Indexed<T>> = match self.src.next() {
-        Some(x) => {
+        .Some(x) => {
             self.at += 1;
             Some(Indexed { i: self.at - 1, value: x })
         }
-        None => None,
+        .None => None,
     };
 }
 

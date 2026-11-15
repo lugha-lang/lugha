@@ -5,8 +5,8 @@ import std.fs;
 import std.process;
 
 fun show(r: Result<i64, string>): string = match r {
-    Ok(n) => "ok {n}",
-    Err(e) => "err {e}",
+    .Ok(n) => "ok {n}",
+    .Err(e) => "err {e}",
 };
 
 fun main() {
@@ -19,8 +19,8 @@ fun main() {
     println(read_file("note.txt").debug());
     println(fs.list_dir(".").debug());
     match process.run("ls", []) {
-        Ok(out) => println(out.stdout.trim()),
-        Err(e) => println(e),
+        .Ok(out) => println(out.stdout.trim()),
+        .Err(e) => println(e),
     }
     println(show(env.set_current_dir("..")));
     println(env.current_dir().unwrap_or("?") == start);

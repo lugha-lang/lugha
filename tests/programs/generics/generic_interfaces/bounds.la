@@ -54,8 +54,8 @@ fun collect<T, S: Source<T>>(src: S): T[] {
     let mut more = true;
     while more {
         match s.next() {
-            Some(x) => { out.push(x); }
-            None => { more = false; }
+            .Some(x) => { out.push(x); }
+            .None => { more = false; }
         }
     }
     out

@@ -14,8 +14,8 @@ fun first(): Result<i64, string> {
 fun main() {
     let _ = save("draft");
     match save("") {
-        Ok(()) => println("saved"),
-        Err(e) => println("not saved: {e}"),
+        .Ok(()) => println("saved"),
+        .Err(e) => println("not saved: {e}"),
     }
     println(first().unwrap());
 }

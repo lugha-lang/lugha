@@ -4,8 +4,8 @@ import std.process;
 import std.random;
 
 fun show(r: Result<process.Output, string>): string = match r {
-    Ok(o) => "{o.code} {o.stdout.split("\n").debug()} {o.stderr.split("\n").debug()}",
-    Err(e) => "err {e}",
+    .Ok(o) => "{o.code} {o.stdout.split("\n").debug()} {o.stderr.split("\n").debug()}",
+    .Err(e) => "err {e}",
 };
 
 fun main() {
@@ -20,8 +20,8 @@ fun main() {
     println(show(process.run("sh", ["-c", "echo out; echo err >&2"])));
     println("before call");
     match process.call("echo", ["hi"]) {
-        Ok(code) => println("call {code}"),
-        Err(e) => println(e),
+        .Ok(code) => println("call {code}"),
+        .Err(e) => println(e),
     }
     println(show(process.run("echo", ["a\0b"])));
     println(show(process.run("ec\0ho", [])));
@@ -29,8 +29,8 @@ fun main() {
     // Both pipes full at once can't deadlock.
     let big = "head -c 1000000 /dev/zero | tr '\\0' a; head -c 1000000 /dev/zero | tr '\\0' b >&2";
     match process.run("sh", ["-c", big]) {
-        Ok(o) => println("{o.stdout.len} {o.stderr.len}"),
-        Err(e) => println(e),
+        .Ok(o) => println("{o.stdout.len} {o.stderr.len}"),
+        .Err(e) => println(e),
     }
     // Only 0, 1 and 2 reach a child, even after the runtime opened files.
     let mut rng = random.from_os();

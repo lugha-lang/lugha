@@ -86,14 +86,14 @@ public fun text(status: i64, text: string): Response = Response {
  * @param v the body's value
  */
 public fun json(status: i64, v: js.Value): Response = match js.stringify(v) {
-    Ok(t) => Response { status: status, headers: #{"content-type": "application/json"}, body: t.to_bytes() },
-    Err(e) => text(500, e.detail),
+    .Ok(t) => Response { status: status, headers: #{"content-type": "application/json"}, body: t.to_bytes() },
+    .Err(e) => text(500, e.detail),
 };
 
 /** `body` parsed as JSON, whatever its content type; non-UTF-8 is a `Syntax` error. */
 fun json_body(body: u8[]): Result<js.Value, js.JsonError> = match string_from_utf8(body) {
-    Ok(t) => js.parse(t),
-    Err(_) => Err(js.JsonError { kind: js.ErrorKind.Syntax, detail: "a body that isn't UTF-8", line: 1, column: 1 }),
+    .Ok(t) => js.parse(t),
+    .Err(_) => Err(js.JsonError { kind: js.ErrorKind.Syntax, detail: "a body that isn't UTF-8", line: 1, column: 1 }),
 };
 
 /**
@@ -147,7 +147,7 @@ public fun serve(addr: string, handler: fun(Request): Response): Result<(), stri
 public fun serve_with(addr: string, limits: Limits, handler: fun(Request): Response): Result<(), string> {
     let listener = net.listen(addr)?;
     while true {
-        if let Ok(conn) = listener.accept() {
+        if let .Ok(conn) = listener.accept() {
             spawn connection(Stream.Plain(conn), limits, handler);
         }
     }
@@ -177,7 +177,7 @@ public fun serve_tls_with(addr: string, cert_file: string, key_file: string, lim
     let listener = tls.listen(addr, cert_file, key_file)?;
     listener.set_timeout(limits.timeout_ms);
     while true {
-        if let Ok(conn) = listener.accept() {
+        if let .Ok(conn) = listener.accept() {
             spawn connection(Stream.Secure(conn), limits, handler);
         }
     }
@@ -193,7 +193,7 @@ fun connection(conn: Stream, limits: Limits, handler: fun(Request): Response) {
         reader.deadline = $os.now_ms() + limits.timeout_ms;
         let waiting = reader.buf.len == reader.pos;
         match reader.request(limits.line, limits.headers, limits.header_count, limits.body) {
-            Ok(Some(head)) => {
+            .Ok(.Some(head)) => {
                 let keep = head.keep;
                 open = keep;
                 let req = request_of(head, conn.peer());
@@ -203,17 +203,17 @@ fun connection(conn: Stream, limits: Limits, handler: fun(Request): Response) {
                     open = false;
                 }
             }
-            Ok(None) => {
+            .Ok(.None) => {
                 open = false;
             }
-            Err(Status(code)) => {
+            .Err(.Status(code)) => {
                 // An idle keep-alive connection timing out just closes.
                 if !(code == 408 && waiting && reader.buf.len == reader.pos) {
                     let _ = send(conn, text(code, reason(code)), false);
                 }
                 open = false;
             }
-            Err(Gone(_)) => {
+            .Err(.Gone(_)) => {
                 open = false;
             }
         }
@@ -277,8 +277,8 @@ public fun post(url: string, content_type: string, body: u8[]): Result<Response,
  * @param v the body's value; NaN or an infinity in it is an `Err` before connecting
  */
 public fun post_json(url: string, v: js.Value): Result<Response, string> = match js.stringify(v) {
-    Ok(t) => post(url, "application/json", t.to_bytes()),
-    Err(e) => Err(e.message()),
+    .Ok(t) => post(url, "application/json", t.to_bytes()),
+    .Err(e) => Err(e.message()),
 };
 
 /**
@@ -348,8 +348,8 @@ fun pinned(addr: string, address: string): Result<string, string> {
         return Ok(addr);
     }
     let ip = match $os.net_resolve(address, 1) {
-        Ok(ip) => ip,
-        Err(_) => {
+        .Ok(ip) => ip,
+        .Err(_) => {
             return Err("address must be an IP address: {address}");
         }
     };
@@ -394,13 +394,13 @@ fun exchange(method: string, url: string, headers: Map<string, string>, body: u8
     }
     let sent = conn.write((head + "\r\n").to_bytes());
     let result = match sent {
-        Ok(_) => {
+        .Ok(_) => {
             match conn.write(body) {
-                Ok(_) => read_response(conn, method, limits),
-                Err(e) => Err(e),
+                .Ok(_) => read_response(conn, method, limits),
+                .Err(e) => Err(e),
             }
         }
-        Err(e) => Err(e),
+        .Err(e) => Err(e),
     };
     conn.close();
     result
@@ -428,10 +428,10 @@ fun read_response(conn: Stream, method: string, limits: Limits): Result<Response
 
 fun failure(f: Fail): string {
     match f {
-        Status(413) => "response too large",
-        Status(408) => "timed out",
-        Status(_) => "malformed response",
-        Gone(e) => e,
+        .Status(413) => "response too large",
+        .Status(408) => "timed out",
+        .Status(_) => "malformed response",
+        .Gone(e) => e,
     }
 }
 

@@ -90,7 +90,7 @@ impl Parser<'_> {
     ) -> PResult<StmtKind> {
         let pattern = Pattern {
             span: name.span,
-            kind: PatternKind::Variant(name, None),
+            kind: PatternKind::Binding(name),
         };
         self.let_else_rest(pattern, init)
     }
@@ -103,22 +103,22 @@ mod tests {
     #[test]
     fn conditional_patterns_parse() {
         assert_eq!(
-            body("if let Some(x) = o { f(x); } else if let None = o { g(); } else { h(); }"),
-            "(block (if-let (Some x) o (block (; (call f x))) (if-let None o (block (; (call g))) (block (; (call h))))))"
+            body("if let .Some(x) = o { f(x); } else if let .None = o { g(); } else { h(); }"),
+            "(block (if-let (.Some x) o (block (; (call f x))) (if-let .None o (block (; (call g))) (block (; (call h))))))"
         );
         assert_eq!(
-            body("while let Some(x) = it.next() { f(x); }"),
-            "(block (while-let (Some x) (call (. it next)) (block (; (call f x)))))"
+            body("while let .Some(x) = it.next() { f(x); }"),
+            "(block (while-let (.Some x) (call (. it next)) (block (; (call f x)))))"
         );
         assert_eq!(
-            body("let Some(n) = o else { return; }; let x = e else { return; };"),
-            "(block (let-else (Some n) o (block (return))) (let-else x e (block (return))))"
+            body("let .Some(n) = o else { return; }; let x = e else { return; };"),
+            "(block (let-else (.Some n) o (block (return))) (let-else x e (block (return))))"
         );
         assert_eq!(
-            body("let Some(mut n) | Other(mut n) = o else { return; };"),
-            "(block (let-else (| (Some (mut n)) (Other (mut n))) o (block (return))))"
+            body("let .Some(mut n) | .Other(mut n) = o else { return; };"),
+            "(block (let-else (| (.Some (mut n)) (.Other (mut n))) o (block (return))))"
         );
-        assert!(!errors("fun f() { let Some(n) = o else { return; } }").is_empty());
+        assert!(!errors("fun f() { let .Some(n) = o else { return; } }").is_empty());
     }
 
     #[test]

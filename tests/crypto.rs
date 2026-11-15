@@ -265,8 +265,8 @@ fn hkdf_sha256_matches_rfc_5869_and_checks_lengths() {
 
 fun derive(key: u8[], salt: u8[], info: u8[], length: i64): string {
     match crypto.hkdf_sha256(key, salt, info, length) {
-        Ok(okm) => hex(okm),
-        Err(e) => e.message(),
+        .Ok(okm) => hex(okm),
+        .Err(e) => e.message(),
     }
 }
 

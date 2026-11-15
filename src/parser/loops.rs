@@ -136,8 +136,8 @@ mod tests {
             "(block (while w: c (block (break w:))))"
         );
         assert_eq!(
-            body("w: while let Some(x) = o { }"),
-            "(block (while-let w: (Some x) o (block)))"
+            body("w: while let .Some(x) = o { }"),
+            "(block (while-let w: (.Some x) o (block)))"
         );
         assert_eq!(
             body("let v = find: loop { break find 3; };"),

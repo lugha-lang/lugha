@@ -269,20 +269,20 @@ fun big(n: i64): Big = Big {
 fun build(n: i64): T = if n == 0 { T.Leaf } else { T.One(build(n - 1), big(n)) };
 // The Popover shape: two recursive results built one after the other in one block.
 fun walk(t: T, old: Option<T>): T = match t {
-    Pair(a, b, x) => match old {
-        Some(Pair(c, d, _)) => T.Pair(walk(a, Some(c)), walk(b, Some(d)), x),
+    .Pair(a, b, x) => match old {
+        .Some(.Pair(c, d, _)) => T.Pair(walk(a, Some(c)), walk(b, Some(d)), x),
         _ => T.Pair(walk(a, None), walk(b, None), x),
     },
-    One(a, x) => match old {
-        Some(One(c, _)) => T.One(walk(a, Some(c)), x),
-        Some(Pair(c, d, _)) => T.Pair(walk(a, Some(c)), walk(a, Some(d)), x),
+    .One(a, x) => match old {
+        .Some(.One(c, _)) => T.One(walk(a, Some(c)), x),
+        .Some(.Pair(c, d, _)) => T.Pair(walk(a, Some(c)), walk(a, Some(d)), x),
         _ => T.One(walk(a, None), x),
     },
     _ => t,
 };
 fun depth(t: T): i64 = match t {
-    One(a, _) => depth(a) + 1,
-    Pair(a, _, _) => depth(a) + 1,
+    .One(a, _) => depth(a) + 1,
+    .Pair(a, _, _) => depth(a) + 1,
     _ => 0,
 };
 fun main() {

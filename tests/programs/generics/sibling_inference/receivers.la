@@ -16,8 +16,8 @@ enum Msg {
 }
 
 fun depth<M>(n: Node<M>): i64 = match n {
-    Leaf(_) => 0,
-    Wrapped(inner, by) => by + depth(inner),
+    .Leaf(_) => 0,
+    .Wrapped(inner, by) => by + depth(inner),
 };
 
 fun a(): Node<Msg> = leaf("x").pad(8);

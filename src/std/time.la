@@ -136,8 +136,8 @@ public fun from_civil(c: Civil, offset_s: i64): Result<i64, TimeError> {
         days.checked_mul(DAY_MS).and_then(fun(t) = t.checked_add(of_day))
     };
     match moment {
-        Some(t) => Ok(t),
-        None => fail("{c.year}-{c.month}-{c.day} is past what an i64 moment holds"),
+        .Some(t) => Ok(t),
+        .None => fail("{c.year}-{c.month}-{c.day} is past what an i64 moment holds"),
     }
 }
 
@@ -148,8 +148,8 @@ public fun from_civil(c: Civil, offset_s: i64): Result<i64, TimeError> {
  * @returns the offset, or an error for a moment the system can't represent
  */
 public fun local_offset(ms: i64): Result<i64, TimeError> = match $os.local_offset(floor_div(ms, 1000)) {
-    Ok(offset) => Ok(offset),
-    Err(message) => Err(TimeError { message: message }),
+    .Ok(offset) => Ok(offset),
+    .Err(message) => Err(TimeError { message: message }),
 };
 
 /** `a / b` rounded down (`b` > 0), for negative moments too. */

@@ -5,9 +5,9 @@ enum Money { Cents(i64), Free }
 
 impl Add for Money {
     fun add(self, o: Money): Money = match (self, o) {
-        (Cents(a), Cents(b)) => Money.Cents(a + b),
-        (Cents(a), Free) => Money.Cents(a),
-        (Free, m) => m,
+        (.Cents(a), .Cents(b)) => Money.Cents(a + b),
+        (.Cents(a), .Free) => Money.Cents(a),
+        (.Free, m) => m,
     };
 }
 

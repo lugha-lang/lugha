@@ -4,8 +4,8 @@ import std.toml;
 fun half(n: i64): Option<i64> = if n % 2 == 0 { Some(n / 2) } else { None };
 
 fun number(s: string): Result<i64, string> = match parse_i64(s.trim()) {
-    Some(n) => Ok(n),
-    None => Err("not a number: {s}"),
+    .Some(n) => Ok(n),
+    .None => Err("not a number: {s}"),
 };
 
 fun main() {

@@ -1,0 +1,41 @@
+enum Shape { Circle(f64), Rect(f64, f64), Empty }
+
+fun area(s: Option<Shape>): f64 {
+    match s {
+        .Some(.Circle(r)) => 3.0 * r * r,
+        .Some(.Rect(w, h)) => w * h,
+        .Some(.Empty) | .None => 0.0,
+    }
+}
+
+fun main() {
+    let shapes = [Some(Shape.Circle(1.0)), Some(Shape.Rect(2.0, 3.0)), None];
+    for s of shapes {
+        println(area(s));
+    }
+    if let .Some(.Rect(w, _)) = shapes[1] {
+        println(w);
+    }
+    let mut i = 0;
+    while let .Some(_) = shapes[i] {
+        i += 1;
+    }
+    println(i);
+    let .Some(first) = shapes[0] else { return; };
+    match first {
+        .Circle(_) => println("round"),
+        other => println(other.debug()),
+    }
+    match shapes[1] {
+        .Some(.Circle(_)) => println("round"),
+        .Some(mut other) => {
+            other = Shape.Empty;
+            println(other.debug());
+        }
+        .None => {}
+    }
+    match shapes[2] {
+        .None => println("none"),
+        _ => {}
+    }
+}

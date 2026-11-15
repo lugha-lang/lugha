@@ -14,8 +14,8 @@ fun main() {
     println(c.area());
     let s = circle.Shape.Round(c);
     match s {
-        Round(k) => println(k.r),
-        Flat => println("flat"),
+        .Round(k) => println(k.r),
+        .Flat => println("flat"),
     }
     let r = range.Range.new(9, 3);
     println(r.len());

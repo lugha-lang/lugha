@@ -35,7 +35,7 @@ fn twelve_arms() -> String {
     let fields: String = (0..128).map(|i| format!("g{i}: i64, ")).collect();
     let variants: String = (0..12).map(|i| format!("A{i}(V, Big), ")).collect();
     let arms: String = (0..12)
-        .map(|i| format!("A{i}(x, b) => V.A{}(walk(x), b), ", (i + 1) % 12))
+        .map(|i| format!(".A{i}(x, b) => V.A{}(walk(x), b), ", (i + 1) % 12))
         .collect();
     format!(
         "struct Big {{ {fields} }}\nenum V {{ Leaf, {variants} }}\n\

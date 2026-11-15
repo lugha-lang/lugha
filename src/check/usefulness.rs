@@ -179,18 +179,18 @@ fn default(rows: &[Row]) -> Vec<Row> {
 }
 
 /// A pattern in source syntax. At the top level a variant whose payloads are
-/// all `_` prints as its bare name (`Rect`).
+/// all `_` prints as its name alone (`.Rect`).
 pub(super) fn show(pat: &Pat, top: bool) -> String {
     match pat {
         Pat::Wild => "_".into(),
         Pat::Ctor(Ctor::Variant(_, name), args)
             if args.is_empty() || (top && args.iter().all(|a| *a == Pat::Wild)) =>
         {
-            name.clone()
+            format!(".{name}")
         }
         Pat::Ctor(Ctor::Variant(_, name), args) => {
             let args: Vec<String> = args.iter().map(|a| show(a, false)).collect();
-            format!("{name}({})", args.join(", "))
+            format!(".{name}({})", args.join(", "))
         }
         Pat::Ctor(Ctor::Bool(b), _) => b.to_string(),
         Pat::Ctor(Ctor::Int(value, negative), _) => {
@@ -216,41 +216,41 @@ mod tests {
     #[test]
     fn complete_nested_matches_pass() {
         ok(&main(
-            "let a = match s { Some(Circle(_)) => 1, Some(Rect(_, _)) => 2, Some(Empty) => 3, None => 4 };",
+            "let a = match s { .Some(.Circle(_)) => 1, .Some(.Rect(_, _)) => 2, .Some(.Empty) => 3, .None => 4 };",
         ));
         ok(&main(
-            "let a = match b { P(true, _) => 1, P(false, _) => 2 };",
+            "let a = match b { .P(true, _) => 1, .P(false, _) => 2 };",
         ));
     }
 
     #[test]
     fn missing_cases_are_listed_as_patterns() {
         let d = diagnostics(&main(
-            "let a = match s { Some(Circle(_)) => 1, Some(Empty) => 3 };",
+            "let a = match s { .Some(.Circle(_)) => 1, .Some(.Empty) => 3 };",
         ));
         assert_eq!(
             (d[0].code, d[0].message.as_str()),
             (
                 "E0417",
-                "non-exhaustive match: `None`, `Some(Rect(_, _))` not covered"
+                "non-exhaustive match: `.None`, `.Some(.Rect(_, _))` not covered"
             )
         );
-        let d = diagnostics(&main("let a = match m { A => 1 };"));
+        let d = diagnostics(&main("let a = match m { .A => 1 };"));
         assert_eq!(
             d[0].message,
-            "non-exhaustive match: `B`, `C`, `D` and 1 more not covered"
+            "non-exhaustive match: `.B`, `.C`, `.D` and 1 more not covered"
         );
         // A guarded arm never counts.
         assert_eq!(
             errors(&main(
-                "let a = match b { P(true, _) => 1, P(false, x) if x => 2 };"
+                "let a = match b { .P(true, _) => 1, .P(false, x) if x => 2 };"
             )),
             [("E0417", "match b")]
         );
         // Literals inside variants never complete a match without a catch-all.
         assert_eq!(
             errors(&main(
-                "let a = match s { Some(Circle(_)) => 1, None => 2, Some(Rect(_, _)) => 3, Some(Empty) => 4 }; let p = Some(1); let q = match p { Some(1) => 1, None => 0 };"
+                "let a = match s { .Some(.Circle(_)) => 1, .None => 2, .Some(.Rect(_, _)) => 3, .Some(.Empty) => 4 }; let p = Some(1); let q = match p { .Some(1) => 1, .None => 0 };"
             )),
             [("E0417", "match p")]
         );
@@ -260,19 +260,19 @@ mod tests {
     fn unreachable_arms_include_combined_coverage() {
         assert_eq!(
             warnings(&main(
-                "let a = match s { Some(_) => 1, None => 2, Some(Empty) => 3 };"
+                "let a = match s { .Some(_) => 1, .None => 2, .Some(.Empty) => 3 };"
             )),
-            [("W0102", "Some(Empty)")]
+            [("W0102", ".Some(.Empty)")]
         );
         assert_eq!(
             warnings(&main(
-                "let a = match b { P(true, _) => 1, P(_, true) => 2, P(false, false) => 3, P(_, _) => 4 };"
+                "let a = match b { .P(true, _) => 1, .P(_, true) => 2, .P(false, false) => 3, .P(_, _) => 4 };"
             )),
-            [("W0102", "P(_, _)")]
+            [("W0102", ".P(_, _)")]
         );
         // After a guarded arm, the same pattern is still reachable.
         ok(&main(
-            "let a = match b { P(x, _) if x => 1, P(_, _) => 2 };",
+            "let a = match b { .P(x, _) if x => 1, .P(_, _) => 2 };",
         ));
     }
 }

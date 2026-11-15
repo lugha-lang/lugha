@@ -66,7 +66,7 @@ mod tests {
     #[test]
     fn a_generic_interfaces_default_compiles_per_type_and_argument() {
         let ir = ir(
-            "interface Source<T> { fun next(mut self): Option<T>; fun skip(mut self): bool = match self.next() { Some(_) => true, None => false }; }\n\
+            "interface Source<T> { fun next(mut self): Option<T>; fun skip(mut self): bool = match self.next() { .Some(_) => true, .None => false }; }\n\
             struct Count { n: i64 }\nimpl Source<i64> for Count { fun next(mut self): Option<i64> = Some(self.n); }\n\
             fun drop<T, S: Source<T>>(s: S): bool { let mut t = s; t.skip() }\n\
             fun main() { let b = drop(Count { n: 1 }); }",

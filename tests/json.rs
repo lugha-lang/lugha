@@ -79,15 +79,15 @@ fun repeat(s: string, n: i64): string {
 
 fun show(r: Result<json.Value, json.JsonError>) {
     match r {
-        Ok(v) => println("ok {v.debug()}"),
-        Err(e) => println("{e.kind.debug()}: {e.message()}"),
+        .Ok(v) => println("ok {v.debug()}"),
+        .Err(e) => println("{e.kind.debug()}: {e.message()}"),
     }
 }
 
 fun written(r: Result<string, json.JsonError>) {
     match r {
-        Ok(s) => println(s),
-        Err(e) => println("{e.kind.debug()}: {e.message()}"),
+        .Ok(s) => println(s),
+        .Err(e) => println("{e.kind.debug()}: {e.message()}"),
     }
 }
 "#;
@@ -106,14 +106,14 @@ fun go(): Result<(), json.JsonError> {
     println(json.stringify(reply)?);
     println(json.pretty(reply)?);
     match json.parse("{{\"a\": 1, \"a\": 2}}") {
-        Err(e) => println(e.message()),
-        Ok(_) => {}
+        .Err(e) => println(e.message()),
+        .Ok(_) => {}
     }
     Ok(())
 }
 
 fun main() {
-    match go() { Err(e) => println(e.message()), Ok(_) => {} }
+    match go() { .Err(e) => println(e.message()), .Ok(_) => {} }
 }
 "#);
     assert_eq!(

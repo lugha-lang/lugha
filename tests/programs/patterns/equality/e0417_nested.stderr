@@ -1,4 +1,4 @@
-error[E0417]: non-exhaustive match: `None`, `Some(Rect(_, _))` not covered
+error[E0417]: non-exhaustive match: `.None`, `.Some(.Rect(_, _))` not covered
   --> tests/programs/patterns/equality/e0417_nested.la:3:35
   |
 3 | fun area(s: Option<Shape>): f64 = match s {

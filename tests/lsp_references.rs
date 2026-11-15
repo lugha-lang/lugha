@@ -20,7 +20,7 @@ fun main() {
     println(c.area());
     println(c.r);
     let s = Shape.Round(2.0);
-    match s { Round(x) => println(x), Dot => {} }
+    match s { .Round(x) => println(x), .Dot => {} }
     println(geo.double(2));
     println(math.sqrt(4.0) + math.sqrt(9.0));
 }
@@ -216,7 +216,7 @@ fn a_std_function_lists_its_uses_and_nothing_under_the_cursor_is_null() {
 const SHARED: &str = "struct P { name: string }
 impl P { fun name(self): string = \"Dr. {self.name}\"; }
 enum Shape { Circle(f64), Dot }
-impl Shape { fun Circle(self): bool = match self { Circle(_) => true, Dot => false }; }
+impl Shape { fun Circle(self): bool = match self { .Circle(_) => true, .Dot => false }; }
 fun main() {
     let p = P { name: \"Ada\" };
     println(p.name);
@@ -255,7 +255,7 @@ fn a_field_and_a_method_of_one_name_are_two_members() {
     );
     let variant = sorted(vec![
         m("{ Circle(f64)", "Circle"),
-        m("{ Circle(_)", "Circle"),
+        m("{ .Circle(_)", "Circle"),
         m("Shape.Circle(1.0)", "Circle"),
     ]);
     assert_eq!(

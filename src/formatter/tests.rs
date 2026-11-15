@@ -165,12 +165,12 @@ fn blank_lines_collapse_to_one_and_none_open_or_close_a_block() {
 #[test]
 fn match_arms_one_per_line_commas_except_after_blocks() {
     check(
-        "fun f(s:Shape):f64{match s{Circle(r)=>3.14*r*r,Dot if x=>{0.0}_=>1.0}}",
-        "fun f(s: Shape): f64 {\n    match s {\n        Circle(r) => 3.14 * r * r,\n        Dot if x => {\n            0.0\n        }\n        _ => 1.0,\n    }\n}\n",
+        "fun f(s:Shape):f64{match s{.Circle(r)=>3.14*r*r,.Dot if x=>{0.0}_=>1.0}}",
+        "fun f(s: Shape): f64 {\n    match s {\n        .Circle(r) => 3.14 * r * r,\n        .Dot if x => {\n            0.0\n        }\n        _ => 1.0,\n    }\n}\n",
     );
     check(
-        "fun f(){match p{(a,mut b)|(b,a)=>1,x:Circle=>2,-1=>3,\"s\"=>4,V()=>5}}",
-        "fun f() {\n    match p {\n        (a, mut b) | (b, a) => 1,\n        x: Circle => 2,\n        -1 => 3,\n        \"s\" => 4,\n        V() => 5,\n    }\n}\n",
+        "fun f(){match p{(a,mut b)|(b,a)=>1,x:Circle=>2,-1=>3,\"s\"=>4,.V()=>5}}",
+        "fun f() {\n    match p {\n        (a, mut b) | (b, a) => 1,\n        x: Circle => 2,\n        -1 => 3,\n        \"s\" => 4,\n        .V() => 5,\n    }\n}\n",
     );
 }
 
@@ -209,8 +209,8 @@ fn self_and_types_print_as_written() {
 #[test]
 fn statements_loops_and_lets() {
     check(
-        "fun f(){for i in 0..n{}for x of xs{}for y of mut ys{}for (i,w) of zs{}let (a,b)=t;let Some(v)=o else{return;};while let Some(x)=it.next(){}if let Ok(v)=r{}}",
-        "fun f() {\n    for i in 0..n {}\n    for x of xs {}\n    for y of mut ys {}\n    for (i, w) of zs {}\n    let (a, b) = t;\n    let Some(v) = o else {\n        return;\n    };\n    while let Some(x) = it.next() {}\n    if let Ok(v) = r {}\n}\n",
+        "fun f(){for i in 0..n{}for x of xs{}for y of mut ys{}for (i,w) of zs{}let (a,b)=t;let .Some(v)=o else{return;};while let .Some(x)=it.next(){}if let .Ok(v)=r{}}",
+        "fun f() {\n    for i in 0..n {}\n    for x of xs {}\n    for y of mut ys {}\n    for (i, w) of zs {}\n    let (a, b) = t;\n    let .Some(v) = o else {\n        return;\n    };\n    while let .Some(x) = it.next() {}\n    if let .Ok(v) = r {}\n}\n",
     );
     check(
         "fun f():i64{x?.y[0];return 1;}",

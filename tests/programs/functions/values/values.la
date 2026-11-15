@@ -21,8 +21,8 @@ fun main() {
     println(b.on_click(2));
     let maybe: Option<fun(string): string> = Some(shout);
     match maybe {
-        Some(s) => println(s("hi")),
-        None => println("none"),
+        .Some(s) => println(s("hi")),
+        .None => println("none"),
     }
     let h = hello;
     h();

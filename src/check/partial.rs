@@ -249,7 +249,7 @@ mod tests {
             let p = P { x: 1.0 };\n\
             let mut n = 0;\n\
             for w of [1, 2] { n += w; }\n\
-            match Some(3) { Some(k) => println(k), None => {} }\n\
+            match Some(3) { .Some(k) => println(k), .None => {} }\n\
             println(p.len());\n\
             println(max(15, 25));\n\
         }\n";
@@ -357,7 +357,7 @@ fun main() {
     let f = twice;
     println(p.x + p.len());
     let s = Shape.Circle(2.0);
-    match s { Circle(r) => println(r), Dot => {} }
+    match s { .Circle(r) => println(r), .Dot => {} }
     println(total);
     println(f(1));
 }
@@ -389,7 +389,7 @@ fun main() {
         );
         assert_eq!(target(&partial, "n * 2", "n"), decl("(n: i64)", "n"));
         assert_eq!(target(&partial, "f(1)", "f"), decl("let f", "f"));
-        assert_eq!(target(&partial, "(r), Dot", "r"), decl("(r)", "r"));
+        assert_eq!(target(&partial, "(r), .Dot", "r"), decl("(r)", "r"));
     }
 
     #[test]
@@ -432,7 +432,7 @@ fun main() {
             target(&partial, "= Shape.Circle", "Circle"),
             decl("{ Circle(f64)", "Circle")
         );
-        assert_eq!(target(&partial, "Dot =>", "Dot"), decl("Dot }", "Dot"));
+        assert_eq!(target(&partial, ".Dot =>", "Dot"), decl("Dot }", "Dot"));
         assert_eq!(target(&partial, "p.x +", "x"), decl("{ x: f64", "x"));
         assert_eq!(target(&partial, "P { x: 1.0", "x"), decl("{ x: f64", "x"));
     }
@@ -441,7 +441,7 @@ fun main() {
         let src = "enum Shape { Circle(f64), Dot, Empty }
 fun main() {
     let o: Option<Shape> = None;
-    match o { Some(Emtpy) => {}, None => {} }
+    match o { .Some(Emtpy) => {}, .None => {} }
     match 3 { n => {} }
 }
 ";
@@ -464,9 +464,9 @@ fun main() {
         let src = "enum Shape { Circle(f64), Rect(f64, f64), Dot, Tri(f64), Hex }
 fun main() {
     let s = Shape.Dot;
-    match s { Circle(r) => println(r) }
+    match s { .Circle(r) => println(r) }
     let o: Option<Shape> = None;
-    match o { Some(Circle(_)) => {}, None => {} }
+    match o { .Some(.Circle(_)) => {}, .None => {} }
     let n = 3;
     match n { 1 => {} }
 }
@@ -483,11 +483,16 @@ fun main() {
         // Every one, not only the three the message lists, payloads as `_`.
         assert_eq!(
             at("match s").expect("recorded"),
-            ["Rect(_, _)", "Dot", "Tri(_)", "Hex"]
+            [".Rect(_, _)", ".Dot", ".Tri(_)", ".Hex"]
         );
         assert_eq!(
             at("match o").expect("recorded"),
-            ["Some(Rect(_, _))", "Some(Dot)", "Some(Tri(_))", "Some(Hex)"]
+            [
+                ".Some(.Rect(_, _))",
+                ".Some(.Dot)",
+                ".Some(.Tri(_))",
+                ".Some(.Hex)"
+            ]
         );
         assert_eq!(at("match n").expect("recorded"), Vec::<String>::new());
     }

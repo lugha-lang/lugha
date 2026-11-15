@@ -74,7 +74,7 @@ mod tests {
         assert_eq!(let_type(src, "v"), Type::Option(Box::new(Type::I64)));
         ok("fun drain(c: Chan<i64>): i64 {
                 let mut sum = 0;
-                while let Some(x) = c.recv() { sum += x; }
+                while let .Some(x) = c.recv() { sum += x; }
                 sum
             }
             fun main() {}");

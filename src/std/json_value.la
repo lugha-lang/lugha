@@ -243,12 +243,12 @@ derive<T: Json> Json for T[] {
 /** `None` is `null` and `Some(x)` is `x`'s; a missing `Option` field is `None`. */
 derive<T: Json> Json for Option<T> {
     fun to_json(self): Value = match self {
-        Some(x) => x.to_json(),
-        None => Value.Null,
+        .Some(x) => x.to_json(),
+        .None => Value.Null,
     };
 
     fun from_json(v: Value, path: string): Result<Option<T>, DecodeError> {
-        if let Null = v {
+        if let .Null = v {
             return Ok(None);
         }
         Ok(Some(T.from_json(v, path)?))
@@ -350,8 +350,8 @@ derive Json for enum {
                 }
                 let payload = Read { v: $variant_payload(v), path: $field_path(path, name) };
                 return match derive.build_variant(name, payload, $dec_payload) {
-                    Some(built) => built,
-                    None => Err($unknown_variant(path, name)),
+                    .Some(built) => built,
+                    .None => Err($unknown_variant(path, name)),
                 };
             }
         }
@@ -388,8 +388,8 @@ fun $dec_element<F: Json>(c: Read, name: string, i: i64, n: i64): Result<F, Deco
 
 /** A struct's field `name`. */
 fun $dec_member<F: Json>(c: Members, name: string, i: i64, n: i64): Result<F, DecodeError> = match c.m.get(name) {
-    Some(x) => F.from_json(x, $field_path(c.path, name)),
-    None => F.missing(c.path, name),
+    .Some(x) => F.from_json(x, $field_path(c.path, name)),
+    .None => F.missing(c.path, name),
 };
 
 /** A variant's payload `i` of `of`: the value itself, or element `i` of an array of `of`. */
@@ -409,8 +409,8 @@ interface $JsonKey {
 
 /** The integer a key spells, if it fits `name`'s range. */
 fun $key_int(k: string, at: string, min: i64, max: i64, name: string): Result<i64, DecodeError> = match parse_i64(k) {
-    Some(n) => $dec_int(Value.Integer(n), at, min, max, name),
-    None => $fail(at, "a key that isn't an integer"),
+    .Some(n) => $dec_int(Value.Integer(n), at, min, max, name),
+    .None => $fail(at, "a key that isn't an integer"),
 };
 
 derive $JsonKey for string {

@@ -87,7 +87,7 @@ mod tests {
                  _: Square => 0.0,\n\
                  _ => 1.0,\n\
              }};\n\
-             fun g(o: Option<Shape>): f64 = match o {{ Some(c: Circle) => c.r, Some(_) => 1.0, None => 0.0 }};\n\
+             fun g(o: Option<Shape>): f64 = match o {{ .Some(c: Circle) => c.r, .Some(_) => 1.0, .None => 0.0 }};\n\
              fun main() {{}}"
         ));
         assert_eq!(

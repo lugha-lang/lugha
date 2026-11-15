@@ -93,8 +93,8 @@ fun main() {
 
     for s of ["ok", "no"] {
         match run(s) {
-            Ok(v) => println(v),
-            Err(e) => println(e.text()),
+            .Ok(v) => println(v),
+            .Err(e) => println(e.text()),
         }
     }
 }

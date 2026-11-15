@@ -11,7 +11,7 @@ fun produce(out: Chan<string>, count: i64) {
 fun main() {
     let c: Chan<string> = Chan.buffered(2);
     spawn produce(c, 5);
-    while let Some(item) = c.recv() {
+    while let .Some(item) = c.recv() {
         println("got {item}");
     }
     println("closed: {c.recv().debug()}");

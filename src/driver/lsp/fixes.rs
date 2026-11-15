@@ -31,11 +31,12 @@ pub(super) fn fix(
         "W0103" => {
             let variants = partial.variants.get(&Span::new(base + start, base + end))?;
             let to = closest(written, variants)?;
+            // A variant in a pattern takes its leading dot.
             Some(Fix {
-                title: format!("Change to `{to}`"),
+                title: format!("Change to `.{to}`"),
                 from: start,
                 to: end,
-                new_text: to.to_string(),
+                new_text: format!(".{to}"),
             })
         }
         "E0301" => import(text, end, written),

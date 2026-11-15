@@ -153,8 +153,8 @@ fun name(fd: i64, peer: i64): string {
         return "";
     }
     match $os.net_name(fd, peer) {
-        Ok(text) => text,
-        Err(_) => "",
+        .Ok(text) => text,
+        .Err(_) => "",
     }
 }
 

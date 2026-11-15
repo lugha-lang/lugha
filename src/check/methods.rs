@@ -234,7 +234,7 @@ mod tests {
         assert_eq!(let_type(&src, "v"), Type::Struct("V".into(), Vec::new()));
         assert_eq!(let_type(&src, "n"), Type::F64);
         ok(
-            "enum S { A, B }\nimpl S { fun flip(self): S = match self { A => S.B, B => S.A }; }\nfun main() { let s = S.A.flip(); }",
+            "enum S { A, B }\nimpl S { fun flip(self): S = match self { .A => S.B, .B => S.A }; }\nfun main() { let s = S.A.flip(); }",
         );
     }
 
@@ -292,7 +292,7 @@ mod tests {
     #[test]
     fn a_variant_and_a_self_method_may_share_a_name() {
         let src = "enum S { Circle(f64), Square(f64) }\n\
-            impl S { fun Circle(self): bool = match self { Circle(_) => true, _ => false }; }\n\
+            impl S { fun Circle(self): bool = match self { .Circle(_) => true, _ => false }; }\n\
             fun main() { let s = S.Circle(1.0); let b = s.Circle(); let f = S.Circle; let t = f(2.0); }";
         assert_eq!(let_type(src, "s"), Type::Enum("S".into(), Vec::new()));
         assert_eq!(let_type(src, "b"), Type::Bool);

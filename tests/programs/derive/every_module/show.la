@@ -53,7 +53,7 @@ impl json.Json for Date {
     /** And read back from one. */
     fun from_json(v: json.Value, path: string): Result<Date, json.DecodeError> {
         let text = match v {
-            Text(s) => s,
+            .Text(s) => s,
             _ => {
                 return Err(json.DecodeError { path: path, detail: "expected a date" });
             }

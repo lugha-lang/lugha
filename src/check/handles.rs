@@ -188,7 +188,7 @@ mod extern_struct_tests {
             fun main() {\n\
                 let mut s = S { n: 0, w: None, p: None };\n\
                 f(out s);\n\
-                if let Some(w) = s.w { println(1); }\n\
+                if let .Some(w) = s.w { println(1); }\n\
                 s.w = None;\n\
             }");
     }

@@ -160,11 +160,11 @@ mod tests {
     #[test]
     fn results_match_like_any_enum() {
         ok(&format!(
-            "{HALF}fun main() {{ let n = match half(4) {{ Ok(n) => n, Err(_) => 0 }}; }}"
+            "{HALF}fun main() {{ let n = match half(4) {{ .Ok(n) => n, .Err(_) => 0 }}; }}"
         ));
         assert_eq!(
             codes(&format!(
-                "{HALF}fun main() {{ let n = match half(4) {{ Ok(n) => n }}; }}"
+                "{HALF}fun main() {{ let n = match half(4) {{ .Ok(n) => n }}; }}"
             )),
             ["E0417"]
         );

@@ -6,15 +6,15 @@ fun first_line(path: string): Result<string, string> {
     let f = fs.open(path)?;
     defer f.close();
     match f.read_line()? {
-        Some(line) => Ok(line),
-        None => Ok(""),
+        .Some(line) => Ok(line),
+        .None => Ok(""),
     }
 }
 
 fun open_count(): i64 {
     match fs.list_dir("/proc/self/fd") {
-        Ok(names) => names.len,
-        Err(e) => panic(e),
+        .Ok(names) => names.len,
+        .Err(e) => panic(e),
     }
 }
 

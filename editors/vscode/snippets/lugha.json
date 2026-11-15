@@ -153,7 +153,7 @@
   "If let": {
     "prefix": "iflet",
     "body": [
-      "if let ${1:Some(v)} = ${2:o} {",
+      "if let ${1:.Some(v)} = ${2:o} {",
       "\t$0",
       "}"
     ],
@@ -162,7 +162,7 @@
   "Let else": {
     "prefix": "letelse",
     "body": [
-      "let ${1:Some(v)} = ${2:o} else {",
+      "let ${1:.Some(v)} = ${2:o} else {",
       "\t${3:return;}",
       "};"
     ],

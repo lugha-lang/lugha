@@ -15,15 +15,15 @@ fun main() {
     words.push("x");
     println(ints.size() + words.size());
     match ints.pop() {
-        Some(n) => println(n),
-        None => println(0),
+        .Some(n) => println(n),
+        .None => println(0),
     }
     match words.pop() {
-        Some(w) => println(w),
-        None => println("empty"),
+        .Some(w) => println(w),
+        .None => println("empty"),
     }
     match words.pop() {
-        Some(w) => println(w),
-        None => println("empty"),
+        .Some(w) => println(w),
+        .None => println("empty"),
     }
 }

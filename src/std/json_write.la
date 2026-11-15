@@ -42,10 +42,10 @@ impl Writer {
 
     fun value(mut self, v: Value, indent: i64): Result<(), JsonError> {
         match v {
-            Null => self.put("null"),
-            Bool(b) => self.put(if b { "true" } else { "false" }),
-            Integer(n) => self.put("{n}"),
-            Float(x) => {
+            .Null => self.put("null"),
+            .Bool(b) => self.put(if b { "true" } else { "false" }),
+            .Integer(n) => self.put("{n}"),
+            .Float(x) => {
                 // `x - x` is NaN exactly when `x` is NaN or an infinity.
                 if !(x - x == 0.0) {
                     return Err(not_finite());
@@ -53,8 +53,8 @@ impl Writer {
                 // Lugha's shortest round-trip form (`1.0`, `1.0e300`) is valid JSON.
                 self.put("{x}");
             }
-            Text(s) => self.text(s),
-            Array(xs) => {
+            .Text(s) => self.text(s),
+            .Array(xs) => {
                 if xs.len == 0 {
                     self.put("[]");
                     return Ok(());
@@ -70,7 +70,7 @@ impl Writer {
                 self.newline(indent);
                 self.out.push(93);
             }
-            Object(m) => {
+            .Object(m) => {
                 if m.len == 0 {
                     self.put("{{}}");
                     return Ok(());

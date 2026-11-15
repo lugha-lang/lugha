@@ -288,12 +288,12 @@ mod tests {
     }
 
     #[test]
-    fn the_drafts_generics_program_checks() {
-        let draft = include_str!("../../docs/specs/Language v2 Draft.md");
-        let start = draft
+    fn the_specs_generics_program_checks() {
+        let spec = crate::SPEC;
+        let start = spec
             .find("**Generics** (milestone 11)")
-            .expect("the draft has the generics program");
-        let code = draft[start..]
+            .expect("the spec has the generics program");
+        let code = spec[start..]
             .split("```\n")
             .nth(1)
             .expect("a fenced block follows");

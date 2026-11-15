@@ -11,8 +11,8 @@ impl Sized for Box {
 fun big<T: Sized>(t: T): bool = t.size() > 1;
 
 fun name(d: Dir): string = match d {
-    Up => "up",
-    Down => "down",
+    .Up => "up",
+    .Down => "down",
 };
 
 fun main() {

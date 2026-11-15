@@ -95,11 +95,11 @@ mod tests {
 
     #[test]
     fn bindings_live_where_they_should() {
-        ok("fun main() { let o = Some(1); if let Some(n) = o { println(n); } }");
-        ok("fun main() { let mut xs = [1]; while let Some(x) = xs.pop() { println(x); } }");
-        ok("fun f(o: Option<i64>): i64 { let Some(n) = o else { return 0; }; n }\nfun main() {}");
+        ok("fun main() { let o = Some(1); if let .Some(n) = o { println(n); } }");
+        ok("fun main() { let mut xs = [1]; while let .Some(x) = xs.pop() { println(x); } }");
+        ok("fun f(o: Option<i64>): i64 { let .Some(n) = o else { return 0; }; n }\nfun main() {}");
         assert_eq!(
-            codes("let o = Some(1); if let Some(n) = o { } else { println(n); }"),
+            codes("let o = Some(1); if let .Some(n) = o { } else { println(n); }"),
             ["E0301"]
         );
     }
@@ -107,11 +107,11 @@ mod tests {
     #[test]
     fn if_let_with_else_is_a_value() {
         let src =
-            "fun main() { let o = Some(2); let v = if let Some(n) = o { n * 2 } else { 0 }; }";
+            "fun main() { let o = Some(2); let v = if let .Some(n) = o { n * 2 } else { 0 }; }";
         assert_eq!(let_type(src, "v"), Type::I64);
-        ok("fun main() { let o = Some(2); if let Some(mut n) | Some(mut n) = o { n += 1; } }");
+        ok("fun main() { let o = Some(2); if let .Some(mut n) | .Some(mut n) = o { n += 1; } }");
         assert_eq!(
-            codes("let o = Some(1); if let Some(\"x\") = o { }"),
+            codes("let o = Some(1); if let .Some(\"x\") = o { }"),
             ["E0403"]
         );
     }
@@ -119,14 +119,14 @@ mod tests {
     #[test]
     fn a_let_else_block_must_leave() {
         assert_eq!(
-            codes("let o = Some(1); let Some(n) = o else { println(1); };"),
+            codes("let o = Some(1); let .Some(n) = o else { println(1); };"),
             ["E0429"]
         );
         ok(
-            "fun f(): i64 { let o = Some(1); let Some(n) = o else { panic(\"no\"); }; n }\nfun main() {}",
+            "fun f(): i64 { let o = Some(1); let .Some(n) = o else { panic(\"no\"); }; n }\nfun main() {}",
         );
         ok(
-            "fun f(): i64 { let o = Some(1); let Some(n) = o else { return 1; }; n }\nfun main() {}",
+            "fun f(): i64 { let o = Some(1); let .Some(n) = o else { return 1; }; n }\nfun main() {}",
         );
         ok("fun main() { for x of [1] { let 0 = x else { continue; }; } }");
     }

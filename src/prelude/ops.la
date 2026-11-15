@@ -62,9 +62,9 @@ fun $compare(less: bool, more: bool): Ordering = if less {
 
 /** A pair of fields or payloads, ordered: -1, 0 or 1. */
 fun $order<F: Ord>(name: string, x: F, y: F): i64 = match x.cmp(y) {
-    Less => -1,
-    Equal => 0,
-    Greater => 1,
+    .Less => -1,
+    .Equal => 0,
+    .Greater => 1,
 };
 
 /** An `Ordering` from -1, 0 or 1. */

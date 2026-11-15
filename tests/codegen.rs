@@ -293,8 +293,8 @@ fun main(): i32 {
     let a = direct(1);
     let b = a.flip();
     let c = a + b;
-    let d = match e(2) { B(p) => p.x, A(n) => n, C => 0 };
-    let f = match o(3) { Some(p) => p.y, None => 0 };
+    let d = match e(2) { .B(p) => p.x, .A(n) => n, .C => 0 };
+    let f = match o(3) { .Some(p) => p.y, .None => 0 };
     let (g, h) = t(4);
     let add5 = adder(5);
     let i = add5(1);
@@ -322,7 +322,7 @@ interface Area { fun area(self): i64; }
 struct Sq { s: i64 }
 impl Area for Sq { fun area(self): i64 = self.s * self.s; }
 fun pick(c: bool, x: Out, y: Out): Out = if c { x } else { y };
-fun size(s: Shape): i64 = match s { Dot => 1, Box(w, h) => w * h, Ring(i) => if i.b { i.a } else { 0 } };
+fun size(s: Shape): i64 = match s { .Dot => 1, .Box(w, h) => w * h, .Ring(i) => if i.b { i.a } else { 0 } };
 fun twice(f: fun(i64): i64, n: i64): i64 = f(f(n));
 fun area_of(a: Area): i64 = a.area();
 fun same(p: Out, q: Out): bool = p == q;

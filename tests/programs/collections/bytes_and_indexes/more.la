@@ -4,28 +4,28 @@
 fun main() {
     let empty: u8[] = [];
     match write_bytes("e.bin", empty) {
-        Ok(n) => println(n),
-        Err(e) => println(e),
+        .Ok(n) => println(n),
+        .Err(e) => println(e),
     }
     match read_bytes("e.bin") {
-        Ok(b) => println(b.len),
-        Err(e) => println(e),
+        .Ok(b) => println(b.len),
+        .Err(e) => println(e),
     }
     match append_bytes("e.bin", [1, 2]) {
-        Ok(n) => println(n),
-        Err(e) => println(e),
+        .Ok(n) => println(n),
+        .Err(e) => println(e),
     }
     match append_bytes("e.bin", [3]) {
-        Ok(n) => println(n),
-        Err(e) => println(e),
+        .Ok(n) => println(n),
+        .Err(e) => println(e),
     }
     match read_bytes("e.bin") {
-        Ok(b) => println(b.debug()),
-        Err(e) => println(e),
+        .Ok(b) => println(b.debug()),
+        .Err(e) => println(e),
     }
     match read_bytes("missing.bin") {
-        Ok(b) => println(b.debug()),
-        Err(e) => println("missing: {e}"),
+        .Ok(b) => println(b.debug()),
+        .Err(e) => println("missing: {e}"),
     }
     let cases: u8[][] = [
         [65, 192, 128],

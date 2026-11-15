@@ -22,7 +22,7 @@ impl<'ctx> Lowerer<'ctx> {
         arms: &[Arm],
     ) -> Result<Value<'ctx>, CodegenError> {
         let sty = self.ty(scrutinee);
-        if !self.is_flat(&sty, arms) {
+        if !Self::is_flat(arms) {
             return self.match_chain(expr, scrutinee, arms);
         }
         let value = self.get(scrutinee, &sty)?;
@@ -106,6 +106,8 @@ impl<'ctx> Lowerer<'ctx> {
     pub(super) fn case_value(&self, sty: &Type, pattern: &PatternKind) -> Option<IntValue<'ctx>> {
         match pattern {
             PatternKind::Wildcard | PatternKind::Str(_) | PatternKind::Type(..) => None,
+            // Never in a flat match: a top-level binding goes to the arm chain.
+            PatternKind::Binding(_) => None,
             // Never in a flat match: `is_flat` sends these to the arm chain.
             PatternKind::Or(_) | PatternKind::Mut(_) | PatternKind::Tuple(_) => None,
             PatternKind::Variant(name, _) => {
@@ -161,7 +163,7 @@ impl<'ctx> Lowerer<'ctx> {
         let (_, payloads) = self.variant(sty, variant);
         for (i, (slot_pattern, ty)) in slots.iter().zip(&payloads).enumerate() {
             // A flat match's slots are `_` or bindings (`is_flat`).
-            let PatternKind::Variant(name, None) = &slot_pattern.kind else {
+            let PatternKind::Binding(name) = &slot_pattern.kind else {
                 continue;
             };
             let index = u32::try_from(i).expect("payload count fits in u32");
@@ -223,7 +225,7 @@ mod tests {
     #[test]
     fn enum_and_integer_matches_switch() {
         let ir = ir(
-            "enum S { A(f64), B }\nfun f(s: S): f64 = match s { A(x) => x, B => 0.0 };\n\
+            "enum S { A(f64), B }\nfun f(s: S): f64 = match s { .A(x) => x, .B => 0.0 };\n\
                      fun g(n: i64): i64 = match n { 1 => 10, -1 => 20, _ => 0 };\nfun main() {}",
         );
         assert!(

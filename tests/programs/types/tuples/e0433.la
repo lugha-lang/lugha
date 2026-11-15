@@ -1,6 +1,6 @@
 fun main() {
     let o = Some(1);
-    let Some(n) = o;
+    let .Some(n) = o;
     for (1, x) of [(1, 2)] {
         println(x);
     }

@@ -6,8 +6,8 @@ import std.process;
 
 fun say(label: string, r: Result<i64, string>) {
     match r {
-        Ok(n) => println("{label}: {n}"),
-        Err(e) => println("{label}: Err({e})"),
+        .Ok(n) => println("{label}: {n}"),
+        .Err(e) => println("{label}: Err({e})"),
     }
 }
 

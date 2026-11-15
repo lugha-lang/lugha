@@ -4,14 +4,14 @@ fun main() {
     let mut lines = 0;
     while true {
         match read_line() {
-            Some(line) => {
+            .Some(line) => {
                 lines += 1;
                 match parse_i64(line.trim()) {
-                    Some(n) => { total += n; }
-                    None => { bad.push(line); }
+                    .Some(n) => { total += n; }
+                    .None => { bad.push(line); }
                 }
             }
-            None => { break; }
+            .None => { break; }
         }
     }
     println("{lines} lines, total {total}");

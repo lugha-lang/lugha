@@ -245,7 +245,7 @@ mod tests {
     fn a_generic_interfaces_default_is_generic_over_its_parameters_too() {
         let source = "interface Source<T> {\n\
                 fun next(mut self): Option<T>;\n\
-                fun first(mut self, d: T): T = match self.next() { Some(x) => x, None => d };\n\
+                fun first(mut self, d: T): T = match self.next() { .Some(x) => x, .None => d };\n\
             }\n\
             struct Count { n: i64 }\n\
             impl Source<i64> for Count { fun next(mut self): Option<i64> = Some(self.n); }\n\

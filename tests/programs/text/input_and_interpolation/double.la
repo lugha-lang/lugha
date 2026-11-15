@@ -5,7 +5,7 @@ fun main() {
         return;
     }
     match parse_i64(a[1]) {
-        Some(n) => println("{n} doubled is {n * 2}"),
-        None => println("usage: prog <n>"),
+        .Some(n) => println("{n} doubled is {n * 2}"),
+        .None => println("usage: prog <n>"),
     }
 }

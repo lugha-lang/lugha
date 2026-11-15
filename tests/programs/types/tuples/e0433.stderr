@@ -1,8 +1,8 @@
 error[E0433]: this pattern doesn't match every value
   --> tests/programs/types/tuples/e0433.la:3:9
   |
-3 |     let Some(n) = o;
-  |         ^^^^^^^
+3 |     let .Some(n) = o;
+  |         ^^^^^^^^
   |
   = help: use `let … else { … };`, or `match`, for a pattern that can fail
 

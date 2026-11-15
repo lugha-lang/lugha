@@ -288,7 +288,7 @@ mod tests {
         for (body, reason) in [
             ("println(\"hi\"); 1", "`f` calls `println`, which prints"),
             (
-                "match read_file(\"x\") { Ok(s) => s.len, Err(_) => 0 }",
+                "match read_file(\"x\") { .Ok(s) => s.len, .Err(_) => 0 }",
                 "`f` calls `read_file`, which reads files",
             ),
             (
@@ -312,8 +312,7 @@ mod tests {
             assert!(help(&src).starts_with(reason), "{body}: {}", help(&src));
         }
         // An effect in the value itself, and one two calls deep.
-        let src =
-            "const A: i64 = match read_file(\"x\") { Ok(s) => s.len, Err(_) => 0 };\nfun main() {}";
+        let src = "const A: i64 = match read_file(\"x\") { .Ok(s) => s.len, .Err(_) => 0 };\nfun main() {}";
         assert_eq!(one_file_errors(src)[0].0, "E0445");
         assert!(
             help(src).starts_with("`read_file` reads files"),

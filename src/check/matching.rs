@@ -211,40 +211,44 @@ mod tests {
     #[test]
     fn match_arms_agree_and_bind_payloads() {
         let src = format!(
-            "{SHAPE}fun main() {{ let s = Shape.Empty; let a = match s {{ Circle(r) => r, Rect(w, _) => w, Empty => 0.0 }}; }}"
+            "{SHAPE}fun main() {{ let s = Shape.Empty; let a = match s {{ .Circle(r) => r, .Rect(w, _) => w, .Empty => 0.0 }}; }}"
         );
         assert_eq!(let_type(&src, "a"), Type::F64);
         let bad = format!(
-            "{SHAPE}fun main() {{ let s = Shape.Empty; let a = match s {{ Circle(r) => r, _ => true }}; }}"
+            "{SHAPE}fun main() {{ let s = Shape.Empty; let a = match s {{ .Circle(r) => r, _ => true }}; }}"
         );
         assert_eq!(errors(&bad), [("E0403", "true")]);
         let mutate = format!(
-            "{SHAPE}fun main() {{ let s = Shape.Empty; match s {{ Circle(r) => {{ r = 1.0; }} _ => {{}} }} }}"
+            "{SHAPE}fun main() {{ let s = Shape.Empty; match s {{ .Circle(r) => {{ r = 1.0; }} _ => {{}} }} }}"
         );
         assert_eq!(errors(&mutate), [("E0501", "r")]);
         let scoped = format!(
-            "{SHAPE}fun main() {{ let s = Shape.Empty; match s {{ Circle(r) => {{}} _ => {{ let x = r; }} }} }}"
+            "{SHAPE}fun main() {{ let s = Shape.Empty; match s {{ .Circle(r) => {{}} _ => {{ let x = r; }} }} }}"
         );
         assert_eq!(errors(&scoped), [("W0103", "r"), ("E0301", "r")]);
     }
 
     #[test]
     fn missing_cases_are_e0417_listing_each() {
-        let src =
-            format!("{SHAPE}fun f(s: Shape): f64 = match s {{ Circle(r) => r }};\nfun main() {{}}");
+        let src = format!(
+            "{SHAPE}fun f(s: Shape): f64 = match s {{ .Circle(r) => r }};\nfun main() {{}}"
+        );
         let d = crate::check::test_util::diagnostics(&src);
         assert_eq!(
             (d[0].code, d[0].message.as_str()),
-            ("E0417", "non-exhaustive match: `Rect`, `Empty` not covered")
+            (
+                "E0417",
+                "non-exhaustive match: `.Rect`, `.Empty` not covered"
+            )
         );
         assert_eq!(
             errors("fun main() { let n = 1; let s = match n { 1 => 2 }; }"),
             [("E0417", "match n")]
         );
         ok("fun main() { let b = true; let s = match b { true => 1, false => 0 }; }");
-        ok("fun main() { let o = Some(2); let v = match o { Some(x) => x, None => 0 }; }");
+        ok("fun main() { let o = Some(2); let v = match o { .Some(x) => x, .None => 0 }; }");
         assert_eq!(
-            errors("fun main() { let o = Some(2); let v = match o { Some(x) => x }; }"),
+            errors("fun main() { let o = Some(2); let v = match o { .Some(x) => x }; }"),
             [("E0417", "match o")]
         );
     }
@@ -256,9 +260,9 @@ mod tests {
             [("W0102", "2")]
         );
         let twice = format!(
-            "{SHAPE}fun main() {{ let s = Shape.Empty; match s {{ Empty => {{}} Empty => {{}} _ => {{}} }} }}"
+            "{SHAPE}fun main() {{ let s = Shape.Empty; match s {{ .Empty => {{}} .Empty => {{}} _ => {{}} }} }}"
         );
-        assert_eq!(warnings(&twice), [("W0102", "Empty")]);
+        assert_eq!(warnings(&twice), [("W0102", ".Empty")]);
     }
 
     #[test]
@@ -272,15 +276,15 @@ mod tests {
             [("E0402", "300")]
         );
         let wrong = format!(
-            "{SHAPE}fun main() {{ let s = Shape.Empty; match s {{ Square => {{}} _ => {{}} }} }}"
+            "{SHAPE}fun main() {{ let s = Shape.Empty; match s {{ .Square => {{}} _ => {{}} }} }}"
         );
         assert_eq!(errors(&wrong), [("E0415", "Square")]);
         let count = format!(
-            "{SHAPE}fun main() {{ let s = Shape.Empty; match s {{ Rect(w) => {{}} _ => {{}} }} }}"
+            "{SHAPE}fun main() {{ let s = Shape.Empty; match s {{ .Rect(w) => {{}} _ => {{}} }} }}"
         );
-        assert_eq!(errors(&count), [("E0416", "Rect(w)")]);
+        assert_eq!(errors(&count), [("E0416", ".Rect(w)")]);
         let shadow = format!(
-            "{SHAPE}fun main() {{ let s = Shape.Empty; match s {{ Circle(Shape) => {{}} _ => {{}} }} }}"
+            "{SHAPE}fun main() {{ let s = Shape.Empty; match s {{ .Circle(Shape) => {{}} _ => {{}} }} }}"
         );
         assert_eq!(errors(&shadow), [("E0311", "Shape")]);
     }
@@ -288,11 +292,11 @@ mod tests {
     #[test]
     fn guards_are_bool_and_see_the_bindings() {
         let src = format!(
-            "{SHAPE}fun main() {{ let s = Shape.Empty; let a = match s {{ Circle(r) if r > 1.0 => 1, _ => 2 }}; }}"
+            "{SHAPE}fun main() {{ let s = Shape.Empty; let a = match s {{ .Circle(r) if r > 1.0 => 1, _ => 2 }}; }}"
         );
         assert_eq!(let_type(&src, "a"), Type::I64);
         let bad = format!(
-            "{SHAPE}fun main() {{ let s = Shape.Empty; let a = match s {{ Circle(r) if r => 1, _ => 2 }}; }}"
+            "{SHAPE}fun main() {{ let s = Shape.Empty; let a = match s {{ .Circle(r) if r => 1, _ => 2 }}; }}"
         );
         assert_eq!(errors(&bad), [("E0403", "r")]);
     }
@@ -300,7 +304,7 @@ mod tests {
     #[test]
     fn unused_bindings_are_w0103() {
         let typo = format!(
-            "{SHAPE}fun main() {{ let o: Option<Shape> = None; let a = match o {{ Some(Emtpy) => 1, None => 2 }}; }}"
+            "{SHAPE}fun main() {{ let o: Option<Shape> = None; let a = match o {{ .Some(Emtpy) => 1, .None => 2 }}; }}"
         );
         let d = crate::check::test_util::diagnostics_or_warnings(&typo);
         assert_eq!(
@@ -310,7 +314,7 @@ mod tests {
         assert!(d[0].help.as_deref().unwrap().contains("check its spelling"));
         // Used only in the guard is used.
         ok(&format!(
-            "{SHAPE}fun main() {{ let s = Shape.Empty; let a = match s {{ Circle(r) if r > 1.0 => 1, _ => 2 }}; }}"
+            "{SHAPE}fun main() {{ let s = Shape.Empty; let a = match s {{ .Circle(r) if r > 1.0 => 1, _ => 2 }}; }}"
         ));
     }
 

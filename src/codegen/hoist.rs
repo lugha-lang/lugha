@@ -279,7 +279,7 @@ mod tests {
         hoists("fun main() { let mut xs = [0; 3]; for x of mut xs { x += 1; } println(xs[0]); }");
         hoists(
             "fun main() { let mut xs = [0; 3]; let mut o = Some(1);
-             while let Some(n) = o { xs[2] = n; o = None; } }",
+             while let .Some(n) = o { xs[2] = n; o = None; } }",
         );
     }
 

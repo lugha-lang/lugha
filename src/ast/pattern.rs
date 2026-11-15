@@ -30,9 +30,11 @@ pub struct Pattern {
 pub enum PatternKind {
     /// `_`.
     Wildcard,
-    /// `Name` or `Name(p, …)`; the checker resolves the name. In a payload
-    /// slot, a bare `Name` may instead be a binding.
+    /// `.Name` or `.Name(p, …)`: a variant of the matched enum. The name's
+    /// span excludes the dot.
     Variant(Ident, Option<Vec<Pattern>>),
+    /// A bare name: always a new binding.
+    Binding(Ident),
     /// An integer literal, `negative` for a leading `-`.
     Int { value: u64, negative: bool },
     /// A string literal.

@@ -64,8 +64,8 @@ fun parse_document(text: string, limits: Limits): Result<Map<string, Value>, Tom
         header: [],
     };
     match p.document() {
-        Ok(_) => Ok(p.table(0)),
-        Err(o) => Err(locate(p.b, o)),
+        .Ok(_) => Ok(p.table(0)),
+        .Err(o) => Err(locate(p.b, o)),
     }
 }
 
@@ -197,7 +197,7 @@ impl Parser {
             return Err(oops(ErrorKind.Duplicate, "a key defined twice: {dotted(full)}", start));
         }
         match value {
-            Table(_) | Array(_) => self.flag_set(full, FROZEN, true),
+            .Table(_) | .Array(_) => self.flag_set(full, FROZEN, true),
             _ => {}
         }
         self.nodes[node].entries[stem] = Slot.Val(value);
@@ -293,13 +293,13 @@ impl Parser {
             let mut node = root;
             for i in 0..key.len - 1 {
                 node = match self.nodes[node].entries.get(key[i]) {
-                    None => {
+                    .None => {
                         let n = self.new_node();
                         self.nodes[node].entries[key[i]] = Slot.Nest(n);
                         n
                     }
-                    Some(Nest(n)) => n,
-                    Some(_) => {
+                    .Some(.Nest(n)) => n,
+                    .Some(_) => {
                         return Err(oops(ErrorKind.Immutable, "an inline table extended: {key[i]}", key_at));
                     }
                 };
@@ -337,16 +337,16 @@ impl Parser {
         let mut node = 0;
         for k of key {
             node = match self.nodes[node].entries.get(k) {
-                None => {
+                .None => {
                     let n = self.new_node();
                     self.nodes[node].entries[k] = Slot.Nest(n);
                     n
                 }
-                Some(Nest(n)) => n,
+                .Some(.Nest(n)) => n,
                 // Read in place: a copy of the list would make the next
                 // `[[…]]` copy all of it.
-                Some(List(l)) => self.lists[l][self.lists[l].len - 1],
-                Some(Val(_)) => {
+                .Some(.List(l)) => self.lists[l][self.lists[l].len - 1],
+                .Some(.Val(_)) => {
                     return -1;
                 }
             };
@@ -367,16 +367,16 @@ impl Parser {
         let stem = key[key.len - 1];
         let table = self.new_node();
         match self.nodes[parent].entries.get(stem) {
-            None => {
+            .None => {
                 self.lists.push([table]);
                 self.nodes[parent].entries[stem] = Slot.List(self.lists.len - 1);
                 true
             }
-            Some(List(l)) => {
+            .Some(.List(l)) => {
                 self.lists[l].push(table);
                 true
             }
-            Some(_) => false,
+            .Some(_) => false,
         }
     }
 
@@ -385,9 +385,9 @@ impl Parser {
         let mut out: Map<string, Value> = #{};
         for (k, slot) of self.nodes[n].entries {
             out[k] = match slot {
-                Val(v) => v,
-                Nest(c) => Value.Table(self.table(c)),
-                List(l) => Value.Array(self.lists[l].map(fun(c: i64): Value = Value.Table(self.table(c)))),
+                .Val(v) => v,
+                .Nest(c) => Value.Table(self.table(c)),
+                .List(l) => Value.Array(self.lists[l].map(fun(c: i64): Value = Value.Table(self.table(c)))),
             };
         }
         out
@@ -408,8 +408,8 @@ impl Parser {
                 return true;
             }
             f = match self.flags[f].kids.get(k) {
-                Some(next) => next,
-                None => {
+                .Some(next) => next,
+                .None => {
                     return false;
                 }
             };
@@ -421,8 +421,8 @@ impl Parser {
         let mut f = 0;
         for k of key {
             f = match self.flags[f].kids.get(k) {
-                Some(next) => next,
-                None => {
+                .Some(next) => next,
+                .None => {
                     self.flags.push(Flag { own: 0, recursive: 0, kids: #{} });
                     let n = self.flags.len - 1;
                     self.flags[f].kids[k] = n;
@@ -442,8 +442,8 @@ impl Parser {
         let mut f = 0;
         for i in 0..key.len {
             let next = match self.flags[f].kids.get(key[i]) {
-                Some(next) => next,
-                None => {
+                .Some(next) => next,
+                .None => {
                     return;
                 }
             };

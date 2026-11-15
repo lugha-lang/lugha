@@ -26,8 +26,9 @@ Nov 15, 2026 · @kithinji
 - `@caller_location` marks a function or a type's own method whose panics report its caller's place; `unwrap`, `expect`, `assert`, `assert_eq` and `assert_ne` are prelude code marked with it, with the same messages and places as before (milestone 173; sections 2, 5, 9).
 - Sizes in bytes: `8.kb()`, `64.mb()`, `1.gb()` on the integer types from `i16` and `u16` up, in powers of 1024, each keeping its receiver's type (milestone 174; section 5).
 - A discarded `Result` is an error (E0467): an expression statement of type `Result` must be handled (`?`, `match`) or dropped on purpose with `let _ = …;` (milestone 175; section 6).
+- Enum variants in patterns take a leading dot, `.Some(x)`, `.None`, `.Circle(r)`, and a bare name in a pattern is always a binding, at the top level too (E0212, E0468) (milestone 176; sections 3–4).
 
-**Breaking:** a `Result` used as a statement is E0467 (milestone 175): write `let _ = f();` to drop one on purpose. `assert_eq` and `assert_ne` are ordinary generic calls (milestone 173): an argument that can't be typed alone, first (`assert_eq(None, o)`), is E0412; write it second. The prelude's helpers are only methods (milestone 172): `map(xs, f)`, `str_trim(s)` and the like are no longer functions a program can call (E0301); write `xs.map(f)`, `s.trim()`. Operators go through blocks (milestone 171): an own `fun add(self, o: V): V` becomes `impl Add for V { … }`, several `mul`s on one type become one `impl Mul<R> for V` each, and `impl f64 { fun mul(self, v: V): V }` becomes `impl Mul<V> for f64` (that form is now E0466; E0458 is retired); an operator on an interface value is E0404, and a bound gives an operator only when it is an operator interface (`T: Mul<f64>`), not an interface with its own `mul`. Printing needs `Display` (milestone 170): `println(xs)`, `"{opt}"` and `to_string(p)` on an array, `Option`, tuple, map, `()` or a struct or enum without `impl Display` are E0422; write `.debug()` for the old text, or `impl Display`. A type's own `show` method becomes `impl Display for T`, and is no longer used inside an array or another value's text. `unwrap()` on an `Err` shows the error's debug form (`"boom"` quoted). `debug` is a reserved name. A struct or enum ordered with `<`, `sort`, `min` or `max` needs `with Ord` or `impl Ord` (milestone 168); an own `cmp` method no longer orders it, and `Ord` now implies `Eq`. Floats aren't `Ord`: `[1.5].sort()`, `math.min(1.5, 2.0)` and tuples or structs holding a float that are ordered are E0451; sort floats with `xs.sort_by(f64.total_order)`. A struct or enum compared with `==` or used as a map key or set value needs `with Eq` or `with Key` (milestone 167); own `eq` and `hash` methods become `impl Eq` and `impl Key`. A struct or enum encoded, decoded or otherwise used through a derivable interface needs `with I` (milestone 165); a type's own `to_json` or `show` no longer replaces a derived item. A type that met an interface by its methods needs `impl I for T`; methods that implement an interface move from `impl T { … }` into it. A number, string or array converted to a program's interface (`let x: Any = 1;`) is E0422 unless a block implements it for that type (milestone 169).
+**Breaking:** every variant in a pattern takes a leading dot (milestone 176): `Some(x) =>` is `.Some(x) =>`, `None =>` is `.None =>`, `if let Some(x) = o` is `if let .Some(x) = o`; an undotted one is E0212 or E0468, and `mut None` is E0468, not E0428. A `Result` used as a statement is E0467 (milestone 175): write `let _ = f();` to drop one on purpose. `assert_eq` and `assert_ne` are ordinary generic calls (milestone 173): an argument that can't be typed alone, first (`assert_eq(None, o)`), is E0412; write it second. The prelude's helpers are only methods (milestone 172): `map(xs, f)`, `str_trim(s)` and the like are no longer functions a program can call (E0301); write `xs.map(f)`, `s.trim()`. Operators go through blocks (milestone 171): an own `fun add(self, o: V): V` becomes `impl Add for V { … }`, several `mul`s on one type become one `impl Mul<R> for V` each, and `impl f64 { fun mul(self, v: V): V }` becomes `impl Mul<V> for f64` (that form is now E0466; E0458 is retired); an operator on an interface value is E0404, and a bound gives an operator only when it is an operator interface (`T: Mul<f64>`), not an interface with its own `mul`. Printing needs `Display` (milestone 170): `println(xs)`, `"{opt}"` and `to_string(p)` on an array, `Option`, tuple, map, `()` or a struct or enum without `impl Display` are E0422; write `.debug()` for the old text, or `impl Display`. A type's own `show` method becomes `impl Display for T`, and is no longer used inside an array or another value's text. `unwrap()` on an `Err` shows the error's debug form (`"boom"` quoted). `debug` is a reserved name. A struct or enum ordered with `<`, `sort`, `min` or `max` needs `with Ord` or `impl Ord` (milestone 168); an own `cmp` method no longer orders it, and `Ord` now implies `Eq`. Floats aren't `Ord`: `[1.5].sort()`, `math.min(1.5, 2.0)` and tuples or structs holding a float that are ordered are E0451; sort floats with `xs.sort_by(f64.total_order)`. A struct or enum compared with `==` or used as a map key or set value needs `with Eq` or `with Key` (milestone 167); own `eq` and `hash` methods become `impl Eq` and `impl Key`. A struct or enum encoded, decoded or otherwise used through a derivable interface needs `with I` (milestone 165); a type's own `to_json` or `show` no longer replaces a derived item. A type that met an interface by its methods needs `impl I for T`; methods that implement an interface move from `impl T { … }` into it. A number, string or array converted to a program's interface (`let x: Any = 1;`) is E0422 unless a block implements it for that type (milestone 169).
 
 **Changes in v17 since v16** (milestones 91–163):
 - Green threads: `spawn f(x)` runs a call concurrently and gives a `Task<T>` (a plain `Task` for a call that returns nothing) whose `join()` waits for the result. `Chan<T>` carries values between green threads: `Chan.new()` (unbuffered) or `Chan.buffered(n)`, `send`, `recv` (an `Option`, `None` once closed), `try_recv`, `close`, `is`. `select` waits on several channels at once, with an `after(ms)` timeout or a `default` that never waits. `std.task` has `sleep(ms)` and `yield_now()`. Every function stays an ordinary function: there is no `async` and no `await`, so nothing is coloured. All green threads share the program's one OS thread; a panic in any of them ends the program, as does `main` returning, and a deadlock is a panic (sections 2–9).
@@ -458,9 +459,10 @@ select_expr  = "select" "{" [ sarm { arm_sep sarm } [ "," ] ] "}" ;   (* v17 *)
 sarm         = ( IDENT "=" postfix | postfix | "after" "(" expr ")" | "default" ) "=>" expr ;
 arm          = pattern [ "if" cond ] "=>" expr ;
 arm_sep      = "," | (* nothing, after an arm whose expr is a block *) ;
-pattern      = alternative { "|" alternative } ;      (* `A | B` (v9) *)
+pattern      = alternative { "|" alternative } ;      (* `.A | .B` (v9) *)
 alternative  = "_"
-             | IDENT [ "(" pattern { "," pattern } [ "," ] ")" ]
+             | IDENT                                  (* a binding (v18) *)
+             | "." IDENT [ "(" pattern { "," pattern } [ "," ] ")" ]   (* a variant (v18) *)
              | [ "-" ] INT | STRING | "true" | "false"
              | ( IDENT | "_" ) ":" type               (* `c: Circle` (v5) *)
              | "mut" IDENT [ ":" type ]               (* a mutable binding (v9) *)
@@ -517,7 +519,7 @@ The bit operators sit between comparisons and `+ -`, as in Rust, so `flags & MAS
 
 **Struct literals in conditions.** Without required parentheses, `if p == Point { x: 0.0, y: 0.0 } { ... }` is ambiguous, because the parser can't tell where the condition ends. So every `cond` is parsed in *no-struct-literal* mode, where `IDENT {` ends the expression instead of starting a literal. The restriction lifts inside every bracket pair — parentheses, brackets, call arguments and blocks — so `if p == (Point { x: 0.0, y: 0.0 }) { ... }` and `if ok { Point { x: 1.0, y: 2.0 } } else { ... }` both work. Rust uses the same rule.
 
-**Enum values and `match`.** `Shape.Circle(2.0)` and `Shape.Empty` need no grammar of their own: they parse as a member access, followed by a call when there are payloads, and the checker decides they name a variant (section 4). A `match` scrutinee is a `cond`, parsed in no-struct-literal mode like an `if` condition. At the top level a bare `IDENT` pattern must name a variant; there are no top-level binding patterns, so use `_`. Inside a payload slot, a bare `IDENT` is a variant if the slot's type is an enum with a variant of that name (`Some(Empty)`), and otherwise a new binding (`Some(x)`). A guard after `if` is parsed like a `cond`.
+**Enum values and `match`.** `Shape.Circle(2.0)` and `Shape.Empty` need no grammar of their own: they parse as a member access, followed by a call when there are payloads, and the checker decides they name a variant (section 4). A `match` scrutinee is a `cond`, parsed in no-struct-literal mode like an `if` condition. A variant in a pattern is `.IDENT`, with its payload slots after it (`.Some(.Empty)`); a bare `IDENT` is always a new binding, at the top level too (`other =>`), so the parser never needs the types to tell them apart. `IDENT (` without the dot is E0212. An arm whose value is a block ends at its `}`, so `{ … }` then `.Ok(v) =>` is the next arm. A guard after `if` is parsed like a `cond`.
 
 **Generic headers.** Type parameters follow the name, like Rust and TypeScript: `fun max<T: Ord>(a: T, b: T): T`. An `impl` names its type's parameters without bounds, `impl Stack<T> { … }`; the bounds come from the type's declaration. Type arguments are never written at a use (section 4), so `<` after a name in an expression is always a comparison; `Stack::<i64>` is E0207.
 
@@ -541,6 +543,7 @@ The bit operators sit between comparisons and `+ -`, as in Rust, so `flags & MAS
 | E0209 | A closure parameter that isn't a plain name | `fun(self) = 1`, `fun(mut x) = x` |
 | E0210 | An unknown or misplaced attribute | `@inline fun f() {}`; `@test struct S {}`; `@caller_location` on an interface's item, an actor's message, `main` or a test |
 | E0211 | `spawn` without a call, or a malformed `select` arm | `spawn f;`, `spawn 1 + f()`; `select { c.recv() => 1 }`, `select { x => 1 }` |
+| E0212 | A variant in a pattern without its leading dot (v18) | `Circle(r) =>`; `if let Some(x) = o` |
 | E0207 | `::` used as a path separator | `Shape::Circle(1.0)` — help: write `Shape.Circle`; parsing continues as if `.` were written |
 
 ## 4. Type system
@@ -659,14 +662,14 @@ actor Counter {
 - **`NULL`:** an extern or callback using `Option<H>` receives `None` for C's `NULL` and passes `NULL` for `None`. A plain `H` from C is assumed not to be `NULL`.
 - **Printing:** `Ref(<contents>)`. A box already being printed further out prints as `Ref(…)`, so a cycle (a node whose `next` leads back to it) still prints in finite space.
 
-**`match`.** `match e { pattern => value, … }` is an expression. A pattern is `_`, an integer, `bool` or string literal, or a variant written without the enum's name. A variant's payload slots are patterns too, so they nest: `Circle(r)`, `Rect(w, _)`, `Empty`, `Some(Circle(r))`, `Pair(1, Some("a"))`. Variant patterns need an enum or `Option` value and literal patterns a value of their type, at any depth (E0403); a variant needs one slot per payload (E0416). An arm may have a guard, `pattern if cond => value`: the guard runs after the pattern matches, with its bindings in scope, and must be `bool` (E0403); if it is false, matching continues with the next arm. The arms' values follow the rules of `if`/`else`: they must agree (E0403), and an arm that never finishes fits any type.
+**`match`.** `match e { pattern => value, … }` is an expression. A pattern is `_`, a binding, an integer, `bool` or string literal, or a variant: its name after a dot, without the enum's name, since the matched value's type gives it. A variant's payload slots are patterns too, so they nest: `.Circle(r)`, `.Rect(w, _)`, `.Empty`, `.Some(.Circle(r))`, `.Pair(1, .Some("a"))`. A bare name is always a new binding that matches anything, at any depth (v18): `.Some(x)`, or `other` for a whole arm. A bare name that is a variant of the type it would bind (`None` against an `Option`, `Empty` in a `Shape` slot) is E0468, since it would match anything instead of testing; a binding named like another type's variant is fine. Variant patterns need an enum or `Option` value and literal patterns a value of their type, at any depth (E0403); a variant needs one slot per payload (E0416). An arm may have a guard, `pattern if cond => value`: the guard runs after the pattern matches, with its bindings in scope, and must be `bool` (E0403); if it is false, matching continues with the next arm. The arms' values follow the rules of `if`/`else`: they must agree (E0403), and an arm that never finishes fits any type.
 
-- **Exhaustiveness.** A `match` must cover every value, counting only arms without guards. Otherwise it is E0417, which lists up to three missing cases as patterns (`Some(Rect(_, _))`, `None`) and then "and N more"; a missing variant with any payloads shows as its bare name at the top level (`Rect`). A `bool` is covered by `true` and `false`. Integers and strings, at the top level or inside a variant, always need a `_` or a binding.
-- **Type patterns** (v5). `name: T` matches when an interface value holds a `T`, and binds the value inside, as a `T`, to `name` (immutable, and copied when stored, like any `match` binding); `_: T` matches without binding. Guards and nesting work as for every pattern: `c: Circle if c.r > 1.0 =>`, `Some(c: Circle) =>`. `T` is a concrete type that satisfies the matched interface, written with its type arguments (`Stack<i64>`) and module (`geo.Crate`). A type pattern on a value that isn't an interface value, with an interface or a type parameter as `T`, with a generic `T` written without its arguments, or with a `T` that doesn't satisfy the interface (so the arm could never match) is E0426. The set of types is open, so a `match` on an interface value needs a `_` arm (E0417, with `_` as the missing case); a later arm that an earlier unguarded one covers is W0102. In a `match` scrutinee, `{ name:` begins the arms, never a struct literal.
-- **Unreachable arms.** An arm that no value can reach past the earlier unguarded arms is warning W0102: after `_`, after the same pattern, or after arms that together cover it (`Some(_)` and `None` before `Some(Empty)`).
+- **Exhaustiveness.** A `match` must cover every value, counting only arms without guards. Otherwise it is E0417, which lists up to three missing cases as patterns (`.Some(.Rect(_, _))`, `.None`) and then "and N more"; a missing variant with any payloads shows as its name alone at the top level (`.Rect`). A `bool` is covered by `true` and `false`. Integers and strings, at the top level or inside a variant, always need a `_` or a binding.
+- **Type patterns** (v5). `name: T` matches when an interface value holds a `T`, and binds the value inside, as a `T`, to `name` (immutable, and copied when stored, like any `match` binding); `_: T` matches without binding. Guards and nesting work as for every pattern: `c: Circle if c.r > 1.0 =>`, `.Some(c: Circle) =>`. `T` is a concrete type that satisfies the matched interface, written with its type arguments (`Stack<i64>`) and module (`geo.Crate`). A type pattern on a value that isn't an interface value, with an interface or a type parameter as `T`, with a generic `T` written without its arguments, or with a `T` that doesn't satisfy the interface (so the arm could never match) is E0426. The set of types is open, so a `match` on an interface value needs a `_` arm (E0417, with `_` as the missing case); a later arm that an earlier unguarded one covers is W0102. In a `match` scrutinee, `{ name:` begins the arms, never a struct literal.
+- **Unreachable arms.** An arm that no value can reach past the earlier unguarded arms is warning W0102: after `_`, after the same pattern, or after arms that together cover it (`.Some(_)` and `.None` before `.Some(.Empty)`), and after a top-level binding.
 - **Bindings.** Payload names are immutable and borrowed, like `for … of` variables: storing or returning one copies it. Each is in scope in its own arm (guard and value) only. A binding that its arm never uses is warning W0103, which also catches a misspelled variant name that became a binding.
-- **Or-patterns** (v9). `p | q | …` matches when any alternative does, tried left to right, and may appear wherever a pattern may (`Some(1 | 2)`); a guard after it covers the whole arm (`A | B if g =>`). Every alternative must bind the same names, each at the same type: a name missing from an alternative, or bound at another type, is E0428. For exhaustiveness an or-pattern counts as each of its alternatives (`Red | Green` leaves `Blue` for E0417), and an alternative that earlier arms, or earlier alternatives of the same arm, already cover is W0102.
-- **`mut` bindings** (v9). `mut name` (or `mut name: T` in a type pattern) binds a mutable local holding the arm's own copy of what it matched, made at the copy sites, so assigning to it or calling `mut self` methods on it never changes the scrutinee: `Some(mut n) => { n += 1; … }`. At the top of an arm, `mut x` binds the whole scrutinee. `mut` before a name that is a variant of the matched type (`mut None`) is E0428. Bindings without `mut` stay read-only (E0501).
+- **Or-patterns** (v9). `p | q | …` matches when any alternative does, tried left to right, and may appear wherever a pattern may (`.Some(1 | 2)`); a guard after it covers the whole arm (`.A | .B if g =>`). Every alternative must bind the same names, each at the same type: a name missing from an alternative, or bound at another type, is E0428. For exhaustiveness an or-pattern counts as each of its alternatives (`.Red | .Green` leaves `.Blue` for E0417), and an alternative that earlier arms, or earlier alternatives of the same arm, already cover is W0102.
+- **`mut` bindings** (v9). `mut name` (or `mut name: T` in a type pattern) binds a mutable local holding the arm's own copy of what it matched, made at the copy sites, so assigning to it or calling `mut self` methods on it never changes the scrutinee: `.Some(mut n) => { n += 1; … }`. At the top of an arm, `mut x` binds the whole scrutinee. `mut` before a name that is a variant of the matched type (`mut None`) is E0468, as without `mut`. Bindings without `mut` stay read-only (E0501).
 
 **Arrays.** `T[]` has a length, read with `.len` (type `i64`), that changes only through the built-in methods below. Elements are read and written with `xs[i]`, where `i` is of any integer type (v14; before, `i64` only), and an unannotated literal index is an `i64`. Every index is bounds-checked as its value: below 0, or at least `.len`, panics (`the length is 3 but the index is -1`); a `u64` above `i64.MAX` is out of bounds too. Arrays are created two ways:
 
@@ -1024,7 +1027,7 @@ let sign = if x < 0 { -1 } else if x == 0 { 0 } else { 1 };
 **Conditional patterns** (v9). Each tests one pattern, typed as a `match` arm's (or-patterns and `mut` included), with no exhaustiveness check; the scrutinee is a condition, so a struct literal needs parentheses.
 - **`if let p = e { a } [else b]`** evaluates `e` once; if `p` matches it runs `a` with `p`'s bindings in scope, otherwise `b` (or nothing). It is an `if`: with `else` both branches agree on a type and it is a value; without, it is `()`. `else if let` chains. An irrefutable pattern (`if let x = e`) is allowed.
 - **`while let p = e { body }`** evaluates `e` and tests `p` before each iteration, running `body` with the bindings while it matches; `break` ends the loop and `continue` goes to the next test.
-- **`let p = e else { … };`** evaluates `e`; if `p` matches, its bindings are in scope for the rest of the block. Otherwise the `else` block runs, and it must not finish normally: it ends in `return`, `break`, `continue`, `panic(…)` or `exit(…)`, or is otherwise of type `never` (E0429). `let x = e else { … };` reads `x` as a pattern, so at the top it is a variant, as in a `match` arm. `mut` goes inside the pattern: `let Some(mut n) = o else { return; };`.
+- **`let p = e else { … };`** evaluates `e`; if `p` matches, its bindings are in scope for the rest of the block. Otherwise the `else` block runs, and it must not finish normally: it ends in `return`, `break`, `continue`, `panic(…)` or `exit(…)`, or is otherwise of type `never` (E0429). `let x = e else { … };` reads `x` as a pattern, a binding, so it always matches; `let .Empty = e else { … };` tests a variant. `mut` goes inside the pattern: `let .Some(mut n) = o else { return; };`.
 
 **for over a range.** `for i in a..b { body }` runs with `i` = `a`, `a+1`, …, `b-1`. The range is half-open, and empty when `a >= b`. `a` and `b` must have the same integer type, which becomes the type of `i`. Both bounds are evaluated once, before the first iteration. `i` is a fresh immutable binding on each iteration. It desugars to:
 
@@ -1056,8 +1059,8 @@ let sign = if x < 0 { -1 } else if x == 0 { 0 } else { 1 };
     let mut $it = e;
     while true {
         match $it.next() {
-            Some(x) => { body }
-            None => { break; }
+            .Some(x) => { body }
+            .None => { break; }
         }
     }
 }
@@ -1919,7 +1922,7 @@ Name and type errors, reported by the checker:
 | E0412 | Cannot infer an array's element type, `None`'s type, or a type argument | `let xs = [];`, `let x = None;`, `let s = Stack.new();`, `let m = max;` — annotate it: `let xs: i64[] = [];` |
 | E0413 | Struct literal missing fields | `Point { x: 1.0 }` |
 | E0414 | Struct literal field given twice | `Point { x: 1.0, x: 2.0, y: 0.0 }` |
-| E0415 | No such variant or method | `Shape.Circel(1.0)`, a `Square` pattern on a `Shape`, `p.size()`, `xs.push(1)` |
+| E0415 | No such variant or method | `Shape.Circel(1.0)`, a `.Square` pattern on a `Shape`, `p.size()`, `xs.push(1)` |
 | E0416 | Wrong number of payloads | `Shape.Rect(1.0)`, `Rect(w) => …` |
 | E0417 | Non-exhaustive `match` | `match s { Circle(r) => r }` with more variants; an integer `match` without `_` |
 | E0418 | Wrong number of type arguments | `Stack<i64, i64>`, a bare `Stack` as a parameter type |
@@ -1966,9 +1969,10 @@ Name and type errors, reported by the checker:
 | E0465 | `debug` in an optimized build (v18) | `debug(x)` in a program built with `-O2` |
 | E0466 | Methods for a type this module doesn't declare (v18) | `impl f64 { … }`; `impl shapes.W { … }` |
 | E0467 | A discarded `Result` (v18) | `save("");` as a statement, where `save` returns a `Result` |
+| E0468 | A variant name used as a binding in a pattern (v18) | `None =>` on an `Option`; `.Some(Empty)` on an `Option<Shape>` |
 | E0437 | A malformed `extern struct` | `extern struct S { s: string }`; a field of an array, a plain struct, an enum, `Option` (other than of a handle) or a function type; a handle, `Option` of one or `CPtr` in an `extern union`, at any depth; `extern struct S<T> { … }`; `extern struct S {}` |
 | E0433 | A pattern that must match every value but might not | `let (1, x) = t;`, `let Some(n) = o;` without `else`, `for (Some(a), b) of …` |
-| E0428 | Or-pattern alternatives that bind differently, or `mut` on a variant | `Some(x) \| None`; `Count(n) \| Circle(n)` with `n` an `i64` and an `f64`; `mut None` |
+| E0428 | Or-pattern alternatives that bind differently | `.Some(x) \| .None`; `.Count(n) \| .Circle(n)` with `n` an `i64` and an `f64` |
 | E0430 | Retired in v18 (a default method two visible interfaces supply; now E0460) | never reported |
 | E0431 | A bad format specifier | `"{n:.2}"` with `n: i64`; `"{x:q}"`; `"{f:x}"` with `f: f64`; `"{n:#}"`; `"{s:05}"` with `s: string`; `"{n:2000}"` |
 | E0432 | A bad `format` template | `format(t, 1)` with `t` a variable; `format("{} and {}", 1)`; `format("{x}", 1)`; `format("a {")` |
@@ -2102,9 +2106,9 @@ enum Shape {
 }
 
 fun area(s: Shape): f64 = match s {
-    Circle(r) => 3.14159 * r * r,
-    Rect(w, h) => w * h,
-    Empty => 0.0,
+    .Circle(r) => 3.14159 * r * r,
+    .Rect(w, h) => w * h,
+    .Empty => 0.0,
 };
 
 fun main() {
@@ -2124,8 +2128,8 @@ enum List {
 }
 
 fun sum(l: List): i64 = match l {
-    Nil => 0,
-    Cons(x, rest) => x + sum(rest),
+    .Nil => 0,
+    .Cons(x, rest) => x + sum(rest),
 };
 
 fun main() {
@@ -2165,14 +2169,14 @@ fun main() {
     stack.push(2);
     stack.push(3);
     match stack.pop() {
-        Some(x) => println(x),
-        None => println("empty"),
+        .Some(x) => println(x),
+        .None => println("empty"),
     }
     println(stack.len);
     stack.clear();
     match stack.pop() {
-        Some(x) => println(x),
-        None => println("empty"),
+        .Some(x) => println(x),
+        .None => println("empty"),
     }
 }
 ```
@@ -2183,14 +2187,14 @@ fun main() {
 enum Shape { Circle(f64), Empty }
 
 fun area(s: Shape): f64 = match s {
-    Circle(r) => r * r,
+    .Circle(r) => r * r,
 };
 
 fun main() {}
 ```
 
 ```
-error[E0417]: non-exhaustive match: `Empty` not covered
+error[E0417]: non-exhaustive match: `.Empty` not covered
   --> main.la:3:27
   |
 3 | fun area(s: Shape): f64 = match s {
@@ -2230,12 +2234,12 @@ With `--diagnostics=json`, the same error is the JSON line shown in section 9.
 enum Shape { Circle(f64), Rect(f64, f64), Empty } with Eq
 
 fun describe(s: Option<Shape>): string = match s {
-    Some(Circle(r)) if r > 1.0 => "big circle",
-    Some(Circle(_)) => "small circle",
-    Some(Rect(w, h)) if w == h => "square",
-    Some(Rect(_, _)) => "rect",
-    Some(Empty) => "empty",
-    None => "nothing",
+    .Some(.Circle(r)) if r > 1.0 => "big circle",
+    .Some(.Circle(_)) => "small circle",
+    .Some(.Rect(w, h)) if w == h => "square",
+    .Some(.Rect(_, _)) => "rect",
+    .Some(.Empty) => "empty",
+    .None => "nothing",
 };
 
 fun main() {
@@ -2304,13 +2308,13 @@ fun main() {
     s.push("a");
     s.push("b");
     match s.pop() {
-        Some(x) => println(x),
-        None => println("empty"),
+        .Some(x) => println(x),
+        .None => println("empty"),
     }
     println(contains([1, 2, 3], 2));
     match largest(["pear", "apple", "plum"]) {
-        Some(w) => println(w),
-        None => println("none"),
+        .Some(w) => println(w),
+        .None => println("none"),
     }
 }
 ```
@@ -2364,8 +2368,8 @@ fun main() {
         return;
     }
     match parse_i64(a[1]) {
-        Some(n) => println("{n} doubled is {n * 2}"),
-        None => println("usage: prog <n>"),
+        .Some(n) => println("{n} doubled is {n * 2}"),
+        .None => println("usage: prog <n>"),
     }
 }
 ```
@@ -2429,12 +2433,12 @@ fun quarter(n: i64): Result<i64, string> {
 
 fun main() {
     match quarter(12) {
-        Ok(q) => println(q),
-        Err(e) => println(e),
+        .Ok(q) => println(q),
+        .Err(e) => println(e),
     }
     match quarter(6) {
-        Ok(q) => println(q),
-        Err(e) => println(e),
+        .Ok(q) => println(q),
+        .Err(e) => println(e),
     }
 }
 ```
@@ -2466,11 +2470,11 @@ fun main() {
     let mut skipped = 0;
     while true {
         match read_line() {
-            Some(line) => match parse_i64(line.trim()) {
-                Some(n) => { total += n; }
-                None => { skipped += 1; }
+            .Some(line) => match parse_i64(line.trim()) {
+                .Some(n) => { total += n; }
+                .None => { skipped += 1; }
             },
-            None => { break; }
+            .None => { break; }
         }
     }
     println(total);
@@ -2591,8 +2595,8 @@ fun read(s: string): Result<i64, Error> {
 fun main() {
     for s of ["21", "x", "500"] {
         match read(s) {
-            Ok(n) => println(n),
-            Err(e) => println(e.report()),
+            .Ok(n) => println(n),
+            .Err(e) => println(e.report()),
         }
     }
 }
@@ -2635,8 +2639,8 @@ fun collect<T, S: Source<T>>(src: S): T[] {
     let mut more = true;
     while more {
         match s.next() {
-            Some(x) => { out.push(x); }
-            None => { more = false; }
+            .Some(x) => { out.push(x); }
+            .None => { more = false; }
         }
     }
     out
@@ -2875,8 +2879,8 @@ In the same layout, a `main.la` that calls `c.diameter()` or writes `shapes.Circ
 enum Shape { Circle(f64), Square(f64), Rect(f64, f64) }
 
 fun size(s: Shape): f64 = match s {
-    Circle(r) | Square(r) => r * 2.0,
-    Rect(w, h) => w + h,
+    .Circle(r) | .Square(r) => r * 2.0,
+    .Rect(w, h) => w + h,
 };
 
 fun kind(cmd: string): string = match cmd {
@@ -2891,11 +2895,11 @@ fun main() {
     println(kind("quit"));
     println(kind("ls"));
     match Some(41) {
-        Some(mut n) => {
+        .Some(mut n) => {
             n += 1;
             println(n);
         }
-        None => {}
+        .None => {}
     }
 }
 ```
@@ -2919,7 +2923,7 @@ fun main() {
 
 ```
 fun double(s: string): i64 {
-    let Some(n) = parse_i64(s) else {
+    let .Some(n) = parse_i64(s) else {
         return -1;
     };
     n * 2
@@ -2928,7 +2932,7 @@ fun double(s: string): i64 {
 fun main() {
     let mut total = 0;
     for w of ["3", "x", "4"] {
-        if let Some(n) = parse_i64(w) {
+        if let .Some(n) = parse_i64(w) {
             total += n;
         } else {
             println("skipped {w}");
@@ -2936,7 +2940,7 @@ fun main() {
     }
     println(total);
     let mut stack = [1, 2, 3];
-    while let Some(top) = stack.pop() {
+    while let .Some(top) = stack.pop() {
         print(top);
     }
     println("");
@@ -2969,8 +2973,8 @@ enum Light { Red, Green }
 
 impl Light {
     fun toggle(self): Self = match self {
-        Red => Self.Green,
-        Green => Self.Red,
+        .Red => Self.Green,
+        .Green => Self.Red,
     };
 }
 
@@ -2979,8 +2983,8 @@ fun main() {
     println(p.name());
     println(p.describe());
     match Light.Red.toggle() {
-        Green => println("green"),
-        Red => println("red"),
+        .Green => println("green"),
+        .Red => println("red"),
     }
 }
 ```
@@ -3247,12 +3251,12 @@ fun main() {
 fun main() {
     let data: u8[] = [104, 105, 0, 255];
     match write_bytes("out.bin", data) {
-        Ok(n) => println("wrote {n}"),
-        Err(e) => println("error {e}"),
+        .Ok(n) => println("wrote {n}"),
+        .Err(e) => println("error {e}"),
     }
     match read_bytes("out.bin") {
-        Ok(b) => println(b.debug()),
-        Err(e) => println(e),
+        .Ok(b) => println(b.debug()),
+        .Err(e) => println(e),
     }
     let text = "héllo";
     let raw = text.to_bytes();
@@ -3317,7 +3321,7 @@ fun main() {
     p.1[0] = 9;
     println("{copy.debug()} {p.debug()}");
     println((1, 2) == (1, 2));
-    if let (Some(a), b) = (Some(3), 4) {
+    if let (.Some(a), b) = (Some(3), 4) {
         println(a + b);
     }
 }
@@ -3387,8 +3391,8 @@ fun main() {
     println(shapes.round.area(3));
     let d = shapes.vec.Dir.Up;
     match d {
-        Up => println("up"),
-        Down => println("down"),
+        .Up => println("up"),
+        .Down => println("down"),
     }
     let f = shapes.vec.add;
     println(f(a, a).debug());
@@ -3615,13 +3619,13 @@ fun main() {
     let a = write_file("runs/2026/b.log", "b");
     let b = write_file("runs/2026/a.log", "a");
     match fs.list_dir("runs/2026") {
-        Ok(names) => println(names.debug()),
-        Err(e) => println(e),
+        .Ok(names) => println(names.debug()),
+        .Err(e) => println(e),
     }
     println("{fs.is_dir("runs")} {fs.is_file("runs/2026/a.log")} {fs.exists("runs/x")}");
     match fs.remove_dir("runs/2026") {
-        Ok(_) => println("removed"),
-        Err(e) => println(e),
+        .Ok(_) => println("removed"),
+        .Err(e) => println(e),
     }
     for name of fs.list_dir("runs/2026").unwrap_or([]) {
         let gone = fs.remove_file("runs/2026/{name}");
@@ -3641,16 +3645,16 @@ import std.process;
 
 fun main() {
     match process.run("echo", ["hello", "; not a command"]) {
-        Ok(out) => println("{out.code}: {out.stdout.trim()}"),
-        Err(e) => println(e),
+        .Ok(out) => println("{out.code}: {out.stdout.trim()}"),
+        .Err(e) => println(e),
     }
     match process.run_with("sort", [], "pear\napple\n") {
-        Ok(out) => println(out.stdout.split("\n").debug()),
-        Err(e) => println(e),
+        .Ok(out) => println(out.stdout.split("\n").debug()),
+        .Err(e) => println(e),
     }
     match process.run("sh", ["-c", "exit 7"]) {
-        Ok(out) => println(out.code),
-        Err(e) => println(e),
+        .Ok(out) => println(out.code),
+        .Err(e) => println(e),
     }
     println(process.run("surely-not-a-program", []).is_err());
 }
@@ -3750,7 +3754,7 @@ fun main() {
     let c: Chan<i64> = Chan.buffered(2);
     spawn produce(c, 3);
     let mut sum = 0;
-    while let Some(v) = c.recv() {
+    while let .Some(v) = c.recv() {
         sum += v;
     }
     println(sum);
@@ -4055,6 +4059,7 @@ The spec is implemented in five milestones, each ending in a program that runs. 
 | 173 | `@caller_location` (v18) | marked functions and methods report their caller's place; `unwrap`, `expect` and the assertions in the prelude | `tests/programs/errors/caller_location` (done) |
 | 174 | Sizes (v18) | `kb()`, `mb()`, `gb()` on integers, in powers of 1024 | `tests/programs/numbers/sizes` (done) |
 | 175 | Discarded `Result` (v18) | an expression statement of type `Result` is E0467; `let _ = …;` drops one | `tests/programs/errors/discarded_result` (done) |
+| 176 | Dotted variants (v18) | `.Some(x)`, `.None`, `.Circle(r)` in every pattern; a bare name always binds; E0212, E0468 | `tests/programs/patterns/dot_variants` (done) |
 
 In milestones 1 and 2, every value can be treated as `i64`, so codegen can start before the type checker exists. Until milestone 4 provides `lugha_rt_panic`, integer `+`, `-` and `*` wrap, and `/` and `%` stop the program with a trap on a zero divisor or `MIN / -1`. Milestone 3 then replaces that assumption with real types. The process exit code is the low 8 bits of `main`'s result, so milestone tests use results below 256.
 

@@ -1,7 +1,7 @@
 // The conditional-patterns example program.
 
 fun double(s: string): i64 {
-    let Some(n) = parse_i64(s) else {
+    let .Some(n) = parse_i64(s) else {
         return -1;
     };
     n * 2
@@ -10,7 +10,7 @@ fun double(s: string): i64 {
 fun main() {
     let mut total = 0;
     for w of ["3", "x", "4"] {
-        if let Some(n) = parse_i64(w) {
+        if let .Some(n) = parse_i64(w) {
             total += n;
         } else {
             println("skipped {w}");
@@ -18,7 +18,7 @@ fun main() {
     }
     println(total);
     let mut stack = [1, 2, 3];
-    while let Some(top) = stack.pop() {
+    while let .Some(top) = stack.pop() {
         print(top);
     }
     println("");

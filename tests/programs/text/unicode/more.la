@@ -6,8 +6,8 @@ struct Glyph { c: char, n: i64 }
 
 fun main() {
     match read_line() {
-        Some(line) => println(line.chars().collect().debug()),
-        None => println("none"),
+        .Some(line) => println(line.chars().collect().debug()),
+        .None => println("none"),
     }
     println(-1 as char);
     println(1114111 as char as u32);

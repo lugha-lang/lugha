@@ -101,8 +101,8 @@ fn handles_come_from_c_and_go_back() {
              println(a != b);\n\
              println(a.debug());\n\
              println(\"{h.t.debug()}\");\n\
-             match thing_find(2) { Some(t) => println(thing_id(t)), None => println(\"none\") }\n\
-             match thing_find(5) { Some(t) => println(thing_id(t)), None => println(\"none\") }\n\
+             match thing_find(2) { .Some(t) => println(thing_id(t)), .None => println(\"none\") }\n\
+             match thing_find(5) { .Some(t) => println(thing_id(t)), .None => println(\"none\") }\n\
              println(thing_is_null(None));\n\
              println(thing_is_null(Some(a)));\n\
              let ts = [a, b];\n\
@@ -222,7 +222,7 @@ fn callbacks_take_and_give_handles_numbers_and_bools() {
                  if b { (thing_id(t) + n as i64) as f64 * x * scale } else { 0.0 }\n\
              }));\n\
              println(maybe(fun(t: Option<Thing>): i64 {\n\
-                 match t { Some(x) => thing_id(x), None => 7 }\n\
+                 match t { .Some(x) => thing_id(x), .None => 7 }\n\
              }));\n\
              let things: Thing[] = [];\n\
              println(pick(fun(i: i64): Option<Thing> = if i == 0 { None } else { None }));\n\

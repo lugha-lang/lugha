@@ -13,14 +13,14 @@ use lsp_client::{Server, Temp};
 const MAIN: &str = "enum Shape { Circle(f64), Rect(f64, f64), Dot }
 
 fun area(s: Shape): f64 = match s {
-    Circle(r) => 3.0 * r * r,
+    .Circle(r) => 3.0 * r * r,
 };
 
 fun main() {
     let o: Option<Shape> = None;
     match o {
-        Some(Dot) => println(\"dot\"),
-        None => {}
+        .Some(.Dot) => println(\"dot\"),
+        .None => {}
     }
     let n = 3;
     match n { 1 => {} }
@@ -150,16 +150,16 @@ fn missing_arms_are_added_in_full_and_the_result_checks() {
     }
     assert!(
         text.contains(
-            "    Rect(_, _) => panic(\"not handled\"),\n    Dot => panic(\"not handled\"),\n"
+            "    .Rect(_, _) => panic(\"not handled\"),\n    .Dot => panic(\"not handled\"),\n"
         ),
         "{text}"
     );
     assert!(
-        text.contains("Some(Circle(_)) => panic(\"not handled\"),"),
+        text.contains(".Some(.Circle(_)) => panic(\"not handled\"),"),
         "{text}"
     );
     assert!(
-        text.contains("Some(Rect(_, _)) => panic(\"not handled\"),"),
+        text.contains(".Some(.Rect(_, _)) => panic(\"not handled\"),"),
         "{text}"
     );
     std::fs::write(t.path("main.la"), &text).unwrap();
@@ -291,10 +291,10 @@ const VARIANT: &str = "enum Shape { Circle(f64), Dot, Empty }
 fun main() {
     let o: Option<Shape> = None;
     let n = match o {
-        Some(Emtpy) => 0,
-        Some(dot) => 1,
-        Some(Circle(_)) => 2,
-        None => 3,
+        .Some(Emtpy) => 0,
+        .Some(dot) => 1,
+        .Some(.Circle(_)) => 2,
+        .None => 3,
     };
     println(n);
 }
@@ -302,10 +302,10 @@ fun main() {
 
 #[test]
 fn a_misspelled_variant_is_corrected_and_the_result_checks() {
-    let text = fixed(VARIANT, "Change to `Empty`");
-    let text = fixed(&text, "Change to `Dot`");
+    let text = fixed(VARIANT, "Change to `.Empty`");
+    let text = fixed(&text, "Change to `.Dot`");
     assert!(
-        text.contains("Some(Empty) => 0") && text.contains("Some(Dot) => 1"),
+        text.contains(".Some(.Empty) => 0") && text.contains(".Some(.Dot) => 1"),
         "{text}"
     );
     let t = Temp::with(&[]);
@@ -321,12 +321,12 @@ fn a_binding_far_from_every_variant_or_tied_gets_no_fix() {
 fun main() {
     let e: Option<E> = None;
     match e {
-        Some(value) => println(1),
-        None => {}
+        .Some(value) => println(1),
+        .None => {}
     }
     match e {
-        Some(Ab) => println(2),
-        None => {}
+        .Some(.Ab) => println(2),
+        .None => {}
     }
 }
 ";

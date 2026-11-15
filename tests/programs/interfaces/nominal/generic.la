@@ -2,7 +2,7 @@
 // implemented once per argument list.
 interface Source<T> {
     fun next(mut self): Option<T>;
-    fun first(mut self): T = match self.next() { Some(x) => x, None => panic("empty") };
+    fun first(mut self): T = match self.next() { .Some(x) => x, .None => panic("empty") };
 }
 interface From<T> { fun from(x: T): Self; }
 interface Sized { fun size(self): i64; }
@@ -22,7 +22,7 @@ impl From<i64> for Path { fun from(x: i64): Path = Path { s: "#{x}" }; }
 fun drain<T, S: Source<T>>(src: S): T[] {
     let mut s = src;
     let mut out: T[] = [];
-    while true { match s.next() { Some(x) => out.push(x), None => { return out; } } }
+    while true { match s.next() { .Some(x) => out.push(x), .None => { return out; } } }
     out
 }
 fun count<T: Sized>(x: T): i64 = x.size();

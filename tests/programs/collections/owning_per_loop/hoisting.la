@@ -52,7 +52,7 @@ fun main() {
     let mut rows = [[1, 1], [2, 2]];
     let copy = rows;
     let mut next = Some(1);
-    while let Some(r) = next {
+    while let .Some(r) = next {
         for j in 0..2 {
             rows[r][j] *= 10;
         }

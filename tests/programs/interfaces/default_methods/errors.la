@@ -30,8 +30,8 @@ fun read(s: string): Result<i64, Error> {
 fun main() {
     for s of ["21", "x", "500"] {
         match read(s) {
-            Ok(n) => println(n),
-            Err(e) => println(e.report()),
+            .Ok(n) => println(n),
+            .Err(e) => println(e.report()),
         }
     }
 }

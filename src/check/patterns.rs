@@ -50,9 +50,7 @@ impl Checker {
         pats.into_iter().map(|p| (p, pattern.span)).collect()
     }
 
-    /// One pattern at any depth, as the ways it can match. A bare name in a
-    /// payload slot binds the payload unless the slot's type has a variant by
-    /// that name; at the top level it must be a variant.
+    /// One pattern at any depth, as the ways it can match.
     pub(super) fn pattern_at(
         &mut self,
         pattern: &Pattern,
@@ -68,25 +66,31 @@ impl Checker {
                 .collect(),
             PatternKind::Mut(inner) => self.mut_pattern(inner, ty, bindings, top),
             PatternKind::Tuple(given) => self.tuple_pattern(pattern, given, ty, bindings),
-            PatternKind::Variant(name, slots) if !self.binds(pattern, ty, top) => {
+            PatternKind::Variant(name, slots) => {
                 self.variant_pattern(pattern, name, slots.as_deref(), ty, bindings)
             }
-            _ => vec![self.single(pattern, ty, bindings, top)],
+            _ => vec![self.single(pattern, ty, bindings)],
         }
     }
 
-    /// True if `pattern` is a bare name that binds rather than names a variant.
-    pub(super) fn binds(&self, pattern: &Pattern, ty: &Type, top: bool) -> bool {
-        match &pattern.kind {
-            PatternKind::Variant(name, None) => {
-                !top && !slot_names_variant(self.variants_of(ty).as_deref(), &name.name)
-            }
-            _ => false,
+    /// A bare name binds; one spelled like a variant of the type it binds
+    /// is an undotted variant (E0468), since binding would match anything.
+    pub(super) fn binding(
+        &mut self,
+        name: &Ident,
+        ty: &Type,
+        mutable: bool,
+        bindings: &mut Bindings,
+    ) {
+        if slot_names_variant(self.variants_of(ty).as_deref(), &name.name) {
+            self.report(errors::undotted_variant(&name.name, ty, name.span));
+            return;
         }
+        bindings.push((name.clone(), ty.clone(), mutable));
     }
 
     /// A pattern with no alternatives inside it.
-    fn single(&mut self, pattern: &Pattern, ty: &Type, bindings: &mut Bindings, top: bool) -> Pat {
+    fn single(&mut self, pattern: &Pattern, ty: &Type, bindings: &mut Bindings) -> Pat {
         let fits = |ok: bool| ok || matches!(ty, Type::Error | Type::Never);
         match &pattern.kind {
             PatternKind::Wildcard => Pat::Wild,
@@ -113,8 +117,8 @@ impl Checker {
                 }
                 Pat::Ctor(Ctor::Bool(*value), Vec::new())
             }
-            PatternKind::Variant(name, None) if self.binds(pattern, ty, top) => {
-                bindings.push((name.clone(), ty.clone(), false));
+            PatternKind::Binding(name) => {
+                self.binding(name, ty, false, bindings);
                 Pat::Wild
             }
             PatternKind::Type(name, written) => {
@@ -196,32 +200,58 @@ mod tests {
 
     #[test]
     fn nested_patterns_bind_payload_types() {
-        let src = main("let a = match s { Some(Circle(r)) => r, _ => 0.0 };");
+        let src = main("let a = match s { .Some(.Circle(r)) => r, _ => 0.0 };");
         assert_eq!(let_type(&src, "a"), Type::F64);
-        let src = main("let b = match s { Some(x) => x, None => Shape.Empty };");
+        let src = main("let b = match s { .Some(x) => x, .None => Shape.Empty };");
         assert_eq!(let_type(&src, "b"), Type::Enum("Shape".into(), Vec::new()));
         ok(&main(
-            "let c = match p { P(1, Some(\"a\")) => 1, P(n, _) => n }; let d = match s { Some(Empty) => 1, _ => 2 };",
+            "let c = match p { .P(1, .Some(\"a\")) => 1, .P(n, _) => n }; let d = match s { .Some(.Empty) => 1, _ => 2 };",
         ));
     }
 
     #[test]
     fn nested_patterns_must_fit_their_slots() {
         assert_eq!(
-            errors(&main("match p { P(1, Some(1)) => {} _ => {} }")),
+            errors(&main("match p { .P(1, .Some(1)) => {} _ => {} }")),
             [("E0403", "1")]
         );
         assert_eq!(
-            errors(&main("match s { Some(Circle(Rect(_, _))) => {} _ => {} }")),
-            [("E0403", "Rect(_, _)")]
+            errors(&main(
+                "match s { .Some(.Circle(.Rect(_, _))) => {} _ => {} }"
+            )),
+            [("E0403", ".Rect(_, _)")]
         );
         assert_eq!(
-            errors(&main("match s { Some(Rect(_)) => {} _ => {} }")),
-            [("E0416", "Rect(_)")]
+            errors(&main("match s { .Some(.Rect(_)) => {} _ => {} }")),
+            [("E0416", ".Rect(_)")]
         );
         assert_eq!(
-            errors(&main("match s { Nope => {} _ => {} }")),
+            errors(&main("match s { .Nope => {} _ => {} }")),
             [("E0415", "Nope")]
         );
+    }
+
+    #[test]
+    fn a_bare_name_binds_and_one_named_like_its_variant_is_e0468() {
+        let src = main("let a = match s { .Some(.Circle(r)) => r, other => 0.0 };");
+        assert_eq!(let_type(&src, "a"), Type::F64);
+        assert_eq!(
+            errors(&main("match s { None => {} _ => {} }")),
+            [("E0468", "None")]
+        );
+        assert_eq!(
+            errors(&main("match s { .Some(Empty) => {} _ => {} }")),
+            [("E0468", "Empty")]
+        );
+        assert_eq!(
+            errors(&main("if let .Some(mut Empty) = s { }")),
+            [("E0468", "Empty")]
+        );
+        assert_eq!(
+            errors(&main("let Empty = Shape.Empty else { return; };")),
+            [("E0468", "Empty")]
+        );
+        // Named like another type's variant: an ordinary binding.
+        ok(&main("match p { .P(Circle, _) => println(Circle), }"));
     }
 }

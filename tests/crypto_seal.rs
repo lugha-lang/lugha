@@ -44,8 +44,8 @@ fun first(bytes: u8[], n: i64): u8[] {
 
 fun show(r: Result<u8[], crypto.CryptoError>): string {
     match r {
-        Ok(bytes) => hex(bytes),
-        Err(e) => e.message(),
+        .Ok(bytes) => hex(bytes),
+        .Err(e) => e.message(),
     }
 }
 ";
@@ -124,7 +124,7 @@ fun main() {{
     println(show(crypto.chacha20poly1305_open(flipped(key(), 5), nonce(), sealed(), aad())));
     println(show(crypto.chacha20poly1305_open(key(), nonce(), sealed(), [])));
     match crypto.chacha20poly1305_open(key(), nonce(), flipped(sealed(), 7), aad()) {{
-        Err(NotAuthentic) => println(\"refused\"),
+        .Err(.NotAuthentic) => println(\"refused\"),
         _ => println(\"accepted\"),
     }}
 }}"
@@ -201,7 +201,7 @@ fn x25519_keypairs_agree_and_bad_keys_are_refused() {
     println(show(crypto.x25519_shared(a, [0 as u8; 32])));
     let order_8 = unhex(\"e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800\");
     match crypto.x25519_shared(a, order_8) {
-        Err(BadKey(why)) => println(\"refused: {why}\"),
+        .Err(.BadKey(why)) => println(\"refused: {why}\"),
         _ => println(\"accepted\"),
     }
     println(show(crypto.x25519_public(first(a, 31))));
@@ -225,9 +225,9 @@ fn a_match_must_name_the_new_variants() {
         "check",
         "fun main() {
     match crypto.random_bytes(1) {
-        Ok(_) => {}
-        Err(BadLength(_, _, _)) => {}
-        Err(OpenSsl(_)) => {}
+        .Ok(_) => {}
+        .Err(.BadLength(_, _, _)) => {}
+        .Err(.OpenSsl(_)) => {}
     }
 }",
     );

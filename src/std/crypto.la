@@ -35,10 +35,10 @@ impl CryptoError {
     /** The error as a sentence. */
     public fun message(self): string {
         match self {
-            BadLength(what, wanted, given) => "{what}: wanted {wanted} bytes, got {given}",
-            OpenSsl(reason) => "OpenSSL: {reason}",
-            NotAuthentic => "the sealed bytes don't match their key, nonce and associated data",
-            BadKey(why) => "bad key: {why}",
+            .BadLength(what, wanted, given) => "{what}: wanted {wanted} bytes, got {given}",
+            .OpenSsl(reason) => "OpenSSL: {reason}",
+            .NotAuthentic => "the sealed bytes don't match their key, nonce and associated data",
+            .BadKey(why) => "bad key: {why}",
         }
     }
 }

@@ -6,13 +6,13 @@
 import std.$json_value { DecodeError, Value };
 
 fun $kind(v: Value): string = match v {
-    Null => "null",
-    Bool(_) => "a boolean",
-    Integer(_) => "an integer",
-    Float(_) => "a float",
-    Text(_) => "a string",
-    Array(_) => "an array",
-    Object(_) => "an object",
+    .Null => "null",
+    .Bool(_) => "a boolean",
+    .Integer(_) => "an integer",
+    .Float(_) => "a float",
+    .Text(_) => "a string",
+    .Array(_) => "an array",
+    .Object(_) => "an object",
 };
 
 fun $fail<T>(path: string, detail: string): Result<T, DecodeError> = Err(DecodeError { path: path, detail: detail });
@@ -24,7 +24,7 @@ fun $field_path(path: string, name: string): string = if path.len == 0 { name } 
 fun $index_path(path: string, i: i64): string = "{path}[{i}]";
 
 fun $dec_int(v: Value, path: string, min: i64, max: i64, name: string): Result<i64, DecodeError> = match v {
-    Integer(n) => if n < min || n > max { $fail(path, "{n} doesn't fit {name}") } else { Ok(n) },
+    .Integer(n) => if n < min || n > max { $fail(path, "{n} doesn't fit {name}") } else { Ok(n) },
     _ => $wrong(path, "an integer", v),
 };
 
@@ -45,20 +45,20 @@ fun $dec_u32(v: Value, path: string): Result<u32, DecodeError> = $dec_int(v, pat
 fun $dec_u64(v: Value, path: string): Result<u64, DecodeError> = $dec_int(v, path, 0, i64.MAX, "u64").map(fun(n) = n as u64);
 
 fun $dec_f64(v: Value, path: string): Result<f64, DecodeError> = match v {
-    Integer(n) => Ok(n as f64),
-    Float(x) => Ok(x),
+    .Integer(n) => Ok(n as f64),
+    .Float(x) => Ok(x),
     _ => $wrong(path, "a number", v),
 };
 
 fun $dec_f32(v: Value, path: string): Result<f32, DecodeError> = $dec_f64(v, path).map(fun(x) = x as f32);
 
 fun $dec_bool(v: Value, path: string): Result<bool, DecodeError> = match v {
-    Bool(b) => Ok(b),
+    .Bool(b) => Ok(b),
     _ => $wrong(path, "a boolean", v),
 };
 
 fun $dec_text(v: Value, path: string): Result<string, DecodeError> = match v {
-    Text(s) => Ok(s),
+    .Text(s) => Ok(s),
     _ => $wrong(path, "a string", v),
 };
 
@@ -71,34 +71,34 @@ fun $dec_char(v: Value, path: string): Result<char, DecodeError> {
         count += 1;
     }
     match found {
-        Some(c) if count == 1 => Ok(c),
+        .Some(c) if count == 1 => Ok(c),
         _ => $fail(path, "expected one character, found \"{s}\""),
     }
 }
 
 fun $dec_unit(v: Value, path: string): Result<(), DecodeError> = match v {
-    Null => Ok(()),
+    .Null => Ok(()),
     _ => $wrong(path, "null", v),
 };
 
 fun $dec_object(v: Value, path: string): Result<Map<string, Value>, DecodeError> = match v {
-    Object(m) => Ok(m),
+    .Object(m) => Ok(m),
     _ => $wrong(path, "an object", v),
 };
 
 /** An array of exactly `n` values (any number when `n` is -1). */
 fun $dec_items(v: Value, n: i64, path: string): Result<Value[], DecodeError> = match v {
-    Array(xs) => if n < 0 || xs.len == n { Ok(xs) } else { $fail(path, "expected an array of {n}, found {xs.len}") },
+    .Array(xs) => if n < 0 || xs.len == n { Ok(xs) } else { $fail(path, "expected an array of {n}, found {xs.len}") },
     _ => $wrong(path, "an array", v),
 };
 
 /** A variant's name: a string, or an object's one key. */
 fun $variant_name(v: Value, path: string): Result<string, DecodeError> {
     match v {
-        Text(s) => {
+        .Text(s) => {
             return Ok(s);
         }
-        Object(m) if m.len == 1 => {
+        .Object(m) if m.len == 1 => {
             return Ok(m.keys()[0]);
         }
         _ => {}
@@ -108,12 +108,12 @@ fun $variant_name(v: Value, path: string): Result<string, DecodeError> {
 
 /** The payload of a one-key object (`null` for a bare name). */
 fun $variant_payload(v: Value): Value = match v {
-    Object(m) => m.values()[0],
+    .Object(m) => m.values()[0],
     _ => Value.Null,
 };
 
 fun $variant_bare(v: Value): bool = match v {
-    Text(_) => true,
+    .Text(_) => true,
     _ => false,
 };
 

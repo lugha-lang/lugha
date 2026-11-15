@@ -30,8 +30,8 @@ impl Shape for Circle {
 struct Scene { main: Shape, all: Shape[], spare: Option<Shape> }
 
 fun area_of(o: Option<Shape>): f64 = match o {
-    Some(s) => s.area(),
-    None => 0.0,
+    .Some(s) => s.area(),
+    .None => 0.0,
 };
 
 fun main() {

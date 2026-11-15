@@ -19,7 +19,7 @@ fun main() {
     let mut p = Point { x: 1.0 };
     p.x = 2.0;
     let s = Shape.Round(p.x);
-    match s { Round(r) => println(r), Dot => {} }
+    match s { .Round(r) => println(r), .Dot => {} }
     println(\"n = {geo.double(LIMIT)}\");
     println(same(3));
 }
@@ -179,7 +179,7 @@ fn names_are_classified_by_what_they_resolve_to() {
     check("p.x = 2.0", "x", "property", &[]);
     check("enum Shape", "Shape", "enum", &["declaration"]);
     check("{ Round(f64)", "Round", "enumMember", &["declaration"]);
-    check("{ Round(r)", "Round", "enumMember", &[]);
+    check("{ .Round(r)", "Round", "enumMember", &[]);
     check("= Shape.Round", "Shape", "enum", &[]);
     check("= Shape.Round", "Round", "enumMember", &[]);
     check("const LIMIT", "LIMIT", "variable", &["declaration"]);

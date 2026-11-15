@@ -115,8 +115,9 @@ pub(in crate::check) fn unreachable_arm_combined(span: Span) -> Diagnostic {
 }
 
 pub(in crate::check) fn unused_binding(name: &str, span: Span) -> Diagnostic {
-    Diagnostic::warning("W0103", format!("unused binding `{name}`"), span)
-        .with_help("if you meant a variant, check its spelling; otherwise write `_`")
+    Diagnostic::warning("W0103", format!("unused binding `{name}`"), span).with_help(
+        "if you meant a variant, write it with a dot and check its spelling; otherwise write `_`",
+    )
 }
 
 pub(in crate::check) fn mut_self_alias(name: &str, span: Span, receiver: Span) -> Diagnostic {

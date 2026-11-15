@@ -23,7 +23,7 @@ fun main() {
     p.1[0] = 9;
     println("{copy.debug()} {p.debug()}");
     println((1, 2) == (1, 2));
-    if let (Some(a), b) = (Some(3), 4) {
+    if let (.Some(a), b) = (Some(3), 4) {
         println(a + b);
     }
 }

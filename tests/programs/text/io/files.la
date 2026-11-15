@@ -13,27 +13,27 @@ fun count_lines(path: string): Result<i64, string> {
 
 fun main() {
     match save("notes.txt", ["one", "two", "three"]) {
-        Ok(n) => println("saved {n} bytes"),
-        Err(e) => println("save failed: " + e),
+        .Ok(n) => println("saved {n} bytes"),
+        .Err(e) => println("save failed: " + e),
     }
     match count_lines("notes.txt") {
-        Ok(n) => println("{n} lines"),
-        Err(e) => println("read failed: " + e),
+        .Ok(n) => println("{n} lines"),
+        .Err(e) => println("read failed: " + e),
     }
     match write_file("notes.txt", "replaced") {
-        Ok(n) => println("wrote {n}"),
-        Err(e) => println(e),
+        .Ok(n) => println("wrote {n}"),
+        .Err(e) => println(e),
     }
     match read_file("notes.txt") {
-        Ok(t) => println(t),
-        Err(e) => println(e),
+        .Ok(t) => println(t),
+        .Err(e) => println(e),
     }
     match read_file("missing.txt") {
-        Ok(_) => println("unexpected"),
-        Err(e) => println("missing.txt: " + e),
+        .Ok(_) => println("unexpected"),
+        .Err(e) => println("missing.txt: " + e),
     }
     match count_lines("missing.txt") {
-        Ok(_) => println("unexpected"),
-        Err(e) => println("count: " + e),
+        .Ok(_) => println("unexpected"),
+        .Err(e) => println("count: " + e),
     }
 }

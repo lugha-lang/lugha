@@ -3,13 +3,13 @@
 import std.fs;
 
 fun show(r: Result<i64, string>): string = match r {
-    Ok(n) => "ok {n}",
-    Err(e) => "err {e}",
+    .Ok(n) => "ok {n}",
+    .Err(e) => "err {e}",
 };
 
 fun list(path: string): string = match fs.list_dir(path) {
-    Ok(names) => "{names.debug()}",
-    Err(e) => e,
+    .Ok(names) => "{names.debug()}",
+    .Err(e) => e,
 };
 
 fun main() {

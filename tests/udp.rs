@@ -64,7 +64,7 @@ fn datagrams_go_both_ways_and_name_their_sender() {
 fn ipv6_loopback_works_when_the_machine_has_it() {
     let out = run("fun main() {
     match net.udp_bind(\"[::1]:0\") {
-        Ok(a) => {
+        .Ok(a) => {
             let b = net.udp_bind(\"[::1]:0\").unwrap();
             b.set_timeout(2000);
             a.send_to(\"six\".to_bytes(), b.addr()).unwrap();
@@ -72,7 +72,7 @@ fn ipv6_loopback_works_when_the_machine_has_it() {
             println(string_from_utf8(got).unwrap());
             println(from.starts_with(\"[::1]:\"));
         }
-        Err(_) => println(\"no ipv6\"),
+        .Err(_) => println(\"no ipv6\"),
     }
 }");
     assert!(out == "six\ntrue\n" || out == "no ipv6\n", "stdout: {out}");

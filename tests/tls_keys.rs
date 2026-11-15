@@ -92,11 +92,11 @@ fun device(): Device {
 fun serve(l: tls.Listener) {
     while true {
         match l.accept() {
-            Ok(conn) => {
+            .Ok(conn) => {
                 let _ = conn.write(conn.peer_key());
                 conn.close();
             }
-            Err(_) => {}
+            .Err(_) => {}
         }
     }
 }
@@ -110,15 +110,15 @@ fun listening(server: Device, accept: u8[][]): tls.Listener {
 // `in` when the server named this client's key back, `refused: …` otherwise.
 fun try(addr: string, client: Device, server_key: u8[]) {
     match tls.connect_keys(addr, tls.Keys { secret: client.secret, accept: [server_key] }, 5000) {
-        Ok(c) => {
+        .Ok(c) => {
             let ours = c.peer_key() == server_key;
             match c.read(100) {
-                Ok(seen) => println(if seen == client.key && ours { \"in\" } else { \"refused\" }),
-                Err(_) => println(\"refused\"),
+                .Ok(seen) => println(if seen == client.key && ours { \"in\" } else { \"refused\" }),
+                .Err(_) => println(\"refused\"),
             }
             c.close();
         }
-        Err(e) => println(\"refused: {e}\"),
+        .Err(e) => println(\"refused: {e}\"),
     }
 }
 ";
@@ -168,16 +168,16 @@ fn wrong_key_lengths_are_refused() {
     let short = [1 as u8; 31];
     println(tls.listen_keys(\"127.0.0.1:0\", tls.Keys { secret: short, accept: [] }).is_err());
     match tls.listen_keys(\"127.0.0.1:0\", tls.Keys { secret: short, accept: [] }) {
-        Err(e) => println(e),
-        Ok(_) => println(\"listening\"),
+        .Err(e) => println(e),
+        .Ok(_) => println(\"listening\"),
     }
     match tls.listen_keys(\"127.0.0.1:0\", tls.Keys { secret: a.secret, accept: [a.key, short] }) {
-        Err(e) => println(e),
-        Ok(_) => println(\"listening\"),
+        .Err(e) => println(e),
+        .Ok(_) => println(\"listening\"),
     }
     match tls.connect_keys(\"127.0.0.1:1\", tls.Keys { secret: a.secret, accept: [short] }, 1000) {
-        Err(e) => println(e),
-        Ok(_) => println(\"connected\"),
+        .Err(e) => println(e),
+        .Ok(_) => println(\"connected\"),
     }
     let l = tls.listen_keys(\"127.0.0.1:0\", tls.Keys { secret: a.secret, accept: [] }).unwrap();
     println(l.set_accept([short]).debug());

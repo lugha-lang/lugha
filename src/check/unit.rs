@@ -85,8 +85,8 @@ mod tests {
                 let () = log();\n\
                 match log() { () => println(1) }\n\
                 let o: Option<()> = Some(());\n\
-                match o { Some(()) => println(2), None => println(3) }\n\
-                if let Some(()) = o { println(4); }\n\
+                match o { .Some(()) => println(2), .None => println(3) }\n\
+                if let .Some(()) = o { println(4); }\n\
                 let t = ((), 5);\n\
                 let ((), n) = t;\n\
             }");
@@ -95,7 +95,7 @@ mod tests {
             [("E0403", "()")]
         );
         assert_eq!(
-            errors("fun main() { let o: Option<()> = None; match o { Some(()) => println(1) } }")
+            errors("fun main() { let o: Option<()> = None; match o { .Some(()) => println(1) } }")
                 [0]
             .0,
             "E0417"

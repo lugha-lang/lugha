@@ -9,7 +9,7 @@ impl shapes.Show for Point[] {
 
 impl shapes.Show for Option<Point> {
     fun label(self): string = match self {
-        Some(p) => "at {p.x}",
-        None => "nowhere",
+        .Some(p) => "at {p.x}",
+        .None => "nowhere",
     };
 }

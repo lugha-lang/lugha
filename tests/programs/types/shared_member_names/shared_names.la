@@ -26,7 +26,7 @@ enum Shape {
 
 impl Shape {
     fun Circle(self): bool = match self {
-        Circle(_) => true,
+        .Circle(_) => true,
         _ => false,
     };
 }

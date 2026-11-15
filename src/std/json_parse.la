@@ -22,8 +22,8 @@ fun parse_text(text: string, limits: Limits): Result<Value, JsonError> {
     }
     let mut p = Parser { b: b, pos: 0, limits: limits, values: 0 };
     match p.document() {
-        Ok(v) => Ok(v),
-        Err(o) => Err(locate(b, o)),
+        .Ok(v) => Ok(v),
+        .Err(o) => Err(locate(b, o)),
     }
 }
 
@@ -381,9 +381,9 @@ impl Parser {
             return Ok(Value.Integer(if neg { n } else { -n }));
         }
         match parse_f64(text(cut(self.b, start, k))) {
-            Some(x) if finite(x) => Ok(Value.Float(x)),
-            Some(_) => Err(oops(ErrorKind.Overflow, "a number too large for f64", start)),
-            None => Err(syntax("not a number", start)),
+            .Some(x) if finite(x) => Ok(Value.Float(x)),
+            .Some(_) => Err(oops(ErrorKind.Overflow, "a number too large for f64", start)),
+            .None => Err(syntax("not a number", start)),
         }
     }
 }

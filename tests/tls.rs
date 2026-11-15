@@ -150,13 +150,13 @@ impl Drop for Case {
 const SERVE: &str = "fun serve(l: tls.Listener) {
     while true {
         match l.accept() {
-            Ok(conn) => {
-                if let Ok(got) = conn.read(100) {
+            .Ok(conn) => {
+                if let .Ok(got) = conn.read(100) {
                     let _ = conn.write(got);
                 }
                 conn.close();
             }
-            Err(_) => {}
+            .Err(_) => {}
         }
     }
 }
@@ -165,12 +165,12 @@ fun trusting(): tls.Options = tls.Options { ca_file: \"ca.pem\", ..tls.options()
 
 fun try(addr: string, opts: tls.Options) {
     match tls.connect_with(addr, opts) {
-        Ok(c) => {
+        .Ok(c) => {
             c.write(\"x\".to_bytes()).unwrap();
             println(string_from_utf8(c.read(10).unwrap()).unwrap());
             c.close();
         }
-        Err(e) => println(e),
+        .Err(e) => println(e),
     }
 }
 
@@ -246,8 +246,8 @@ fun main() {
     let res = http.request_tls(\"POST\", \"https://localhost:{port}/x\", #{}, \"b\".to_bytes(), opts).unwrap();
     println(\"{res.status} {res.text().unwrap()}\");
     match http.get(\"https://localhost:{port}/\") {
-        Ok(_) => println(\"?\"),
-        Err(e) => println(e),
+        .Ok(_) => println(\"?\"),
+        .Err(e) => println(e),
     }
     println(http.get(\"http://localhost:{port}/\").is_err());
 }
@@ -285,8 +285,8 @@ fun fetch(url: string, body: i64, ca_file: string) {
     limits.body = body;
     let opts = tls.Options { ca_file: ca_file, ..tls.options() };
     match http.request_tls_with(\"GET\", url, #{}, [], limits, opts) {
-        Ok(res) => println(\"{res.status} {res.body.len} {res.body[16999999]}\"),
-        Err(e) => println(e),
+        .Ok(res) => println(\"{res.status} {res.body.len} {res.body[16999999]}\"),
+        .Err(e) => println(e),
     }
 }
 
@@ -309,8 +309,8 @@ fun main() {
     let opts = tls.Options { ca_file: \"ca.pem\", timeout_ms: 200, address: \"\" };
     let started = time.monotonic_ms();
     match http.request_tls_with(\"GET\", \"https://localhost:{port}/\", #{}, [], limits, opts) {
-        Ok(_) => println(\"?\"),
-        Err(e) => println(e),
+        .Ok(_) => println(\"?\"),
+        .Err(e) => println(e),
     }
     println(time.monotonic_ms() - started < 5000);
 }
@@ -340,8 +340,8 @@ fun server(addr: string) {
 fun fetch(url: string, address: string) {
     let opts = tls.Options { ca_file: \"ca.pem\", address: address, ..tls.options() };
     match http.request_tls_with(\"GET\", url, #{}, [], http.limits(), opts) {
-        Ok(res) => println(\"{res.status} {res.text().unwrap()}\"),
-        Err(e) => println(e),
+        .Ok(res) => println(\"{res.status} {res.text().unwrap()}\"),
+        .Err(e) => println(e),
     }
 }
 

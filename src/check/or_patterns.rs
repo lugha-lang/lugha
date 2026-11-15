@@ -3,7 +3,7 @@
 //! and `mut name` makes the binding the arm's own mutable copy.
 
 use super::patterns::{Bindings, Pat};
-use super::{Checker, Type, errors, slot_names_variant};
+use super::{Checker, Type, errors};
 use crate::ast::{Pattern, PatternKind};
 use crate::span::Span;
 
@@ -69,8 +69,7 @@ impl Checker {
         }
     }
 
-    /// `mut name` or `mut name: T`: the inner binding, marked mutable. A
-    /// name that is a variant here can't be `mut` (E0428).
+    /// `mut name` or `mut name: T`: the inner binding, marked mutable.
     pub(super) fn mut_pattern(
         &mut self,
         inner: &Pattern,
@@ -78,16 +77,8 @@ impl Checker {
         bindings: &mut Bindings,
         top: bool,
     ) -> Vec<Pat> {
-        if let PatternKind::Variant(name, None) = &inner.kind {
-            // `mut` makes a bare name a binding, even at the top level,
-            // unless the matched type has a variant by that name.
-            let binds = !slot_names_variant(self.variants_of(ty).as_deref(), &name.name);
-            if !binds {
-                let why = format!("`mut` needs a binding, but `{}` is a variant", name.name);
-                self.report(errors::or_bindings(why, inner.span));
-                return vec![Pat::Wild];
-            }
-            bindings.push((name.clone(), ty.clone(), true));
+        if let PatternKind::Binding(name) = &inner.kind {
+            self.binding(name, ty, true, bindings);
             return vec![Pat::Wild];
         }
         let before = bindings.len();
@@ -117,44 +108,44 @@ mod tests {
     #[test]
     fn alternatives_bind_the_same_names() {
         let src = format!(
-            "{SHAPE}fun main() {{ let s = Shape.Empty; let r = match s {{ Circle(x) | Square(x) => x, _ => 0.0 }}; }}"
+            "{SHAPE}fun main() {{ let s = Shape.Empty; let r = match s {{ .Circle(x) | .Square(x) => x, _ => 0.0 }}; }}"
         );
         assert_eq!(let_type(&src, "r"), Type::F64);
         ok(&format!(
-            "{SHAPE}fun main() {{ let n = match Some(3) {{ Some(1 | 2) => 1, Some(_) | None => 2 }}; }}"
+            "{SHAPE}fun main() {{ let n = match Some(3) {{ .Some(1 | 2) => 1, .Some(_) | .None => 2 }}; }}"
         ));
         assert_eq!(
-            codes("match s { Circle(x) | Empty => {} _ => {} }"),
+            codes("match s { .Circle(x) | .Empty => {} _ => {} }"),
             ["E0428"]
         );
         assert_eq!(
-            codes("match s { Circle(x) | Count(x) => {} _ => {} }"),
+            codes("match s { .Circle(x) | .Count(x) => {} _ => {} }"),
             ["E0428"]
         );
         assert_eq!(
-            codes("match s { Empty | Circle(x) => {} _ => {} }"),
+            codes("match s { .Empty | .Circle(x) => {} _ => {} }"),
             ["E0428"]
         );
-        assert_eq!(codes("match Some(1) { mut None => {} _ => {} }"), ["E0428"]);
+        assert_eq!(codes("match Some(1) { mut None => {} _ => {} }"), ["E0468"]);
     }
 
     #[test]
     fn or_patterns_count_for_coverage() {
-        assert_eq!(codes("match c { Red | Green => {} }"), ["E0417"]);
+        assert_eq!(codes("match c { .Red | .Green => {} }"), ["E0417"]);
         ok(&format!(
-            "{SHAPE}fun main() {{ let c = Color.Red; match c {{ Red | Green => {{}} Blue => {{}} }} }}"
+            "{SHAPE}fun main() {{ let c = Color.Red; match c {{ .Red | .Green => {{}} .Blue => {{}} }} }}"
         ));
         let src = format!(
-            "{SHAPE}fun main() {{ let c = Color.Red; match c {{ Red => {{}} Red | Blue => {{}} Green => {{}} }} }}"
+            "{SHAPE}fun main() {{ let c = Color.Red; match c {{ .Red => {{}} .Red | .Blue => {{}} .Green => {{}} }} }}"
         );
-        assert_eq!(warnings(&src), [("W0102", "Red")]);
+        assert_eq!(warnings(&src), [("W0102", ".Red")]);
     }
 
     #[test]
     fn mut_bindings_are_the_arms_own() {
-        ok("fun main() { match Some(1) { Some(mut n) => { n += 1; } None => {} } }");
+        ok("fun main() { match Some(1) { .Some(mut n) => { n += 1; } .None => {} } }");
         assert_eq!(
-            errors("fun main() { match Some(1) { Some(n) => { n += 1; } None => {} } }")
+            errors("fun main() { match Some(1) { .Some(n) => { n += 1; } .None => {} } }")
                 .into_iter()
                 .map(|(c, _)| c)
                 .collect::<Vec<_>>(),

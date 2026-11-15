@@ -268,23 +268,23 @@ impl<T> Option<T> {
     /** The `Some` value; panics with `unwrap on None` at the call otherwise: `o.unwrap()`. */
     @caller_location
     fun unwrap(self): T = match self {
-        Some(x) => x,
-        None => panic("unwrap on None"),
+        .Some(x) => x,
+        .None => panic("unwrap on None"),
     };
 
     /** The `Some` value; panics with `message` at the call otherwise: `o.expect("why")`. */
     @caller_location
     fun expect(self, message: string): T = match self {
-        Some(x) => x,
-        None => panic(message),
+        .Some(x) => x,
+        .None => panic(message),
     };
 
     /** The value inside, or `default` for `None`: `o.unwrap_or(default)`. */
     fun unwrap_or(self, default: T): T {
         let o = self;
         match o {
-        Some(x) => x,
-        None => default,
+        .Some(x) => x,
+        .None => default,
     }
     }
 
@@ -292,8 +292,8 @@ impl<T> Option<T> {
     fun ok_or<E>(self, error: E): Result<T, E> {
         let o = self;
         match o {
-        Some(x) => Ok(x),
-        None => Err(error),
+        .Some(x) => Ok(x),
+        .None => Err(error),
     }
     }
 
@@ -301,8 +301,8 @@ impl<T> Option<T> {
     fun map<U>(self, f: fun(T): U): Option<U> {
         let o = self;
         match o {
-        Some(x) => Some(f(x)),
-        None => None,
+        .Some(x) => Some(f(x)),
+        .None => None,
     }
     }
 
@@ -310,8 +310,8 @@ impl<T> Option<T> {
     fun is_some(self): bool {
         let o = self;
         match o {
-        Some(_) => true,
-        None => false,
+        .Some(_) => true,
+        .None => false,
     }
     }
 
@@ -326,23 +326,23 @@ impl Result<T, E> {
     /** The `Ok` value; panics at the call with `unwrap on Err: ` and the error's debug form otherwise: `r.unwrap()`. */
     @caller_location
     fun unwrap(self): T = match self {
-        Ok(x) => x,
-        Err(e) => panic("unwrap on Err: {e.debug()}"),
+        .Ok(x) => x,
+        .Err(e) => panic("unwrap on Err: {e.debug()}"),
     };
 
     /** The `Ok` value; panics with `message` at the call otherwise: `r.expect("why")`. */
     @caller_location
     fun expect(self, message: string): T = match self {
-        Ok(x) => x,
-        Err(_) => panic(message),
+        .Ok(x) => x,
+        .Err(_) => panic(message),
     };
 
     /** The `Ok` value, or `default` for an `Err`: `r.unwrap_or(default)`. */
     fun unwrap_or(self, default: T): T {
         let r = self;
         match r {
-        Ok(x) => x,
-        Err(_) => default,
+        .Ok(x) => x,
+        .Err(_) => default,
     }
     }
 
@@ -350,8 +350,8 @@ impl Result<T, E> {
     fun ok(self): Option<T> {
         let r = self;
         match r {
-        Ok(x) => Some(x),
-        Err(_) => None,
+        .Ok(x) => Some(x),
+        .Err(_) => None,
     }
     }
 
@@ -359,8 +359,8 @@ impl Result<T, E> {
     fun map<U>(self, f: fun(T): U): Result<U, E> {
         let r = self;
         match r {
-        Ok(x) => Ok(f(x)),
-        Err(e) => Err(e),
+        .Ok(x) => Ok(f(x)),
+        .Err(e) => Err(e),
     }
     }
 
@@ -368,8 +368,8 @@ impl Result<T, E> {
     fun map_err<F>(self, f: fun(E): F): Result<T, F> {
         let r = self;
         match r {
-        Ok(x) => Ok(x),
-        Err(e) => Err(f(e)),
+        .Ok(x) => Ok(x),
+        .Err(e) => Err(f(e)),
     }
     }
 
@@ -377,8 +377,8 @@ impl Result<T, E> {
     fun is_ok(self): bool {
         let r = self;
         match r {
-        Ok(_) => true,
-        Err(_) => false,
+        .Ok(_) => true,
+        .Err(_) => false,
     }
     }
 

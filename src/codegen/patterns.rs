@@ -7,12 +7,11 @@ use inkwell::basic_block::BasicBlock;
 use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
 
 use super::CodegenError;
-use super::enums::variants;
 use super::lower::{Lowerer, POSITIONED};
 use super::scope::Local;
 use super::value::Value;
 use crate::ast::{Arm, BinOp, Expr, Ident, Pattern, PatternKind};
-use crate::check::{Type, slot_names_variant};
+use crate::check::Type;
 
 /// Where a value being matched is: loaded already, or at an address in
 /// storage form (payloads; `bool` as `i8`).
@@ -23,39 +22,27 @@ pub(super) enum Subject<'ctx> {
 }
 
 impl<'ctx> Lowerer<'ctx> {
-    /// The variants of `ty` if it is an enum or `Option`.
-    fn variants_of(&self, ty: &Type) -> Option<Vec<(String, Vec<Type>)>> {
-        matches!(ty, Type::Enum(_, _) | Type::Option(_)).then(|| variants(ty, &self.enums))
-    }
-
     /// True if no arm has a guard and every payload slot is `_` or a binding:
     /// one `switch` on the scrutinee then decides.
-    pub(super) fn is_flat(&self, sty: &Type, arms: &[Arm]) -> bool {
+    pub(super) fn is_flat(arms: &[Arm]) -> bool {
         arms.iter().all(|arm| {
-            let PatternKind::Variant(name, Some(slots)) = &arm.pattern.kind else {
+            let PatternKind::Variant(_, Some(slots)) = &arm.pattern.kind else {
                 // A type pattern tests a table, not a tag; or-patterns
                 // and `mut` bindings go arm by arm too.
                 let typed = matches!(
                     arm.pattern.kind,
                     PatternKind::Type(..)
+                        | PatternKind::Binding(_)
                         | PatternKind::Or(_)
                         | PatternKind::Mut(_)
                         | PatternKind::Tuple(_)
                 );
                 return arm.guard.is_none() && !typed;
             };
-            let (_, payloads) = self.variant(sty, &name.name);
             arm.guard.is_none()
-                && slots
-                    .iter()
-                    .zip(&payloads)
-                    .all(|(slot, ty)| match &slot.kind {
-                        PatternKind::Wildcard => true,
-                        PatternKind::Variant(n, None) => {
-                            !slot_names_variant(self.variants_of(ty).as_deref(), &n.name)
-                        }
-                        _ => false,
-                    })
+                && slots.iter().all(|slot| {
+                    matches!(slot.kind, PatternKind::Wildcard | PatternKind::Binding(_))
+                })
         })
     }
 
@@ -130,7 +117,7 @@ impl<'ctx> Lowerer<'ctx> {
     }
 
     /// Tests `pattern` against `subject`, binding as it goes; on a mismatch
-    /// jumps to `next`. A bare name in a slot binds unless it names a variant.
+    /// jumps to `next`.
     pub(super) fn test(
         &mut self,
         pattern: &Pattern,
@@ -144,9 +131,7 @@ impl<'ctx> Lowerer<'ctx> {
             PatternKind::Or(alternatives) => self.test_or(alternatives, subject, ty, next, top),
             PatternKind::Mut(inner) => self.test_mut(inner, subject, ty, next, top),
             PatternKind::Tuple(given) => self.test_tuple(given, subject, ty, next),
-            PatternKind::Variant(name, None)
-                if !top && !slot_names_variant(self.variants_of(ty).as_deref(), &name.name) =>
-            {
+            PatternKind::Binding(name) => {
                 let value = self.load_subject(subject, ty);
                 self.bind(name, value, ty);
             }
@@ -268,7 +253,7 @@ mod tests {
     #[test]
     fn nested_patterns_test_outside_in_and_guards_fall_through() {
         let ir = ir(&format!(
-            "{SHAPE}fun f(s: Option<Shape>): i64 = match s {{ Some(Circle(r)) if r > 1.0 => 1, Some(_) => 2, None => 3 }};\nfun main() {{}}"
+            "{SHAPE}fun f(s: Option<Shape>): i64 = match s {{ .Some(.Circle(r)) if r > 1.0 => 1, .Some(_) => 2, .None => 3 }};\nfun main() {{}}"
         ));
         let f = body(&ir, "f");
         assert!(!f.contains("switch"), "{ir}");
@@ -285,7 +270,7 @@ mod tests {
     #[test]
     fn indirect_payloads_are_loaded_before_the_inner_test() {
         let ir = ir(
-            "enum L { N, C(i64, L) }\nfun f(l: L): i64 = match l { C(_, C(x, _)) => x, _ => 0 };\nfun main() {}",
+            "enum L { N, C(i64, L) }\nfun f(l: L): i64 = match l { .C(_, .C(x, _)) => x, _ => 0 };\nfun main() {}",
         );
         let f = body(&ir, "f");
         let boxed = f.find("load ptr").expect("indirect slot loaded");
@@ -299,7 +284,7 @@ mod tests {
     #[test]
     fn flat_matches_keep_their_switch() {
         let ir = ir(&format!(
-            "{SHAPE}fun f(s: Shape): i64 = match s {{ Circle(_) => 1, Rect(w, _) => w as i64, Empty => 3 }};\nfun main() {{}}"
+            "{SHAPE}fun f(s: Shape): i64 = match s {{ .Circle(_) => 1, .Rect(w, _) => w as i64, .Empty => 3 }};\nfun main() {{}}"
         ));
         assert!(body(&ir, "f").contains("switch i32"), "{ir}");
     }

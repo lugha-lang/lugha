@@ -190,7 +190,7 @@ mod tests {
                      let s = geometry.Shape.Circle(1.0);\n\
                      let e = geometry.Shape.Empty;\n\
                      let n = len(a) + len(b) + make().x;\n\
-                     let k = match s { Circle(r) => r, Empty => 0.0 };\n\
+                     let k = match s { .Circle(r) => r, .Empty => 0.0 };\n\
                  }\n",
             ),
             ("geometry.la", GEOMETRY),

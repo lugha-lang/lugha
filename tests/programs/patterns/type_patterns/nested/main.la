@@ -36,9 +36,9 @@ fun name(s: Sized): string = match s {
 };
 
 fun first(o: Option<Sized>): string = match o {
-    Some(b: Box) => "some box {b.n}",
-    Some(other) => "some {other.size()}",
-    None => "none",
+    .Some(b: Box) => "some box {b.n}",
+    .Some(other) => "some {other.size()}",
+    .None => "none",
 };
 
 fun main() {

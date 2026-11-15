@@ -60,12 +60,12 @@ fun main() {
     println((r2.rows, found).debug());
 
     match parse_all(Rows { rows: [[1, 2]] }) {
-        Ok(p) => println(p.rows.debug()),
-        Err(e) => println(e),
+        .Ok(p) => println(p.rows.debug()),
+        .Err(e) => println(e),
     }
     match parse_all(Rows { rows: [[1, -2, 3]] }) {
-        Ok(p) => println(p.rows.debug()),
-        Err(e) => println(e),
+        .Ok(p) => println(p.rows.debug()),
+        .Err(e) => println(e),
     }
 
     let mut g = Grid { rows: [Rows { rows: [[1, 1], [2]] }] };

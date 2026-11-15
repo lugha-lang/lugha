@@ -22,7 +22,7 @@ fun main() {
     println(c.area());
     println(measure(c));
     let s = Shape.Round(2.0);
-    match s { Round(x) => println(x), Dot => {} }
+    match s { .Round(x) => println(x), .Dot => {} }
     println(geo.double(2));
     println(math.sqrt(2.0));
 }
@@ -149,7 +149,7 @@ fn types_fields_and_variants_jump_to_their_declarations() {
         here("{ Round(f64)", "Round")
     );
     assert_eq!(
-        jump(&mut s, &uri, at("Dot =>", "Dot")),
+        jump(&mut s, &uri, at(".Dot =>", "Dot")),
         here("Dot }", "Dot")
     );
     assert_eq!(s.finish(), Some(0));

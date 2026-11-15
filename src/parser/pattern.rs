@@ -2,6 +2,7 @@
 
 use super::{PResult, Parser};
 use crate::ast::{Arm, Expr, ExprKind, Pattern, PatternKind};
+use crate::diagnostic::Diagnostic;
 use crate::lexer::TokenKind;
 use crate::span::Span;
 
@@ -75,7 +76,15 @@ impl Parser<'_> {
             None
         };
         self.expect(&TokenKind::FatArrow)?;
-        let body = self.expr()?;
+        // A block body ends the arm at its `}`: `{ … }` then `.Ok(v) =>` is
+        // the next arm, not a method call on the block.
+        let body = if self.at(&TokenKind::LBrace) {
+            let start = self.span().start;
+            let block = self.block()?;
+            self.mk(start, ExprKind::Block(block))
+        } else {
+            self.expr()?
+        };
         let span = Span::new(pattern.span.start, body.span.end);
         Ok(Arm {
             pattern,
@@ -158,16 +167,22 @@ impl Parser<'_> {
                 self.bump();
                 PatternKind::Type(Some(name), self.ty()?)
             }
-            TokenKind::Ident(_) => {
-                let name = self.ident("pattern")?;
-                let slots = if self.at(&TokenKind::LParen) {
-                    let open = self.bump();
-                    Some(self.comma_list(open, TokenKind::RParen, |p| p.pattern())?)
-                } else {
-                    None
-                };
-                PatternKind::Variant(name, slots)
+            TokenKind::Dot => {
+                self.bump();
+                let name = self.ident("a variant name after `.`")?;
+                PatternKind::Variant(name, self.payload_slots()?)
             }
+            TokenKind::Ident(_) if matches!(self.peek_at(1), TokenKind::LParen) => {
+                // `Name(…)` without the dot: report it, then read it as the
+                // variant it was meant to be so later errors still show.
+                let name = self.ident("pattern")?;
+                let message = "a variant in a pattern takes a leading dot";
+                let help = format!("write `.{}(…)`", name.name);
+                let d = Diagnostic::error("E0212", message, name.span).with_help(help);
+                self.error(d);
+                PatternKind::Variant(name, self.payload_slots()?)
+            }
+            TokenKind::Ident(_) => PatternKind::Binding(self.ident("pattern")?),
             TokenKind::Minus if matches!(self.peek_at(1), TokenKind::Int(_)) => {
                 self.bump();
                 let TokenKind::Int(value) = *self.peek() else {
@@ -202,6 +217,17 @@ impl Parser<'_> {
             span: Span::new(start, self.prev_end()),
         })
     }
+
+    /// A variant pattern's `(p, …)`, if it has one.
+    fn payload_slots(&mut self) -> PResult<Option<Vec<Pattern>>> {
+        if !self.at(&TokenKind::LParen) {
+            return Ok(None);
+        }
+        let open = self.bump();
+        Ok(Some(
+            self.comma_list(open, TokenKind::RParen, |p| p.pattern())?,
+        ))
+    }
 }
 
 #[cfg(test)]
@@ -211,8 +237,8 @@ mod tests {
     #[test]
     fn match_is_an_expression_with_flat_patterns() {
         assert_eq!(
-            expr("match s { Circle(r) => r * r, Rect(w, _) => w, Empty => 0.0, _ => 1.0 }"),
-            "(match s (=> (Circle r) (* r r)) (=> (Rect w _) w) (=> Empty 0.0) (=> _ 1.0))"
+            expr("match s { .Circle(r) => r * r, .Rect(w, _) => w, .Empty => 0.0, _ => 1.0 }"),
+            "(match s (=> (.Circle r) (* r r)) (=> (.Rect w _) w) (=> .Empty 0.0) (=> _ 1.0))"
         );
         assert_eq!(
             expr("match n { 0 => \"zero\", -1 => \"minus\", _ => \"other\", }"),
@@ -227,24 +253,24 @@ mod tests {
     #[test]
     fn block_arms_need_no_comma_and_match_is_block_like() {
         assert_eq!(
-            body("match x { Some(v) => { f(v); } None => {} } let y = 1;"),
-            "(block (stmt (match x (=> (Some v) (block (; (call f v)))) (=> None (block)))) (let y 1))"
+            body("match x { .Some(v) => { f(v); } .None => {} } let y = 1;"),
+            "(block (stmt (match x (=> (.Some v) (block (; (call f v)))) (=> .None (block)))) (let y 1))"
         );
         // The scrutinee is a condition: `Name {` ends it.
-        assert_eq!(expr("match e { A => 1 }"), "(match e (=> A 1))");
+        assert_eq!(expr("match e { .A => 1 }"), "(match e (=> .A 1))");
     }
 
     #[test]
     fn patterns_nest_and_arms_take_guards() {
         assert_eq!(
             expr(
-                "match s { Some(Circle(r)) if r > 1.0 => r, Rect(_, Some(1)) => 0.0, Some(\"x\") => 1.0, Some(-2) => 2.0, _ => 3.0 }"
+                "match s { .Some(.Circle(r)) if r > 1.0 => r, .Rect(_, .Some(1)) => 0.0, .Some(\"x\") => 1.0, .Some(-2) => 2.0, _ => 3.0 }"
             ),
-            "(match s (=> (Some (Circle r)) (guard (> r 1.0)) r) (=> (Rect _ (Some 1)) 0.0) (=> (Some \"x\") 1.0) (=> (Some -2) 2.0) (=> _ 3.0))"
+            "(match s (=> (.Some (.Circle r)) (guard (> r 1.0)) r) (=> (.Rect _ (.Some 1)) 0.0) (=> (.Some \"x\") 1.0) (=> (.Some -2) 2.0) (=> _ 3.0))"
         );
         let deep = format!(
             "fun t() {{ match x {{ {}y{} => 1 }} }}",
-            "S(".repeat(300),
+            ".S(".repeat(300),
             ")".repeat(300)
         );
         assert!(
@@ -257,8 +283,8 @@ mod tests {
     #[test]
     fn type_patterns_name_a_type_after_a_colon() {
         assert_eq!(
-            expr("match s { c: Circle => 1, _: geo.Sq => 2, Some(x: Stack<i64>) => 3, _ => 4 }"),
-            "(match s (=> (: c Circle) 1) (=> (: _ (applied geo.Sq)) 2) (=> (Some (: x (applied Stack i64))) 3) (=> _ 4))"
+            expr("match s { c: Circle => 1, _: geo.Sq => 2, .Some(x: Stack<i64>) => 3, _ => 4 }"),
+            "(match s (=> (: c Circle) 1) (=> (: _ (applied geo.Sq)) 2) (=> (.Some (: x (applied Stack i64))) 3) (=> _ 4))"
         );
         assert_eq!(errors("fun t() { match s { c: => 1 } }")[0].0, "E0201");
     }
@@ -267,13 +293,13 @@ mod tests {
     fn or_patterns_and_mut_bindings_parse() {
         assert_eq!(
             expr(
-                "match s { A | B => 1, Some(1 | 2) => 2, (C | D) => 3, Some(mut n) => n, mut m => 0 }"
+                "match s { .A | .B => 1, .Some(1 | 2) => 2, (.C | .D) => 3, .Some(mut n) => n, mut m => 0 }"
             ),
-            "(match s (=> (| A B) 1) (=> (Some (| 1 2)) 2) (=> (| C D) 3) (=> (Some (mut n)) n) (=> (mut m) 0))"
+            "(match s (=> (| .A .B) 1) (=> (.Some (| 1 2)) 2) (=> (| .C .D) 3) (=> (.Some (mut n)) n) (=> (mut m) 0))"
         );
         assert_eq!(
-            expr("match s { Some(mut c: Circle) | Some(mut c: Square) => 1 }"),
-            "(match s (=> (| (Some (mut (: c Circle))) (Some (mut (: c Square)))) 1))"
+            expr("match s { .Some(mut c: Circle) | .Some(mut c: Square) => 1 }"),
+            "(match s (=> (| (.Some (mut (: c Circle))) (.Some (mut (: c Square)))) 1))"
         );
         for bad in ["mut 1", "mut A(x)", "A |", "mut _"] {
             let src = format!("fun t() {{ match s {{ {bad} => 1 }} }}");
@@ -282,9 +308,31 @@ mod tests {
     }
 
     #[test]
+    fn variants_take_a_dot_and_bare_names_bind() {
+        assert_eq!(
+            expr("match s { .Some(.Empty) => 1, .Some(x) => x, other => 0 }"),
+            "(match s (=> (.Some .Empty) 1) (=> (.Some x) x) (=> other 0))"
+        );
+        // A block body ends the arm: `.Ok` begins the next one.
+        assert_eq!(
+            expr("match r { .Err(e) => { f(e) } .Ok(v) => v }"),
+            "(match r (=> (.Err e) (block (call f e))) (=> (.Ok v) v))"
+        );
+        assert_eq!(
+            errors("fun t() { match o { Some(x) => x, None => 0 } }"),
+            [("E0212", "Some")]
+        );
+        assert_eq!(
+            errors("fun t() { if let Ok(.Some(n)) = r { } }"),
+            [("E0212", "Ok")]
+        );
+        assert_eq!(errors("fun t() { match o { . => 0 } }")[0].0, "E0201");
+    }
+
+    #[test]
     fn malformed_arms_are_e0201_and_parsing_continues() {
         assert_eq!(
-            errors("fun t() { match x { A 1, B => 2 } let y = ; }"),
+            errors("fun t() { match x { A 1, .B => 2 } let y = ; }"),
             [("E0201", "1"), ("E0201", ";")]
         );
         assert_eq!(
