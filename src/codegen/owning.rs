@@ -57,6 +57,10 @@ impl<'ctx> Lowerer<'ctx> {
         let own = self
             .module
             .add_function(&name, function.get_type(), Some(linkage));
+        // An owning instance of a marked function is marked too.
+        if self.located_functions.contains(&function) {
+            self.located_functions.insert(own);
+        }
         self.owning_instances.insert(
             function,
             Owned {

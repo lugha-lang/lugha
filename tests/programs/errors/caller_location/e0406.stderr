@@ -1,0 +1,9 @@
+error[E0406]: `positive` can't be used as a value
+  --> tests/programs/errors/caller_location/e0406.la:6:13
+  |
+6 |     let f = positive;
+  |             ^^^^^^^^
+  |
+  = help: a `@caller_location` function can't be a value: wrap the call in a closure
+
+For more about E0406, run `lughac explain E0406`.

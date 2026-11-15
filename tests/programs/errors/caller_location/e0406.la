@@ -1,0 +1,7 @@
+// A marked function has no place to report as a value.
+@caller_location
+fun positive(n: i64): i64 = n;
+
+fun main() {
+    let f = positive;
+}

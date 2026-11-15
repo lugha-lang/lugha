@@ -76,6 +76,7 @@ mod layouts;
 mod levels;
 mod literal;
 mod liveness;
+mod located;
 mod loops;
 mod maps;
 mod matching;
@@ -126,7 +127,7 @@ mod usefulness;
 mod variant_values;
 mod visibility;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub use callbacks::{CParam, CParams};
 pub use channels::{CHAN_BUFFERED, CHAN_NEW};
@@ -263,6 +264,7 @@ impl Checker {
             deriving: None,
             derived: HashMap::new(),
             debug_calls: Vec::new(),
+            located: HashSet::new(),
             derive_calls: HashMap::new(),
             hover: partial::Recorder::new(count),
             test_mode: false,
@@ -336,8 +338,7 @@ pub(super) struct Checker {
     scopes: Vec<HashMap<String, Local>>,
     /// The return type of the function being checked.
     ret: Type,
-    /// The loops enclosing the current statement, for `break`/`continue`,
-    /// with their labels and values.
+    /// The loops around the current statement, their labels and values.
     loops: Vec<loops::LoopScope>,
     /// Labels of `while` and `for` statements, by their body's start, until
     /// the body is checked (`check::loops`).
@@ -346,8 +347,7 @@ pub(super) struct Checker {
     outer_labels: Vec<String>,
     /// The `defer` whose statement is being checked, for E0455.
     deferring: Option<defer::Deferring>,
-    /// True while checking code after a divergence, so nested blocks don't
-    /// repeat W0101.
+    /// True after a divergence, so nested blocks don't repeat W0101.
     dead: bool,
     /// Places being iterated by enclosing `for … of` loops, with the loop's span (E0507).
     iterating: Vec<(array::Path, Span)>,
@@ -439,17 +439,17 @@ pub(super) struct Checker {
     reads: HashMap<String, Vec<String>>,
     /// Every `derive` block.
     derives: derive::Derives,
-    /// The derive block whose bodies are being checked: the field
-    /// intrinsics read their `Self` from it.
+    /// The derive block being checked, whose `Self` field intrinsics read.
     deriving: Option<derive::Block>,
     /// See `Checked::derived`.
     derived: HashMap<ExprId, String>,
     /// See `Checked::debug_calls`.
     debug_calls: Vec<Span>,
+    /// See `Checked::located`.
+    located: HashSet<String>,
     /// See `Checked::derive_calls`.
     derive_calls: HashMap<ExprId, String>,
-    /// The types in each generic body that mention its parameters, by the
-    /// body's key: each instance's types are these, substituted.
+    /// Each generic body's types that mention its parameters, by its key.
     body_types: HashMap<String, Vec<Type>>,
     /// Names and expression spans for the language server's hover.
     hover: partial::Recorder,

@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
-use inkwell::values::{FunctionValue, ValueKind};
+use inkwell::values::{BasicValueEnum, FunctionValue, ValueKind};
 
 use super::control::Loop;
 use super::function::Signature;
@@ -149,6 +149,12 @@ pub(super) struct Lowerer<'ctx> {
     pub(super) constants: Constants<'ctx>,
     /// Every module's source, for panic locations.
     pub(super) source: OwnedSource,
+    /// The keys of `@caller_location` functions (`Checked::located`).
+    pub(super) located: std::collections::HashSet<String>,
+    /// Their declarations, which take the hidden place parameters.
+    pub(super) located_functions: std::collections::HashSet<FunctionValue<'ctx>>,
+    /// The marked function being lowered, with its place parameters.
+    pub(super) location: Option<(FunctionValue<'ctx>, [BasicValueEnum<'ctx>; 3])>,
 }
 
 /// One module's source, owned so the lowerer has no extra lifetime.
@@ -270,6 +276,9 @@ pub(super) fn lower<'ctx>(
                 })
                 .collect(),
         },
+        located: checked.located.clone(),
+        located_functions: std::collections::HashSet::new(),
+        location: None,
     };
     lowerer.declare_enums();
     lowerer.declare_structs();

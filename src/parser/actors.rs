@@ -96,11 +96,14 @@ impl Parser<'_> {
             if self.at(&TokenKind::Eof) {
                 self.close(open, &TokenKind::RBrace)?;
             }
+            // A message's attributes, for `check` to reject.
+            let located = self.method_attributes()?;
             let visibility = self.visibility();
             match self.peek() {
                 TokenKind::Fun => {
                     let mut method = self.fun_decl_with(true)?;
                     method.visibility = visibility;
+                    method.caller_location = located;
                     methods.push(method);
                 }
                 TokenKind::Ident(_) => {

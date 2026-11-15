@@ -91,8 +91,9 @@ impl<'ctx> Lowerer<'ctx> {
                     .map(|(ty, p)| (self.arg_type(p, ty), Some(ty.clone())))
                     .collect(),
             };
+            // A `@caller_location` function takes its caller's place too.
             let param_types: Vec<BasicMetadataTypeEnum> =
-                c_params.iter().map(|(t, _)| *t).collect();
+                self.located_types(&key, c_params.iter().map(|(t, _)| *t).collect());
             // An extern passing structs by value gets clang's lowering.
             let kinds = self.c_kinds(plan.as_deref(), &params);
             let void = Type::Unit;
@@ -126,6 +127,7 @@ impl<'ctx> Lowerer<'ctx> {
                     let f = self
                         .module
                         .add_function(&symbol, fn_type, Some(Linkage::External));
+                    self.mark_located(&key, f);
                     match &c_sig {
                         Some(sig) => self.c_sig_attributes(sig, |at, a| f.add_attribute(at, a)),
                         None if is_extern => self.c_abi(f, &abi, ret.as_ref()),

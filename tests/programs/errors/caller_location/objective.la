@@ -1,0 +1,19 @@
+// `@caller_location`: a marked function's panics report its caller's
+// place, passed on through a chain of marked functions.
+@caller_location
+fun positive(n: i64): i64 {
+    if n <= 0 {
+        panic("{n} isn't positive");          // reported where `positive` was called
+    }
+    n
+}
+
+@caller_location
+fun checked(n: i64): i64 = positive(n);         // a marked call inside a marked one passes it on
+
+fun main() {
+    println(positive(3));                       // 3
+    let o: Option<i64> = None;
+    println(o.unwrap_or(7));                    // 7
+    println(checked(-1));                       // panic: -1 isn't positive at main.la:16:13
+}

@@ -135,6 +135,7 @@ fn check_with(
             derived: checker.derived,
             derive_calls: checker.derive_calls,
             debug_calls: checker.debug_calls,
+            located: checker.located,
             interfaces,
             annotations: checker.annotations,
             instances: checker.instances,
@@ -212,7 +213,7 @@ impl Checker {
     /// Every declaration pass over every module in turn, then every body.
     fn modules(&mut self, units: &[Unit]) {
         type Pass = fn(&mut Checker, &Program);
-        let passes: [Pass; 15] = [
+        let passes: [Pass; 16] = [
             Checker::collect_handles,
             Checker::collect_interfaces,
             Checker::collect_structs,
@@ -226,6 +227,7 @@ impl Checker {
             Checker::collect_methods,
             Checker::collect_derives,
             Checker::collect_builtin_impls,
+            Checker::collect_located,
             Checker::collect_with,
             Checker::check_actors,
         ];
@@ -427,7 +429,7 @@ mod root_tests {
         let files = [
             (
                 "a.la",
-                "fun helper(): i64 = 1;\n@test fun works() { assert(helper() == 1); }\n",
+                "fun helper(): i64 = 1;\n@test fun works() { let one = helper() == 1; }\n",
             ),
             (
                 "b.la",

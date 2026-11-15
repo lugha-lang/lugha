@@ -73,6 +73,7 @@ impl<'ctx> Lowerer<'ctx> {
         receiver: Option<Type>,
     ) -> Result<(), CodegenError> {
         self.function = Some(signature.function);
+        self.enter_located(signature.function);
         self.ret = signature.ret.clone();
         self.scopes = Scopes::default();
         self.loops.clear();
@@ -250,6 +251,7 @@ impl<'ctx> Lowerer<'ctx> {
             // A keeping function's owning instance.
             None if let Some(own) = self.owning_instances.get(&signature.function).cloned() => {
                 let values = self.owned_arguments(args, &signature.params, &own.kept)?;
+                let values = self.with_place(own.function, values, call.span.start);
                 let site = self
                     .builder
                     .build_call(own.function, &values, "call")
@@ -261,6 +263,8 @@ impl<'ctx> Lowerer<'ctx> {
             }
             None => self.arguments(args, &signature.params, signature.is_extern)?,
         };
+        // A `@caller_location` function takes this call's place.
+        let values = self.with_place(signature.function, values, call.span.start);
         let site = match &signature.c_type {
             // A renamed extern with its own type for a shared C function.
             Some((fn_type, abi, ret)) => {

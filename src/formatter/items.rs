@@ -291,7 +291,11 @@ impl Printer<'_> {
         if expression {
             parts.push(text(";"));
         }
-        // `@test` on its own line above.
+        // `@test` and `@caller_location` each on their own line above.
+        if f.caller_location.is_some() {
+            parts.insert(0, Doc::Hard);
+            parts.insert(0, text("@caller_location"));
+        }
         if f.test.is_some() {
             parts.insert(0, Doc::Hard);
             parts.insert(0, text("@test"));

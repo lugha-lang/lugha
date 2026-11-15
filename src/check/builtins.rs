@@ -1,11 +1,9 @@
-//! The built-in methods: `push`, `pop` and `clear` on arrays, `slice` on strings, the wrapping and
-//! counting
-//! methods on integers, and `unwrap`/`expect` on `Option` and
-//! `Result`.
+//! The built-in methods: `push`, `pop` and `clear` on arrays, `slice` on
+//! strings, the wrapping and counting methods on integers, and the methods
+//! of boxes, tasks, channels and actors.
 
 use super::Type;
 use super::methods::Method;
-use super::results::RESULT;
 use crate::span::Span;
 
 /// `push`, `pop` and `clear` on an array, with a
@@ -39,13 +37,6 @@ pub(super) fn builtin(receiver: &Type, name: &str) -> Option<Method> {
         (Type::Actor(_), "join") => (Vec::new(), Type::Option(Box::new(Type::String)), false),
         (Type::Actor(_), "is") => (vec![receiver.clone()], Type::Bool, false),
         (Type::String, "to_bytes") => (Vec::new(), Type::Array(Box::new(Type::U8)), false),
-        // The success payload, or a panic at the call.
-        (Type::Option(inner), "unwrap") => (Vec::new(), (**inner).clone(), false),
-        (Type::Option(inner), "expect") => (vec![Type::String], (**inner).clone(), false),
-        (Type::Enum(k, args), "unwrap") if k == RESULT => (Vec::new(), args[0].clone(), false),
-        (Type::Enum(k, args), "expect") if k == RESULT => {
-            (vec![Type::String], args[0].clone(), false)
-        }
         (int, "wrapping_add" | "wrapping_sub" | "wrapping_mul") if int.is_integer() => {
             (vec![int.clone()], int.clone(), false)
         }

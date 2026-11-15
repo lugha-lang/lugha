@@ -65,6 +65,7 @@ impl<'ctx> Lowerer<'ctx> {
                         .zip(&params)
                         .map(|(p, ty)| self.arg_type(p, ty)),
                 );
+                let types = self.located_types(&key(&owner, &f.name.name), types);
                 let fn_type = match &ret {
                     Some(ty) => llvm_type(self.context, ty).fn_type(&types, false),
                     None => self.context.void_type().fn_type(&types, false),
@@ -75,6 +76,7 @@ impl<'ctx> Lowerer<'ctx> {
                     fn_type,
                     Some(Linkage::External),
                 );
+                self.mark_located(&key, function);
                 self.declare_owning(&key, function, &params, f.receiver.is_some());
                 let signature = Signature {
                     function,
@@ -199,14 +201,14 @@ impl<'ctx> Lowerer<'ctx> {
         // Through a derivable interface's bound, the covering derive
         // block's item, whatever the type.
         if let Some(method) = self.derive_method(call, &name.name, &base_type) {
-            return self.call_method(method, Some(&**base), &base_type, args);
+            return self.call_method(method, Some(&**base), (&base_type, name.span.start), args);
         }
         // An item a built-in type's block leaves to the interface's default,
         // before the type's own built-in methods.
         if self.derived.contains_key(&call.id)
             && let Some(method) = self.default_method(call, &base_type)
         {
-            return self.call_method(method, Some(&**base), &base_type, args);
+            return self.call_method(method, Some(&**base), (&base_type, name.span.start), args);
         }
         // `xs.map(f)`, `s.trim()`, `o.unwrap_or(d)`: the prelude's methods,
         // and `it.map(f)`, an iterator helper called with the receiver first. `Hasher.new()` names a type, not a value:
@@ -217,7 +219,12 @@ impl<'ctx> Lowerer<'ctx> {
             // A prelude block's method (`s.trim()`) takes its receiver as
             // any method does.
             if helper.receiver.is_some() {
-                return self.call_method(helper, Some(&**base), &base_type, args);
+                return self.call_method(
+                    helper,
+                    Some(&**base),
+                    (&base_type, name.span.start),
+                    args,
+                );
             }
             let params = &helper.signature.params;
             let mut values = self.arguments(std::slice::from_ref(base), &params[..1], false)?;
@@ -238,12 +245,6 @@ impl<'ctx> Lowerer<'ctx> {
         }
         if base_type == Type::String && name.name == "slice" {
             return self.string_slice(base, args, name.span.start).map(Some);
-        }
-        // `o.unwrap()` and `r.expect(msg)` on `Option` and `Result`.
-        if self.unwraps(&base_type, &name.name) {
-            return self
-                .unwrap_method(base, &base_type, &name.name, args, name.span.start)
-                .map(Some);
         }
         // `x.to_bits()`: the same bits as an integer.
         if base_type.is_float() && name.name == "to_bits" {
@@ -320,7 +321,12 @@ impl<'ctx> Lowerer<'ctx> {
             // A variant constructor, or a function of a module.
             return Ok(None);
         };
-        self.call_method(method, receiver.map(|b| &**b), &base_type, args)
+        self.call_method(
+            method,
+            receiver.map(|b| &**b),
+            (&base_type, name.span.start),
+            args,
+        )
     }
 
     /// Calls `method` with `receiver` (dropped for an associated function)
@@ -329,7 +335,7 @@ impl<'ctx> Lowerer<'ctx> {
         &mut self,
         method: Method<'ctx>,
         receiver: Option<&Expr>,
-        base_type: &Type,
+        (base_type, at): (&Type, usize),
         args: &[Expr],
     ) -> Result<Option<Value<'ctx>>, CodegenError> {
         let mut values: Vec<BasicMetadataValueEnum> = Vec::with_capacity(args.len() + 1);
@@ -364,6 +370,8 @@ impl<'ctx> Lowerer<'ctx> {
             values.push(copy.into());
         }
         values.extend(arguments);
+        // A `@caller_location` method takes this call's place: its name's.
+        let values = self.with_place(function, values, at);
         let site = self
             .builder
             .build_call(function, &values, "method")

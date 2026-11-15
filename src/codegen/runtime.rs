@@ -141,7 +141,7 @@ impl<'ctx> Lowerer<'ctx> {
         if name == "swap" {
             return self.swap(args);
         }
-        if matches!(name, "assert" | "assert_eq" | "assert_ne" | "skip") {
+        if name == "skip" {
             return self.assertion(call, name, args);
         }
         // `debug(x)`: its debug form on stderr, and `x` back.
@@ -197,18 +197,12 @@ impl<'ctx> Lowerer<'ctx> {
                 }
             }
             ("panic", Some((_, message))) => {
-                self.panic_at(message, call.span.start);
+                // Inside a `@caller_location` function, its caller's place.
+                self.panic_located(message, call.span.start);
                 Ok(Value::Never)
             }
             _ => unreachable!("checked: E0405 enforces intrinsic arity"),
         }
-    }
-
-    /// Calls `lugha_rt_panic(message, file, line, col)` for the source offset
-    /// `at`, then continues in a dead block: the call never returns.
-    pub(super) fn panic_at(&mut self, message: BasicValueEnum<'ctx>, at: usize) {
-        self.call_panic(message, at);
-        self.start_dead_block("after.panic");
     }
 
     /// The name of the file holding offset `at`, as a C string emitted once

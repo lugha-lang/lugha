@@ -1,0 +1,21 @@
+// `@caller_location` marks a function or a type's own method only.
+interface Shape {
+    fun area(self): f64;
+}
+
+struct Sq { s: f64 }
+
+impl Shape for Sq {
+    @caller_location
+    fun area(self): f64 = self.s * self.s;
+}
+
+actor Counter {
+    count: i64,
+
+    @caller_location
+    fun add(mut self, n: i64) { self.count += n; }
+}
+
+@caller_location
+fun main() {}

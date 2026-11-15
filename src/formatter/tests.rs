@@ -417,3 +417,11 @@ fn a_block_for_a_built_in_type_keeps_its_parameters_first() {
         "impl<T: Show> Show for T[] {\n    fun show(self): string = \"a\";\n}\nimpl Show for (Point, i64) {\n    fun show(self): string = \"p\";\n}\n",
     );
 }
+
+#[test]
+fn caller_location_goes_on_its_own_line() {
+    check(
+        "@caller_location fun f(n: i64): i64 { if n < 0 { panic(\"no\"); } n }\nimpl P {\n    @caller_location fun g(self) {}\n}\n",
+        "@caller_location\nfun f(n: i64): i64 {\n    if n < 0 {\n        panic(\"no\");\n    }\n    n\n}\nimpl P {\n    @caller_location\n    fun g(self) {}\n}\n",
+    );
+}

@@ -171,8 +171,10 @@ pub(super) fn attached(text: &str, docs: &[Span], name: usize) -> Option<Span> {
             .map_or(0, |i| i + 1);
         if LEAD.contains(&&before[word_start..]) {
             at = word_start;
-        } else if &before[word_start..] == "test" && before[..word_start].ends_with('@') {
-            // `@test` stands between them too.
+        } else if matches!(&before[word_start..], "test" | "caller_location")
+            && before[..word_start].ends_with('@')
+        {
+            // `@test` and `@caller_location` stand between them too.
             at = word_start - 1;
         } else {
             at = before.len();

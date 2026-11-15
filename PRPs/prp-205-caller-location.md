@@ -1,6 +1,6 @@
 ## FEATURE: `@caller_location`: a marked function's panics report its caller's line; `unwrap`, `expect`, `assert`, `assert_eq` and `assert_ne` become prelude code; milestone 173, in v18's Phase 1.
 
-**Status:** proposed 2026-11-15.
+**Status:** proposed 2026-11-15. Approved 2026-11-15.
 
 ## OBJECTIVE
 ```lugha
@@ -91,18 +91,25 @@ fun assert_eq<T: Eq>(a: T, b: T) {
 - Moving `skip`, `panic` or other intrinsics.
 
 ## TESTS
-- [ ] `tests/programs/errors/caller_location/`:
+- [x] `tests/programs/errors/caller_location/`:
   - the OBJECTIVE (a panic, `.stderr` and exit code);
   - a chain of marked functions;
   - a marked method;
   - an unmarked function between two marked ones;
   - `unwrap`, `expect`, `assert`, `assert_eq` and `assert_ne` failing (their messages and locations unchanged).
-- [ ] Errors: `@caller_location` on an interface item, an actor method and `main` (E0210); a marked function as a value (E0406).
-- [ ] Unit tests: the parser's attribute on methods; the checker's marked set; codegen's hidden parameters and constants at a call site.
-- [ ] The full `cargo test` (every `assert_eq` test goes through the prelude now), the test runner's JSON tests, and the bench before and after.
+- [x] Errors: `@caller_location` on an interface item, an actor method and `main` (E0210); a marked function as a value (E0406).
+- [x] Unit tests: the parser's attribute on methods; the checker's marked set; codegen's hidden parameters and constants at a call site.
+- [x] The full `cargo test` (every `assert_eq` test goes through the prelude now), the test runner's JSON tests, and the bench before and after.
 
 ## ACCEPTANCE
-- [ ] The OBJECTIVE prints and panics as shown; each misuse gives its error.
-- [ ] Every existing program and test passes with identical output and panic messages.
-- [ ] The full `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
-- [ ] Every `pub` item documented; spec, CHANGELOG, TODO updated.
+- [x] The OBJECTIVE prints and panics as shown; each misuse gives its error.
+- [x] Every existing program and test passes with identical output and panic messages.
+- [x] The full `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
+- [x] Every `pub` item documented; spec, CHANGELOG, TODO updated.
+
+## CHANGES DURING THE BUILD
+- **The place goes with the function it belongs to:** codegen forwards a marked function's hidden parameters only while lowering that same function, so a closure or task entry inside it reports its own call site instead of reaching another function's parameters.
+- **The assertions are open prelude names**, as `char_from` and `range` are: a module's own `assert` still wins.
+- **Actor bodies read attributes,** so `@caller_location` on a message is E0210 rather than a parse error.
+- **`codegen/assertions.rs`** keeps only `skip`; `codegen/unwrap.rs` is gone.
+

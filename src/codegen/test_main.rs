@@ -79,7 +79,7 @@ mod tests {
 
     #[test]
     fn a_test_executable_runs_the_named_test() {
-        let src = "@test fun first() { assert(true); }\n@test fun second() {}\nfun helper() {}";
+        let src = "@test fun first() { let ok = true; }\n@test fun second() {}\nfun helper() {}";
         let ir = test_ir(src);
         assert!(ir.contains("define void @lugha_fn_first()"), "{ir}");
         assert!(ir.contains("c\"second\\00\""), "{ir}");

@@ -134,6 +134,8 @@ pub struct FunDecl {
     pub span: Span,
     /// The `@test` before it, which makes it a test.
     pub test: Option<Span>,
+    /// The `@caller_location` before it: its panics report its caller's place.
+    pub caller_location: Option<Span>,
 }
 
 /// `extern type Name;`: a handle, an opaque C pointer.

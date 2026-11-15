@@ -103,6 +103,9 @@ pub struct Checked {
     pub derive_calls: HashMap<ExprId, String>,
     /// Every `debug(x)` call, which an optimized build rejects (E0465).
     pub debug_calls: Vec<crate::span::Span>,
+    /// The keys of the functions and methods marked `@caller_location`:
+    /// each takes its caller's place as three hidden parameters.
+    pub located: HashSet<String>,
     /// Iterator loops: the iterated expression's id, with what its
     /// `next` yields.
     pub iterations: HashMap<ExprId, Iteration>,

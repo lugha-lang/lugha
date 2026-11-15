@@ -97,6 +97,7 @@ impl Parser<'_> {
                 body,
                 span,
                 test: None,
+                caller_location: None,
             })
         };
         Ok(InterfaceItem {

@@ -265,6 +265,20 @@ impl string[] {
 }
 
 impl<T> Option<T> {
+    /** The `Some` value; panics with `unwrap on None` at the call otherwise: `o.unwrap()`. */
+    @caller_location
+    fun unwrap(self): T = match self {
+        Some(x) => x,
+        None => panic("unwrap on None"),
+    };
+
+    /** The `Some` value; panics with `message` at the call otherwise: `o.expect("why")`. */
+    @caller_location
+    fun expect(self, message: string): T = match self {
+        Some(x) => x,
+        None => panic(message),
+    };
+
     /** The value inside, or `default` for `None`: `o.unwrap_or(default)`. */
     fun unwrap_or(self, default: T): T {
         let o = self;
@@ -309,6 +323,20 @@ impl<T> Option<T> {
 }
 
 impl Result<T, E> {
+    /** The `Ok` value; panics at the call with `unwrap on Err: ` and the error's debug form otherwise: `r.unwrap()`. */
+    @caller_location
+    fun unwrap(self): T = match self {
+        Ok(x) => x,
+        Err(e) => panic("unwrap on Err: {e.debug()}"),
+    };
+
+    /** The `Ok` value; panics with `message` at the call otherwise: `r.expect("why")`. */
+    @caller_location
+    fun expect(self, message: string): T = match self {
+        Ok(x) => x,
+        Err(_) => panic(message),
+    };
+
     /** The `Ok` value, or `default` for an `Err`: `r.unwrap_or(default)`. */
     fun unwrap_or(self, default: T): T {
         let r = self;
@@ -358,5 +386,31 @@ impl Result<T, E> {
     fun is_err(self): bool {
         let r = self;
         !r.is_ok()
+    }
+}
+
+// Assertions, for tests and anywhere else: each panics at its call.
+
+/** Panics with `assertion failed` unless `cond` holds. */
+@caller_location
+fun assert(cond: bool) {
+    if !cond {
+        panic("assertion failed");
+    }
+}
+
+/** Panics unless `a == b`, showing both in their debug forms. */
+@caller_location
+fun assert_eq<T: Eq>(a: T, b: T) {
+    if a != b {
+        panic("assert_eq failed: left {a.debug()}, right {b.debug()}");
+    }
+}
+
+/** Panics if `a == b`, showing the value in its debug form. */
+@caller_location
+fun assert_ne<T: Eq>(a: T, b: T) {
+    if a == b {
+        panic("assert_ne failed: both {a.debug()}");
     }
 }

@@ -1,0 +1,25 @@
+error[E0210]: `@caller_location` can't mark an interface's item
+  --> tests/programs/errors/caller_location/e0210.la:9:5
+  |
+9 |     @caller_location
+  |     ^^^^^^^^^^^^^^^^
+  |
+  = help: only a function or a type's own method, called where its caller is known, can report its caller's place
+
+error[E0210]: `@caller_location` can't mark an actor's message
+   --> tests/programs/errors/caller_location/e0210.la:16:5
+   |
+16 |     @caller_location
+   |     ^^^^^^^^^^^^^^^^
+   |
+   = help: only a function or a type's own method, called where its caller is known, can report its caller's place
+
+error[E0210]: `@caller_location` can't mark `main`
+   --> tests/programs/errors/caller_location/e0210.la:20:1
+   |
+20 | @caller_location
+   | ^^^^^^^^^^^^^^^^
+   |
+   = help: only a function or a type's own method, called where its caller is known, can report its caller's place
+
+For more about E0210, run `lughac explain E0210`.

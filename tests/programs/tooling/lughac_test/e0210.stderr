@@ -4,6 +4,6 @@ error[E0210]: unknown attribute `@inline`
 1 | @inline
   | ^^^^^^^
   |
-  = help: the only attribute is `@test`, before a function
+  = help: the attributes are `@test` before a function and `@caller_location` before a function or a method
 
 For more about E0210, run `lughac explain E0210`.

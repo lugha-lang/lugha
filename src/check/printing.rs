@@ -99,16 +99,6 @@ impl Checker {
         Some(Type::String)
     }
 
-    /// `r.unwrap()` on a `Result<T, E>` shows the error when it fails.
-    pub(super) fn unwrap_prints(&mut self, call: &Expr, receiver: &Type, name: &str) {
-        if let Type::Enum(key, args) = receiver
-            && key == super::results::RESULT
-            && name == "unwrap"
-        {
-            self.debug_used(call, &args[1]);
-        }
-    }
-
     /// The `show` instance printing a value of concrete type `ty` reaches:
     /// its `impl Display`'s, when generic or the prelude's, or with `every`
     /// any (for the purity of constants: it is compiled anyway, but runs).

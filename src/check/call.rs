@@ -56,8 +56,17 @@ impl Checker {
         let mut key = self.key(name);
         // `range(a, b)` is the prelude's unless a module declares one.
         let prelude = qualify(&[crate::modules::PRELUDE_PATH.to_string()], name);
-        // `char_from` and `assert_key_laws` are the prelude's the same way.
-        if matches!(name.as_str(), "range" | "char_from" | "assert_key_laws")
+        // `char_from`, `assert_key_laws` and the assertions are the
+        // prelude's the same way.
+        const OPEN: [&str; 6] = [
+            "range",
+            "char_from",
+            "assert_key_laws",
+            "assert",
+            "assert_eq",
+            "assert_ne",
+        ];
+        if OPEN.contains(&name.as_str())
             && !self.functions.contains_key(&key)
             && self.functions.contains_key(&prelude)
         {

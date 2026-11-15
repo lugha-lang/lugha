@@ -3,7 +3,7 @@
 
 /// Every name a built-in method may have; each receiver keeps only those
 /// the checker's resolvers accept for it.
-pub(super) const CANDIDATES: [&str; 27] = [
+pub(super) const CANDIDATES: [&str; 25] = [
     "join",
     "push",
     "pop",
@@ -14,8 +14,6 @@ pub(super) const CANDIDATES: [&str; 27] = [
     "update",
     "is",
     "to_bytes",
-    "unwrap",
-    "expect",
     "wrapping_add",
     "wrapping_sub",
     "wrapping_mul",

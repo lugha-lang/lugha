@@ -122,6 +122,7 @@ impl<'ctx> Lowerer<'ctx> {
                     .zip(&params)
                     .map(|(p, ty)| self.arg_type(p, ty)),
             );
+            let types = self.located_types(&mono.key, types);
             let fn_type = match &ret {
                 Some(ty) => llvm_type(self.context, ty).fn_type(&types, false),
                 None => self.context.void_type().fn_type(&types, false),
@@ -130,6 +131,7 @@ impl<'ctx> Lowerer<'ctx> {
             let function = self
                 .module
                 .add_function(&name, fn_type, Some(linkage(&mono.key)));
+            self.mark_located(&mono.key, function);
             self.declare_owning(&mono.key, function, &params, f.receiver.is_some());
             let signature = Signature {
                 function,

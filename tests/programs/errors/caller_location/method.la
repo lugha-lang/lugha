@@ -1,0 +1,24 @@
+// A marked method reports the call's method name; an unmarked function
+// between two marked ones stops the chain at itself.
+struct Account { balance: i64 }
+
+impl Account {
+    @caller_location
+    fun withdraw(self, n: i64): Account {
+        if n > self.balance {
+            panic("not enough");
+        }
+        Account { balance: self.balance - n }
+    }
+}
+
+@caller_location
+fun careful(a: Account, n: i64): Account = between(a, n);
+
+fun between(a: Account, n: i64): Account = a.withdraw(n);
+
+fun main() {
+    let a = Account { balance: 10 };
+    println(a.withdraw(3).balance);
+    println(careful(a, 50).balance);
+}

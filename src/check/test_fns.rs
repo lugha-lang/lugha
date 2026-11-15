@@ -1,6 +1,5 @@
-//! Tests and assertions:
-//! a `@test` function's shape (E0434), the rule that nothing calls a test,
-//! and `assert`, `assert_eq` and `assert_ne`.
+//! Tests: a `@test` function's shape (E0434), the rule that nothing calls
+//! a test, and `skip(reason)`. The assertions are prelude functions.
 
 use super::errors;
 use super::expr::Expect;
@@ -8,8 +7,9 @@ use super::{Checker, Type};
 use crate::ast::{Expr, Item, Program};
 use crate::span::Span;
 
-/// The assertion intrinsics, usable in any code; and `skip(reason)`, which ends a test as skipped.
-pub(super) const ASSERTIONS: [&str; 4] = ["assert", "assert_eq", "assert_ne", "skip"];
+/// `skip(reason)`, which ends a test as skipped: an intrinsic, since it
+/// talks to the test runner. The assertions are prelude functions.
+pub(super) const ASSERTIONS: [&str; 1] = ["skip"];
 
 /// The names of `program`'s tests, in declaration order.
 pub(super) fn tests_of(program: &Program) -> Vec<String> {
@@ -46,53 +46,15 @@ impl Checker {
         }
     }
 
-    /// `assert(cond)`, `assert_eq(a, b)` or `assert_ne(a, b)`: `a` and `b`
-    /// of one type with `==` that prints, so a failure can show both.
+    /// `skip(reason)`: ends the test, so nothing after it runs.
     pub(super) fn assertion(&mut self, call: &Expr, name: &str, args: &[Expr]) -> Type {
-        let wanted = if matches!(name, "assert" | "skip") {
-            1
-        } else {
-            2
-        };
-        if args.len() != wanted {
-            self.report(errors::arity(name, wanted, args.len(), call.span));
+        if args.len() != 1 {
+            self.report(errors::arity(name, 1, args.len(), call.span));
             self.unchecked_args(args);
             return Type::Unit;
         }
-        if name == "assert" {
-            self.expect_type(&args[0], &Expect::of(Type::Bool));
-            return Type::Unit;
-        }
-        // `skip(reason)` ends the test: nothing after it runs.
-        if name == "skip" {
-            self.expect_type(&args[0], &Expect::of(Type::String));
-            return Type::Never;
-        }
-        // The side that can't be typed alone (a literal, a call only its
-        // result types) takes the other side's type.
-        let (first, second) = match self.waits(&args[0]) && !self.waits(&args[1]) {
-            true => (&args[1], &args[0]),
-            false => (&args[0], &args[1]),
-        };
-        let ty = self.value(first, None);
-        self.expect_type(second, &Expect::of(ty.clone()));
-        if matches!(ty, Type::Error | Type::Never) {
-            return Type::Unit;
-        }
-        if super::derive::compared_through_eq(&ty) {
-            // E0451 with the path, as `==`.
-            if !self.meets_derived(super::derive::EQ, &ty, call.span) {
-                return Type::Unit;
-            }
-        }
-        if !self.eq_ok(&ty) {
-            self.report(errors::bad_operands_on("==", &[ty], call.span));
-        } else {
-            // A failure shows both values in their debug forms.
-            self.debug_used(&args[0], &ty);
-            self.equality_used(call, &ty);
-        }
-        Type::Unit
+        self.expect_type(&args[0], &Expect::of(Type::String));
+        Type::Never
     }
 }
 
@@ -125,18 +87,21 @@ mod tests {
     }
 
     #[test]
-    fn assertions_take_a_bool_or_two_equal_printable_values() {
-        let wrap = |body: &str| format!("fun main() {{ {body} }}");
-        ok(&wrap(
-            "assert(1 < 2); assert_eq(\"a\", \"a\"); assert_ne([1], [2]);",
-        ));
-        ok(&wrap("let x: u8 = 3; assert_eq(x, 3);"));
-        assert_eq!(errors(&wrap("assert(1);")), [("E0401", "1")]);
-        // The literal takes the other side's type, as in `1 == "a"`.
-        assert_eq!(errors(&wrap("assert_eq(1, \"a\");")), [("E0401", "1")]);
-        assert_eq!(errors(&wrap("assert_eq(1);"))[0].0, "E0405");
-        let boxes = wrap("let r = Ref.new(1); assert_eq(r, r);");
-        assert_eq!(errors(&boxes)[0].0, "E0404");
+    fn assertions_are_the_preludes_and_skip_takes_a_reason() {
+        use crate::check::modules::test_util::prelude_codes;
+        let codes = |body: &str| prelude_codes(&[("main.la", &format!("fun main() {{ {body} }}"))]);
+        let none: Vec<&str> = Vec::new();
+        assert_eq!(
+            codes(
+                "assert(1 < 2); assert_eq(\"a\", \"a\"); assert_ne([1], [2]); let x: u8 = 3; assert_eq(x, 3);"
+            ),
+            none
+        );
+        assert_eq!(codes("assert(1);"), ["E0401"]);
+        assert_eq!(codes("assert_eq(1, \"a\");")[0], "E0401");
+        assert_eq!(codes("assert_eq(1);"), ["E0405"]);
+        assert_eq!(codes("let r = Ref.new(1); assert_eq(r, r);")[0], "E0419");
+        assert_eq!(errors("fun main() { skip(1); }"), [("E0401", "1")]);
     }
 
     #[test]

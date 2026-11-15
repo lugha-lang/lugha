@@ -216,6 +216,9 @@ impl Parser<'_> {
     pub(super) fn impl_methods(&mut self, open: Span) -> PResult<Vec<FunDecl>> {
         let mut methods = Vec::new();
         while !self.at(&TokenKind::RBrace) {
+            // `@caller_location` before a method (`check` rejects it where
+            // no call site is at hand).
+            let located = self.method_attributes()?;
             let visibility = self.visibility();
             if !self.at(&TokenKind::Fun) {
                 if self.at(&TokenKind::Eof) {
@@ -225,6 +228,7 @@ impl Parser<'_> {
             }
             let mut method = self.fun_decl_with(true)?;
             method.visibility = visibility;
+            method.caller_location = located;
             methods.push(method);
         }
         self.bump();
@@ -250,6 +254,7 @@ impl Parser<'_> {
             body,
             span: Span::new(start, self.prev_end()),
             test: None,
+            caller_location: None,
         })
     }
 
