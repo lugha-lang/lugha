@@ -57,6 +57,8 @@ mod iface_tables;
 mod iface_values;
 mod impl_bounds;
 mod impls;
+#[cfg(test)]
+mod impls_tests;
 mod includes;
 mod indexing;
 mod infer;

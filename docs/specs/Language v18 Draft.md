@@ -1044,7 +1044,7 @@ Derived from Parts 1–5; adds no rules. Section numbers are v17's. New error co
 - A letter after a number stays E0108; sizes are `64.mb()` (1.7).
 
 **§3 Grammar.**
-- New: `impl I for T { … }` and `impl I for T = derive;` (1.1); `with I, J` after struct, enum and actor declarations (1.1); `interface I: Sendable` (1.1).
+- New: `impl I for T { … }` and `impl I for T = derive;` (1.1); `with I, J` after struct and enum declarations (1.1); `interface I: Sendable` (1.1).
 - New: type arguments at uses, with the context rule (1.5); `Name { k: v }` and `Name { a, b }` literals (1.6).
 - New: `.Variant` in every pattern (1.4).
 - New: `scope<E> name header-words { … }` (4.2); `shield within ms { … }` (4.3); `extern type X pinned;`, `extern blocking fun`, and `inline`/`queued` after a callback parameter's type (4.6, 4.8); `actor Name mailbox n { … }` (4.5).
