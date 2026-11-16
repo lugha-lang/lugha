@@ -1,8 +1,8 @@
 // The point of `defer`: a file opened in a loop is closed on every exit,
 // even when a read fails and `?` returns early, so descriptors stay flat.
 
-fun first_line(files: Fs, path: string): Result<string, string> {
-    let f = files.cwd().open(path)?;
+fun first_line(here: Dir, path: string): Result<string, string> {
+    let f = here.open(path)?;
     defer f.close();
     match f.read_line()? {
         .Some(line) => Ok(line),
@@ -10,22 +10,26 @@ fun first_line(files: Fs, path: string): Result<string, string> {
     }
 }
 
-fun open_count(files: Fs): i64 {
-    match files.cwd().list("/proc/self/fd") {
+fun open_count(fds: Dir): i64 {
+    match fds.list(".") {
         .Ok(names) => names.len,
         .Err(e) => panic(e),
     }
 }
 
 fun main(console: Console, files: Fs) {
-    let before = open_count(files);
+    // The process's descriptors, through one `Dir` of that folder; both
+    // folders opened before counting.
+    let fds = files.dir("/proc/self/fd").unwrap();
+    let here = files.cwd();
+    let before = open_count(fds);
     let mut failed = 0;
     for i in 0..10000 {
         // A folder opens, but reading it fails.
-        if first_line(files, ".").is_err() {
+        if first_line(here, ".").is_err() {
             failed += 1;
         }
     }
     console.println(failed);
-    console.println(open_count(files) == before);
+    console.println(open_count(fds) == before);
 }

@@ -1,0 +1,49 @@
+// Confinement: no path or symbolic link leads out of a `Dir`, whichever
+// method takes it; links that stay inside work; narrowing is one-way.
+fun link(proc: Proc, target: string, name: string) {
+    let r = proc.run("ln", ["-s", target, name]);
+}
+
+fun main(console: Console, fs: Fs, proc: Proc): i32 {
+    let here = fs.cwd();
+    here.make_dirs("box/inner").unwrap();
+    here.write_file("secret.txt", "secret").unwrap();
+    here.write_file("box/inner/f.txt", "inside").unwrap();
+    link(proc, "../secret.txt", "box/escape.txt");
+    link(proc, "..", "box/up");
+    link(proc, "/", "box/root");
+    link(proc, "inner", "box/in");
+    let box = here.dir("box").unwrap();
+    console.println(box.read_file("../secret.txt").debug());
+    console.println(box.read_file("/etc/passwd").debug());
+    console.println(box.read_file("escape.txt").debug());
+    console.println(box.read_bytes("up/secret.txt").debug());
+    console.println(box.list("up").debug());
+    console.println(box.list("root").debug());
+    console.println("{box.exists("escape.txt")} {box.is_dir("up")} {box.size("escape.txt").debug()}");
+    console.println(box.write_file("up/planted.txt", "x").debug());
+    console.println(box.set_mode("escape.txt", 0o600).debug());
+    console.println(box.open("escape.txt").is_err());
+    console.println(box.dir("up").debug());
+    console.println(box.read_file("in/f.txt").debug());
+    console.println(box.rename("in/f.txt", "moved.txt").debug());
+    console.println(box.rename("moved.txt", "../moved.txt").debug());
+    console.println(box.remove_file("escape.txt").debug());
+    console.println(here.read_file("secret.txt").debug());
+    console.println(box.make_dir(".").debug());
+    console.println(box.remove_dir("..").debug());
+    let inner = box.dir("inner").unwrap();
+    console.println(inner.read_file("../moved.txt").debug());
+    let ro = box.read_only();
+    console.println(ro.read_file("moved.txt").debug());
+    console.println(ro.write_file("x.txt", "y").debug());
+    console.println(ro.make_dir("new").debug());
+    console.println(ro.remove_file("moved.txt").debug());
+    console.println(ro.rename("moved.txt", "m.txt").debug());
+    console.println(ro.set_mode("moved.txt", 0o600).debug());
+    console.println(ro.create("c.txt").is_err());
+    console.println(ro.dir("inner").unwrap().write_file("x.txt", "y").debug());
+    console.println(box.path().unwrap().ends_with("/box"));
+    console.println(here.exists("planted.txt"));
+    0
+}

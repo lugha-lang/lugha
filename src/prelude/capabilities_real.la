@@ -18,19 +18,42 @@ impl Console for $Console {
 struct $Fs {}
 
 impl Fs for $Fs {
-    fun cwd(self): Dir = $Dir {};
+    fun cwd(self): Dir = match $os.dir_cwd() {
+        .Ok(h) => $Dir { h: h, read_only: false },
+        // Only when the working folder was deleted or made unreadable before the program ran.
+        .Err(e) => panic("can't open the working folder: {e}"),
+    };
+    fun dir(self, path: string): Result<Dir, string> {
+        let h = $os.dir_open(path)?;
+        Ok($Dir { h: h, read_only: false })
+    }
 }
 
-/** The folder the program started in; paths resolve as the system resolves them. */
-struct $Dir {}
+/**
+ * A real folder: a directory descriptor, every path opened beneath it by
+ * the kernel (`openat2`, `RESOLVE_BENEATH`); `read_only` refuses writing
+ * before any system call.
+ */
+struct $Dir { h: CPtr, read_only: bool }
 
 impl Dir for $Dir {
-    fun read_file(self, path: string): Result<string, string> = read_file(path);
-    fun read_bytes(self, path: string): Result<u8[], string> = read_bytes(path);
-    fun write_bytes(self, path: string, bytes: u8[]): Result<i64, string> = write_bytes(path, bytes);
-    fun append_bytes(self, path: string, bytes: u8[]): Result<i64, string> = append_bytes(path, bytes);
+    fun dir(self, path: string): Result<Dir, string> {
+        let h = $os.dir_sub(self.h, path)?;
+        Ok($Dir { h: h, read_only: self.read_only })
+    }
+    fun read_only(self): Dir = $Dir { h: self.h, read_only: true };
+    fun read_file(self, path: string): Result<string, string> = $os.dir_read_text(self.h, path);
+    fun read_bytes(self, path: string): Result<u8[], string> = $os.dir_read_bytes(self.h, path);
+    fun write_bytes(self, path: string, bytes: u8[]): Result<i64, string> {
+        self.writable()?;
+        $os.dir_write(self.h, path, bytes, 0)
+    }
+    fun append_bytes(self, path: string, bytes: u8[]): Result<i64, string> {
+        self.writable()?;
+        $os.dir_write(self.h, path, bytes, 1)
+    }
     fun list(self, path: string): Result<string[], string> {
-        let raw = $os.list_dir(path)?;
+        let raw = $os.dir_list(self.h, path)?;
         let mut names: string[] = [];
         for bytes of raw {
             match string_from_utf8(bytes) {
@@ -42,37 +65,59 @@ impl Dir for $Dir {
         }
         Ok(names.sort())
     }
-    fun make_dir(self, path: string): Result<i64, string> = $os.make_dir(path);
-    fun remove_file(self, path: string): Result<i64, string> = $os.remove_file(path);
-    fun remove_dir(self, path: string): Result<i64, string> = $os.remove_dir(path);
-    fun exists(self, path: string): bool = $os.stat_kind(path) != 0;
-    fun is_dir(self, path: string): bool = $os.stat_kind(path) == 2;
-    fun is_file(self, path: string): bool = $os.stat_kind(path) == 1;
-    fun size(self, path: string): Result<i64, string> = $os.file_size(path);
+    fun make_dir(self, path: string): Result<i64, string> {
+        self.writable()?;
+        $os.dir_make(self.h, path)
+    }
+    fun remove_file(self, path: string): Result<i64, string> {
+        self.writable()?;
+        $os.dir_remove(self.h, path, 0)
+    }
+    fun remove_dir(self, path: string): Result<i64, string> {
+        self.writable()?;
+        $os.dir_remove(self.h, path, 1)
+    }
+    fun exists(self, path: string): bool = $os.dir_kind(self.h, path) != 0;
+    fun is_dir(self, path: string): bool = $os.dir_kind(self.h, path) == 2;
+    fun is_file(self, path: string): bool = $os.dir_kind(self.h, path) == 1;
+    fun size(self, path: string): Result<i64, string> = $os.dir_size(self.h, path);
     fun rename(self, from: string, to: string): Result<(), string> {
-        $os.rename(from, to)?;
+        self.writable()?;
+        $os.dir_rename(self.h, from, to)?;
         Ok(())
     }
     fun set_mode(self, path: string, mode: i64): Result<(), string> {
-        $os.chmod(path, mode)?;
+        self.writable()?;
+        $os.dir_chmod(self.h, path, mode)?;
         Ok(())
     }
     fun sync(self, path: string): Result<(), string> {
-        $os.sync(path)?;
+        $os.dir_sync(self.h, path)?;
         Ok(())
     }
-    fun open(self, path: string): Result<File, string> = $opened(path, 0);
-    fun create(self, path: string): Result<File, string> = $opened(path, 1);
-    fun append(self, path: string): Result<File, string> = $opened(path, 2);
+    fun open(self, path: string): Result<File, string> = $opened(self.h, path, 0);
+    fun create(self, path: string): Result<File, string> {
+        self.writable()?;
+        $opened(self.h, path, 1)
+    }
+    fun append(self, path: string): Result<File, string> {
+        self.writable()?;
+        $opened(self.h, path, 2)
+    }
     fun path(self): Result<string, string> {
-        let bytes = $os.cwd()?;
+        let bytes = $os.dir_path(self.h)?;
         string_from_utf8(bytes)
     }
 }
 
-/** A file opened in `mode` 0 (reading), 1 (creating) or 2 (appending). */
-fun $opened(path: string, mode: i64): Result<File, string> {
-    let fd = $os.file_open(path, mode)?;
+impl $Dir {
+    /** `Err` for a read-only folder, before anything is touched. */
+    fun writable(self): Result<(), string> = if self.read_only { Err("the folder is read-only") } else { Ok(()) };
+}
+
+/** A file opened beneath folder `h` in `mode` 0 (reading), 1 (creating) or 2 (appending). */
+fun $opened(h: CPtr, path: string, mode: i64): Result<File, string> {
+    let fd = $os.dir_file(h, path, mode)?;
     Ok($File { fd: Ref.new(fd), writing: mode != 0, buf: Ref.new([]), pos: Ref.new(0), line: Ref.new(0) })
 }
 

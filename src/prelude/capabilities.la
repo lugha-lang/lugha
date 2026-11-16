@@ -30,18 +30,30 @@ interface Console {
  * `main` takes one as a parameter, `fun main(fs: Fs)`.
  */
 interface Fs {
-    /** The folder the program started in. */
+    /** The folder the program started in, as a `Dir`: that folder and below only. */
     fun cwd(self): Dir;
+    /**
+     * Any folder, by its path (absolute, or from the working folder), as a
+     * `Dir`: that folder and below only. The one way to reach outside a `Dir`.
+     */
+    fun dir(self, path: string): Result<Dir, string>;
 }
 
 /**
  * A folder, through which files are read and written: paths are relative
- * to it. Errors are the system's message (`"No such file or directory"`); a
- * path holding a NUL byte is `Err("path contains a NUL byte")` (or `false`).
- * Nothing here deletes recursively. A fake implements the methods without a
- * body; the others are written over them.
+ * to it, and never reach above it. An absolute path, a `..` above the
+ * folder, or a symbolic link leading out is `Err("path leads outside the
+ * folder")` (or `false`), checked by the kernel at each step of the path.
+ * Errors are otherwise the system's message (`"No such file or
+ * directory"`); a path holding a NUL byte is `Err("path contains a NUL
+ * byte")`. Nothing here deletes recursively. A fake implements the methods
+ * without a body; the others are written over them.
  */
 interface Dir {
+    /** A folder inside this one, as a `Dir` reaching only it and below. */
+    fun dir(self, path: string): Result<Dir, string>;
+    /** This folder, for reading only: every method that would change something is `Err("the folder is read-only")`. */
+    fun read_only(self): Dir;
     /** The whole file as text, any bytes that aren't UTF-8 shown as U+FFFD. */
     fun read_file(self, path: string): Result<string, string>;
     /** The whole file as bytes. */

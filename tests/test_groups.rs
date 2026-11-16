@@ -62,10 +62,10 @@ fn recording(record: &str, value: i64) -> String {
     format!(
         "fun helper(): i64 = {value};\n\
          @test(integration)\nfun works(fs: Fs) {{\n    assert_eq(helper(), {value});\n    \
-         let raw = fs.cwd().read_bytes(\"/proc/self/cmdline\").unwrap();\n    \
+         let raw = fs.dir(\"/proc/self\").unwrap().read_bytes(\"cmdline\").unwrap();\n    \
          let mut exe: u8[] = [];\n    \
          for b of raw {{ if b == 0 {{ break; }} exe.push(b); }}\n    \
-         assert(fs.cwd().write_file(\"{{dir}}/{record}\", string_from_utf8(exe).unwrap()).is_ok());\n}}\n"
+         assert(fs.dir(\"{{dir}}\").unwrap().write_file(\"{record}\", string_from_utf8(exe).unwrap()).is_ok());\n}}\n"
     )
 }
 

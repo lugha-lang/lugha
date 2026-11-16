@@ -11,36 +11,9 @@
  * bytes.c (`bytes_of`).
  */
 
-/* The most one `read` asks for, as for sockets: 16 MiB. */
+/* The most one `read` asks for, as for sockets: 16 MiB. A stream is opened
+ * beneath its `Dir` by dir.c (`dir_file`). */
 #define FILE_MAX_READ 16777216
-
-/* `$os.file_open(path, mode)`: 1 and the descriptor, or 0 and the system's
- * message. Mode 0 reads, 1 creates or truncates, 2 appends (creating); every
- * descriptor is close-on-exec, and created files get 0666 minus the umask,
- * as `write_file`'s do. */
-int32_t lugha_rt_file_open(const LughaString *path, int64_t mode, int64_t *out,
-                           LughaString **error) {
-    if (fs_has_nul(path)) {
-        return fs_fail(error, "path contains a NUL byte");
-    }
-    int flags = O_CLOEXEC;
-    if (mode == 0) {
-        flags |= O_RDONLY;
-    } else if (mode == 1) {
-        flags |= O_WRONLY | O_CREAT | O_TRUNC;
-    } else {
-        flags |= O_WRONLY | O_CREAT | O_APPEND;
-    }
-    int fd;
-    do {
-        fd = open(path->bytes, flags, 0666);
-    } while (fd < 0 && errno == EINTR);
-    if (fd < 0) {
-        return fs_fail(error, strerror(errno));
-    }
-    *out = fd;
-    return 1;
-}
 
 /* `$os.file_read(fd, max)`: 1 and up to `max` bytes (none at the end of the
  * file), or 0 and a message. An interrupted read is retried. */

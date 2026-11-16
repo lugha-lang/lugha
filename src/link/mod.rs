@@ -27,7 +27,7 @@ pub use self::inputs::{Plan, PlanError};
 
 /// The runtime's source files, in the order they are joined: the core first,
 /// since it holds every `#include`, then the fragments that rely on it.
-pub const RUNTIME_PARTS: [(&str, &str); 23] = [
+pub const RUNTIME_PARTS: [(&str, &str); 25] = [
     ("lugha_rt.c", include_str!("../../runtime/lugha_rt.c")),
     ("stack.c", include_str!("../../runtime/stack.c")),
     ("print.c", include_str!("../../runtime/print.c")),
@@ -39,6 +39,8 @@ pub const RUNTIME_PARTS: [(&str, &str); 23] = [
     ("env.c", include_str!("../../runtime/env.c")),
     ("fs.c", include_str!("../../runtime/fs.c")),
     ("file.c", include_str!("../../runtime/file.c")),
+    ("dir.c", include_str!("../../runtime/dir.c")),
+    ("dir_names.c", include_str!("../../runtime/dir_names.c")),
     ("process.c", include_str!("../../runtime/process.c")),
     ("test.c", include_str!("../../runtime/test.c")),
     ("callbacks.c", include_str!("../../runtime/callbacks.c")),
@@ -54,7 +56,7 @@ pub const RUNTIME_PARTS: [(&str, &str); 23] = [
 ];
 
 /// Every runtime function codegen may call; `lugha_rt.c` defines them all.
-pub const RUNTIME_SYMBOLS: [&str; 107] = [
+pub const RUNTIME_SYMBOLS: [&str; 112] = [
     "lugha_rt_init",
     "lugha_rt_read_line",
     "lugha_rt_read_file",
@@ -89,14 +91,7 @@ pub const RUNTIME_SYMBOLS: [&str; 107] = [
     "lugha_rt_str_to_bytes",
     "lugha_rt_str_from_bytes",
     "lugha_rt_env",
-    "lugha_rt_cwd",
     "lugha_rt_chdir",
-    "lugha_rt_list_dir",
-    "lugha_rt_make_dir",
-    "lugha_rt_remove_file",
-    "lugha_rt_remove_dir",
-    "lugha_rt_stat_kind",
-    "lugha_rt_file_size",
     "lugha_rt_spawn",
     "lugha_rt_show_enter",
     "lugha_rt_show_leave",
@@ -115,9 +110,6 @@ pub const RUNTIME_SYMBOLS: [&str; 107] = [
     "lugha_rt_now_ms",
     "lugha_rt_wall_ms",
     "lugha_rt_local_offset",
-    "lugha_rt_rename",
-    "lugha_rt_chmod",
-    "lugha_rt_sync",
     "lugha_rt_flush",
     "lugha_rt_test_is",
     "lugha_rt_test_unknown",
@@ -158,10 +150,25 @@ pub const RUNTIME_SYMBOLS: [&str; 107] = [
     "lugha_rt_net_write",
     "lugha_rt_net_close",
     "lugha_rt_net_name",
-    "lugha_rt_file_open",
     "lugha_rt_file_read",
     "lugha_rt_file_write",
     "lugha_rt_file_close",
+    "lugha_rt_dir_cwd",
+    "lugha_rt_dir_open",
+    "lugha_rt_dir_sub",
+    "lugha_rt_dir_read_bytes",
+    "lugha_rt_dir_read_text",
+    "lugha_rt_dir_write",
+    "lugha_rt_dir_list",
+    "lugha_rt_dir_make",
+    "lugha_rt_dir_remove",
+    "lugha_rt_dir_rename",
+    "lugha_rt_dir_kind",
+    "lugha_rt_dir_size",
+    "lugha_rt_dir_chmod",
+    "lugha_rt_dir_sync",
+    "lugha_rt_dir_file",
+    "lugha_rt_dir_path",
 ];
 
 /// The C runtime linked into every program: [`RUNTIME_PARTS`] joined in order,
@@ -178,6 +185,8 @@ pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/env.c"),
     include_str!("../../runtime/fs.c"),
     include_str!("../../runtime/file.c"),
+    include_str!("../../runtime/dir.c"),
+    include_str!("../../runtime/dir_names.c"),
     include_str!("../../runtime/process.c"),
     include_str!("../../runtime/test.c"),
     include_str!("../../runtime/callbacks.c"),

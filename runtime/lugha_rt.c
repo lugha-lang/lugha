@@ -35,11 +35,13 @@
 #include <pthread.h>
 #include <signal.h>
 #include <spawn.h>
+#include <linux/openat2.h>
 #include <sys/epoll.h>
 #include <sys/mman.h>
 #include <sys/random.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <inttypes.h>

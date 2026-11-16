@@ -2,61 +2,6 @@
 // a fixed clock, an empty environment, seeded randomness and the loopback
 // network. Only a test executable's entry calls the makers at the end.
 
-/**
- * The folder `lughac test` made for this test (`LUGHA_TEST_DIR`), deleted
- * afterwards. Its methods take only paths inside it: an absolute path or
- * one with a `..` part is refused. A check on the path's text: a symbolic
- * link made inside the folder can still lead out.
- */
-struct $TestDir { base: string, real: Dir }
-
-impl Dir for $TestDir {
-    fun read_file(self, path: string): Result<string, string> = self.real.read_file(self.at(path)?);
-    fun read_bytes(self, path: string): Result<u8[], string> = self.real.read_bytes(self.at(path)?);
-    fun write_bytes(self, path: string, bytes: u8[]): Result<i64, string> = self.real.write_bytes(self.at(path)?, bytes);
-    fun append_bytes(self, path: string, bytes: u8[]): Result<i64, string> = self.real.append_bytes(self.at(path)?, bytes);
-    fun list(self, path: string): Result<string[], string> = self.real.list(self.at(path)?);
-    fun make_dir(self, path: string): Result<i64, string> = self.real.make_dir(self.at(path)?);
-    fun remove_file(self, path: string): Result<i64, string> = self.real.remove_file(self.at(path)?);
-    fun remove_dir(self, path: string): Result<i64, string> = self.real.remove_dir(self.at(path)?);
-    fun exists(self, path: string): bool = match self.at(path) {
-        .Ok(p) => self.real.exists(p),
-        .Err(_) => false,
-    };
-    fun is_dir(self, path: string): bool = match self.at(path) {
-        .Ok(p) => self.real.is_dir(p),
-        .Err(_) => false,
-    };
-    fun is_file(self, path: string): bool = match self.at(path) {
-        .Ok(p) => self.real.is_file(p),
-        .Err(_) => false,
-    };
-    fun size(self, path: string): Result<i64, string> = self.real.size(self.at(path)?);
-    fun rename(self, from: string, to: string): Result<(), string> = self.real.rename(self.at(from)?, self.at(to)?);
-    fun set_mode(self, path: string, mode: i64): Result<(), string> = self.real.set_mode(self.at(path)?, mode);
-    fun sync(self, path: string): Result<(), string> = self.real.sync(self.at(path)?);
-    fun open(self, path: string): Result<File, string> = self.real.open(self.at(path)?);
-    fun create(self, path: string): Result<File, string> = self.real.create(self.at(path)?);
-    fun append(self, path: string): Result<File, string> = self.real.append(self.at(path)?);
-    fun path(self): Result<string, string> = Ok(self.base);
-}
-
-impl $TestDir {
-    /** `path` under the folder, or `Err` for one that would leave it. */
-    fun at(self, path: string): Result<string, string> {
-        let mut outside = path.starts_with("/");
-        for part of path.split("/") {
-            if part == ".." {
-                outside = true;
-            }
-        }
-        if outside {
-            return Err("a test's folder takes only paths inside it: {path}");
-        }
-        Ok(self.base + "/" + path)
-    }
-}
-
 /** A clock stopped at 2000-01-01T00:00:00Z, in UTC. */
 struct $TestClock {}
 
@@ -152,13 +97,19 @@ fun $loopback(addr: string): Result<(), string> {
 /** Whether `host` is one of the loopback names a test may use. */
 fun $loopback_host(host: string): bool = host == "127.0.0.1" || host == "::1" || host == "localhost";
 
-/** The folder a test is given: `LUGHA_TEST_DIR`, or where it runs. */
+/**
+ * The folder a test is given: `LUGHA_TEST_DIR` (or where it runs), a `Dir`
+ * confined to it by the kernel like any other.
+ */
 fun $test_dir(): Dir {
     let base = match $os.env("LUGHA_TEST_DIR") {
         .Some(bytes) => string_from_utf8(bytes).unwrap_or("."),
         .None => ".",
     };
-    $TestDir { base: base, real: $fs().cwd() }
+    match $fs().dir(base) {
+        .Ok(d) => d,
+        .Err(e) => panic("can't open the test's folder {base}: {e}"),
+    }
 }
 
 /** The clock a plain test is given. */

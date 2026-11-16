@@ -19,6 +19,8 @@ impl File for Tape {
 }
 
 impl Dir for Memory {
+    fun dir(self, path: string): Result<Dir, string> = Err("one folder only");
+    fun read_only(self): Dir = self;
     fun read_file(self, path: string): Result<string, string> = match self.read_bytes(path) {
         .Ok(b) => string_from_utf8(b),
         .Err(e) => Err(e),

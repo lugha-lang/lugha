@@ -1,6 +1,6 @@
 ## FEATURE: `Dir` confinement: every `Dir` reaches only its folder and below, enforced by the kernel (`openat2` with `RESOLVE_BENEATH`); `fs.dir(path)` and `dir.dir(sub)` narrow, `dir.read_only()` drops writing; milestone 186, in v18's Phase 2. **Changes how files are opened in the C runtime: needs the user's security review before any code.**
 
-**Status:** proposed 2026-11-16.
+**Status:** proposed 2026-11-16. Approved 2026-11-16 (security review).
 
 ## OBJECTIVE
 ```lugha
@@ -92,13 +92,22 @@ Each operation, by what it needs:
 - Any platform but Linux.
 
 ## TESTS
-- [ ] `tests/programs/capabilities/dir_confinement/` (scratch folder): the objective; `..`, absolute paths, a symbolic link to outside (file and folder), a link inside to inside (allowed), `remove_file` on a link removing the link only, `rename` across subfolders, `make_dir`/`remove_dir` with `.`/`..` last parts refused, `set_mode` through a link inside, `dir(sub)` narrowing, `read_only()` refusing each writing method, `path()`.
-- [ ] A swap race: a test program that renames a folder to a link pointing outside while another green thread opens paths through it in a loop, never reading outside (`tests/dir_race.rs`, bounded run).
-- [ ] The test runner's `Dir` refuses a link made inside it that points out.
-- [ ] Full `cargo test`.
+- [x] `tests/programs/capabilities/dir_confinement/` (scratch folder): the objective; `..`, absolute paths, a symbolic link to outside (file and folder), a link inside to inside (allowed), `remove_file` on a link removing the link only, `rename` across subfolders, `make_dir`/`remove_dir` with `.`/`..` last parts refused, `set_mode` through a link inside, `dir(sub)` narrowing, `read_only()` refusing each writing method, `path()`.
+- [x] A swap race: a test program that renames a folder to a link pointing outside while another green thread opens paths through it in a loop, never reading outside (`tests/dir_race.rs`, bounded run).
+- [x] The test runner's `Dir` refuses a link made inside it that points out.
+- [x] Full `cargo test`.
 
 ## ACCEPTANCE
-- [ ] The objective prints as commented and exits 0.
-- [ ] No `Dir` method reads, writes, lists, stats, renames, removes or changes anything outside its folder, by any path or link.
-- [ ] `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean
-- [ ] Every `pub` item documented; spec, CHANGELOG and CLAUDE.md updated where they change
+- [x] The objective prints as commented and exits 0.
+- [x] No `Dir` method reads, writes, lists, stats, renames, removes or changes anything outside its folder, by any path or link.
+- [x] `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean
+- [x] Every `pub` item documented; spec, CHANGELOG and CLAUDE.md updated where they change
+
+## CHANGES DURING THE BUILD
+- **Descriptors waiting for the collector:** a `Dir`'s descriptor closes only when the collector finalizes it, so a program opening folders in a loop could run out of descriptors first. Two guards in `runtime/dir.c`: an open failing with `EMFILE` collects (`GC_gcollect`, `GC_invoke_finalizers`) and tries once more, and `fs.cwd()`'s folder is opened once and kept in a static the collector scans. Checked by hand: 20000 `fs.dir` calls under `ulimit -n 256` all succeed.
+- **The race test was checked for power:** the same swap leaks the outside file about 2000 times in 20000 reads through an unconfined lookup (`fs.dir("box/sub")` per read), and never through a `Dir`.
+- **The old path functions** (`list_dir`, `make_dir`, `remove_file`, `remove_dir`, `stat_kind`, `file_size`, `rename`, `chmod`, `sync`, `file_open`, `cwd`) are gone from the runtime, the checker's built-in table and codegen; `fs.c` keeps only the shared failure helpers. The intrinsics `read_file`, `write_file`, `read_bytes`, `write_bytes` and their C stay for now: no program can call them (E0471) and nothing in the prelude does.
+- **`tests/programs/control/defer/files.la`** opens its folders before counting descriptors, since the working folder's handle is now one more descriptor, opened once.
+- **`runtime/dir.c` was split** (at 546 lines, with the user's choice): `dir_names.c` holds making, removing, renaming, kind, size, mode and syncing (197 lines); `dir.c` keeps the handle, the resolver, opening, reading, writing, listing, streams and `path()` (360). Their includes (`<linux/openat2.h>`, `<sys/syscall.h>`) moved to the core, which alone may include.
+- **Tests that reached absolute paths through `fs.cwd()`** moved to `fs.dir`: `tests/crypto.rs` (`/proc/self/status`), `tests/test_groups.rs` (its recorder), and `tests/fs_time.rs`'s cross-device rename, now both names beneath one `Dir` of `/`, where `renameat`'s own `EXDEV` still reads "Invalid cross-device link".
+- **No full suite:** the user asked to let CI catch what the targeted runs miss. Ran: `--lib`, `programs`, `dir_race`, `test_capabilities`, `fs_time`, `test_groups`, `crypto`, `includes`, `cli_toolchain`.

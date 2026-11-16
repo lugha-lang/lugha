@@ -235,7 +235,7 @@ fn abandoned_hashers_are_freed() {
     // Each hasher holds an OpenSSL context outside the collector; without
     // the finalizer, 300 000 of them would hold well over 50 MB.
     let out = run("fun rss_kb(fs: Fs): i64 {
-    let status = fs.cwd().read_file(\"/proc/self/status\").unwrap_or(\"\");
+    let status = fs.dir(\"/proc/self\").unwrap().read_file(\"status\").unwrap_or(\"\");
     for line of status.lines() {
         if line.starts_with(\"VmRSS:\") {
             let digits = line.slice(6, line.len).trim().split(\" \")[0];

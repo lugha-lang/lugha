@@ -96,9 +96,12 @@ fn a_rename_across_devices_is_an_error() {
     }
     let source = shm.join(format!("lugha-fst-{}", std::process::id()));
     std::fs::write(&source, "x").unwrap();
+    // Both names beneath one `Dir` of `/`, so only the devices differ.
+    let inside = |p: &std::path::Path| p.display().to_string().trim_start_matches('/').to_string();
     let out = t.run(&format!(
-        "fun main(console: Console, files: Fs) {{\n    console.println(files.cwd().rename(\"{}\", \"here\").debug());\n}}\n",
-        source.display()
+        "fun main(console: Console, files: Fs) {{\n    let root = files.dir(\"/\").unwrap();\n    console.println(root.rename(\"{}\", \"{}\").debug());\n}}\n",
+        inside(&source),
+        inside(&t.0.join("here"))
     ));
     // Best effort: the file is ours, in shared memory.
     let _ = std::fs::remove_file(&source);

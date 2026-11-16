@@ -1,7 +1,6 @@
 /*
- * env.c — part of lugha_rt.c: `std.env`'s built-ins.
- * Values are returned as bytes; `std.env` checks them as UTF-8 in Lugha.
- * Nothing here changes the environment or the working directory.
+ * env.c — part of lugha_rt.c: the environment for `Env`, and the unused
+ * `chdir`. Values are returned as bytes; the prelude checks them as UTF-8.
  *
  * A fragment, not compiled on its own: lughac's link.rs joins it after the
  * core (lugha_rt.c), whose includes (`<stdlib.h>`, `<unistd.h>`,
@@ -22,25 +21,6 @@ int32_t lugha_rt_env(const LughaString *name, LughaArray **out) {
     }
     *out = bytes_of(value, (int64_t)strlen(value));
     return 1;
-}
-
-/* `$os.cwd()`: 1 and the current directory's bytes, or 0 and the system's
- * message. The buffer doubles until the path fits. */
-int32_t lugha_rt_cwd(LughaArray **out, LughaString **error) {
-    size_t cap = 256;
-    for (;;) {
-        char *buffer = lugha_rt_alloc((int64_t)cap);
-        if (getcwd(buffer, cap) != NULL) {
-            *out = bytes_of(buffer, (int64_t)strlen(buffer));
-            return 1;
-        }
-        if (errno != ERANGE || cap > ((size_t)1 << 30)) {
-            const char *message = strerror(errno);
-            *error = string_of(message, (int64_t)strlen(message));
-            return 0;
-        }
-        cap *= 2;
-    }
 }
 
 /* `$os.chdir(path)`: 1 after making `path` the working

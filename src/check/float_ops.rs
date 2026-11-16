@@ -35,11 +35,12 @@ pub fn os_op(callee: &Expr) -> Option<&str> {
     builtin_op(callee, "$os")
 }
 
-/// The parameters and result of `$os.op`: `seed`, `env` and `cwd` for the
-/// prelude's capabilities, the folder operations for `std.fs` (text
-/// as bytes, checked as UTF-8 in Lugha).
+/// The parameters and result of `$os.op`: the clocks, `seed` and `env` for
+/// the prelude's capabilities, a `Dir`'s operations on a folder handle
+/// (names as bytes, checked as UTF-8 in Lugha), sockets and TLS.
 pub fn os_signature(op: &str) -> Option<(Vec<Type>, Type)> {
     let bytes = || Type::Array(Box::new(Type::U8));
+    let cptr = || Type::Handle(super::input::CPTR.to_string());
     let result = |t: Type| Type::Enum(super::results::RESULT.to_string(), vec![t, Type::String]);
     Some(match op {
         "seed" => (Vec::new(), Type::U64),
@@ -49,22 +50,33 @@ pub fn os_signature(op: &str) -> Option<(Vec<Type>, Type)> {
         "wall_ms" => (Vec::new(), Type::I64),
         // The system zone's offset at a moment, in seconds.
         "local_offset" => (vec![Type::I64], result(Type::I64)),
-        "rename" => (vec![Type::String, Type::String], result(Type::I64)),
-        "chmod" => (vec![Type::String, Type::I64], result(Type::I64)),
-        "sync" => (vec![Type::String], result(Type::I64)),
         "env" => (vec![Type::String], Type::Option(Box::new(bytes()))),
-        "cwd" => (Vec::new(), result(bytes())),
         // Unused: the working directory can't change.
         "chdir" => (vec![Type::String], result(Type::I64)),
-        // `std.fs`.
-        "list_dir" => (vec![Type::String], result(Type::Array(Box::new(bytes())))),
-        "make_dir" | "remove_file" | "remove_dir" => (vec![Type::String], result(Type::I64)),
-        "stat_kind" => (vec![Type::String], Type::I64),
-        // A regular file's size, without opening it.
-        "file_size" => (vec![Type::String], result(Type::I64)),
-        // `std.fs`'s file streams: files as `i64`
-        // descriptors; mode 0 reads, 1 creates, 2 appends.
-        "file_open" => (vec![Type::String, Type::I64], result(Type::I64)),
+        // A `Dir`: its folder as an opaque handle, every path opened beneath
+        // it (`runtime/dir.c`).
+        "dir_cwd" => (Vec::new(), result(cptr())),
+        "dir_open" => (vec![Type::String], result(cptr())),
+        "dir_sub" => (vec![cptr(), Type::String], result(cptr())),
+        "dir_read_bytes" => (vec![cptr(), Type::String], result(bytes())),
+        "dir_read_text" => (vec![cptr(), Type::String], result(Type::String)),
+        "dir_write" => (
+            vec![cptr(), Type::String, bytes(), Type::I64],
+            result(Type::I64),
+        ),
+        "dir_list" => (
+            vec![cptr(), Type::String],
+            result(Type::Array(Box::new(bytes()))),
+        ),
+        "dir_make" | "dir_sync" => (vec![cptr(), Type::String], result(Type::I64)),
+        "dir_remove" | "dir_chmod" | "dir_file" => {
+            (vec![cptr(), Type::String, Type::I64], result(Type::I64))
+        }
+        "dir_rename" => (vec![cptr(), Type::String, Type::String], result(Type::I64)),
+        "dir_kind" => (vec![cptr(), Type::String], Type::I64),
+        "dir_size" => (vec![cptr(), Type::String], result(Type::I64)),
+        "dir_path" => (vec![cptr()], result(bytes())),
+        // A `File`'s stream: an `i64` descriptor from `dir_file`.
         "file_read" => (vec![Type::I64, Type::I64], result(bytes())),
         "file_write" => (vec![Type::I64, bytes()], result(Type::I64)),
         "file_close" => (vec![Type::I64], Type::Unit),
@@ -347,9 +359,10 @@ mod tests {
         let bytes = Type::Array(Box::new(Type::U8));
         let result = |t: Type| Type::Enum(crate::check::RESULT.to_string(), vec![t, Type::String]);
         let sig = |op: &str| super::os_signature(op).expect("a built-in");
+        let cptr = Type::Handle(crate::check::input::CPTR.to_string());
         assert_eq!(
-            sig("file_open"),
-            (vec![Type::String, Type::I64], result(Type::I64))
+            sig("dir_file"),
+            (vec![cptr, Type::String, Type::I64], result(Type::I64))
         );
         assert_eq!(
             sig("file_read"),

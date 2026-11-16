@@ -152,6 +152,30 @@ fn each_test_gets_its_own_folder_removed_afterwards_even_on_failure() {
 }
 
 #[test]
+fn a_test_folder_is_confined_by_the_kernel_even_against_its_own_links() {
+    let src = "@test(integration)\n\
+               fun links_lead_nowhere(dir: Dir, proc: Proc) {\n\
+                   let base = dir.path().unwrap();\n\
+                   let r = proc.run(\"ln\", [\"-s\", \"/\", base + \"/root\"]).unwrap();\n\
+                   assert_eq(r.code, 0);\n\
+                   assert(dir.list(\"root\").is_err());\n\
+                   assert(dir.read_file(\"root/etc/passwd\").is_err());\n\
+                   dir.write_file(\"kept.txt\", \"x\").unwrap();\n\
+                   assert(dir.exists(\"kept.txt\"));\n\
+               }\n\
+               fun main() {}\n";
+    let t = Temp::with(&[("l.la", src)]);
+    let out = lughac(&t.0, &["test", "--integration", "l.la"]);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "{}{}",
+        text(&out.stdout),
+        text(&out.stderr)
+    );
+}
+
+#[test]
 fn only_an_integration_test_takes_fs_or_proc() {
     for params in ["fs: Fs", "proc: Proc"] {
         let src = format!("@test\nfun t({params}) {{}}\nfun main() {{}}\n");
