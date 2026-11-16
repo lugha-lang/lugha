@@ -52,13 +52,40 @@ static void actor_panic(const LughaActor *a, const char *what, const char *file,
     panic_format("actor `%s` %s at %s:%" PRId64 ":%" PRId64, a->name, what, file, line, col);
 }
 
+/* A message's record: collected memory under Boehm; under reference
+ * counting its own, freed once it is settled (`message_done`). */
+static Message *new_message(void) {
+#ifdef LUGHA_RC
+    return lugha_rc_internal(sizeof(Message));
+#else
+    return lugha_rt_alloc((int64_t)sizeof(Message));
+#endif
+}
+
+/* Under reference counting, a message nobody will handle again lets go of
+ * its arguments; a cast's record (no caller frees it) goes too. */
+static void message_done(Message *m) {
+#ifdef LUGHA_RC
+    lugha_rt_rc_release(m->args);
+    m->args = NULL;
+    if (m->waiter == NULL) {
+        free(m);
+    }
+#else
+    (void)m;
+#endif
+}
+
 /* Settles every message still queued: their callers learn `outcome`. */
 static void settle_mail(LughaActor *a, int32_t outcome) {
-    for (Message *m = a->head; m != NULL; m = m->next) {
+    for (Message *m = a->head; m != NULL;) {
+        Message *after = m->next;
         if (m->waiter != NULL) {
             *m->outcome = outcome;
             wake(m->waiter, 0);
         }
+        message_done(m);
+        m = after;
     }
     a->head = a->tail = NULL;
 }
@@ -87,6 +114,7 @@ static void actor_loop(void *code, void *env, void *result) {
             a->tail = NULL;
         }
         if (m->handler == NULL) {
+            message_done(m);
             break;
         }
         a->handling = m;
@@ -96,6 +124,7 @@ static void actor_loop(void *code, void *env, void *result) {
             *m->outcome = RUNNING;
             wake(m->waiter, 0);
         }
+        message_done(m);
     }
     a->status = STOPPED;
     settle_mail(a, STOPPED);
@@ -119,17 +148,48 @@ static void panic_end(const char *text, size_t len) {
         *m->outcome = PANICKED;
         wake(m->waiter, 0);
     }
+    if (m != NULL) {
+        message_done(m);
+    }
     settle_mail(a, PANICKED);
     wake_joiners(a);
     fiber_exit(current);
 }
+
+#ifdef LUGHA_RC
+/* The visit of an actor's handle: its state, and its panic's text. */
+static void rc_actor_visit(void *object, int64_t op) {
+    LughaActor *a = object;
+    if (op == RC_MARK) {
+        lugha_rt_rc_mark(a->state);
+        lugha_rt_rc_mark(a->panic);
+    } else {
+        lugha_rt_rc_release(a->state);
+        lugha_rt_rc_release(a->panic);
+    }
+}
+
+/* A call's result block, once the caller has its value. */
+void lugha_rt_rc_block_done(void *block) {
+    free(block);
+}
+#endif
 
 /* `spawn Counter { … }`: an actor holding `state` (GC memory). */
 LughaActor *lugha_rt_actor_spawn(void *state, const char *name) {
     LughaActor *a = lugha_rt_alloc((int64_t)sizeof(LughaActor));
     a->state = state;
     a->name = name;
+#ifdef LUGHA_RC
+    /* The actor's own fiber holds it (as its environment) until it ends,
+     * and two tasks hold it now; the task's handle isn't kept. */
+    lugha_rt_rc_set_drop(a, rc_actor_visit);
+    lugha_rt_rc_retain(a);
+    lugha_rt_rc_mark(a);
+    lugha_rt_rc_release(lugha_rt_task_spawn(actor_loop, NULL, a, 1));
+#else
     lugha_rt_task_spawn(actor_loop, NULL, a, 1);
+#endif
     last_spawned->actor = a;
     return a;
 }
@@ -165,10 +225,15 @@ void *lugha_rt_actor_call(LughaActor *a, Handler handler, void *args, int64_t si
     ensure_started();
     check_alive(a, file, line, col);
     int32_t outcome = RUNNING;
-    Message *m = lugha_rt_alloc((int64_t)sizeof(Message));
+    Message *m = new_message();
     m->handler = handler;
     m->args = args;
+#ifdef LUGHA_RC
+    /* The caller's to free once it has the value (`lugha_rt_rc_block_done`). */
+    m->result = lugha_rc_internal((size_t)(size < 1 ? 1 : size));
+#else
     m->result = lugha_rt_alloc(size < 1 ? 1 : size);
+#endif
     m->waiter = current;
     m->outcome = &outcome;
     post(a, m);
@@ -179,7 +244,11 @@ void *lugha_rt_actor_call(LughaActor *a, Handler handler, void *args, int64_t si
     if (outcome == PANICKED) {
         actor_panic(a, "panicked", file, line, col);
     }
-    return m->result;
+    void *result = m->result;
+#ifdef LUGHA_RC
+    free(m);
+#endif
+    return result;
 }
 
 /* A cast: queues `handler(state, args, …)` and goes on. */
@@ -187,7 +256,7 @@ void lugha_rt_actor_cast(LughaActor *a, Handler handler, void *args, const char 
                          int64_t line, int64_t col) {
     ensure_started();
     check_alive(a, file, line, col);
-    Message *m = lugha_rt_alloc((int64_t)sizeof(Message));
+    Message *m = new_message();
     m->handler = handler;
     m->args = args;
     post(a, m);
@@ -197,7 +266,7 @@ void lugha_rt_actor_cast(LughaActor *a, Handler handler, void *args, const char 
 void lugha_rt_actor_stop(LughaActor *a, const char *file, int64_t line, int64_t col) {
     ensure_started();
     check_alive(a, file, line, col);
-    Message *m = lugha_rt_alloc((int64_t)sizeof(Message));
+    Message *m = new_message();
     post(a, m);
 }
 
@@ -210,5 +279,9 @@ LughaString *lugha_rt_actor_join(LughaActor *a) {
         a->joiners = current;
         block();
     }
+#ifdef LUGHA_RC
+    /* The caller holds the text it gets. */
+    lugha_rt_rc_retain(a->panic);
+#endif
     return a->panic;
 }

@@ -32,6 +32,13 @@ impl<'ctx> Lowerer<'ctx> {
         let state = self.get(operand, &state_type)?;
         let size = self.element_size(&state_type).max(1);
         let block = self.gc_block(size);
+        // Under reference counting the block holds the state, and the
+        // actor the block.
+        if self.rc() {
+            self.rc_retain(state, &state_type);
+            let drop = self.rc_box_drop(&state_type);
+            self.rc_set_drop(block, drop);
+        }
         self.store_element(block, &state_type, state);
         let name = self.actor_name(key);
         Ok(self.call_rt("lugha_rt_actor_spawn", &[block.into(), name.into()], true))
@@ -88,6 +95,13 @@ impl<'ctx> Lowerer<'ctx> {
                         .expect("a field per argument");
                     self.store_element(at, ty, value);
                 }
+                // Under reference counting the block holds the arguments
+                // and crosses to the actor: marked shared.
+                if self.rc() {
+                    let drop = self.rc_env_drop(layout, &params, true);
+                    self.rc_set_drop(block, drop);
+                    self.rc_pointer_op(block, super::rc::RcOp::Mark);
+                }
                 block
             }
             None => self.context.ptr_type(Default::default()).const_null(),
@@ -111,6 +125,12 @@ impl<'ctx> Lowerer<'ctx> {
                 ];
                 let result = self.call_rt("lugha_rt_actor_call", &values, true);
                 let value = self.load_element(result.into_pointer_value(), &ret);
+                // Under reference counting the result is the caller's now,
+                // crossed back from the actor; its block is freed.
+                if self.rc() {
+                    self.rc_mark(value, &ret);
+                    self.call_rt("lugha_rt_rc_block_done", &[result], false);
+                }
                 Ok(Value::Val(value))
             }
             None => {

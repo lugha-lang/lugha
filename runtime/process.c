@@ -49,8 +49,9 @@ static bool drain(int fd, Captured *into) {
             die("panic: out of memory\n");
         }
         int64_t cap = into->cap * 2;
-        char *bigger = lugha_rt_alloc(cap);
+        char *bigger = rt_scratch(cap);
         memcpy(bigger, into->bytes, (size_t)into->len);
+        rt_scratch_done(into->bytes);
         into->bytes = bigger;
         into->cap = cap;
     }
@@ -81,7 +82,7 @@ int32_t lugha_rt_spawn(const LughaString *cmd, const LughaArray *args, const Lug
         }
     }
     /* argv: the command, the arguments, NULL. Lugha strings end in NUL. */
-    char **argv = lugha_rt_alloc((args->len + 2) * (int64_t)sizeof(char *));
+    char **argv = rt_scratch((args->len + 2) * (int64_t)sizeof(char *));
     argv[0] = (char *)cmd->bytes;
     for (int64_t i = 0; i < args->len; i++) {
         argv[i + 1] = (char *)list[i]->bytes;
@@ -102,6 +103,7 @@ int32_t lugha_rt_spawn(const LughaString *cmd, const LughaArray *args, const Lug
                 if (in_pipe[k] >= 0) close(in_pipe[k]);
             }
             posix_spawn_file_actions_destroy(&actions);
+            rt_scratch_done(argv);
             return spawn_fail(error, cmd->bytes, strerror(failed));
         }
         if (mode == 2) {
@@ -116,6 +118,8 @@ int32_t lugha_rt_spawn(const LughaString *cmd, const LughaArray *args, const Lug
     fflush(NULL);
     pid_t pid;
     int spawned = posix_spawnp(&pid, cmd->bytes, &actions, NULL, argv, environ);
+    /* posix_spawnp has copied the arguments into the new process. */
+    rt_scratch_done(argv);
     posix_spawn_file_actions_destroy(&actions);
     if (capture) {
         close(out_pipe[1]);
@@ -135,8 +139,8 @@ int32_t lugha_rt_spawn(const LughaString *cmd, const LughaArray *args, const Lug
         return spawn_fail(error, cmd->bytes, strerror(spawned));
     }
 
-    Captured stdout_bytes = {lugha_rt_alloc(4096), 0, 4096};
-    Captured stderr_bytes = {lugha_rt_alloc(4096), 0, 4096};
+    Captured stdout_bytes = {rt_scratch(4096), 0, 4096};
+    Captured stderr_bytes = {rt_scratch(4096), 0, 4096};
     if (capture) {
         /* Writes may fail with EPIPE; block SIGPIPE so that can't kill us. */
         sigset_t pipe_signal, before;
@@ -199,7 +203,10 @@ int32_t lugha_rt_spawn(const LughaString *cmd, const LughaArray *args, const Lug
     int status = 0;
     while (waitpid(pid, &status, 0) < 0) {
         if (errno != EINTR) {
-            return spawn_fail(error, cmd->bytes, strerror(errno));
+            int failed = errno;
+            rt_scratch_done(stdout_bytes.bytes);
+            rt_scratch_done(stderr_bytes.bytes);
+            return spawn_fail(error, cmd->bytes, strerror(failed));
         }
     }
     if (WIFEXITED(status)) {
@@ -211,5 +218,7 @@ int32_t lugha_rt_spawn(const LughaString *cmd, const LughaArray *args, const Lug
     }
     *out = bytes_of(stdout_bytes.bytes, stdout_bytes.len);
     *err = bytes_of(stderr_bytes.bytes, stderr_bytes.len);
+    rt_scratch_done(stdout_bytes.bytes);
+    rt_scratch_done(stderr_bytes.bytes);
     return 1;
 }

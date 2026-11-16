@@ -63,20 +63,9 @@ fn counted_in(ty: &Type, structs: &Structs, enums: &Enums, path: &mut Vec<String
 }
 
 /// What in `checked` the reference-counting prototype doesn't count yet,
-/// if anything: tasks, channels and actors, or C callbacks.
+/// if anything: C callbacks, which need a pinned count.
 pub(super) fn rc_unsupported(checked: &crate::check::Checked) -> Option<&'static str> {
-    let concurrent = checked.uses_tasks
-        || checked
-            .used
-            .iter()
-            .any(|t| matches!(t, Type::Task(_) | Type::Chan(_) | Type::Actor(_)));
-    if concurrent {
-        Some("tasks, channels or actors")
-    } else if !checked.c_params.is_empty() {
-        Some("C callbacks")
-    } else {
-        None
-    }
+    (!checked.c_params.is_empty()).then_some("C callbacks")
 }
 
 /// What a count operation does to the counted objects a value holds.

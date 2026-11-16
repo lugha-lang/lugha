@@ -35,6 +35,10 @@ typedef struct {
     int32_t closed;
     Waiter *recvq;
     Waiter *sendq;
+#ifdef LUGHA_RC
+    /* What a buffered value holds, for releasing and marking it. */
+    RcVisit elem_visit;
+#endif
 } LughaChan;
 
 /* One `select` arm handed over by generated code. */
@@ -53,6 +57,22 @@ static void chan_panic(const char *what, const char *file, int64_t line, int64_t
     panic_format("%s at %s:%" PRId64 ":%" PRId64, what, file, line, col);
 }
 
+#ifdef LUGHA_RC
+/* The visit of a `Chan`: the values still in its ring; the ring goes
+ * with it. Waiting senders keep their values on their own stacks. */
+static void rc_chan_visit(void *object, int64_t op) {
+    LughaChan *c = object;
+    if (c->elem_visit != NULL) {
+        for (int64_t i = 0; i < c->len; i++) {
+            c->elem_visit(c->buf + ((c->head + i) % c->cap) * c->elem, op);
+        }
+    }
+    if (op == RC_RELEASE) {
+        free(c->buf);
+    }
+}
+#endif
+
 /* `Chan.new()` and `Chan.buffered(n)`. */
 LughaChan *lugha_rt_chan_new(int64_t cap, int64_t elem, const char *file, int64_t line,
                              int64_t col) {
@@ -66,10 +86,26 @@ LughaChan *lugha_rt_chan_new(int64_t cap, int64_t elem, const char *file, int64_
         if (cap > INT64_MAX / c->elem) {
             die("panic: out of memory\n");
         }
+#ifdef LUGHA_RC
+        /* The ring is the channel's own, freed with it. */
+        c->buf = lugha_rc_internal((size_t)(cap * c->elem));
+#else
         c->buf = lugha_rt_alloc(cap * c->elem);
+#endif
     }
+#ifdef LUGHA_RC
+    lugha_rt_rc_set_drop(c, rc_chan_visit);
+#endif
     return c;
 }
+
+#ifdef LUGHA_RC
+/* Under reference counting, generated code gives a new channel its
+ * element's visit (none when an element holds nothing counted). */
+void lugha_rt_rc_chan_setup(LughaChan *c, RcVisit elem_visit) {
+    c->elem_visit = elem_visit;
+}
+#endif
 
 static void enqueue(Waiter **queue, Waiter *w) {
     w->next = NULL;

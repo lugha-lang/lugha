@@ -1,9 +1,9 @@
 //! The reference-counting prototype against the end-to-end programs: every
-//! program under `tests/programs/` that runs (and uses no task, channel,
-//! actor or C callback, which reference counting doesn't cover yet), built
-//! with `--memory=rc`, must print what it prints under the collector, exit
-//! the same way, free everything it made when it ends normally, and never
-//! touch freed memory (`LUGHA_RC_POISON=1` turns that into a panic).
+//! program under `tests/programs/` that runs, built with `--memory=rc`, must
+//! print what it prints under the collector, exit the same way, free
+//! everything it made when it ends normally, and never touch freed memory
+//! (`LUGHA_RC_POISON=1` turns that into a panic). Programs lughac refuses
+//! under it (C callbacks) are skipped.
 
 mod support;
 
@@ -17,26 +17,16 @@ use support::runner::{
 /// Programs that don't pass yet, and why: each is a known gap of the
 /// prototype, not a regression.
 const KNOWN: &[(&str, &str)] = &[
-    // `Ref` cycles: the cycle collector comes with the next part.
+    // `Ref` cycles: the cycle collector comes with the runtime's phase.
     (
         "types/shared_boxes/linked.la",
         "a doubly linked list of boxes is a cycle",
     ),
-    // `runtime/process.c` keeps collected scratch buffers; changing it
-    // needs its own review.
+    // A panicking actor's stack isn't unwound: what its frames held stays.
     (
-        "capabilities/clock_env_proc_entropy/objective.la",
-        "process.c's buffers",
+        "concurrency/actors/supervisor.la",
+        "a panic doesn't unwind yet",
     ),
-    (
-        "capabilities/clock_env_proc_entropy/process.la",
-        "process.c's buffers",
-    ),
-    (
-        "capabilities/dir_confinement/confined.la",
-        "process.c's buffers",
-    ),
-    ("std/fs_size/size.la", "process.c's buffers"),
     // A value returned from inside `for … of mut` through a type's `index`
     // doesn't see the element handed back after it was made.
     (
@@ -54,9 +44,6 @@ const KNOWN: &[(&str, &str)] = &[
     ),
 ];
 
-/// What reference counting doesn't cover yet.
-const UNCOVERED: &[&str] = &["spawn", "Chan", "actor", "select", "@callback", "extern "];
-
 #[test]
 fn programs_run_the_same_under_reference_counting() {
     let workdir = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -68,7 +55,7 @@ fn programs_run_the_same_under_reference_counting() {
     };
     let cases: Vec<Case> = cases
         .into_iter()
-        .filter(|case| matches!(case.mode, Mode::Run { .. }) && covered(case))
+        .filter(|case| matches!(case.mode, Mode::Run { .. }))
         .filter(|case| !KNOWN.iter().any(|(name, _)| case.name == *name))
         .map(counted)
         .collect();
@@ -101,22 +88,6 @@ fn every_known_gap_is_a_program_that_exists() {
             "{name} ({why}) is gone: drop it from KNOWN"
         );
     }
-}
-
-/// True if nothing in the case's source is beyond the prototype.
-fn covered(case: &Case) -> bool {
-    let sources: Vec<std::path::PathBuf> = match case.path.file_name() {
-        Some(name) if name == "main.la" => std::fs::read_dir(case.path.parent().expect("a folder"))
-            .expect("a case's folder reads")
-            .filter_map(|e| e.ok().map(|e| e.path()))
-            .filter(|p| p.extension().is_some_and(|x| x == "la"))
-            .collect(),
-        _ => vec![case.path.clone()],
-    };
-    sources.iter().all(|path| {
-        let text = std::fs::read_to_string(path).expect("a case's source reads");
-        !UNCOVERED.iter().any(|word| text.contains(word))
-    })
 }
 
 /// `case` run under reference counting, poisoned, with the report at exit.

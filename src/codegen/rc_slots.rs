@@ -426,6 +426,8 @@ impl<'ctx> Lowerer<'ctx> {
         if !self.rc() {
             return;
         }
+        let stop = self.runtime("lugha_rt_rc_stop_threads", &[], None);
+        self.builder.build_call(stop, &[], "").expect(POSITIONED);
         for (arg, ty) in args.iter().zip(params) {
             if let Ok(value) = BasicValueEnum::try_from(*arg) {
                 self.rc_release(value, ty);

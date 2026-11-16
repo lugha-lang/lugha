@@ -113,11 +113,13 @@ impl<'ctx> Lowerer<'ctx> {
     }
 
     /// The visit of a closure environment's captures, laid out as
-    /// `layout`; `None` when none of them is counted.
+    /// `layout`; `None` when none of them is counted. `element`: each field
+    /// is in element layout (an actor message's arguments).
     pub(super) fn rc_env_drop(
         &mut self,
         layout: inkwell::types::StructType<'ctx>,
         types: &[Type],
+        element: bool,
     ) -> Option<FunctionValue<'ctx>> {
         if !types.iter().any(|t| self.counted(t)) {
             return None;
@@ -135,10 +137,13 @@ impl<'ctx> Lowerer<'ctx> {
                     .builder
                     .build_struct_gep(layout, env, index, "capture")
                     .expect("a field per capture");
-                let value = this
-                    .builder
-                    .build_load(llvm_type(this.context, ty), at, "capture")
-                    .expect(POSITIONED);
+                let value = if element {
+                    this.load_element(at, ty)
+                } else {
+                    this.builder
+                        .build_load(llvm_type(this.context, ty), at, "capture")
+                        .expect(POSITIONED)
+                };
                 this.rc_value(value, ty, op);
             }
         }))

@@ -37,6 +37,10 @@ typedef struct {
     int32_t done;
     /* Fibers waiting in `join`, linked through `wait_next`. */
     Fiber *joiners;
+#ifdef LUGHA_RC
+    /* What the result holds, for releasing and marking it. */
+    RcVisit result_visit;
+#endif
 } LughaTask;
 
 struct Fiber {

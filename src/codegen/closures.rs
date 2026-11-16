@@ -94,7 +94,7 @@ impl<'ctx> Lowerer<'ctx> {
         let env = env.into_pointer_value();
         if self.rc() {
             let types: Vec<Type> = captured.iter().map(|l| l.ty.clone()).collect();
-            let drop = self.rc_env_drop(layout, &types);
+            let drop = self.rc_env_drop(layout, &types, false);
             self.rc_set_drop(env, drop);
         }
         for (i, (name, local)) in names.iter().zip(captured).enumerate() {
