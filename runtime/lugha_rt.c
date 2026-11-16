@@ -35,7 +35,14 @@
 #include <pthread.h>
 #include <signal.h>
 #include <spawn.h>
+#include <linux/audit.h>
+#include <linux/filter.h>
+#include <linux/landlock.h>
 #include <linux/openat2.h>
+#include <linux/seccomp.h>
+#include <sched.h>
+#include <stddef.h>
+#include <sys/prctl.h>
 #include <sys/epoll.h>
 #include <sys/mman.h>
 #include <sys/random.h>

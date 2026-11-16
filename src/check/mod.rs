@@ -142,7 +142,7 @@ pub use conversions::{CONVERSIONS, int_bits};
 pub use defaults::SELF;
 pub use derive::{Block as DeriveBlock, Covers, DEBUG, DISPLAY, Derives, EQ, ORD};
 pub use derive_intrinsics::{DERIVE_OPS, derive_op};
-pub use entry::{ENTRY_CAPABILITIES, Entry, TEST_CAPABILITIES, maker};
+pub use entry::{ENTRY_CAPABILITIES, Entry, TEST_CAPABILITIES, lockdown_kinds, maker};
 pub use float_bits::{bits_of, from_bits, total_order};
 pub use float_ops::{float_op, os_op, os_signature, string_op};
 pub use hashing::hash_op;

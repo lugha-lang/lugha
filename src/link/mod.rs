@@ -27,7 +27,7 @@ pub use self::inputs::{Plan, PlanError};
 
 /// The runtime's source files, in the order they are joined: the core first,
 /// since it holds every `#include`, then the fragments that rely on it.
-pub const RUNTIME_PARTS: [(&str, &str); 25] = [
+pub const RUNTIME_PARTS: [(&str, &str); 26] = [
     ("lugha_rt.c", include_str!("../../runtime/lugha_rt.c")),
     ("stack.c", include_str!("../../runtime/stack.c")),
     ("print.c", include_str!("../../runtime/print.c")),
@@ -41,6 +41,7 @@ pub const RUNTIME_PARTS: [(&str, &str); 25] = [
     ("file.c", include_str!("../../runtime/file.c")),
     ("dir.c", include_str!("../../runtime/dir.c")),
     ("dir_names.c", include_str!("../../runtime/dir_names.c")),
+    ("lockdown.c", include_str!("../../runtime/lockdown.c")),
     ("process.c", include_str!("../../runtime/process.c")),
     ("test.c", include_str!("../../runtime/test.c")),
     ("callbacks.c", include_str!("../../runtime/callbacks.c")),
@@ -56,7 +57,7 @@ pub const RUNTIME_PARTS: [(&str, &str); 25] = [
 ];
 
 /// Every runtime function codegen may call; `lugha_rt.c` defines them all.
-pub const RUNTIME_SYMBOLS: [&str; 108] = [
+pub const RUNTIME_SYMBOLS: [&str; 109] = [
     "lugha_rt_init",
     "lugha_rt_read_line",
     "lugha_rt_eprint",
@@ -165,6 +166,7 @@ pub const RUNTIME_SYMBOLS: [&str; 108] = [
     "lugha_rt_dir_sync",
     "lugha_rt_dir_file",
     "lugha_rt_dir_path",
+    "lugha_rt_lockdown",
 ];
 
 /// The C runtime linked into every program: [`RUNTIME_PARTS`] joined in order,
@@ -183,6 +185,7 @@ pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/file.c"),
     include_str!("../../runtime/dir.c"),
     include_str!("../../runtime/dir_names.c"),
+    include_str!("../../runtime/lockdown.c"),
     include_str!("../../runtime/process.c"),
     include_str!("../../runtime/test.c"),
     include_str!("../../runtime/callbacks.c"),

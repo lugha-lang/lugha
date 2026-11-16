@@ -73,6 +73,26 @@ pub fn maker(key: &str, entry: Entry) -> Option<&'static str> {
     }
 }
 
+/// The bits `lugha_rt_lockdown` takes for the capability kinds an entry
+/// was given (`runtime/lockdown.c`'s `LOCK_*`): the kernel limits the
+/// process to them. A test's `Dir` is its folder.
+pub fn lockdown_kinds(params: &[Type]) -> i64 {
+    params
+        .iter()
+        .map(|p| match p {
+            Type::Interface(key, _) => match key.as_str() {
+                "$prelude.Fs" => 1,
+                "$prelude.Net" => 2,
+                "$prelude.Proc" => 4,
+                "$prelude.Clock" => 8,
+                "$prelude.Dir" => 16,
+                _ => 0,
+            },
+            _ => 0,
+        })
+        .fold(0, |kinds, bit| kinds | bit)
+}
+
 /// The intrinsics only the prelude and std may call; a program reaches them
 /// through a capability.
 pub(super) const AMBIENT: [&str; 15] = [
@@ -203,6 +223,23 @@ mod tests {
         ] {
             assert_eq!(errors(bad), [("E0304", "main")], "{bad}");
         }
+    }
+
+    #[test]
+    fn lockdown_kinds_are_the_entrys_capabilities() {
+        use super::lockdown_kinds;
+        use crate::check::Type;
+        let cap = |name: &str| Type::Interface(format!("$prelude.{name}"), Vec::new());
+        assert_eq!(lockdown_kinds(&[]), 0);
+        assert_eq!(lockdown_kinds(&[cap("Console"), cap("Entropy")]), 0);
+        assert_eq!(
+            lockdown_kinds(&[cap("Fs"), cap("Net"), cap("Proc"), cap("Clock"), cap("Dir")]),
+            31
+        );
+        assert_eq!(
+            lockdown_kinds(&[Type::Array(Box::new(Type::String)), cap("Net")]),
+            2
+        );
     }
 
     #[test]

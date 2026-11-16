@@ -1,6 +1,6 @@
 ## FEATURE: Process lockdown: once the runtime has made what `main` asked for, the kernel limits the whole process — C code and started programs included — to the kinds of capability `main` declared: no sockets without `Net`, no starting programs without `Proc`, no files without `Fs` (beyond what the held capabilities need); seccomp and Landlock on Linux, best effort; milestone 189, in v18's Phase 2. **Kernel-level confinement: needs the user's security review before any code.**
 
-**Status:** proposed 2026-11-16.
+**Status:** proposed 2026-11-16. Approved 2026-11-16 (security review).
 
 ## OBJECTIVE
 ```lugha
@@ -70,6 +70,7 @@ With `Fs`, no Landlock file ruleset: the whole file system is open, as SEC-05 sa
 3. **`LUGHA_LOCKDOWN=report`** as the only way to see what applied; no command-line flag.
 4. **Tests are locked down too**, by what each test takes (plain or integration).
 5. **`runtime/lockdown.c`**, a new fragment; the system-call numbers come from the target's `<sys/syscall.h>` (x86-64 and ARM64 both).
+6. **`lugha_rt_lockdown(kinds, folder)` is the porting point:** the compiler only says which capability kinds `main` took; each platform implements the function with its own mechanism (OpenBSD `pledge`/`unveil`, FreeBSD Capsicum, macOS Seatbelt), and one without an implementation runs unlocked, as best effort, quietly, allows.
 
 ## REQUIREMENTS
 
@@ -84,12 +85,18 @@ With `Fs`, no Landlock file ruleset: the whole file system is open, as SEC-05 sa
 - Any platform but Linux; the ARM64 build is compiled and checked under `qemu-user` where the tests already do.
 
 ## TESTS
-- [ ] `tests/lockdown.rs` (each case skips with a note where the kernel lacks the feature): a program without `Net` gets `-1` from `socket()` through an `extern`; with `Net` it doesn't; without `Proc`, `fork`/`execve` through C fail and `proc` isn't there to call; with `Proc` and without `Net`, a started `sh -c 'exec 3<>/dev/tcp/127.0.0.1/1'`-style probe (or a small C helper) can't make a socket; without `Fs`, opening `/etc/passwd` through C fails (Landlock), with `Net` `/etc/hosts` still reads and `localhost` still resolves, with `Clock` `local_offset` still works; with `Fs` everything opens; `io_uring_setup` always fails; `LUGHA_LOCKDOWN=report` prints what applied.
-- [ ] A plain test (through `lughac test`) can write in its folder and not outside it through C.
-- [ ] Targeted runs: `--lib`, `programs`, `net`, `http`, `tls`, `fs_time`, `test_capabilities`, `ffi_permission`, the C-interop tests; CI the rest.
+- [x] `tests/lockdown.rs` (each case skips with a note where the kernel lacks the feature): a program without `Net` gets `-1` from `socket()` through an `extern`; with `Net` it doesn't; without `Proc`, `fork`/`execve` through C fail and `proc` isn't there to call; with `Proc` and without `Net`, a started `sh -c 'exec 3<>/dev/tcp/127.0.0.1/1'`-style probe (or a small C helper) can't make a socket; without `Fs`, opening `/etc/passwd` through C fails (Landlock), with `Net` `/etc/hosts` still reads and `localhost` still resolves, with `Clock` `local_offset` still works; with `Fs` everything opens; `io_uring_setup` always fails; `LUGHA_LOCKDOWN=report` prints what applied.
+- [x] A plain test (through `lughac test`) can write in its folder and not outside it through C.
+- [x] Targeted runs: `--lib`, `programs`, `net`, `http`, `tls`, `fs_time`, `test_capabilities`, `ffi_permission`, the C-interop tests; CI the rest.
 
 ## ACCEPTANCE
-- [ ] On a kernel with seccomp and Landlock, no code in a program — Lugha, C, or a started program — makes a socket without `Net`, starts a program without `Proc`, or opens a file outside what its capabilities need without `Fs`.
-- [ ] On a kernel without them, programs still run.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass
-- [ ] Every `pub` item documented; spec, CHANGELOG and CLAUDE.md updated where they change
+- [x] On a kernel with seccomp and Landlock, no code in a program — Lugha, C, or a started program — makes a socket without `Net`, starts a program without `Proc`, or opens a file outside what its capabilities need without `Fs`.
+- [x] On a kernel without them, programs still run.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass
+- [x] Every `pub` item documented; spec, CHANGELOG and CLAUDE.md updated where they change
+
+## CHANGES DURING THE BUILD
+- **Landlock's ruleset size follows the ABI**: the struct is passed only as far as the fields this kernel (and these headers) know, and the newer fields are behind `#ifdef`, so older headers build and older kernels don't refuse unknown fields.
+- **Order in `lugha_rt_lockdown`**: `no_new_privs`, then Landlock, then seccomp, so the seccomp filter can't refuse a Landlock call.
+- **Checked here** (Linux 7.0, Landlock ABI 8): without capabilities C gets `-1` from `socket`, `fork`, `io_uring_setup` and `open("/etc/passwd")`; with `Net` and `Clock` but no `Fs`, `localhost` resolves, the zone reads and `/etc/passwd` is refused; a program started through `Proc` without `Net` can read (`cat`) but can't write a file or make a socket (Python's `socket()` raises `PermissionError`).
+- **Targeted runs only** (`--lib`, `programs`, `spec`, `arm`, the network, TLS, file, test-runner, `ffi_permission`, C-interop and `lockdown` files); CI the rest.

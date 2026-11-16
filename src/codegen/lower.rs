@@ -363,6 +363,7 @@ impl<'ctx> Lowerer<'ctx> {
         self.call_const_init();
         // What `main`'s parameters ask for, made once the runtime is up.
         let args = self.entry_arguments(params, crate::check::Entry::Main);
+        self.lock_down(params);
         let call = self
             .builder
             .build_call(user_main, &args, "result")
@@ -386,6 +387,17 @@ impl Lowerer<'_> {
 }
 
 impl<'ctx> Lowerer<'ctx> {
+    /// Limits the process to the capability kinds in `params`, once they
+    /// are made and before any of the program's code runs.
+    pub(super) fn lock_down(&mut self, params: &[Type]) {
+        let kinds = crate::check::lockdown_kinds(params);
+        let function = self.runtime("lugha_rt_lockdown", &[Type::I64], None);
+        let value = self.context.i64_type().const_int(kinds as u64, false);
+        self.builder
+            .build_call(function, &[value.into()], "")
+            .expect(POSITIONED);
+    }
+
     /// One value per parameter in `params`, in order: the arguments array
     /// for `string[]`, and for each capability the one `entry` is given
     /// (a test's stand-ins, or the real ones).
