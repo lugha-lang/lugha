@@ -50,6 +50,10 @@ impl<'ctx> Lowerer<'ctx> {
         } else {
             let (_, fail_payloads) = self.variant(&ty, fail);
             let error = self.load_payload(&ty, slot, &fail_payloads, 0, &fail_payloads[0]);
+            // Under reference counting the returned failure holds its error.
+            if self.rc() {
+                self.rc_retain(error, &fail_payloads[0]);
+            }
             // `?` converting the error into an interface error.
             let error = match self.try_conversions.get(&inner.id).cloned() {
                 Some(to) => self.box_as(error, &self.concrete(&fail_payloads[0]), &to),

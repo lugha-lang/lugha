@@ -57,6 +57,12 @@ impl<'ctx> Lowerer<'ctx> {
             self.scopes = saved;
             lowered?;
         }
+        // Leaving the function's own block is leaving the function.
+        if to == 0 {
+            self.rc_exit_function();
+        } else {
+            self.rc_leave_blocks(to);
+        }
         Ok(())
     }
 
@@ -69,7 +75,12 @@ impl<'ctx> Lowerer<'ctx> {
         ty: &Type,
         to: usize,
     ) -> BasicValueEnum<'ctx> {
-        if self.defers_pending(to) {
+        if self.defers_pending(to) && self.rc() {
+            // One more holder, released with the statement's temporaries.
+            self.rc_retain(value, ty);
+            self.rc_temporary(None, value, ty);
+            value
+        } else if self.defers_pending(to) {
             self.deep_copy(value, ty)
         } else {
             value

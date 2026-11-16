@@ -17,10 +17,15 @@ impl<'ctx> Lowerer<'ctx> {
         if let Some(value) = self.preset(expr) {
             return Ok(Value::Val(value));
         }
-        match self.conversions.get(&expr.id).cloned() {
+        let value = match self.conversions.get(&expr.id).cloned() {
             Some(to) => self.converted(expr, &to),
             None => self.unconverted(expr),
-        }
+        }?;
+        Ok(if self.rc() {
+            self.rc_settle(expr, value)
+        } else {
+            value
+        })
     }
 
     /// Lowers an expression at its own type.

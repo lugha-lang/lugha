@@ -9,6 +9,7 @@ LughaArray *lugha_rt_args(void) {
         lugha_rt_alloc((int64_t)sizeof(LughaArray) + count * (int64_t)sizeof(LughaString *));
     array->len = count;
     array->cap = count;
+    rt_holds_pointers(array);
     LughaString **elems = (LughaString **)(void *)array->elems;
     for (int64_t i = 0; i < count; i++) {
         size_t len = strlen(program_argv[i]);

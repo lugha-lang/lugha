@@ -82,16 +82,19 @@ impl<'ctx> Lowerer<'ctx> {
             .expect(POSITIONED)
             .into_pointer_value();
         let i64_type = self.context.i64_type();
-        let cap = self
-            .builder
-            .build_load(i64_type, self.capacity_address(array), "cap")
-            .expect(POSITIONED)
-            .into_int_value();
-        // The flag is the sign bit, so "shared" is "cap < 0".
-        let shared = self
-            .builder
-            .build_int_compare(IntPredicate::SLT, cap, i64_type.const_zero(), "is_shared")
-            .expect(POSITIONED);
+        let shared = if self.rc() {
+            self.rc_shared(array)
+        } else {
+            let cap = self
+                .builder
+                .build_load(i64_type, self.capacity_address(array), "cap")
+                .expect(POSITIONED)
+                .into_int_value();
+            // The flag is the sign bit, so "shared" is "cap < 0".
+            self.builder
+                .build_int_compare(IntPredicate::SLT, cap, i64_type.const_zero(), "is_shared")
+                .expect(POSITIONED)
+        };
         let from = self.builder.get_insert_block().expect(POSITIONED);
         let (clone, done) = (
             self.append(&format!("{label}.clone")),
@@ -116,6 +119,10 @@ impl<'ctx> Lowerer<'ctx> {
         self.builder.position_at_end(clone);
         let copy = self.clone_array(array, ty);
         self.builder.build_store(slot, copy).expect(POSITIONED);
+        // The slot holds the clone now, not the array.
+        if self.rc() {
+            self.rc_pointer(array, false);
+        }
         let cloned = self.builder.get_insert_block().expect(POSITIONED);
         self.branch(done);
         self.builder.position_at_end(done);
@@ -129,7 +136,7 @@ impl<'ctx> Lowerer<'ctx> {
     /// are marked, now that two arrays hold them).
     fn clone_array(&mut self, array: PointerValue<'ctx>, ty: &Type) -> PointerValue<'ctx> {
         let element = element_of(ty);
-        if element.is_deep(&self.structs) {
+        if element.is_deep(&self.structs) || (self.rc() && self.counted(&element)) {
             self.clone_deep(array, ty)
         } else {
             self.clone_flat(array, &element)

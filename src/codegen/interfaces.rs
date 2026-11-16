@@ -51,7 +51,14 @@ impl<'ctx> Lowerer<'ctx> {
         // The box owns its value, as a variable would, so a value read from a
         // place is copied into it.
         let copies = aliasing(expr) && !self.moved(expr.id);
-        let value = if copies {
+        // Under reference counting the box takes a fresh value over and
+        // holds any other.
+        let value = if self.rc() {
+            if !self.fresh_unconverted(expr) {
+                self.rc_retain(value, &ty);
+            }
+            value
+        } else if copies {
             self.deep_copy(value, &ty)
         } else {
             value
@@ -85,7 +92,7 @@ impl<'ctx> Lowerer<'ctx> {
     }
 
     /// A new GC allocation holding `value` of type `ty`.
-    pub(super) fn new_box(&self, ty: &Type, value: BasicValueEnum<'ctx>) -> PointerValue<'ctx> {
+    pub(super) fn new_box(&mut self, ty: &Type, value: BasicValueEnum<'ctx>) -> PointerValue<'ctx> {
         let size = self
             .context
             .i64_type()
@@ -99,6 +106,10 @@ impl<'ctx> Lowerer<'ctx> {
             unreachable!("lugha_rt_alloc returns a pointer")
         };
         let heap = heap.into_pointer_value();
+        if self.rc() {
+            let drop = self.rc_box_drop(ty);
+            self.rc_set_drop(heap, drop);
+        }
         self.store_element(heap, ty, value);
         heap
     }

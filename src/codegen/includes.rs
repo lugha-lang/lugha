@@ -32,6 +32,7 @@ impl<'ctx> Lowerer<'ctx> {
             i64_type.const_int(len | 1 << 63, false).into(),
             self.context.const_string(&included.bytes, false).into(),
         ];
+        let header = self.immortal_header(header.to_vec());
         let value = self.context.const_struct(&header, false);
         let global = self.module.add_global(value.get_type(), None, "bytes");
         global.set_initializer(&value);
@@ -39,7 +40,7 @@ impl<'ctx> Lowerer<'ctx> {
         global.set_linkage(Linkage::Private);
         global.set_unnamed_addr(true);
         global.set_alignment(8);
-        let ptr = global.as_pointer_value();
+        let ptr = self.past_header(global);
         self.include_globals.insert(key, ptr);
         ptr
     }

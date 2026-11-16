@@ -10,6 +10,13 @@ use crate::check::Type;
 impl<'ctx> Lowerer<'ctx> {
     /// Lowers a statement and reports whether it diverges.
     pub(super) fn stmt(&mut self, stmt: &Stmt) -> Result<bool, CodegenError> {
+        self.rc_statement_start();
+        let diverges = self.stmt_inner(stmt);
+        self.rc_statement_end();
+        diverges
+    }
+
+    fn stmt_inner(&mut self, stmt: &Stmt) -> Result<bool, CodegenError> {
         // A labelled loop's label, for `push_loop` when its body is entered.
         if let StmtKind::While {
             label: Some(label),
@@ -115,6 +122,7 @@ impl<'ctx> Lowerer<'ctx> {
         let value = self.value_for_store(init, &ty)?;
         let ptr = self.entry_alloca(&ty, &name.name);
         self.builder.build_store(ptr, value).expect(POSITIONED);
+        self.rc_own_local(ptr, &ty);
         self.scopes.declare(
             &name.name,
             Local {
@@ -210,6 +218,18 @@ impl<'ctx> Lowerer<'ctx> {
         // A local's slot holds its value as is; fields and elements are
         // stored in element layout (`bool` as `i8`).
         let (address, ty, element) = self.place_commit(place, &plan);
+        if self.rc() {
+            // The place lets go of what it held.
+            let old = if element {
+                self.load_element(address, &ty)
+            } else {
+                let llvm = super::value::llvm_type(self.context, &ty);
+                self.builder
+                    .build_load(llvm, address, "old")
+                    .expect(POSITIONED)
+            };
+            self.rc_release(old, &ty);
+        }
         if element {
             self.store_element(address, &ty, new);
         } else {

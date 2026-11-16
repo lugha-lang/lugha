@@ -29,6 +29,12 @@ impl<'ctx> Lowerer<'ctx> {
         let rty = self.ty(expr);
         let result = (!matches!(rty, Type::Unit | Type::Never))
             .then(|| self.entry_alloca(&rty, "match.value"));
+        // Under reference counting the result slot owns the arm's value, so
+        // each arm's own temporaries end with it.
+        let counted = self.rc() && self.counted(&rty);
+        if let (Some(result), true) = (result, counted) {
+            self.rc_result_slot(result, &rty);
+        }
         let end = self.append("match.end");
         // Arms that can never run (W0102) are not lowered: a `switch` can't
         // repeat a case value.
@@ -76,16 +82,22 @@ impl<'ctx> Lowerer<'ctx> {
         let mut diverges = true;
         for (arm, block) in live.iter().zip(&blocks) {
             self.builder.position_at_end(*block);
+            self.rc_statement_start();
             self.scopes.push();
             if let (Some(slot), PatternKind::Variant(name, Some(slots))) = (slot, &arm.pattern.kind)
             {
                 self.bind_payloads(&sty, slot, &name.name, slots);
             }
+            self.rc_forget_last();
             let value = self.expr(&arm.body)?;
             self.scopes.pop();
             if let (Some(result), Value::Val(v)) = (result, value) {
+                if counted && !self.rc_take(arm.body.id, &rty) {
+                    self.rc_retain(v, &rty);
+                }
                 self.builder.build_store(result, v).expect(POSITIONED);
             }
+            self.rc_statement_end();
             diverges &= matches!(value, Value::Never);
             self.finish_branch(value, end);
         }

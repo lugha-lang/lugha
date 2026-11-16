@@ -29,16 +29,17 @@ pub(super) fn counted(ty: &Type, structs: &Structs, enums: &Enums) -> bool {
     counted_in(ty, structs, enums, &mut Vec::new())
 }
 
-fn counted_in(ty: &Type, structs: &Structs, enums: &Enums, seen: &mut Vec<String>) -> bool {
+fn counted_in(ty: &Type, structs: &Structs, enums: &Enums, path: &mut Vec<String>) -> bool {
     match ty {
         Type::String | Type::Array(_) | Type::Ref(_) | Type::Fun(..) | Type::Interface(..) => true,
         Type::Struct(..) | Type::Enum(..) | Type::Option(_) => {
             let name = ty.to_string();
-            // A type that leads back to itself holds what its other parts hold.
-            if seen.contains(&name) {
-                return false;
+            // A type leading back to itself does so through a box on the
+            // heap, which is counted.
+            if path.contains(&name) {
+                return true;
             }
-            seen.push(name.clone());
+            path.push(name.clone());
             let parts: Vec<Type> = match ty {
                 Type::Struct(..) => structs[&name].iter().map(|(_, t)| t.clone()).collect(),
                 _ => variants(ty, enums)
@@ -46,9 +47,28 @@ fn counted_in(ty: &Type, structs: &Structs, enums: &Enums, seen: &mut Vec<String
                     .flat_map(|(_, p)| p)
                     .collect(),
             };
-            parts.iter().any(|p| counted_in(p, structs, enums, seen))
+            let counted = parts.iter().any(|p| counted_in(p, structs, enums, path));
+            path.pop();
+            counted
         }
         _ => false,
+    }
+}
+
+/// What in `checked` the reference-counting prototype doesn't count yet,
+/// if anything: tasks, channels and actors, or C callbacks.
+pub(super) fn rc_unsupported(checked: &crate::check::Checked) -> Option<&'static str> {
+    let concurrent = checked.uses_tasks
+        || checked
+            .used
+            .iter()
+            .any(|t| matches!(t, Type::Task(_) | Type::Chan(_) | Type::Actor(_)));
+    if concurrent {
+        Some("tasks, channels or actors")
+    } else if !checked.c_params.is_empty() {
+        Some("C callbacks")
+    } else {
+        None
     }
 }
 
@@ -314,100 +334,99 @@ impl<'ctx> Lowerer<'ctx> {
         self.builder.position_at_end(done);
     }
 
-    /// The function releasing the contents of an object holding one value
-    /// of type `contents` at its start (a `Ref` box, an indirect payload's
-    /// box, an interface value's box); `None` when nothing in it is counted.
-    pub(super) fn rc_box_drop(&mut self, contents: &Type) -> Option<FunctionValue<'ctx>> {
-        if !self.counted(contents) {
-            return None;
-        }
-        let name = format!("lugha_rc_drop_box_{}", mangle(contents));
-        if let Some(function) = self.module.get_function(&name) {
-            return Some(function);
-        }
-        let ptr = self.context.ptr_type(AddressSpace::default());
-        let function = self.module.add_function(
-            &name,
-            self.context.void_type().fn_type(&[ptr.into()], false),
-            Some(Linkage::Internal),
-        );
-        let contents = contents.clone();
-        self.in_function(function, |this| {
-            let object = function
-                .get_nth_param(0)
-                .expect("one parameter")
-                .into_pointer_value();
-            let value = this.load_element(object, &contents);
-            this.rc_release(value, &contents);
-            this.builder.build_return(None).expect(POSITIONED);
-        });
-        Some(function)
-    }
-
-    /// The function releasing an array's elements of type `element`: the
-    /// runtime's for pointers, one generated per type for values holding
-    /// them; `None` when the elements hold nothing counted.
-    pub(super) fn rc_array_drop(&mut self, element: &Type) -> Option<FunctionValue<'ctx>> {
-        if !self.counted(element) {
-            return None;
-        }
-        if matches!(element, Type::String | Type::Array(_) | Type::Ref(_)) {
-            return Some(self.runtime("lugha_rt_rc_drop_pointers", &[Type::String], None));
-        }
-        let name = format!("lugha_rc_drop_arr_{}", mangle(element));
-        if let Some(function) = self.module.get_function(&name) {
-            return Some(function);
-        }
-        let ptr = self.context.ptr_type(AddressSpace::default());
-        let function = self.module.add_function(
-            &name,
-            self.context.void_type().fn_type(&[ptr.into()], false),
-            Some(Linkage::Internal),
-        );
-        let element = element.clone();
-        self.in_function(function, |this| {
-            let array = function
-                .get_nth_param(0)
-                .expect("one parameter")
-                .into_pointer_value();
-            let len = this.length(array);
-            let size = this.element_size(&element);
-            this.count_loop(len, |this, i| {
-                let item = this.load_element(this.element_address(array, i, size), &element);
-                this.rc_release(item, &element);
-                Ok(())
-            })
-            .expect("drop loops only lower runtime calls");
-            this.builder.build_return(None).expect(POSITIONED);
-        });
-        Some(function)
-    }
-
-    /// Stores `drop` as what releases `object`'s contents when it is freed.
-    pub(super) fn rc_set_drop(
+    /// Runs `body` positioned in `function`'s new entry block, with a
+    /// builder of its own: lowering's builder keeps its exact place, which
+    /// may be before a block's terminator.
+    pub(super) fn in_function(
         &mut self,
-        object: PointerValue<'ctx>,
-        drop: Option<FunctionValue<'ctx>>,
+        function: FunctionValue<'ctx>,
+        body: impl FnOnce(&mut Self),
     ) {
-        let Some(drop) = drop else { return };
-        let set = self.runtime("lugha_rt_rc_set_drop", &[Type::String, Type::String], None);
-        let address = drop.as_global_value().as_pointer_value();
-        self.builder
-            .build_call(set, &[object.into(), address.into()], "")
-            .expect(POSITIONED);
-    }
-
-    /// Runs `body` positioned in `function`'s new entry block, then comes
-    /// back to where lowering was.
-    fn in_function(&mut self, function: FunctionValue<'ctx>, body: impl FnOnce(&mut Self)) {
-        let (saved_block, saved_function) = (self.builder.get_insert_block(), self.function);
+        let saved_function = self.function;
+        let saved_builder = std::mem::replace(&mut self.builder, self.context.create_builder());
         self.function = Some(function);
         self.builder
             .position_at_end(self.context.append_basic_block(function, "entry"));
         body(self);
         self.function = saved_function;
-        if let Some(block) = saved_block {
-            self.builder.position_at_end(block);
-        }
+        self.builder = saved_builder;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::codegen::test_util::{ir, ir_rc};
+
+    /// The definition of `lugha_fn_<name>`, up to its closing brace.
+    fn body<'a>(ir: &'a str, name: &str) -> &'a str {
+        let call = format!("@lugha_fn_{name}(");
+        let at = ir
+            .match_indices("define ")
+            .map(|(at, _)| at)
+            .find(|&at| ir[at..].lines().next().is_some_and(|l| l.contains(&call)))
+            .unwrap_or_else(|| panic!("{name}: {ir}"));
+        let start = &ir[at..];
+        &start[..start.find("\n}").expect("a body ends")]
+    }
+
+    #[test]
+    fn a_copy_adds_a_holder_instead_of_marking_the_array() {
+        let ir = ir_rc(
+            "fun main(console: Console) { let xs = [\"a\"]; let ys = xs; console.println(xs.len + ys.len); }",
+        );
+        let main = body(&ir, "main");
+        assert!(main.contains("call void @lugha_rc_inc("), "{main}");
+        assert!(!main.contains("or i64 %cap"), "{main}");
+    }
+
+    #[test]
+    fn a_block_end_releases_its_locals() {
+        let ir = ir_rc("fun f() { let xs = [1]; }\nfun main() { f(); }");
+        assert!(body(&ir, "f").contains("call void @lugha_rc_dec("), "{ir}");
+    }
+
+    #[test]
+    fn a_returned_local_moves_out_without_a_new_holder() {
+        let ir = ir_rc("fun f(): i64[] { let xs = [1]; xs }\nfun main() { let ys = f(); }");
+        assert!(!body(&ir, "f").contains("@lugha_rc_inc("), "{ir}");
+    }
+
+    #[test]
+    fn a_write_clones_an_array_whose_count_is_not_one() {
+        let ir = ir_rc("fun main() { let mut xs = [1]; let ys = xs; xs[0] = 2; let n = ys.len; }");
+        let main = body(&ir, "main");
+        assert!(main.contains("icmp ne i64 %count, 1"), "{main}");
+        assert!(main.contains("cow.clone"), "{main}");
+    }
+
+    #[test]
+    fn objects_carry_their_drop_and_constants_never_die() {
+        let ir = ir_rc("fun main() { let xs = [\"hey\"]; }");
+        assert!(
+            ir.contains(
+                "call void @lugha_rt_rc_set_drop(ptr %array, ptr @lugha_rt_rc_drop_pointers)"
+            ),
+            "{ir}"
+        );
+        // The count of a literal: the immortal one.
+        assert!(
+            ir.contains("{ ptr null, i64 -9223372036854775808, i64 3,"),
+            "{ir}"
+        );
+    }
+
+    #[test]
+    fn a_recursive_enum_is_counted_through_its_box() {
+        let ir = ir_rc("enum L { Nil, Cons(i64, L) }\nfun main() { let l = L.Cons(1, L.Nil); }");
+        assert!(ir.contains("@lugha_rc_release_1L("), "{ir}");
+        assert!(ir.contains("@lugha_rc_drop_box_1L"), "{ir}");
+    }
+
+    #[test]
+    fn without_the_flag_nothing_is_counted() {
+        let ir = ir(
+            "fun main(console: Console) { let xs = [\"a\"]; let ys = xs; console.println(ys.len); }",
+        );
+        assert!(!ir.contains("lugha_rc_"), "{ir}");
     }
 }

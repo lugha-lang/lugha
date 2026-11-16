@@ -93,6 +93,7 @@ impl<'ctx> Lowerer<'ctx> {
                 self.builder
                     .build_call(eprint, &[text.into(), newline.into()], "")
                     .expect(POSITIONED);
+                self.rc_drop_string(text);
                 Ok(Value::Void)
             }
             _ => {

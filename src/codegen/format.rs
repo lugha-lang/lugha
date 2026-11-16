@@ -113,6 +113,8 @@ impl<'ctx> Lowerer<'ctx> {
         }
         let text = self.text(value, ty);
         let params = [Type::String, Type::I32, Type::I32, Type::I64];
-        self.call_runtime_value("lugha_rt_pad", &params, &[text, fill, align, width])
+        let padded = self.call_runtime_value("lugha_rt_pad", &params, &[text, fill, align, width]);
+        self.rc_drop_string(text);
+        padded
     }
 }

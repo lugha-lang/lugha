@@ -28,6 +28,9 @@ pub(super) struct Loop<'ctx> {
     pub label: Option<String>,
     /// A `loop`'s result slot and type, which `break value` stores into.
     pub result: Option<(PointerValue<'ctx>, Type)>,
+    /// How many statements enclosed the loop: under reference counting a
+    /// jump releases the temporaries of those inside it.
+    pub statements: usize,
 }
 
 impl<'ctx> Lowerer<'ctx> {
@@ -46,6 +49,7 @@ impl<'ctx> Lowerer<'ctx> {
     ) -> Result<Value<'ctx>, CodegenError> {
         self.scopes.push();
         self.defers.push(Vec::new());
+        self.rc_block_start();
         let mut diverged = false;
         for stmt in &block.stmts {
             diverged |= self.stmt(stmt)?;
@@ -55,7 +59,11 @@ impl<'ctx> Lowerer<'ctx> {
                 if returns && !matches!(self.ty(tail), Type::Never) && self.ret.is_some() =>
             {
                 let ty = self.ty(tail);
-                Value::Val(self.value_for_return(tail, &ty)?)
+                // A statement of its own: the returned value holds what it needs.
+                self.rc_statement_start();
+                let value = self.value_for_return(tail, &ty);
+                self.rc_statement_end();
+                Value::Val(value?)
             }
             Some(tail) => self.expr(tail)?,
             None => Value::Void,
@@ -63,10 +71,14 @@ impl<'ctx> Lowerer<'ctx> {
         // The tail is computed, then the block's defers run.
         let depth = self.defers.len() - 1;
         let value = match (value, &block.tail) {
+            (Value::Val(v), Some(tail)) if self.rc() && !returns => {
+                Value::Val(self.rc_outlive_block(v, &self.ty(tail)))
+            }
             (Value::Val(v), Some(tail)) => Value::Val(self.hold(v, &self.ty(tail), depth)),
             (value, _) => value,
         };
         self.run_defers(depth)?;
+        self.rc_block_end();
         self.defers.pop();
         self.scopes.pop();
         Ok(if diverged { Value::Never } else { value })
@@ -265,6 +277,7 @@ impl<'ctx> Lowerer<'ctx> {
             defers: self.defers.len(),
             label,
             result: None,
+            statements: self.rc_statement_depth(),
         });
     }
 
@@ -281,6 +294,12 @@ impl<'ctx> Lowerer<'ctx> {
             Type::Never | Type::Unit | Type::Error => None,
             ty => Some((self.entry_alloca(ty, "loop.value"), ty.clone())),
         };
+        if let Some((slot, ty)) = &result
+            && self.rc()
+            && self.counted(ty)
+        {
+            self.rc_result_slot(*slot, ty);
+        }
         let head = self.append("loop.body");
         let exit = self.append("loop.end");
         let hoists = self.hoist_loop(&[], body)?;
@@ -295,6 +314,7 @@ impl<'ctx> Lowerer<'ctx> {
             defers: self.defers.len(),
             label: label.map(|l| l.name.clone()),
             result: result.clone(),
+            statements: self.rc_statement_depth(),
         });
         self.block(body)?;
         self.loops.pop();
@@ -347,11 +367,13 @@ impl<'ctx> Lowerer<'ctx> {
             }
         }
         let target = &self.loops[index];
-        let (to, defers) = (
+        let (to, defers, statements) = (
             if is_break { target.exit } else { target.next },
             target.defers,
+            target.statements,
         );
         self.run_defers(defers)?;
+        self.rc_leave_statements(statements);
         self.branch(to);
         self.start_dead_block("after.jump");
         Ok(())

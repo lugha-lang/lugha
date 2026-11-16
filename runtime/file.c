@@ -21,15 +21,18 @@ int32_t lugha_rt_file_read(int64_t fd, int64_t max, LughaArray **out, LughaStrin
     if (max < 1 || max > FILE_MAX_READ) {
         return fs_fail(error, "max must be from 1 to 16777216");
     }
-    char *buffer = lugha_rt_alloc(max);
+    char *buffer = rt_scratch(max);
     for (;;) {
         ssize_t n = read((int)fd, buffer, (size_t)max);
         if (n >= 0) {
             *out = bytes_of(buffer, (int64_t)n);
+            rt_scratch_done(buffer);
             return 1;
         }
         if (errno != EINTR) {
-            return fs_fail(error, strerror(errno));
+            int saved = errno;
+            rt_scratch_done(buffer);
+            return fs_fail(error, strerror(saved));
         }
     }
 }

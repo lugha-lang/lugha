@@ -44,6 +44,7 @@ impl<'ctx> Lowerer<'ctx> {
         self.scopes = Scopes::default();
         self.loops.clear();
         self.defers.clear();
+        let outer = self.rc_enter_function();
         self.builder
             .position_at_end(self.context.append_basic_block(function, "entry"));
         self.scopes.push();
@@ -56,7 +57,9 @@ impl<'ctx> Lowerer<'ctx> {
                 .expect(POSITIONED);
         }
         self.scopes.pop();
+        self.rc_exit_function();
         self.builder.build_return(None).expect(POSITIONED);
+        self.rc_finish_function(function, outer);
         Ok(Some(function))
     }
 

@@ -13,13 +13,15 @@
 
 /* The folder holding `path`'s last part, opened beneath `dir`, with that
  * part in `*last`; -1 with the message set. The last part must be a name:
- * not empty, `.` or `..`. */
-static int dir_parent(const void *dir, const LughaString *path, const char **last,
-                      LughaString **error) {
+ * not empty, `.` or `..`. `*last` points into `*copy`, scratch memory the
+ * caller lets go of (`rt_scratch_done`) once done with it, and only on
+ * success: a failure lets go of it here. */
+static int dir_parent(const void *dir, const LughaString *path, char **copy_out,
+                      const char **last, LughaString **error) {
     if (!dir_path_ok(path, error)) {
         return -1;
     }
-    char *copy = lugha_rt_alloc(path->len + 1);
+    char *copy = rt_scratch(path->len + 1);
     memcpy(copy, path->bytes, (size_t)path->len);
     copy[path->len] = '\0';
     int64_t n = path->len;
@@ -30,6 +32,7 @@ static int dir_parent(const void *dir, const LughaString *path, const char **las
     const char *parent = ".";
     *last = copy;
     if (slash == copy) {
+        rt_scratch_done(copy);
         fs_fail(error, DIR_OUTSIDE);
         return -1;
     }
@@ -39,26 +42,33 @@ static int dir_parent(const void *dir, const LughaString *path, const char **las
         *last = slash + 1;
     }
     if ((*last)[0] == '\0' || strcmp(*last, ".") == 0 || strcmp(*last, "..") == 0) {
+        rt_scratch_done(copy);
         fs_fail(error, "a path must end in a name, not `.` or `..`");
         return -1;
     }
     int fd = dir_resolve(((const LughaDir *)dir)->fd, parent, O_PATH | O_DIRECTORY, 0);
     if (fd < 0) {
-        dir_fail(error, errno);
+        int saved = errno;
+        rt_scratch_done(copy);
+        dir_fail(error, saved);
+        return fd;
     }
+    *copy_out = copy;
     return fd;
 }
 
 /* `$os.dir_make(dir, path)`: one folder (mode 0777 less the umask). */
 int32_t lugha_rt_dir_make(void *dir, const LughaString *path, int64_t *done, LughaString **error) {
     const char *last;
-    int parent = dir_parent(dir, path, &last, error);
+    char *copy;
+    int parent = dir_parent(dir, path, &copy, &last, error);
     if (parent < 0) {
         return 0;
     }
     int ok = mkdirat(parent, last, 0777) == 0;
     int saved = errno;
     close(parent);
+    rt_scratch_done(copy);
     *done = 0;
     return ok ? 1 : fs_fail(error, strerror(saved));
 }
@@ -68,13 +78,15 @@ int32_t lugha_rt_dir_make(void *dir, const LughaString *path, int64_t *done, Lug
 int32_t lugha_rt_dir_remove(void *dir, const LughaString *path, int64_t folder, int64_t *done,
                             LughaString **error) {
     const char *last;
-    int parent = dir_parent(dir, path, &last, error);
+    char *copy;
+    int parent = dir_parent(dir, path, &copy, &last, error);
     if (parent < 0) {
         return 0;
     }
     int ok = unlinkat(parent, last, folder ? AT_REMOVEDIR : 0) == 0;
     int saved = errno;
     close(parent);
+    rt_scratch_done(copy);
     *done = 0;
     return ok ? 1 : fs_fail(error, strerror(saved));
 }
@@ -85,19 +97,24 @@ int32_t lugha_rt_dir_rename(void *dir, const LughaString *from, const LughaStrin
                             int64_t *done, LughaString **error) {
     const char *from_last;
     const char *to_last;
-    int from_parent = dir_parent(dir, from, &from_last, error);
+    char *from_copy;
+    char *to_copy;
+    int from_parent = dir_parent(dir, from, &from_copy, &from_last, error);
     if (from_parent < 0) {
         return 0;
     }
-    int to_parent = dir_parent(dir, to, &to_last, error);
+    int to_parent = dir_parent(dir, to, &to_copy, &to_last, error);
     if (to_parent < 0) {
         close(from_parent);
+        rt_scratch_done(from_copy);
         return 0;
     }
     int ok = renameat(from_parent, from_last, to_parent, to_last) == 0;
     int saved = errno;
     close(from_parent);
     close(to_parent);
+    rt_scratch_done(from_copy);
+    rt_scratch_done(to_copy);
     *done = 0;
     return ok ? 1 : fs_fail(error, strerror(saved));
 }
@@ -109,6 +126,7 @@ int64_t lugha_rt_dir_kind(void *dir, const LughaString *path) {
     LughaString *ignored = NULL;
     int fd = dir_open_beneath(dir, path, O_PATH, 0, &ignored);
     if (fd < 0) {
+        rt_let_go(ignored);
         return 0;
     }
     struct stat info;

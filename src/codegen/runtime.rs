@@ -118,15 +118,15 @@ impl<'ctx> Lowerer<'ctx> {
         }
         let len = self.context.i64_type().const_int(text.len() as u64, false);
         let bytes = self.context.const_string(text.as_bytes(), true);
-        let value = self
-            .context
-            .const_struct(&[len.into(), bytes.into()], false);
+        let fields = self.immortal_header(vec![len.into(), bytes.into()]);
+        let value = self.context.const_struct(&fields, false);
         let global = self.module.add_global(value.get_type(), None, "str");
         global.set_initializer(&value);
         global.set_constant(true);
         global.set_linkage(Linkage::Private);
         global.set_unnamed_addr(true);
-        let ptr = global.as_pointer_value();
+        global.set_alignment(8);
+        let ptr = self.past_header(global);
         self.constants.strings.insert(text.to_string(), ptr);
         ptr
     }
@@ -168,10 +168,13 @@ impl<'ctx> Lowerer<'ctx> {
                         std::slice::from_ref(&ty),
                         None,
                     );
-                    let value = self.abi_value(&ty, value);
+                    let printed = self.abi_value(&ty, value);
                     self.builder
-                        .build_call(print, &[value], "")
+                        .build_call(print, &[printed], "")
                         .expect(POSITIONED);
+                    if ty == Type::String {
+                        self.rc_drop_string(value);
+                    }
                 }
                 if name == "println" {
                     let newline = self.runtime("lugha_rt_print_newline", &[], None);

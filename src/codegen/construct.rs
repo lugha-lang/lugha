@@ -81,6 +81,10 @@ impl<'ctx> Lowerer<'ctx> {
                     unreachable!("lugha_rt_alloc returns a pointer")
                 };
                 let heap = heap.into_pointer_value();
+                if self.rc() {
+                    let drop = self.rc_box_drop(payload);
+                    self.rc_set_drop(heap, drop);
+                }
                 self.store_element(heap, payload, value);
                 self.builder.build_store(address, heap).expect(POSITIONED);
             } else {

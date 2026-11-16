@@ -26,6 +26,9 @@ impl<'ctx> Lowerer<'ctx> {
         expr: &Expr,
         ty: &Type,
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
+        if self.rc() {
+            return self.rc_value_for_store(expr, ty);
+        }
         let value = self.get(expr, ty)?;
         let copies = self.aliased(expr) && !self.moved(expr.id);
         Ok(if ty.is_deep(&self.structs) && copies {
@@ -42,6 +45,9 @@ impl<'ctx> Lowerer<'ctx> {
         expr: &Expr,
         ty: &Type,
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
+        if self.rc() {
+            return self.rc_value_for_return(expr, ty);
+        }
         let value = self.get(expr, ty)?;
         let moves = root(expr)
             // `None` is a constructor, not a local.
@@ -67,6 +73,11 @@ impl<'ctx> Lowerer<'ctx> {
         value: BasicValueEnum<'ctx>,
         ty: &Type,
     ) -> BasicValueEnum<'ctx> {
+        // Under reference counting a copy is one more holder.
+        if self.rc() {
+            self.rc_retain(value, ty);
+            return value;
+        }
         if !ty.is_deep(&self.structs) {
             return value;
         }
@@ -105,7 +116,7 @@ impl<'ctx> Lowerer<'ctx> {
 
     /// A clone of an array of plain elements: header and elements in one `memcpy`.
     pub(super) fn clone_flat(
-        &self,
+        &mut self,
         source: PointerValue<'ctx>,
         element: &Type,
     ) -> PointerValue<'ctx> {

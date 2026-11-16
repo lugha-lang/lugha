@@ -85,3 +85,21 @@ Every end-to-end program that uses no task, channel, actor or C callback prints 
 - [ ] The benchmarks' `lugha-rc` times and peak memory are recorded beside the baseline.
 - [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass
 - [ ] Every `pub` item documented; spec (the memory model gains a "prototype" note; §11 row 190), CHANGELOG and CLAUDE.md updated where they change
+
+## CHANGES DURING THE BUILD
+- **The header is two words, not one:** the drop function beside the count. Releasing any object is then the same operation (the runtime calls the drop stored when the object was made), and C-made objects carry theirs too. It costs 8 more bytes per object than planned; part 3 measures it.
+- **Slots are emptied at the start of the statement that makes them** (not at the function's entry), and an exit releases only what is in flight: so a slot lives within its statement, and `frames.rs` keeps sharing slots under `--memory=rc` (the plan turned sharing off). A match arm is a statement of its own, its value taken into the match's result slot.
+- **Pattern bindings hold their values** (the plan had them borrow): a binding is safe whatever its arm does to the scrutinee's place.
+- **Owning instances stay on under `--memory=rc`**, made count-aware: a caller done with a value hands its count over, and the instance's kept parameters are owned locals it can move from. Without them `bag = insert(bag, k)` cloned on every push (quadratic).
+- **Interface boxes are copied on write by count** before a `mut self` call: copies share boxes now, as they share arrays.
+- **The runtime's scratch buffers** (`net.c`, `udp.c`, `file.c`, `dir.c`, `dir_names.c`, `format.c`, `print.c`, `resolve.c`) are freed at once under reference counting (`rt_scratch`), C-made arrays of strings carry their drop (`rt_holds_pointers`), and an error string the runtime drops itself is released (`rt_let_go`). Under Boehm all three are what they were.
+- **Not done, recorded as gaps in `tests/rc_programs.rs`:**
+  - `runtime/process.c`'s buffers aren't freed: changing how programs are started needs its own review.
+  - A `Dir`'s handle is a `CPtr`, which FFI uses too, so it isn't counted: its descriptor stays open until exit. A typed handle would fix it.
+  - `Ref` cycles leak, as planned.
+  - Two frame-depth programs (`popover_depth`, `deep_match`) overflow at `-O0`: frames hold about twice the slots. They pass at `-O2`.
+  - One semantic difference: a value returned from inside `for … of mut` through a type's `index` doesn't see the element handed back after it was made. Under Boehm it did, through an unmarked alias.
+- **`LUGHA_RC_REPORT=2`** lists each live object at exit (its size, count and first bytes): the leak hunt's tool.
+- **`lughac test` reads only `LUGHA_MEMORY`** (it has no `--memory` flag), and `--emit=ir` lowers for the chosen memory too.
+- **Programs the prototype doesn't cover are refused in codegen** (`CodegenError::Unsupported`, exit 2), so the driver is unchanged.
+- **`rc.rs` was split before it landed:** objects' drops, constant headers and the shared test are in `rc_objects.rs`; slots in `rc_slots.rs`; ownership at expression sites in `rc_sites.rs`.

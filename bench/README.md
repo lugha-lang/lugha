@@ -36,7 +36,7 @@ The point is to compare compilers and runtimes, not cleverness:
 
 - **The same algorithm and data structures in every language, written plainly.** No SIMD intrinsics, threads, `unsafe` Rust or hand-unrolled loops.
 - **`binarytrees` allocates every node separately:** `malloc`/`free` in C, `Box` in Rust, a pointer in Go, an object in JS and Python, and a GC'd enum in Lugha. No pools or arenas.
-- **`-O2` for the default CPU, never `-march=native`:** `lughac build -O2`, `gcc -O2`, `rustc -C opt-level=2`, `go build`. Lugha also gets an informational `-O0` column.
+- **`-O2` for the default CPU, never `-march=native`:** `lughac build -O2`, `gcc -O2`, `rustc -C opt-level=2`, `go build`. Lugha also gets an informational `-O0` column, and a `lugha-rc` column: `-O2` with the reference-counting prototype (`--memory=rc`) in place of the collector.
 - **Lugha keeps its checks.** Integer overflow always panics in Lugha (spec §12), and every index is bounds-checked. C has neither check, and Rust has only bounds checks at `-O2`. Those costs are part of what the numbers show.
 - Floats print with 9 decimals so every language's text matches. Go's `mandelbrot` writes `float64(2.0*zr*zi)` so Go can't fuse the operations into an FMA instruction, which would change the result.
 

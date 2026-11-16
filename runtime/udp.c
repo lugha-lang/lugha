@@ -67,10 +67,11 @@ static struct addrinfo *udp_target(const LughaString *addr, LughaString **error)
     if (net_resolve(addr, AI_NUMERICHOST, &list) != NULL || list == NULL) {
         const char *prefix = "address must be an IP address with a port: ";
         size_t n = strlen(prefix);
-        char *text = lugha_rt_alloc((int64_t)n + addr->len);
+        char *text = rt_scratch((int64_t)n + addr->len);
         memcpy(text, prefix, n);
         memcpy(text + n, addr->bytes, (size_t)addr->len);
         *error = string_of(text, (int64_t)n + addr->len);
+        rt_scratch_done(text);
         return NULL;
     }
     return list;
@@ -126,13 +127,14 @@ int32_t lugha_rt_udp_recv(int64_t fd, int64_t max, int64_t timeout_ms, UdpDatagr
         return net_error(error, "max must be from 1 to 65536");
     }
     int64_t deadline = net_deadline(timeout_ms);
-    char *buffer = lugha_rt_alloc(max);
+    char *buffer = rt_scratch(max);
     for (;;) {
         struct sockaddr_storage from;
         socklen_t len = sizeof from;
         ssize_t n = recvfrom((int)fd, buffer, (size_t)max, MSG_TRUNC, (struct sockaddr *)&from,
                              &len);
         if (n > max) {
+            rt_scratch_done(buffer);
             char text[80];
             snprintf(text, sizeof text, "datagram of %zd bytes is longer than max", n);
             return net_error(error, text);
@@ -140,14 +142,18 @@ int32_t lugha_rt_udp_recv(int64_t fd, int64_t max, int64_t timeout_ms, UdpDatagr
         if (n >= 0) {
             out->bytes = bytes_of(buffer, (int64_t)n);
             out->from = udp_name((struct sockaddr *)&from, len);
+            rt_scratch_done(buffer);
             return 1;
         }
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
             if (!wait_fd((int)fd, EPOLLIN, deadline)) {
+                rt_scratch_done(buffer);
                 return net_error(error, "timed out");
             }
         } else if (errno != EINTR) {
-            return net_error(error, strerror(errno));
+            int saved = errno;
+            rt_scratch_done(buffer);
+            return net_error(error, strerror(saved));
         }
     }
 }
@@ -271,7 +277,7 @@ int32_t lugha_rt_net_interfaces(LughaString **out, LughaString **error) {
         return net_error(error, strerror(errno));
     }
     size_t cap = 1024, len = 0;
-    char *text = lugha_rt_alloc((int64_t)cap);
+    char *text = rt_scratch((int64_t)cap);
     for (struct ifaddrs *i = list; i != NULL; i = i->ifa_next) {
         char host[NI_MAXHOST] = "";
         int family = i->ifa_addr == NULL ? -1 : i->ifa_addr->sa_family;
@@ -291,8 +297,9 @@ int32_t lugha_rt_net_interfaces(LughaString **out, LughaString **error) {
         }
         if (len + (size_t)n > cap) {
             cap = (len + (size_t)n) * 2;
-            char *bigger = lugha_rt_alloc((int64_t)cap);
+            char *bigger = rt_scratch((int64_t)cap);
             memcpy(bigger, text, len);
+            rt_scratch_done(text);
             text = bigger;
         }
         memcpy(text + len, line, (size_t)n);
@@ -300,5 +307,6 @@ int32_t lugha_rt_net_interfaces(LughaString **out, LughaString **error) {
     }
     freeifaddrs(list);
     *out = string_of(text, (int64_t)len);
+    rt_scratch_done(text);
     return 1;
 }

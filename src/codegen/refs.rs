@@ -37,6 +37,10 @@ impl<'ctx> Lowerer<'ctx> {
             unreachable!("lugha_rt_alloc returns a pointer")
         };
         let box_ptr = raw.into_pointer_value();
+        if self.rc() {
+            let drop = self.rc_box_drop(&inner);
+            self.rc_set_drop(box_ptr, drop);
+        }
         self.store_element(box_ptr, &inner, value);
         Ok(box_ptr.into())
     }
@@ -57,7 +61,12 @@ impl<'ctx> Lowerer<'ctx> {
             "get" => Value::Val(self.ref_contents(box_ptr, inner)),
             "set" => {
                 let value = self.value_for_store(&args[0], inner)?;
+                // Under reference counting the box lets go of what it held.
+                let old = self.rc().then(|| self.load_element(box_ptr, inner));
                 self.store_element(box_ptr, inner, value);
+                if let Some(old) = old {
+                    self.rc_release(old, inner);
+                }
                 Value::Void
             }
             "update" => {
@@ -72,7 +81,13 @@ impl<'ctx> Lowerer<'ctx> {
                     unreachable!("checked: `update`'s function returns the contents' type")
                 };
                 // A fresh result: stored as is, as any call's result is.
+                // Under reference counting, the box's old contents and the
+                // hold `ref_contents` added for the call are both let go of.
                 self.store_element(box_ptr, inner, next);
+                if self.rc() {
+                    self.rc_release(current, inner);
+                    self.rc_release(current, inner);
+                }
                 Value::Void
             }
             "is" => {
@@ -121,8 +136,9 @@ impl<'ctx> Lowerer<'ctx> {
         let contents = self.load_element(box_ptr, inner);
         let open: BasicValueEnum = self.string_literal("Ref(").into();
         let part = self.part(contents, inner);
-        let text = self.concat(open, part);
-        let text = self.join(text, ")");
+        let text = self.concat_owned(open, part);
+        let close = self.string_literal(")").into();
+        let text = self.concat_owned(text, close);
         let leave = self.runtime("lugha_rt_show_leave", &[], None);
         self.builder.build_call(leave, &[], "").expect(POSITIONED);
         let shown = self.builder.get_insert_block().expect(POSITIONED);

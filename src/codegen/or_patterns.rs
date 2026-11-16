@@ -45,7 +45,8 @@ impl<'ctx> Lowerer<'ctx> {
     ) {
         if let PatternKind::Binding(name) = &inner.kind {
             let value = self.load_subject(subject, ty);
-            let value = if ty.is_deep(&self.structs) {
+            // Under reference counting every binding holds its value already.
+            let value = if ty.is_deep(&self.structs) && !self.rc() {
                 self.deep_copy(value, ty)
             } else {
                 value
@@ -58,7 +59,7 @@ impl<'ctx> Lowerer<'ctx> {
         if let PatternKind::Type(Some(name), _) = &inner.kind {
             let local = self.scopes.lookup(&name.name);
             let value = self.load(&local, &name.name);
-            let value = if local.ty.is_deep(&self.structs) {
+            let value = if local.ty.is_deep(&self.structs) && !self.rc() {
                 self.deep_copy(value, &local.ty)
             } else {
                 value

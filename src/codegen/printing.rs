@@ -35,16 +35,24 @@ impl<'ctx> Lowerer<'ctx> {
         value: BasicValueEnum<'ctx>,
     ) -> (Type, BasicValueEnum<'ctx>) {
         if plain(&ty) || matches!(ty, Type::Never | Type::Error) {
+            // Under reference counting the text is owned, as made text is.
+            if ty == Type::String {
+                self.rc_hold_string(value);
+            }
             return (ty, value);
         }
         let text = self.text(value, &ty);
         (Type::String, text)
     }
 
-    /// A value's `Display` text: a string is itself.
+    /// A value's `Display` text: a string is itself. Under reference
+    /// counting the text is owned: a string gets one more holder.
     pub(super) fn text(&mut self, value: BasicValueEnum<'ctx>, ty: &Type) -> BasicValueEnum<'ctx> {
         match ty {
-            Type::String => value,
+            Type::String => {
+                self.rc_hold_string(value);
+                value
+            }
             _ if plain(ty) => self.text_of(ty, value),
             Type::Interface(..) => self
                 .dynamic_show(value, ty)
@@ -58,7 +66,8 @@ impl<'ctx> Lowerer<'ctx> {
         }
     }
 
-    /// A value's debug form: strings and chars quoted.
+    /// A value's debug form: strings and chars quoted. Always a new
+    /// string or a constant one, so under reference counting it is owned.
     pub(super) fn part(&mut self, value: BasicValueEnum<'ctx>, ty: &Type) -> BasicValueEnum<'ctx> {
         match ty {
             Type::String => {
@@ -82,10 +91,33 @@ impl<'ctx> Lowerer<'ctx> {
         }
     }
 
-    /// `a + b` for two strings.
-    pub(super) fn join(&mut self, a: BasicValueEnum<'ctx>, b: &str) -> BasicValueEnum<'ctx> {
-        let b = self.string_literal(b).into();
-        self.concat(a, b)
+    /// `a + b` for two owned strings, which it lets go of: under
+    /// reference counting both are released once joined.
+    pub(super) fn concat_owned(
+        &mut self,
+        a: BasicValueEnum<'ctx>,
+        b: BasicValueEnum<'ctx>,
+    ) -> BasicValueEnum<'ctx> {
+        let joined = self.concat(a, b);
+        if self.rc() {
+            self.rc_pointer(a.into_pointer_value(), false);
+            self.rc_pointer(b.into_pointer_value(), false);
+        }
+        joined
+    }
+
+    /// One more holder of the string `value`, under reference counting.
+    pub(super) fn rc_hold_string(&mut self, value: BasicValueEnum<'ctx>) {
+        if self.rc() {
+            self.rc_pointer(value.into_pointer_value(), true);
+        }
+    }
+
+    /// Lets go of the owned string `value`, under reference counting.
+    pub(super) fn rc_drop_string(&mut self, value: BasicValueEnum<'ctx>) {
+        if self.rc() {
+            self.rc_pointer(value.into_pointer_value(), false);
+        }
     }
 
     pub(super) fn concat(
@@ -205,12 +237,13 @@ impl<'ctx> Lowerer<'ctx> {
             .string_literal(&format!("[{file}:{line}] {written} = "))
             .into();
         let form = self.part(value, ty);
-        let text = self.concat(lead, form);
+        let text = self.concat_owned(lead, form);
         let newline = self.context.i32_type().const_int(1, false);
         let eprint = self.runtime("lugha_rt_eprint", &[Type::String, Type::I32], None);
         self.builder
             .build_call(eprint, &[text.into(), newline.into()], "")
             .expect(POSITIONED);
+        self.rc_drop_string(text);
     }
 
     /// `x.show()` on interface value `value`, through its table: `None`

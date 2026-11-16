@@ -248,10 +248,11 @@ int32_t lugha_rt_show_enter(void *box) {
     }
     if (show_len == show_cap) {
         int64_t cap = show_cap == 0 ? 16 : show_cap * 2;
-        void **bigger = lugha_rt_alloc(cap * (int64_t)sizeof(void *));
+        void **bigger = rt_scratch(cap * (int64_t)sizeof(void *));
         if (show_len > 0) {
             memcpy(bigger, show_stack, (size_t)show_len * sizeof(void *));
         }
+        rt_scratch_done(show_stack);
         show_stack = bigger;
         show_cap = cap;
     }

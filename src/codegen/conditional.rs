@@ -113,7 +113,10 @@ impl<'ctx> Lowerer<'ctx> {
     ) -> Result<(), CodegenError> {
         let (subject, sty) = self.subject_of(init)?;
         let otherwise = self.append("letelse.else");
+        // Its bindings live as long as the block, as a `let`'s local does.
+        let outer = self.rc_let_pattern(true);
         self.test(pattern, subject, &sty, otherwise, true);
+        self.rc_let_pattern(outer);
         let matched = self.current_block();
         self.builder.position_at_end(otherwise);
         // Without `else` the checker proved the pattern always matches.

@@ -69,6 +69,9 @@ mod patterns;
 mod places;
 mod printing;
 mod rc;
+mod rc_objects;
+mod rc_sites;
+mod rc_slots;
 mod rebuild;
 mod refs;
 mod results;
@@ -142,6 +145,9 @@ pub enum CodegenError {
     /// LLVM could not set up the target, run passes, or write the object file.
     #[error("could not emit object code: {0}")]
     Emit(String),
+    /// The program uses what reference counting doesn't count yet.
+    #[error("--memory=rc doesn't support {0} yet")]
+    Unsupported(&'static str),
 }
 
 #[cfg(test)]
@@ -153,6 +159,15 @@ pub(crate) mod test_util {
     /// the prelude as every program has it (`==` on a struct comes from
     /// it).
     pub fn ir(src: &str) -> String {
+        ir_in(src, super::Memory::Gc)
+    }
+
+    /// `ir`, lowered for reference counting.
+    pub fn ir_rc(src: &str) -> String {
+        ir_in(src, super::Memory::Rc)
+    }
+
+    fn ir_in(src: &str, memory: super::Memory) -> String {
         let (tokens, _) = lexer::lex(src).expect("test source lexes");
         let (mut program, _) = parser::parse(&tokens).expect("test source parses");
         crate::modules::impls::name_impls(&mut program, "");
@@ -195,8 +210,13 @@ pub(crate) mod test_util {
                 text: &m.text,
             })
             .collect();
-        super::emit_ir_for(&units, &checked, &sources, super::Target::default())
-            .unwrap_or_else(|e| panic!("{src:?}: {e}"))
+        super::emit_ir_with(
+            &units,
+            &checked,
+            &sources,
+            (super::Target::default(), memory),
+        )
+        .unwrap_or_else(|e| panic!("{src:?}: {e}"))
     }
 
     /// The IR for `src` lowered for `target`.

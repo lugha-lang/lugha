@@ -94,7 +94,7 @@ impl<'ctx> Lowerer<'ctx> {
         let arguments = self.arguments(args, &method.params, false)?;
         let pair = if let Some(plan) = &plan {
             let (address, place_ty, element) = self.place_commit(base, plan);
-            if element {
+            let pair = if element {
                 self.load_element(address, &place_ty)
             } else {
                 let llvm = llvm_type(self.context, &place_ty);
@@ -102,7 +102,14 @@ impl<'ctx> Lowerer<'ctx> {
                     .build_load(llvm, address, "receiver")
                     .expect(POSITIONED)
             }
-            .into_struct_value()
+            .into_struct_value();
+            // Under reference counting a box with other holders is copied
+            // before the method writes it.
+            if self.rc() {
+                self.rc_own_box(pair, (address, &place_ty, element))
+            } else {
+                pair
+            }
         } else {
             early.expect("a `self` receiver was read before the arguments")
         };

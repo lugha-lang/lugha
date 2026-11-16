@@ -116,9 +116,6 @@ static const char *net_resolve(const LughaString *addr, int flags, struct addrin
         host++;
         host_len -= 2;
     }
-    char *name = lugha_rt_alloc((int64_t)host_len + 1);
-    memcpy(name, host, host_len);
-    name[host_len] = 0;
     const char *port = colon + 1;
     for (const char *p = port; *p != 0; p++) {
         if (*p < '0' || *p > '9' || p - port > 5) {
@@ -128,9 +125,13 @@ static const char *net_resolve(const LughaString *addr, int flags, struct addrin
     if (atol(port) > 65535) {
         return "port must be a number from 0 to 65535";
     }
+    char *name = rt_scratch((int64_t)host_len + 1);
+    memcpy(name, host, host_len);
+    name[host_len] = 0;
     struct addrinfo hints = {.ai_family = AF_UNSPEC, .ai_socktype = SOCK_STREAM};
     hints.ai_flags = flags;
     int code = getaddrinfo(name, port, &hints, out);
+    rt_scratch_done(name);
     return code == 0 ? NULL : gai_strerror(code);
 }
 
@@ -229,19 +230,23 @@ int32_t lugha_rt_net_read(int64_t fd, int64_t max, int64_t timeout_ms, LughaArra
         return net_error(error, "read size must be from 1 to 16777216 bytes");
     }
     int64_t deadline = net_deadline(timeout_ms);
-    char *buffer = lugha_rt_alloc(max);
+    char *buffer = rt_scratch(max);
     for (;;) {
         ssize_t n = recv((int)fd, buffer, (size_t)max, 0);
         if (n >= 0) {
             *out = bytes_of(buffer, (int64_t)n);
+            rt_scratch_done(buffer);
             return 1;
         }
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
             if (!wait_fd((int)fd, EPOLLIN, deadline)) {
+                rt_scratch_done(buffer);
                 return net_error(error, "timed out");
             }
         } else if (errno != EINTR) {
-            return net_error(error, strerror(errno));
+            int saved = errno;
+            rt_scratch_done(buffer);
+            return net_error(error, strerror(saved));
         }
     }
 }

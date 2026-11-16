@@ -149,6 +149,8 @@ void lugha_rt_rc_free(void *object, void (*drop)(void *));
 void lugha_rt_rc_release(void *object);
 void (*lugha_rt_rc_drop_of(const void *object))(void *);
 void lugha_rt_rc_set_drop(void *object, void (*drop)(void *));
+void lugha_rt_rc_drop_pointers(void *object);
+void *lugha_rc_internal(size_t size);
 #endif
 
 /* The C `main`'s arguments, for `args()`. */
@@ -205,6 +207,45 @@ void *lugha_rt_alloc(int64_t size) {
     return memory;
 }
 #endif
+
+/* Scratch memory the runtime lets go of itself (`rt_scratch_done`): the
+ * collector's under Boehm, freed at once under reference counting. */
+static void *rt_scratch(int64_t size) {
+#ifdef LUGHA_RC
+    return lugha_rc_internal((size_t)size);
+#else
+    return lugha_rt_alloc(size);
+#endif
+}
+
+static void rt_scratch_done(void *memory) {
+#ifdef LUGHA_RC
+    free(memory);
+#else
+    (void)memory;
+#endif
+}
+
+/* Lets go of `object`, a counted object the runtime made and won't hand
+ * to the program (an error message no one asked for): released under
+ * reference counting, left to the collector under Boehm. */
+static void rt_let_go(void *object) {
+#ifdef LUGHA_RC
+    lugha_rt_rc_release(object);
+#else
+    (void)object;
+#endif
+}
+
+/* Marks `array`, made here, as holding strings or arrays: under reference
+ * counting, freeing it releases them. */
+static void rt_holds_pointers(LughaArray *array) {
+#ifdef LUGHA_RC
+    lugha_rt_rc_set_drop(array, lugha_rt_rc_drop_pointers);
+#else
+    (void)array;
+#endif
+}
 
 /* A copy of `array` with room for at least one more element: capacity
  * doubles, starting at 4. The old object is left to the GC (freed at once

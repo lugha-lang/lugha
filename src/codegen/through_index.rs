@@ -161,12 +161,17 @@ impl<'ctx> Lowerer<'ctx> {
     fn hidden(&mut self, e: &Expr) -> Result<Expr, CodegenError> {
         let ty = self.ty(e);
         let value = self.get(e, &ty)?;
+        // Under reference counting the hidden local holds what it read.
+        if self.rc() {
+            self.rc_retain(value, &ty);
+        }
         Ok(self.held(e, value))
     }
 
     /// A hidden local holding `value`, of `e`'s type, as a name with an id
     /// of its own: `e`'s id may key a call or a function, which a plain
-    /// name must not pick up.
+    /// name must not pick up. Under reference counting it owns `value`,
+    /// released with its block, and is never moved from.
     fn held(&mut self, e: &Expr, value: inkwell::values::BasicValueEnum<'ctx>) -> Expr {
         let ty = self.ty(e);
         let id = crate::ast::ExprId(u32::try_from(self.types.len()).expect("ids fit in u32"));
@@ -175,10 +180,11 @@ impl<'ctx> Lowerer<'ctx> {
         let name = format!("$held{}", id.0);
         let ptr = self.entry_alloca(&ty, &name);
         self.builder.build_store(ptr, value).expect(POSITIONED);
+        self.rc_own_local(ptr, &ty);
         let local = Local {
             ptr,
             ty,
-            borrowed: false,
+            borrowed: self.rc(),
         };
         self.scopes.declare(&name, local);
         Expr {

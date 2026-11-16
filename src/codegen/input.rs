@@ -35,11 +35,7 @@ impl<'ctx> Lowerer<'ctx> {
             };
             joined = Some(match joined {
                 None => piece,
-                Some(left) => self.call_runtime_value(
-                    "lugha_rt_str_concat",
-                    &[Type::String, Type::String],
-                    &[left, piece],
-                ),
+                Some(left) => self.concat_owned(left, piece),
             });
         }
         Ok(joined.unwrap_or_else(|| self.string_literal("").into()))

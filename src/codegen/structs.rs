@@ -171,6 +171,19 @@ impl<'ctx> Lowerer<'ctx> {
             .get_struct_type(&ty.to_string())
             .expect("declared before lowering");
         let mut aggregate = start.unwrap_or_else(|| struct_type.get_undef());
+        // Under reference counting the base's own value of each written
+        // field is let go of: the written one replaces it.
+        if start.is_some() && self.rc() {
+            let fields = self.structs[&ty.to_string()].clone();
+            for (index, _) in &values {
+                let field_ty = &fields[*index as usize].1;
+                let old = self
+                    .builder
+                    .build_extract_value(aggregate, *index, "replaced")
+                    .expect("field exists");
+                self.rc_release(old, field_ty);
+            }
+        }
         for (index, value) in values {
             aggregate = self
                 .builder

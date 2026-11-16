@@ -26,6 +26,10 @@ pub(super) struct Lowerer<'ctx> {
     pub(super) target: super::Target,
     /// Boehm's collector, or the reference-counting prototype.
     pub(super) memory: super::Memory,
+    /// Under reference counting, the slots the function being lowered releases.
+    pub(super) rc_slots: super::rc_slots::RcSlots<'ctx>,
+    /// Closure environment drops made so far, for their names.
+    pub(super) rc_envs: usize,
     /// `out` arguments of the extern call being lowered.
     pub(super) outs: Vec<super::out_params::OutSlot<'ctx>>,
     pub(super) context: &'ctx Context,
@@ -210,9 +214,14 @@ pub(super) fn lower<'ctx>(
     checked: &Checked,
     (sources, target, memory): (&[ModuleSource], super::Target, super::Memory),
 ) -> Result<Module<'ctx>, CodegenError> {
+    if let Some(what) = super::rc::rc_unsupported(checked).filter(|_| memory == super::Memory::Rc) {
+        return Err(CodegenError::Unsupported(what));
+    }
     let mut lowerer = Lowerer {
         target,
         memory,
+        rc_slots: Default::default(),
+        rc_envs: 0,
         context,
         module: context.create_module("lugha"),
         builder: context.create_builder(),
@@ -371,6 +380,7 @@ impl<'ctx> Lowerer<'ctx> {
             .builder
             .build_call(user_main, &args, "result")
             .expect(POSITIONED);
+        self.rc_after_entry(params, &args);
         let code = match call.try_as_basic_value() {
             ValueKind::Basic(value) => value.into_int_value(),
             ValueKind::Instruction(_) => i32_type.const_zero(),

@@ -103,10 +103,7 @@ pub fn emit_ir_with(
 ) -> Result<String, CodegenError> {
     let context = Context::create();
     let module = lower::lower(&context, units, checked, (sources, target, memory))?;
-    // Owned locals live to their block's end under reference counting.
-    if memory == Memory::Gc {
-        frames::share_all_slots(&module);
-    }
+    frames::share_all_slots(&module);
     Ok(module.print_to_string().to_string())
 }
 
@@ -192,8 +189,7 @@ pub fn emit_object_modules(
     // Slots are shared before -O0's passes but after -O2's: the optimiser
     // works far harder on merged slots (kivuli's build: 33 s → 50 s), and
     // removes many slots itself.
-    // Not under reference counting: an owned local lives to its block's end.
-    if opt == OptLevel::O0 && memory == Memory::Gc {
+    if opt == OptLevel::O0 {
         frames::share_all_slots(&module);
     }
     module

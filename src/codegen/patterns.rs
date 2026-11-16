@@ -66,21 +66,33 @@ impl<'ctx> Lowerer<'ctx> {
         let rty = self.ty(expr);
         let result = (!matches!(rty, Type::Unit | Type::Never))
             .then(|| self.entry_alloca(&rty, "match.value"));
+        // Under reference counting the result slot owns the arm's value, so
+        // each arm's own temporaries and bindings end with it.
+        let counted = self.rc() && self.counted(&rty);
+        if let (Some(result), true) = (result, counted) {
+            self.rc_result_slot(result, &rty);
+        }
         let end = self.append("match.end");
         let mut diverges = true;
         for arm in arms {
             let next = self.append("arm.next");
+            self.rc_statement_start();
             self.scopes.push();
             self.test(&arm.pattern, subject, &sty, next, true);
             if let Some(guard) = &arm.guard {
                 let pass = self.get(guard, &Type::Bool)?.into_int_value();
                 self.or_next(pass, next, "arm.body");
             }
+            self.rc_forget_last();
             let value = self.expr(&arm.body)?;
             self.scopes.pop();
             if let (Some(result), Value::Val(v)) = (result, value) {
+                if counted && !self.rc_take(arm.body.id, &rty) {
+                    self.rc_retain(v, &rty);
+                }
                 self.builder.build_store(result, v).expect(POSITIONED);
             }
+            self.rc_statement_end_also(Some(next));
             diverges &= matches!(value, Value::Never);
             self.finish_branch(value, end);
             self.builder.position_at_end(next);
@@ -217,6 +229,23 @@ impl<'ctx> Lowerer<'ctx> {
         ty: &Type,
         borrowed: bool,
     ) {
+        // Under reference counting a binding is a holder of its own.
+        if self.rc() && self.counted(ty) {
+            let ptr = match self.scopes.in_innermost(&name.name) {
+                Some(local) => {
+                    self.rc_rebind(local.ptr, value, ty);
+                    return;
+                }
+                None => self.rc_binding(value, ty, &name.name),
+            };
+            let local = Local {
+                ptr,
+                ty: ty.clone(),
+                borrowed,
+            };
+            self.scopes.declare(&name.name, local);
+            return;
+        }
         if let Some(local) = self.scopes.in_innermost(&name.name) {
             self.builder
                 .build_store(local.ptr, value)

@@ -39,6 +39,14 @@ LANGS = {
         "tool": "cargo",
         "build": lambda src, out: [str(LUGHAC), "build", str(src), "-O0", "-o", str(out)],
     },
+    # The reference-counting prototype, at -O2, against the collector above.
+    "lugha-rc": {
+        "ext": "la",
+        "tool": "cargo",
+        "build": lambda src, out: [
+            str(LUGHAC), "build", str(src), "-O2", "--memory=rc", "-o", str(out),
+        ],
+    },
     "c": {
         "ext": "c",
         "tool": "gcc",

@@ -19,7 +19,7 @@ int32_t lugha_rt_net_resolve(const LughaString *name, int64_t numeric, LughaStri
     if (memchr(name->bytes, 0, (size_t)name->len) != NULL) {
         return net_error(error, "name contains a NUL byte");
     }
-    char *host = lugha_rt_alloc(name->len + 1);
+    char *host = rt_scratch(name->len + 1);
     memcpy(host, name->bytes, (size_t)name->len);
     host[name->len] = 0;
     // One socket type, so each address comes once per family, not per protocol.
@@ -27,11 +27,12 @@ int32_t lugha_rt_net_resolve(const LughaString *name, int64_t numeric, LughaStri
     hints.ai_flags = numeric ? AI_NUMERICHOST : 0;
     struct addrinfo *list = NULL;
     int code = getaddrinfo(host, NULL, &hints, &list);
+    rt_scratch_done(host);
     if (code != 0) {
         return net_error(error, gai_strerror(code));
     }
     size_t cap = 64, len = 0;
-    char *text = lugha_rt_alloc((int64_t)cap);
+    char *text = rt_scratch((int64_t)cap);
     for (struct addrinfo *a = list; a != NULL; a = a->ai_next) {
         char one[INET6_ADDRSTRLEN];
         const void *at = a->ai_family == AF_INET6
@@ -44,8 +45,9 @@ int32_t lugha_rt_net_resolve(const LughaString *name, int64_t numeric, LughaStri
         size_t n = strlen(one);
         if (len + n + 2 > cap) {
             cap = (len + n + 2) * 2;
-            char *bigger = lugha_rt_alloc((int64_t)cap);
+            char *bigger = rt_scratch((int64_t)cap);
             memcpy(bigger, text, len);
+            rt_scratch_done(text);
             text = bigger;
         }
         if (len > 0) {
@@ -56,9 +58,11 @@ int32_t lugha_rt_net_resolve(const LughaString *name, int64_t numeric, LughaStri
     }
     freeaddrinfo(list);
     if (len == 0) {
+        rt_scratch_done(text);
         return net_error(error, "no address for the name");
     }
     *out = string_of(text, (int64_t)len);
+    rt_scratch_done(text);
     return 1;
 }
 

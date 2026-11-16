@@ -293,7 +293,7 @@ int32_t lugha_rt_dir_list(void *dir, const LughaString *path, LughaArray **out,
     }
     int64_t len = 0;
     int64_t cap = 16;
-    LughaArray **names = lugha_rt_alloc(cap * (int64_t)sizeof(LughaArray *));
+    LughaArray **names = rt_scratch(cap * (int64_t)sizeof(LughaArray *));
     for (;;) {
         errno = 0;
         struct dirent *entry = readdir(listing);
@@ -307,8 +307,9 @@ int32_t lugha_rt_dir_list(void *dir, const LughaString *path, LughaArray **out,
             if (cap > INT64_MAX / 2 / (int64_t)sizeof(LughaArray *)) {
                 die("panic: out of memory\n");
             }
-            LughaArray **bigger = lugha_rt_alloc(2 * cap * (int64_t)sizeof(LughaArray *));
+            LughaArray **bigger = rt_scratch(2 * cap * (int64_t)sizeof(LughaArray *));
             memcpy(bigger, names, (size_t)len * sizeof(LughaArray *));
+            rt_scratch_done(names);
             names = bigger;
             cap *= 2;
         }
@@ -317,13 +318,21 @@ int32_t lugha_rt_dir_list(void *dir, const LughaString *path, LughaArray **out,
     int failed = errno;
     closedir(listing);
     if (failed != 0) {
+#ifdef LUGHA_RC
+        for (int64_t i = 0; i < len; i++) {
+            lugha_rt_rc_release(names[i]);
+        }
+#endif
+        rt_scratch_done(names);
         return fs_fail(error, strerror(failed));
     }
     LughaArray *array =
         lugha_rt_alloc((int64_t)sizeof(LughaArray) + len * (int64_t)sizeof(LughaArray *));
     array->len = len;
     array->cap = len;
+    rt_holds_pointers(array);
     memcpy(array->elems, names, (size_t)len * sizeof(LughaArray *));
+    rt_scratch_done(names);
     *out = array;
     return 1;
 }

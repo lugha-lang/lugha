@@ -92,10 +92,15 @@ impl<'ctx> Lowerer<'ctx> {
             unreachable!("lugha_rt_alloc returns a pointer")
         };
         let env = env.into_pointer_value();
+        if self.rc() {
+            let types: Vec<Type> = captured.iter().map(|l| l.ty.clone()).collect();
+            let drop = self.rc_env_drop(layout, &types);
+            self.rc_set_drop(env, drop);
+        }
         for (i, (name, local)) in names.iter().zip(captured).enumerate() {
             let value = self.load(local, name);
             // A copy, as at any copy site: the closure may outlive the local.
-            let value = if local.ty.is_deep(&self.structs) {
+            let value = if local.ty.is_deep(&self.structs) || self.rc() {
                 self.deep_copy(value, &local.ty)
             } else {
                 value
@@ -149,6 +154,7 @@ impl<'ctx> Lowerer<'ctx> {
         let saved_loops = std::mem::take(&mut self.loops);
         // A closure's body is a function of its own: its defers run when it returns.
         let saved_defers = std::mem::take(&mut self.defers);
+        let outer = self.rc_enter_function();
         self.builder
             .position_at_end(self.context.append_basic_block(function, "entry"));
         self.preempt_point();
@@ -204,6 +210,7 @@ impl<'ctx> Lowerer<'ctx> {
             (false, Value::Void) => unreachable!("checked: a closure returning a value has one"),
         }
         .expect(POSITIONED);
+        self.rc_finish_function(function, outer);
         self.function = saved_function;
         self.ret = saved_ret;
         self.scopes = saved_scopes;

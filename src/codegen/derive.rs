@@ -178,7 +178,7 @@ impl<'ctx> Lowerer<'ctx> {
     }
 
     /// A new array of `values`, each of type `element`.
-    fn array_of(&self, values: &[BasicValueEnum<'ctx>], element: &Type) -> PointerValue<'ctx> {
+    fn array_of(&mut self, values: &[BasicValueEnum<'ctx>], element: &Type) -> PointerValue<'ctx> {
         let i64_type = self.context.i64_type();
         let size = self.element_size(element);
         let array = self.new_array(i64_type.const_int(values.len() as u64, false), element);
@@ -244,6 +244,12 @@ impl<'ctx> Lowerer<'ctx> {
                 .build_conditional_branch(failed, bad, good)
                 .expect(POSITIONED);
             self.builder.position_at_end(bad);
+            // Under reference counting the fields made so far are let go of.
+            if self.rc() {
+                for (value, (_, made)) in values.iter().zip(fields) {
+                    self.rc_release(*value, made);
+                }
+            }
             let e = self.load_payload(&ty, held, std::slice::from_ref(&error), 0, &error);
             let failure = fail(e, self);
             self.builder.build_store(slot, failure).expect(POSITIONED);

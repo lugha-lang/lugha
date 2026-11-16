@@ -14,7 +14,9 @@
  *     so touching it again panics instead of corrupting memory.
  *
  * `LUGHA_RC_REPORT=1` prints, at exit, how many objects were made, freed
- * and are still live.
+ * and are still live; `LUGHA_RC_REPORT=2` also lists each live object (its
+ * size, count and first bytes), keeping freed ones as tombstones to tell
+ * them apart.
  *
  * A fragment, not compiled on its own: joined after the core (lugha_rt.c),
  * and compiled only with `-DLUGHA_RC`.
@@ -29,16 +31,54 @@ static int64_t rc_freed;
 /* With poisoning, freed objects stay as tombstones: never reused. */
 static bool rc_poison;
 
+/* With `LUGHA_RC_REPORT=2`, every object made and its size. */
+static void **rc_objects;
+static int64_t *rc_sizes;
+static int64_t rc_listed, rc_room;
+static bool rc_listing;
+
+static void rc_list(void *object, int64_t size) {
+    if (rc_listed == rc_room) {
+        rc_room = rc_room == 0 ? 1024 : rc_room * 2;
+        rc_objects = realloc(rc_objects, (size_t)rc_room * sizeof(void *));
+        rc_sizes = realloc(rc_sizes, (size_t)rc_room * sizeof(int64_t));
+        if (rc_objects == NULL || rc_sizes == NULL) {
+            die("panic: out of memory\n");
+        }
+    }
+    rc_objects[rc_listed] = object;
+    rc_sizes[rc_listed++] = size;
+}
+
 static void rc_report(void) {
     fprintf(stderr, "rc: %" PRId64 " allocated, %" PRId64 " freed, %" PRId64 " live\n", rc_made,
             rc_freed, rc_made - rc_freed);
+    for (int64_t i = 0; i < rc_listed; i++) {
+        const int64_t *words = rc_objects[i];
+        if (words[-1] == RC_FREED) {
+            continue;
+        }
+        /* The first word (a string's or array's length), then the bytes
+         * after it, printable ones as they are. */
+        fprintf(stderr, "  live: %" PRId64 " bytes, count %" PRId64 ", word %" PRId64 " \"",
+                rc_sizes[i], words[-1], rc_sizes[i] >= 8 ? words[0] : 0);
+        const unsigned char *bytes = (const unsigned char *)rc_objects[i];
+        for (int64_t b = 8; b < rc_sizes[i] && b < 40; b++) {
+            fputc(bytes[b] >= 32 && bytes[b] < 127 ? bytes[b] : '.', stderr);
+        }
+        fputs("\"\n", stderr);
+    }
 }
 
 static void lugha_rc_start(void) {
     const char *poison = getenv("LUGHA_RC_POISON");
     rc_poison = poison != NULL && strcmp(poison, "1") == 0;
     const char *report = getenv("LUGHA_RC_REPORT");
-    if (report != NULL && strcmp(report, "1") == 0) {
+    if (report != NULL && strcmp(report, "2") == 0) {
+        rc_poison = true;
+        rc_listing = true;
+    }
+    if (report != NULL && (strcmp(report, "1") == 0 || strcmp(report, "2") == 0)) {
         atexit(rc_report);
     }
 }
@@ -70,6 +110,9 @@ void *lugha_rt_alloc(int64_t size) {
     }
     block->count = 1;
     rc_made++;
+    if (rc_listing) {
+        rc_list(block + 1, size);
+    }
     return block + 1;
 }
 

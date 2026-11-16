@@ -120,9 +120,11 @@ LughaString *lugha_rt_fmt_float(double value, int32_t is_f32, int32_t precision,
     if (needed < 0) {
         needed = 0;
     }
-    char *text = lugha_rt_alloc((int64_t)needed + 1);
+    char *text = rt_scratch((int64_t)needed + 1);
     snprintf(text, (size_t)needed + 1, "%.*f", precision, value);
-    return pad_number(text, fill, align, width, zero);
+    LughaString *padded = pad_number(text, fill, align, width, zero);
+    rt_scratch_done(text);
+    return padded;
 }
 
 /* Any other value's text, padded (`{p:>20}`). */

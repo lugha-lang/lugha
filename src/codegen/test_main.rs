@@ -61,6 +61,7 @@ impl<'ctx> Lowerer<'ctx> {
             let args = self.entry_arguments(&params, entry);
             self.lock_down(&params);
             self.builder.build_call(test, &args, "").expect(POSITIONED);
+            self.rc_after_entry(&params, &args);
             self.builder
                 .build_return(Some(&i32_type.const_zero()))
                 .expect(POSITIONED);

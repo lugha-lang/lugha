@@ -396,11 +396,15 @@ impl<'ctx> Lowerer<'ctx> {
         ty: &Type,
         kept: bool,
     ) -> Result<inkwell::values::PointerValue<'ctx>, CodegenError> {
-        let value = self.get(base, ty)?;
-        let value = if kept {
-            self.protect(base, value, ty)
+        let value = if kept && self.rc() {
+            self.rc_handed(base, ty)?
         } else {
-            value
+            let value = self.get(base, ty)?;
+            if kept {
+                self.protect(base, value, ty)
+            } else {
+                value
+            }
         };
         let slot = self.entry_alloca(ty, "self");
         self.builder.build_store(slot, value).expect(POSITIONED);

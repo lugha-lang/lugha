@@ -73,6 +73,7 @@ impl<'ctx> Lowerer<'ctx> {
         receiver: Option<Type>,
     ) -> Result<(), CodegenError> {
         self.function = Some(signature.function);
+        let outer = self.rc_enter_function();
         self.enter_located(signature.function);
         self.ret = signature.ret.clone();
         self.scopes = Scopes::default();
@@ -84,15 +85,25 @@ impl<'ctx> Lowerer<'ctx> {
 
         self.scopes.push();
         let first = u32::from(receiver.is_some());
+        // Under reference counting an owning instance owns what it keeps:
+        // released when it returns unless it moved it on.
+        let kept = match (self.rc() && self.owning, self.kept_of(signature.function)) {
+            (true, Some(kept)) => kept,
+            _ => Vec::new(),
+        };
+        let owns = |slot: u32| kept.get(slot as usize).copied().unwrap_or(false);
         if let Some(ty) = receiver {
             let arg = signature
                 .function
                 .get_nth_param(0)
                 .expect("methods take their receiver first");
+            if owns(0) {
+                self.rc_own_param(arg.into_pointer_value(), &ty);
+            }
             let local = Local {
                 ptr: arg.into_pointer_value(),
                 ty,
-                borrowed: true,
+                borrowed: !owns(0),
             };
             self.scopes.declare("self", local);
         }
@@ -113,12 +124,15 @@ impl<'ctx> Lowerer<'ctx> {
                 self.builder.build_store(ptr, arg).expect(POSITIONED);
                 ptr
             };
+            if owns(index) && !by_place {
+                self.rc_own_param(ptr, ty);
+            }
             self.scopes.declare(
                 &param.name.name,
                 Local {
                     ptr,
                     ty: ty.clone(),
-                    borrowed: true,
+                    borrowed: !owns(index) || by_place,
                 },
             );
         }
@@ -139,6 +153,7 @@ impl<'ctx> Lowerer<'ctx> {
             }
             (Some(_), Value::Void) => unreachable!("checked: E0503 rejects missing returns"),
         }
+        self.rc_finish_function(signature.function, outer);
         Ok(())
     }
 

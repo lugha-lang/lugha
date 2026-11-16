@@ -45,7 +45,11 @@ impl<'ctx> Lowerer<'ctx> {
             .map(|(slot, &k)| {
                 k && match slot.checked_sub(usize::from(receiver)) {
                     None => true,
-                    Some(i) => params.get(i).is_some_and(|t| t.is_deep(&self.structs)),
+                    // Under reference counting, any parameter holding counted
+                    // objects: handing over its count saves a copy on write.
+                    Some(i) => params.get(i).is_some_and(|t| {
+                        t.is_deep(&self.structs) || (self.rc() && self.counted(t))
+                    }),
                 }
             })
             .collect();
@@ -77,6 +81,15 @@ impl<'ctx> Lowerer<'ctx> {
             function: owned.function,
             ..signature.clone()
         })
+    }
+
+    /// Which slots (receiver first) the owning instance `function` keeps;
+    /// `None` if it isn't one.
+    pub(super) fn kept_of(&self, function: FunctionValue<'ctx>) -> Option<Vec<bool>> {
+        self.owning_instances
+            .values()
+            .find(|o| o.function == function)
+            .map(|o| o.kept.clone())
     }
 
     /// True if the value at `id`, read from a place, is stored without a
@@ -122,11 +135,16 @@ impl<'ctx> Lowerer<'ctx> {
                 values.push(self.mut_place(place)?.into());
                 continue;
             }
-            let value = self.get(arg, ty)?;
-            let value = if kept.get(i).copied().unwrap_or(false) {
-                self.protect(arg, value, ty)
+            let kept = kept.get(i).copied().unwrap_or(false);
+            let value = if kept && self.rc() {
+                self.rc_handed(arg, ty)?
             } else {
-                value
+                let value = self.get(arg, ty)?;
+                if kept {
+                    self.protect(arg, value, ty)
+                } else {
+                    value
+                }
             };
             let value = if is_aggregate(ty) {
                 // Passed as a pointer to caller storage.

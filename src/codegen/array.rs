@@ -17,7 +17,7 @@ use crate::check::Type;
 
 impl<'ctx> Lowerer<'ctx> {
     /// A new array of `len` elements of type `element`, with its length stored.
-    pub(super) fn new_array(&self, len: IntValue<'ctx>, element: &Type) -> PointerValue<'ctx> {
+    pub(super) fn new_array(&mut self, len: IntValue<'ctx>, element: &Type) -> PointerValue<'ctx> {
         let i64_type = self.context.i64_type();
         let size = i64_type.const_int(self.element_size(element), false);
         let data = self
@@ -38,6 +38,10 @@ impl<'ctx> Lowerer<'ctx> {
             unreachable!("lugha_rt_alloc returns a pointer")
         };
         let array = array.into_pointer_value();
+        if self.rc() {
+            let drop = self.rc_array_drop(element);
+            self.rc_set_drop(array, drop);
+        }
         self.builder.build_store(array, len).expect(POSITIONED);
         // A new array is full: `cap == len`.
         let cap = self.capacity_address(array);
@@ -127,7 +131,10 @@ impl<'ctx> Lowerer<'ctx> {
             .expect(POSITIONED);
         self.panic_if(negative, "negative array length", expr.span.start);
         let array = self.new_array(count, &element);
-        let (deep, size) = (element.is_deep(&self.structs), self.element_size(&element));
+        let (deep, size) = (
+            element.is_deep(&self.structs) || self.rc(),
+            self.element_size(&element),
+        );
         self.count_loop(count, |this, i| {
             let fill = if deep {
                 this.deep_copy(value, &element)
@@ -175,7 +182,13 @@ impl<'ctx> Lowerer<'ctx> {
                 // Before the loop, so labelled apart from the writes' tests.
                 self.own_labelled(slot, &array_type, "of.own")
             }
-            None => self.get(iter, &array_type)?.into_pointer_value(),
+            None => {
+                let array = self.get(iter, &array_type)?;
+                // Under reference counting the loop holds the array: the
+                // body may let go of the place it came from.
+                self.rc_keep(array, &array_type);
+                array.into_pointer_value()
+            }
         };
         let len = self.length(array);
         let i64_type = self.context.i64_type();
