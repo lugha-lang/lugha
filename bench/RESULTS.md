@@ -130,3 +130,42 @@ Peak memory (MB, median):
 | mandelbrot  | 2.2   | 2.0      | 1.7  | 2.0  | 1.9   | 64.5  |
 | nbody       | 2.1   | 2.2      | 1.7  | 2.1  | 2.0   | 65.2  |
 | wordfreq    | 83.3  | 100.4    | 16.2 | 47.1 | 118.9 | 233.4 |
+
+## 2026-11-16, commit cb7a362, the reference-counting prototype
+
+`--lang lugha,lugha-rc`: the collector against `--memory=rc` (PRP-222), both at `-O2`, same machine as the baseline above. Nothing decided yet: counts aren't elided anywhere, and memory comes from the C library's `malloc`.
+
+Median wall time of 5 runs:
+
+| benchmark   | lugha  | lugha-rc |
+|-------------|--------|----------|
+| binarytrees | 1.065s | 2.413s   |
+| fannkuch    | 0.248s | 0.255s   |
+| fib         | 0.565s | 0.566s   |
+| mandelbrot  | 0.366s | 0.370s   |
+| nbody       | 0.656s | 0.663s   |
+| wordfreq    | 0.561s | 0.557s   |
+
+Fastest run:
+
+| benchmark   | lugha  | lugha-rc |
+|-------------|--------|----------|
+| binarytrees | 1.055s | 2.363s   |
+| fannkuch    | 0.246s | 0.250s   |
+| fib         | 0.560s | 0.559s   |
+| mandelbrot  | 0.364s | 0.370s   |
+| nbody       | 0.653s | 0.656s   |
+| wordfreq    | 0.544s | 0.555s   |
+
+Peak memory (MB, median):
+
+| benchmark   | lugha | lugha-rc |
+|-------------|-------|----------|
+| binarytrees | 70.2  | 25.8     |
+| fannkuch    | 2.2   | 1.9      |
+| fib         | 2.2   | 1.8      |
+| mandelbrot  | 2.2   | 1.8      |
+| nbody       | 2.2   | 1.9      |
+| wordfreq    | 83.5  | 138.4    |
+
+

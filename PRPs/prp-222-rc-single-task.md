@@ -1,6 +1,6 @@
 ## FEATURE: The memory prototype, first step: reference counting for single-task programs behind `lughac build --memory=rc` (Boehm stays the default): a count on every heap object, copies as count increments, values freed when their last holder goes, copy-on-write by count, moves on last use; measured against the benchmarks; milestone 190, the first of v18's Phase 3.
 
-**Status:** proposed 2026-11-16.
+**Status:** built 2026-11-16, awaiting review.
 
 ## OBJECTIVE
 ```
