@@ -1,5 +1,5 @@
-//! Counted objects under reference counting: the drop each one carries
-//! (what releases its contents when it is freed), the header constants
+//! Counted objects under reference counting: the visit each one carries
+//! (what releases or marks its contents), the header constants
 //! carry, and whether an array has other holders.
 
 use inkwell::AddressSpace;
@@ -9,13 +9,63 @@ use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue};
 
 use super::copy::mangle;
 use super::lower::{Lowerer, POSITIONED};
+use super::rc::{RcOp, pointer_counted};
 use super::value::llvm_type;
 use crate::check::Type;
 
 impl<'ctx> Lowerer<'ctx> {
-    /// The function releasing the contents of an object holding one value
-    /// of type `contents` at its start (a `Ref` box, an indirect payload's
-    /// box, an interface value's box); `None` when nothing in it is counted.
+    /// A visit function `name(object, op)`: `body` lowers what it does with
+    /// the object's contents for one operation, release or mark, and runs
+    /// once for each.
+    fn rc_visit_function(
+        &mut self,
+        name: &str,
+        body: impl Fn(&mut Self, PointerValue<'ctx>, RcOp),
+    ) -> FunctionValue<'ctx> {
+        let ptr = self.context.ptr_type(AddressSpace::default());
+        let i64_type = self.context.i64_type();
+        let function = self.module.add_function(
+            name,
+            self.context
+                .void_type()
+                .fn_type(&[ptr.into(), i64_type.into()], false),
+            Some(Linkage::Internal),
+        );
+        self.in_function(function, |this| {
+            let object = function
+                .get_nth_param(0)
+                .expect("two parameters")
+                .into_pointer_value();
+            let op = function
+                .get_nth_param(1)
+                .expect("two parameters")
+                .into_int_value();
+            let (mark, release) = (this.append("mark"), this.append("release"));
+            // The runtime's `RC_MARK` is 1.
+            let marking = this
+                .builder
+                .build_int_compare(
+                    IntPredicate::EQ,
+                    op,
+                    i64_type.const_int(1, false),
+                    "marking",
+                )
+                .expect(POSITIONED);
+            this.builder
+                .build_conditional_branch(marking, mark, release)
+                .expect(POSITIONED);
+            for (block, op) in [(mark, RcOp::Mark), (release, RcOp::Release)] {
+                this.builder.position_at_end(block);
+                body(this, object, op);
+                this.builder.build_return(None).expect(POSITIONED);
+            }
+        });
+        function
+    }
+
+    /// The visit of an object holding one value of type `contents` at its
+    /// start (a `Ref` box, an indirect payload's box, an interface value's
+    /// box); `None` when nothing in it is counted.
     pub(super) fn rc_box_drop(&mut self, contents: &Type) -> Option<FunctionValue<'ctx>> {
         if !self.counted(contents) {
             return None;
@@ -24,66 +74,46 @@ impl<'ctx> Lowerer<'ctx> {
         if let Some(function) = self.module.get_function(&name) {
             return Some(function);
         }
-        let ptr = self.context.ptr_type(AddressSpace::default());
-        let function = self.module.add_function(
-            &name,
-            self.context.void_type().fn_type(&[ptr.into()], false),
-            Some(Linkage::Internal),
-        );
         let contents = contents.clone();
-        self.in_function(function, |this| {
-            let object = function
-                .get_nth_param(0)
-                .expect("one parameter")
-                .into_pointer_value();
+        Some(self.rc_visit_function(&name, |this, object, op| {
             let value = this.load_element(object, &contents);
-            this.rc_release(value, &contents);
-            this.builder.build_return(None).expect(POSITIONED);
-        });
-        Some(function)
+            this.rc_value(value, &contents, op);
+        }))
     }
 
-    /// The function releasing an array's elements of type `element`: the
-    /// runtime's for pointers, one generated per type for values holding
-    /// them; `None` when the elements hold nothing counted.
+    /// The visit of an array of `element`s: the runtime's for pointers, one
+    /// generated per type for values holding them; `None` when the elements
+    /// hold nothing counted.
     pub(super) fn rc_array_drop(&mut self, element: &Type) -> Option<FunctionValue<'ctx>> {
         if !self.counted(element) {
             return None;
         }
-        if matches!(element, Type::String | Type::Array(_) | Type::Ref(_)) {
-            return Some(self.runtime("lugha_rt_rc_drop_pointers", &[Type::String], None));
+        if pointer_counted(element) {
+            return Some(self.runtime(
+                "lugha_rt_rc_drop_pointers",
+                &[Type::String, Type::I64],
+                None,
+            ));
         }
         let name = format!("lugha_rc_drop_arr_{}", mangle(element));
         if let Some(function) = self.module.get_function(&name) {
             return Some(function);
         }
-        let ptr = self.context.ptr_type(AddressSpace::default());
-        let function = self.module.add_function(
-            &name,
-            self.context.void_type().fn_type(&[ptr.into()], false),
-            Some(Linkage::Internal),
-        );
         let element = element.clone();
-        self.in_function(function, |this| {
-            let array = function
-                .get_nth_param(0)
-                .expect("one parameter")
-                .into_pointer_value();
+        Some(self.rc_visit_function(&name, |this, array, op| {
             let len = this.length(array);
             let size = this.element_size(&element);
             this.count_loop(len, |this, i| {
                 let item = this.load_element(this.element_address(array, i, size), &element);
-                this.rc_release(item, &element);
+                this.rc_value(item, &element, op);
                 Ok(())
             })
-            .expect("drop loops only lower runtime calls");
-            this.builder.build_return(None).expect(POSITIONED);
-        });
-        Some(function)
+            .expect("visit loops only lower runtime calls");
+        }))
     }
 
-    /// The function releasing a closure environment's captures, laid out
-    /// as `layout`; `None` when none of them is counted.
+    /// The visit of a closure environment's captures, laid out as
+    /// `layout`; `None` when none of them is counted.
     pub(super) fn rc_env_drop(
         &mut self,
         layout: inkwell::types::StructType<'ctx>,
@@ -94,18 +124,8 @@ impl<'ctx> Lowerer<'ctx> {
         }
         self.rc_envs += 1;
         let name = format!("lugha_rc_drop_env.{}", self.rc_envs);
-        let ptr = self.context.ptr_type(AddressSpace::default());
-        let function = self.module.add_function(
-            &name,
-            self.context.void_type().fn_type(&[ptr.into()], false),
-            Some(Linkage::Internal),
-        );
         let types = types.to_vec();
-        self.in_function(function, |this| {
-            let env = function
-                .get_nth_param(0)
-                .expect("one parameter")
-                .into_pointer_value();
+        Some(self.rc_visit_function(&name, |this, env, op| {
             for (i, ty) in types.iter().enumerate() {
                 if !this.counted(ty) {
                     continue;
@@ -119,11 +139,9 @@ impl<'ctx> Lowerer<'ctx> {
                     .builder
                     .build_load(llvm_type(this.context, ty), at, "capture")
                     .expect(POSITIONED);
-                this.rc_release(value, ty);
+                this.rc_value(value, ty, op);
             }
-            this.builder.build_return(None).expect(POSITIONED);
-        });
-        Some(function)
+        }))
     }
 
     /// A constant object's fields, after the header reference counting

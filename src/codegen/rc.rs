@@ -31,7 +31,14 @@ pub(super) fn counted(ty: &Type, structs: &Structs, enums: &Enums) -> bool {
 
 fn counted_in(ty: &Type, structs: &Structs, enums: &Enums, path: &mut Vec<String>) -> bool {
     match ty {
-        Type::String | Type::Array(_) | Type::Ref(_) | Type::Fun(..) | Type::Interface(..) => true,
+        Type::String
+        | Type::Array(_)
+        | Type::Ref(_)
+        | Type::Fun(..)
+        | Type::Interface(..)
+        | Type::Chan(_)
+        | Type::Task(_)
+        | Type::Actor(_) => true,
         Type::Struct(..) | Type::Enum(..) | Type::Option(_) => {
             let name = ty.to_string();
             // A type leading back to itself does so through a box on the
@@ -72,6 +79,34 @@ pub(super) fn rc_unsupported(checked: &crate::check::Checked) -> Option<&'static
     }
 }
 
+/// What a count operation does to the counted objects a value holds.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum RcOp {
+    /// Adds a holder.
+    Retain,
+    /// Takes a holder away, freeing at zero.
+    Release,
+    /// Marks shared, with everything reachable: the value crosses to
+    /// another task.
+    Mark,
+}
+
+/// True if a value of type `ty` is itself a pointer to a counted object.
+pub(super) fn pointer_counted(ty: &Type) -> bool {
+    matches!(
+        ty,
+        Type::String
+            | Type::Array(_)
+            | Type::Ref(_)
+            | Type::Chan(_)
+            | Type::Task(_)
+            | Type::Actor(_)
+    )
+}
+
+/// Bit 62 of a count: shared between tasks, its count changed atomically.
+pub(super) const SHARED: u64 = 1 << 62;
+
 impl<'ctx> Lowerer<'ctx> {
     /// True when building under reference counting.
     pub(super) fn rc(&self) -> bool {
@@ -85,23 +120,28 @@ impl<'ctx> Lowerer<'ctx> {
 
     /// Adds a holder to every counted object `value` holds.
     pub(super) fn rc_retain(&mut self, value: BasicValueEnum<'ctx>, ty: &Type) {
-        self.rc_value(value, ty, true);
+        self.rc_value(value, ty, RcOp::Retain);
     }
 
     /// Takes a holder from every counted object `value` holds, freeing those
     /// it was the last holder of.
     pub(super) fn rc_release(&mut self, value: BasicValueEnum<'ctx>, ty: &Type) {
-        self.rc_value(value, ty, false);
+        self.rc_value(value, ty, RcOp::Release);
     }
 
-    fn rc_value(&mut self, value: BasicValueEnum<'ctx>, ty: &Type, retain: bool) {
+    /// Marks every counted object `value` holds shared, with what they
+    /// reach: before it crosses to another task.
+    pub(super) fn rc_mark(&mut self, value: BasicValueEnum<'ctx>, ty: &Type) {
+        self.rc_value(value, ty, RcOp::Mark);
+    }
+
+    /// `op` on every counted object `value`, of type `ty`, holds.
+    pub(super) fn rc_value(&mut self, value: BasicValueEnum<'ctx>, ty: &Type, op: RcOp) {
         if !self.counted(ty) {
             return;
         }
         match ty {
-            Type::String | Type::Array(_) | Type::Ref(_) => {
-                self.rc_pointer(value.into_pointer_value(), retain);
-            }
+            _ if pointer_counted(ty) => self.rc_pointer_op(value.into_pointer_value(), op),
             // The environment, or the box: the second field.
             Type::Fun(..) | Type::Interface(..) => {
                 let object = self
@@ -109,10 +149,10 @@ impl<'ctx> Lowerer<'ctx> {
                     .build_extract_value(value.into_struct_value(), 1, "object")
                     .expect("two fields")
                     .into_pointer_value();
-                self.rc_pointer(object, retain);
+                self.rc_pointer_op(object, op);
             }
             _ => {
-                let glue = self.rc_glue(ty, retain);
+                let glue = self.rc_glue(ty, op);
                 self.builder
                     .build_call(glue, &[value.into()], "")
                     .expect(POSITIONED);
@@ -123,7 +163,16 @@ impl<'ctx> Lowerer<'ctx> {
     /// Adds or takes a holder from the counted object at `object` (none when
     /// it is null), through the inlined `lugha_rc_inc`/`lugha_rc_dec`.
     pub(super) fn rc_pointer(&mut self, object: PointerValue<'ctx>, retain: bool) {
-        let function = self.rc_count_function(retain);
+        let op = if retain { RcOp::Retain } else { RcOp::Release };
+        self.rc_pointer_op(object, op);
+    }
+
+    /// `op` on the counted object at `object` (none when it is null).
+    pub(super) fn rc_pointer_op(&mut self, object: PointerValue<'ctx>, op: RcOp) {
+        let function = match op {
+            RcOp::Mark => self.runtime("lugha_rt_rc_mark", &[Type::String], None),
+            _ => self.rc_count_function(op == RcOp::Retain),
+        };
         self.builder
             .build_call(function, &[object.into()], "")
             .expect(POSITIONED);
@@ -154,7 +203,7 @@ impl<'ctx> Lowerer<'ctx> {
             self.context.create_enum_attribute(inline, 0),
         );
         let slow = self.runtime("lugha_rt_rc_slow", &[Type::String, Type::I64], None);
-        let free = self.runtime("lugha_rt_rc_free", &[Type::String, Type::String], None);
+        let free = self.runtime("lugha_rt_rc_free", &[Type::String], None);
         self.in_function(function, |this| {
             let object = function
                 .get_nth_param(0)
@@ -186,17 +235,22 @@ impl<'ctx> Lowerer<'ctx> {
                 .into_int_value();
             let one = i64_type.const_int(1, false);
             let (fast, odd) = (this.append("fast"), this.append("odd"));
-            // Retaining needs a count of at least one; releasing without
-            // freeing, more than one.
-            let floor = if retain { 0 } else { 1 };
+            // A plain count is from 1 to below the shared bit: retaining
+            // needs one, releasing without freeing more than one. One
+            // unsigned compare each: `count - floor < SHARED - floor`.
+            let floor = if retain { 1 } else { 2 };
+            let floor = i64_type.const_int(floor, false);
+            let above = this
+                .builder
+                .build_int_sub(count, floor, "above")
+                .expect(POSITIONED);
+            let limit = this
+                .builder
+                .build_int_sub(i64_type.const_int(SHARED, false), floor, "limit")
+                .expect(POSITIONED);
             let plain = this
                 .builder
-                .build_int_compare(
-                    IntPredicate::SGT,
-                    count,
-                    i64_type.const_int(floor, false),
-                    "plain",
-                )
+                .build_int_compare(IntPredicate::ULT, above, limit, "plain")
                 .expect(POSITIONED);
             this.builder
                 .build_conditional_branch(plain, fast, odd)
@@ -216,7 +270,8 @@ impl<'ctx> Lowerer<'ctx> {
                     .build_call(slow, &[object.into(), one.into()], "")
                     .expect(POSITIONED);
             } else {
-                // The last holder frees it; zero or a negative count is odd.
+                // The last holder frees it; a shared, constant or freed
+                // count is the runtime's.
                 let (last, other) = (this.append("last"), this.append("other"));
                 let is_last = this
                     .builder
@@ -227,7 +282,7 @@ impl<'ctx> Lowerer<'ctx> {
                     .expect(POSITIONED);
                 this.builder.position_at_end(last);
                 this.builder
-                    .build_call(free, &[object.into(), ptr.const_null().into()], "")
+                    .build_call(free, &[object.into()], "")
                     .expect(POSITIONED);
                 this.branch(done);
                 this.builder.position_at_end(other);
@@ -243,12 +298,16 @@ impl<'ctx> Lowerer<'ctx> {
         function
     }
 
-    /// `lugha_rc_retain_<T>(value)` or `lugha_rc_release_<T>(value)` for a
-    /// struct, tuple, enum or `Option` type: each counted part in turn, an
-    /// enum's by its tag. Declared before its body, so types leading back to
-    /// themselves call themselves.
-    fn rc_glue(&mut self, ty: &Type, retain: bool) -> FunctionValue<'ctx> {
-        let verb = if retain { "retain" } else { "release" };
+    /// `lugha_rc_retain_<T>(value)`, `lugha_rc_release_<T>` or
+    /// `lugha_rc_mark_<T>` for a struct, tuple, enum or `Option` type: each
+    /// counted part in turn, an enum's by its tag. Declared before its body,
+    /// so types leading back to themselves call themselves.
+    fn rc_glue(&mut self, ty: &Type, op: RcOp) -> FunctionValue<'ctx> {
+        let verb = match op {
+            RcOp::Retain => "retain",
+            RcOp::Release => "release",
+            RcOp::Mark => "mark",
+        };
         let name = format!("lugha_rc_{verb}_{}", mangle(ty));
         if let Some(function) = self.module.get_function(&name) {
             return function;
@@ -274,10 +333,10 @@ impl<'ctx> Lowerer<'ctx> {
                             .builder
                             .build_extract_value(value.into_struct_value(), index, field)
                             .expect("field exists");
-                        this.rc_value(part, field_ty, retain);
+                        this.rc_value(part, field_ty, op);
                     }
                 }
-                _ => this.rc_variants(value, &ty, retain),
+                _ => this.rc_variants(value, &ty, op),
             }
             this.builder.build_return(None).expect(POSITIONED);
         });
@@ -286,7 +345,7 @@ impl<'ctx> Lowerer<'ctx> {
 
     /// An enum's counted payloads, by its tag: an indirect payload is a
     /// pointer to a counted box, any other read where it lies.
-    fn rc_variants(&mut self, value: BasicValueEnum<'ctx>, ty: &Type, retain: bool) {
+    fn rc_variants(&mut self, value: BasicValueEnum<'ctx>, ty: &Type, op: RcOp) {
         let slot = self.entry_alloca(ty, "variant");
         self.builder.build_store(slot, value).expect(POSITIONED);
         let tag = self.tag(ty, slot);
@@ -323,10 +382,10 @@ impl<'ctx> Lowerer<'ctx> {
                         .build_load(ptr, address, "boxed")
                         .expect(POSITIONED)
                         .into_pointer_value();
-                    self.rc_pointer(boxed, retain);
+                    self.rc_pointer_op(boxed, op);
                 } else {
                     let part = self.load_element(address, payload);
-                    self.rc_value(part, payload, retain);
+                    self.rc_value(part, payload, op);
                 }
             }
             self.branch(done);

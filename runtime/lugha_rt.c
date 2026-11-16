@@ -145,11 +145,12 @@ static int utf8_encode(uint32_t code, char *out);
 static void panic_end(const char *text, size_t len);
 #ifdef LUGHA_RC
 static void lugha_rc_start(void);
-void lugha_rt_rc_free(void *object, void (*drop)(void *));
+void lugha_rt_rc_free(void *object);
+void lugha_rt_rc_mark(void *object);
 void lugha_rt_rc_release(void *object);
-void (*lugha_rt_rc_drop_of(const void *object))(void *);
-void lugha_rt_rc_set_drop(void *object, void (*drop)(void *));
-void lugha_rt_rc_drop_pointers(void *object);
+void (*lugha_rt_rc_drop_of(const void *object))(void *, int64_t);
+void lugha_rt_rc_set_drop(void *object, void (*visit)(void *, int64_t));
+void lugha_rt_rc_drop_pointers(void *object, int64_t op);
 void *lugha_rc_internal(size_t size);
 #endif
 

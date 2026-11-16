@@ -92,16 +92,25 @@ void *lugha_rc_internal(size_t size) {
     return memory;
 }
 
-/* What releases a counted object's contents. */
-typedef void (*RcDrop)(void *object);
+/* What a visit does with what an object holds: let go of it (the object is
+ * being freed), or mark it shared (the object crossed to another task). */
+#define RC_RELEASE 0
+#define RC_MARK 1
+
+/* Visits what a counted object holds, for one operation. */
+typedef void (*RcVisit)(void *object, int64_t op);
 
 /* The header before every counted object. */
 typedef struct {
-    RcDrop drop;
+    RcVisit visit;
     int64_t count;
 } RcHeader;
 
-/* A counted object of `size` bytes, zeroed, held once, with no drop until
+/* Bit 62 of a count: the object is shared between tasks, and its count
+ * changes atomically. A plain count is from 1 to below this. */
+#define RC_SHARED ((int64_t)1 << 62)
+
+/* A counted object of `size` bytes, zeroed, held once, with no visit until
  * its maker sets one (`lugha_rt_rc_set_drop`). */
 void *lugha_rt_alloc(int64_t size) {
     RcHeader *block = calloc(1, sizeof(RcHeader) + (size_t)(size > 0 ? size : 0));
@@ -121,19 +130,19 @@ static RcHeader *rc_header(void *object) {
     return (RcHeader *)object - 1;
 }
 
-/* What releases `object`'s contents when it is freed. */
-void lugha_rt_rc_set_drop(void *object, RcDrop drop) {
-    rc_header(object)->drop = drop;
+/* What visits `object`'s contents. */
+void lugha_rt_rc_set_drop(void *object, RcVisit visit) {
+    rc_header(object)->visit = visit;
 }
 
-/* The drop `object` has, for a copy of it (array growth, a clone). */
-RcDrop lugha_rt_rc_drop_of(const void *object) {
-    return rc_header((void *)object)->drop;
+/* The visit `object` has, for a copy of it (array growth, a clone). */
+RcVisit lugha_rt_rc_drop_of(const void *object) {
+    return rc_header((void *)object)->visit;
 }
 
-/* Frees `object`, its count gone to zero: its drop (or `drop`, when
- * given) first releases what it holds. A constant is never freed. */
-void lugha_rt_rc_free(void *object, RcDrop drop) {
+/* Frees `object`, its count gone to zero: its visit first releases what it
+ * holds. A constant is never freed. */
+void lugha_rt_rc_free(void *object) {
     RcHeader *header = rc_header(object);
     if (header->count == RC_FREED) {
         die("panic: double free (reference counting)\n");
@@ -141,11 +150,10 @@ void lugha_rt_rc_free(void *object, RcDrop drop) {
     if (header->count == RC_IMMORTAL) {
         return;
     }
-    RcDrop contents = drop != NULL ? drop : header->drop;
     // Marked first: a cycle back to this object can't free it twice.
     header->count = RC_FREED;
-    if (contents != NULL) {
-        contents(object);
+    if (header->visit != NULL) {
+        header->visit(object, RC_RELEASE);
     }
     rc_freed++;
     if (!rc_poison) {
@@ -153,53 +161,110 @@ void lugha_rt_rc_free(void *object, RcDrop drop) {
     }
 }
 
-/* Releases each element of an array of counted pointers (`string[]`,
- * `u8[][]`, `T[][]`): the drop of every array whose elements are
- * pointers to counted objects. */
-void lugha_rt_rc_drop_pointers(void *object) {
+/* Objects marked shared whose contents are still to be marked: marking
+ * walks a list, not the stack, so a long chain can't overflow it. */
+static void **rc_marking;
+static int64_t rc_marking_len, rc_marking_cap;
+static bool rc_walking;
+
+/* Marks `object` shared, and with it everything it reaches that is still
+ * local, before it crosses to another task. Called inside a walk (from a
+ * visit), it only queues the object. */
+void lugha_rt_rc_mark(void *object) {
+    if (object == NULL) {
+        return;
+    }
+    RcHeader *header = rc_header(object);
+    int64_t count = header->count;
+    if (count == RC_FREED) {
+        die("panic: use of freed memory (reference counting)\n");
+    }
+    // A constant, or shared already with everything it reaches.
+    if (count < 0 || (count & RC_SHARED) != 0) {
+        return;
+    }
+    header->count = count | RC_SHARED;
+    if (rc_marking_len == rc_marking_cap) {
+        rc_marking_cap = rc_marking_cap == 0 ? 64 : rc_marking_cap * 2;
+        rc_marking = realloc(rc_marking, (size_t)rc_marking_cap * sizeof(void *));
+        if (rc_marking == NULL) {
+            die("panic: out of memory\n");
+        }
+    }
+    rc_marking[rc_marking_len++] = object;
+    if (rc_walking) {
+        return;
+    }
+    rc_walking = true;
+    while (rc_marking_len > 0) {
+        void *next = rc_marking[--rc_marking_len];
+        RcVisit visit = rc_header(next)->visit;
+        if (visit != NULL) {
+            visit(next, RC_MARK);
+        }
+    }
+    rc_walking = false;
+}
+
+/* Releases or marks each element of an array of counted pointers
+ * (`string[]`, `u8[][]`, `T[][]`): the visit of every such array. */
+void lugha_rt_rc_drop_pointers(void *object, int64_t op) {
     LughaArray *array = object;
     void **items = (void **)array->elems;
     for (int64_t i = 0; i < array->len; i++) {
-        lugha_rt_rc_release(items[i]);
+        if (op == RC_MARK) {
+            lugha_rt_rc_mark(items[i]);
+        } else {
+            lugha_rt_rc_release(items[i]);
+        }
     }
 }
 
-/* What generated code calls for a count it doesn't handle inline (zero or
- * negative): a constant is left alone, a freed object panics. `delta` is
- * the change it wanted (+1 or -1). */
+/* What generated code calls for a count it doesn't handle inline: a
+ * shared count changes atomically (and frees at zero), a constant is left
+ * alone, a freed object panics. `delta` is +1 or -1. */
 void lugha_rt_rc_slow(void *object, int64_t delta) {
-    int64_t count = rc_header(object)->count;
-    (void)delta;
+    RcHeader *header = rc_header(object);
+    int64_t count = __atomic_load_n(&header->count, __ATOMIC_RELAXED);
     if (count == RC_FREED || count == 0) {
         die("panic: use of freed memory (reference counting)\n");
+    }
+    if (count < 0) {
+        return;
+    }
+    if ((count & RC_SHARED) == 0) {
+        // A plain count the caller didn't handle inline: the runtime's own.
+        if (delta > 0) {
+            header->count = count + 1;
+        } else if (count > 1) {
+            header->count = count - 1;
+        } else {
+            lugha_rt_rc_free(object);
+        }
+        return;
+    }
+    if (delta > 0) {
+        __atomic_fetch_add(&header->count, 1, __ATOMIC_RELAXED);
+        return;
+    }
+    int64_t before = __atomic_fetch_sub(&header->count, 1, __ATOMIC_RELEASE);
+    if ((before & ~RC_SHARED) == 1) {
+        __atomic_thread_fence(__ATOMIC_ACQUIRE);
+        lugha_rt_rc_free(object);
     }
 }
 
 /* Takes one holder from `object` (none for `NULL`), freeing it at zero:
  * the runtime's own release; generated code inlines the same. */
 void lugha_rt_rc_release(void *object) {
-    if (object == NULL) {
-        return;
-    }
-    RcHeader *header = rc_header(object);
-    if (header->count > 1) {
-        header->count--;
-    } else if (header->count == 1) {
-        lugha_rt_rc_free(object, NULL);
-    } else {
+    if (object != NULL) {
         lugha_rt_rc_slow(object, -1);
     }
 }
 
 /* Adds one holder to `object` (none for `NULL`). */
 void lugha_rt_rc_retain(void *object) {
-    if (object == NULL) {
-        return;
-    }
-    RcHeader *header = rc_header(object);
-    if (header->count > 0) {
-        header->count++;
-    } else {
+    if (object != NULL) {
         lugha_rt_rc_slow(object, 1);
     }
 }
