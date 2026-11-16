@@ -40,7 +40,9 @@ pub(super) struct Packages {
     pub(super) sources: HashMap<String, PathBuf>,
     pub(super) listed_at: HashMap<String, Span>,
     /// The names each package's manifest lists (`None` is the root's).
-    listed: HashMap<Option<String>, Vec<String>>,
+    pub(super) listed: HashMap<Option<String>, Vec<String>>,
+    /// The packages the program's own manifest grants `ffi`, in order.
+    pub(super) grants: Vec<String>,
     /// Each package's declared version, once its manifest is read.
     versions: HashMap<Option<String>, Option<Version>>,
     /// Every requirement of every manifest read: the package, the
@@ -67,6 +69,7 @@ impl Packages {
             root,
             folders: HashMap::new(),
             listed: HashMap::new(),
+            grants: Vec::new(),
             versions: HashMap::new(),
             required: Vec::new(),
             own: None,
@@ -162,7 +165,24 @@ impl Packages {
         {
             self.fetcher.moved = self.fetcher.read_lock(&self.root, read, base, loaded)?;
         }
+        // The program's own manifest is the one at the top of the build,
+        // read as the root and again as its own package: only it grants.
+        let granting = normalized(&folder) == normalized(&self.manifest_folder);
         for entry in manifest.entries {
+            if entry.ffi && !granting {
+                let d = Diagnostic::error(
+                    "E0321",
+                    format!("bad `{MANIFEST}` line: only the program's lugha.toml grants permissions"),
+                    entry.span,
+                )
+                .with_help(format!(
+                    "remove `allow`: the program using this package grants `{}` `ffi` in its own lugha.toml",
+                    entry.name
+                ));
+                loaded.diagnostics.push(d);
+            } else if entry.ffi && !self.grants.contains(&entry.name) {
+                self.grants.push(entry.name.clone());
+            }
             let target = match &entry.git {
                 None => normalized(&folder.join(&entry.path)),
                 Some(url) => match self.fetcher.folder(&entry, url, loaded)? {

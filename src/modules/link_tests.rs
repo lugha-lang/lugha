@@ -31,7 +31,9 @@ fn the_programs_table_comes_with_its_folder() {
 
 #[test]
 fn an_imported_packages_table_follows_the_programs() {
-    let root = "[packages]\ngeo = \"libs/geo\"\n[link]\nlibs = [\"m\"]\n";
+    // `geo` links C, so the program grants it.
+    let root =
+        "[packages]\ngeo = { path = \"libs/geo\", allow = [\"ffi\"] }\n[link]\nlibs = [\"m\"]\n";
     let loaded = run(&[
         ("main.la", IMPORTS_GEO),
         ("lugha.toml", root.as_bytes()),

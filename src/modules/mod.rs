@@ -11,6 +11,7 @@ pub mod cache;
 #[cfg(test)]
 mod entry_tests;
 pub mod fetch;
+pub mod ffi;
 pub mod git;
 pub mod impls;
 mod inline;
@@ -97,6 +98,10 @@ pub struct Loaded {
     /// Where `lugha.lock` belongs: beside the manifest governing the
     /// build, or the main file's folder when there is none.
     pub lock_folder: PathBuf,
+    /// The packages that may run C code, each with the grant that lets it
+    /// (`ffi`), sorted; and the lock's record of them before this build.
+    pub ffi: Vec<ffi::Holder>,
+    pub ffi_before: Vec<ffi::Holder>,
     /// The `[link]` tables of the packages with a module in the program,
     /// the program's first, in the order their manifests were read; only
     /// tables that list something.
@@ -178,6 +183,8 @@ pub fn load_all(roots: &[PathBuf], read: &mut Read<'_>, env: LoadEnv) -> Result<
         diagnostics: Vec::new(),
         manifests: Vec::new(),
         lock: None,
+        ffi: Vec::new(),
+        ffi_before: Vec::new(),
         links: Vec::new(),
         lock_folder: manifest_folder.clone(),
     };
@@ -315,6 +322,10 @@ pub fn load_all(roots: &[PathBuf], read: &mut Read<'_>, env: LoadEnv) -> Result<
         loaded.modules.push(module);
     }
     packages.check_versions(read, &mut base, &mut loaded)?;
+    // Before the program's modules take its package's name, below: they
+    // never need a grant.
+    loaded.ffi = ffi::check(&packages, &mut loaded);
+    loaded.ffi_before = packages.fetcher.locked_ffi();
     // A program under its package's manifest (in `test/`, `examples/`, …)
     // sees the package's package-level items. Set
     // after every import resolved: resolution still treats it as the root.
@@ -323,7 +334,7 @@ pub fn load_all(roots: &[PathBuf], read: &mut Read<'_>, env: LoadEnv) -> Result<
             module.package = Some(own.clone());
         }
     }
-    loaded.lock = packages.fetcher.lock_text();
+    loaded.lock = packages.fetcher.lock_text(&loaded.ffi);
     Ok(loaded)
 }
 

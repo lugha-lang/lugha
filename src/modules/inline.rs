@@ -1,6 +1,7 @@
 //! A manifest's inline entry:
 //! `{ path = "libs/geo", version = "1.2" }`, the keys in either order, and
-//! `{ git = "https://…", version = "1.2" }`. The same
+//! `{ git = "https://…", version = "1.2" }`, either with the permission
+//! list `allow = ["ffi"]`. The same
 //! `{ key = "value", … }` form holds a lock file's entries (`modules::lock`).
 
 use super::git;
@@ -54,9 +55,54 @@ pub(super) fn get(pairs: &[(String, String)], key: &str) -> Option<String> {
     pairs.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone())
 }
 
-/// The place and the requirement of an inline entry, or why it isn't one.
-pub(super) fn parse(value: &str) -> Result<(Place, Option<Requirement>), String> {
-    let found = pairs(value, &["path", "version", "git"])?;
+/// What an inline entry says: where its package is, the version it
+/// requires, and whether it grants the package `ffi`.
+pub(super) type Parsed = (Place, Option<Requirement>, bool);
+
+/// `value` without its `allow = [ … ]` pair, and whether that pair
+/// grants `ffi`, the one permission; or why the list is wrong.
+fn split_allow(value: &str) -> Result<(String, bool), String> {
+    let Some(at) = value.find("allow") else {
+        return Ok((value.to_string(), false));
+    };
+    let after = value[at + "allow".len()..].trim_start();
+    let list = after
+        .strip_prefix('=')
+        .map(str::trim_start)
+        .filter(|l| l.starts_with('['))
+        .ok_or("`allow` takes a list: `allow = [\"ffi\"]`")?;
+    let close = list.find(']').ok_or("`allow`'s list has no `]`")?;
+    let mut ffi = false;
+    for item in list[1..close]
+        .split(',')
+        .map(str::trim)
+        .filter(|i| !i.is_empty())
+    {
+        match item {
+            "\"ffi\"" if !ffi => ffi = true,
+            "\"ffi\"" => return Err("`ffi` is allowed twice".into()),
+            _ => return Err(format!("`allow` takes only `\"ffi\"`, not {item}")),
+        }
+    }
+    // The rest, with the pair (and a comma beside it) taken out.
+    let mut rest = format!("{}{}", &value[..at], &list[close + 1..]);
+    rest = rest
+        .replace(", ,", ",")
+        .replace("{ ,", "{")
+        .replace(", }", " }");
+    let rest = rest.trim_end().to_string();
+    let rest = match rest.strip_suffix(",}") {
+        Some(r) => format!("{r}}}"),
+        None => rest,
+    };
+    Ok((rest, ffi))
+}
+
+/// The place, the requirement and the `ffi` grant of an inline entry, or
+/// why it isn't one.
+pub(super) fn parse(value: &str) -> Result<Parsed, String> {
+    let (value, ffi) = split_allow(value)?;
+    let found = pairs(&value, &["path", "version", "git"])?;
     let version = get(&found, "version");
     let requirement = version.map(|v| Requirement::parse(&v)).transpose()?;
     let place = match (get(&found, "path"), get(&found, "git")) {
@@ -71,7 +117,7 @@ pub(super) fn parse(value: &str) -> Result<(Place, Option<Requirement>), String>
         }
         _ => return Err("an entry needs a non-empty `path`, or a `git` URL".into()),
     };
-    Ok((place, requirement))
+    Ok((place, requirement, ffi))
 }
 
 /// The string at the start of `text`, between double quotes and without
@@ -89,23 +135,45 @@ mod tests {
 
     #[test]
     fn keys_come_in_either_order() {
-        let (place, req) = parse("{ path = \"libs/geo\", version = \"1.2\" }").unwrap();
+        let (place, req, _) = parse("{ path = \"libs/geo\", version = \"1.2\" }").unwrap();
         assert_eq!(place, Place::Path("libs/geo".into()));
         assert_eq!(req.map(|r| r.parts), Some(2));
-        let (place, req) = parse("{version=\"1\",path=\"a,b\",}").unwrap();
+        let (place, req, _) = parse("{version=\"1\",path=\"a,b\",}").unwrap();
         assert_eq!(
             (place, req.map(|r| r.parts)),
             (Place::Path("a,b".into()), Some(1))
         );
         assert_eq!(
             parse("{ path = \"a\" }").unwrap(),
-            (Place::Path("a".into()), None)
+            (Place::Path("a".into()), None, false)
         );
     }
 
     #[test]
+    fn allow_grants_ffi_anywhere_in_the_entry() {
+        for text in [
+            "{ path = \"c\", allow = [\"ffi\"] }",
+            "{ allow = [\"ffi\"], path = \"c\" }",
+            "{ path = \"c\", allow = [ \"ffi\" ], version = \"1\" }",
+        ] {
+            let (place, _, ffi) = parse(text).unwrap_or_else(|e| panic!("{text}: {e}"));
+            assert_eq!((place, ffi), (Place::Path("c".into()), true), "{text}");
+        }
+        assert!(!parse("{ path = \"c\", allow = [] }").unwrap().2);
+        for bad in [
+            "{ path = \"c\", allow = [\"net\"] }",
+            "{ path = \"c\", allow = \"ffi\" }",
+            "{ path = \"c\", allow = [\"ffi\", \"ffi\"] }",
+            "{ path = \"c\", allow = [\"ffi\" }",
+        ] {
+            assert!(parse(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
     fn git_entries_need_a_version_and_a_safe_url() {
-        let (place, req) = parse("{ git = \"https://x.org/geo.git\", version = \"1.4\" }").unwrap();
+        let (place, req, _) =
+            parse("{ git = \"https://x.org/geo.git\", version = \"1.4\" }").unwrap();
         assert_eq!(place, Place::Git("https://x.org/geo.git".into()));
         assert_eq!(req.map(|r| r.parts), Some(2));
         assert!(parse("{ git = \"file:///srv/geo\", version = \"1\" }").is_ok());

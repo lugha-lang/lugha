@@ -1,6 +1,6 @@
 ## FEATURE: The `ffi` permission: a package may declare `extern` C code (or link C through `[link]`) only when the root `lugha.toml` grants it `allow = ["ffi"]`; a grant covers the package and everything it depends on, and `lugha.lock` and `lughac update` show who holds it; milestone 188, in v18's Phase 2. **Decides which code may run C: needs the user's security review before any code.**
 
-**Status:** proposed 2026-11-16.
+**Status:** proposed 2026-11-16. Approved 2026-11-16 (security review).
 
 ## OBJECTIVE
 ```toml
@@ -70,13 +70,21 @@ After every module is loaded: for each package that needs the permission and isn
 - Any change to how `[link]` input is run (`src/link/`): only whether it runs.
 
 ## TESTS
-- [ ] `src/modules` unit tests: `allow` parsed on root entries, refused in a package's manifest and for other values; the closure (direct, indirect, shared).
-- [ ] Integration (`tests/ffi_permission.rs`, path packages in temp folders): an ungranted package with `extern fun` → E0333 at it, help naming its own entry; an ungranted indirect one → help naming the direct dependency; `extern type` alone and `[link]` alone also need it; a grant on the parent covers the child; the root program's own `extern` needs nothing; a grant on a pure package is fine; nothing in `[link]` is compiled for an ungranted package.
-- [ ] Lock and update: the `[ffi]` table written with `through`; `lughac update` printing the new-reach line (a git fixture as the existing update tests use).
-- [ ] Targeted runs: `--lib`, the module, link and update test files, `programs`; CI the rest.
+- [x] `src/modules` unit tests: `allow` parsed on root entries, refused in a package's manifest and for other values; the closure (direct, indirect, shared).
+- [x] Integration (`tests/ffi_permission.rs`, path packages in temp folders): an ungranted package with `extern fun` → E0333 at it, help naming its own entry; an ungranted indirect one → help naming the direct dependency; `extern type` alone and `[link]` alone also need it; a grant on the parent covers the child; the root program's own `extern` needs nothing; a grant on a pure package is fine; nothing in `[link]` is compiled for an ungranted package.
+- [x] Lock and update: the `[ffi]` table written with `through`; `lughac update` printing the new-reach line (a git fixture as the existing update tests use).
+- [x] Targeted runs: `--lib`, the module, link and update test files, `programs`; CI the rest.
 
 ## ACCEPTANCE
-- [ ] No package's C code compiles or links unless the root granted it or a package that depends on it.
-- [ ] The lock file names every package holding `ffi` and its grant; `lughac update` names every package newly holding it.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass
-- [ ] Every `pub` item documented; spec, CHANGELOG and CLAUDE.md updated where they change
+- [x] No package's C code compiles or links unless the root granted it or a package that depends on it.
+- [x] The lock file names every package holding `ffi` and its grant; `lughac update` names every package newly holding it.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass
+- [x] Every `pub` item documented; spec, CHANGELOG and CLAUDE.md updated where they change
+
+## CHANGES DURING THE BUILD
+- **The root is the manifest at the top of the build** (`manifest_folder`), not just the `None` package: when the program's folder is itself a package, its manifest is read a second time as that package, and its grants must still count.
+- **The lock lists only packages that run C**, not every package a grant reaches: a pure dependency of a granted package isn't news.
+- **`lughac update` prints its lines only when it rewrites the lock**: a program without git packages keeps no lock, so every update would otherwise call every holder new.
+- **Two fixtures got grants:** `src/modules/link_tests.rs` and `tests/link_libs.rs` each use a package with a `[link]` table.
+- **The unit tests** for `allow` are in `src/modules/inline.rs` and `lock.rs`; the closure and E0333 are covered end to end in `tests/ffi_permission.rs`.
+- **Targeted runs only:** `--lib`, `ffi_permission`, `link_libs`, `lsp_docs`, `modules`, `test_runner`, `git_packages`, `programs`, `explain`; CI the rest.

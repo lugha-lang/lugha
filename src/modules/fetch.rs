@@ -81,15 +81,28 @@ impl Fetcher {
     /// The new text for `lugha.lock`, if this build should write it: git
     /// packages were used, none failed, and the entries differ from the
     /// lock's (its comments and order don't count).
-    pub fn lock_text(&self) -> Option<String> {
+    /// With `ffi`, the packages that may run C code and their grants: a
+    /// change there rewrites the lock too.
+    pub fn lock_text(&self, ffi: &[(String, String)]) -> Option<String> {
         if self.failed || (self.used.is_empty() && self.lock_text.is_none()) {
             return None;
         }
+        let mut before = self.locked_ffi();
+        before.sort();
         let same = !self.moved
             && self.lock_text.is_some()
             && self.used.len() == self.lock.len()
-            && self.used.iter().all(|u| self.lock.contains(u));
-        (!same).then(|| lock::write(&self.used))
+            && self.used.iter().all(|u| self.lock.contains(u))
+            && before == ffi;
+        (!same).then(|| lock::write(&self.used, ffi))
+    }
+
+    /// The lock's `[ffi]` records as it was read: who could run C before.
+    pub fn locked_ffi(&self) -> Vec<(String, String)> {
+        self.lock_text
+            .as_deref()
+            .map(lock::ffi_records)
+            .unwrap_or_default()
     }
 
     /// Reads `lugha.lock` from `root` into the offset space at `*base`;

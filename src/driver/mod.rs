@@ -147,8 +147,11 @@ where
                 out.diagnostics(&front.source, &front.warnings);
                 0
             }),
-        Command::Update { file, .. } => update::update(file).map(|(source, warnings)| {
+        Command::Update { file, .. } => update::update(file).map(|(source, warnings, notes)| {
             out.diagnostics(&source, &warnings);
+            for note in notes {
+                out.print(&note);
+            }
             0
         }),
         Command::Fmt { paths, check } => Ok(fmt::fmt(paths, *check, &mut out)),

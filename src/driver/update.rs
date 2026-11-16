@@ -45,7 +45,11 @@ pub(super) fn write_lock(folder: &Path, text: &str, source: &Source) -> Result<(
 
 /// `lughac update`: every git package re-resolved to its newest matching
 /// tag, and the lock rewritten.
-pub(super) fn update(file: &Path) -> Result<(Source, Vec<crate::diagnostic::Diagnostic>), Failure> {
+/// What `lughac update` reports: the source, its warnings, and one line per
+/// package that may newly run C code.
+pub(super) type Updated = (Source, Vec<crate::diagnostic::Diagnostic>, Vec<String>);
+
+pub(super) fn update(file: &Path) -> Result<Updated, Failure> {
     let mode = Mode {
         offline: false,
         update: true,
@@ -58,5 +62,28 @@ pub(super) fn update(file: &Path) -> Result<(Source, Vec<crate::diagnostic::Diag
     {
         return Err(Failure::Program(source, loaded.diagnostics));
     }
-    Ok((source, loaded.diagnostics))
+    let notes = newly_running_c(&loaded);
+    Ok((source, loaded.diagnostics, notes))
+}
+
+/// One line per package that may run C code now but couldn't before this
+/// update (by the lock's `[ffi]` record): how a new C dependency is noticed.
+/// Only when the lock is rewritten: a program without git packages keeps
+/// no lock, and its manifest's grants are the whole record.
+fn newly_running_c(loaded: &crate::modules::Loaded) -> Vec<String> {
+    if loaded.lock.is_none() {
+        return Vec::new();
+    }
+    loaded
+        .ffi
+        .iter()
+        .filter(|(name, _)| loaded.ffi_before.iter().all(|(old, _)| old != name))
+        .map(|(name, through)| {
+            if name == through {
+                format!("{name} now runs C code, through its own ffi grant\n")
+            } else {
+                format!("{name} now runs C code, through `{through}`'s ffi grant\n")
+            }
+        })
+        .collect()
 }

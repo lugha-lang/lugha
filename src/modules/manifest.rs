@@ -27,6 +27,9 @@ pub struct Entry {
     pub git: Option<String>,
     /// The version it requires, if any.
     pub requirement: Option<Requirement>,
+    /// `allow = ["ffi"]`: the package, and every package it depends on,
+    /// may declare C code. Only the program's own manifest may grant it.
+    pub ffi: bool,
     /// The whole line, in the shared offset space.
     pub span: Span,
 }
@@ -102,7 +105,7 @@ pub fn parse(text: &str, base: usize) -> (Manifest, Vec<Diagnostic>) {
             _ => Err("an entry needs the `[packages]` table first".to_string()),
         };
         match entry {
-            Ok((name, place, requirement)) => {
+            Ok((name, place, requirement, ffi)) => {
                 let (path, git) = match place {
                     Place::Path(path) => (path, None),
                     Place::Git(url) => (String::new(), Some(url)),
@@ -115,6 +118,7 @@ pub fn parse(text: &str, base: usize) -> (Manifest, Vec<Diagnostic>) {
                         path,
                         git,
                         requirement,
+                        ffi,
                         span,
                     });
                 }
@@ -141,7 +145,7 @@ fn strip_comment(line: &str) -> &str {
 
 /// `name = "path"` or `name = { path = "…", version = "…" }`, or why
 /// the line isn't one.
-fn entry(code: &str) -> Result<(String, Place, Option<Requirement>), String> {
+fn entry(code: &str) -> Result<(String, Place, Option<Requirement>, bool), String> {
     const SHAPE: &str = "expected `name = \"path\"`";
     let (name, value) = code.split_once('=').ok_or(SHAPE)?;
     let name = name.trim();
@@ -158,8 +162,8 @@ fn entry(code: &str) -> Result<(String, Place, Option<Requirement>), String> {
     }
     let value = value.trim();
     if value.starts_with('{') {
-        let (place, requirement) = inline::parse(value)?;
-        return Ok((name.to_string(), place, requirement));
+        let (place, requirement, ffi) = inline::parse(value)?;
+        return Ok((name.to_string(), place, requirement, ffi));
     }
     let path = value
         .strip_prefix('"')
@@ -169,7 +173,7 @@ fn entry(code: &str) -> Result<(String, Place, Option<Requirement>), String> {
     if path.is_empty() {
         return Err(format!("`{name}` has an empty path"));
     }
-    Ok((name.to_string(), Place::Path(path.to_string()), None))
+    Ok((name.to_string(), Place::Path(path.to_string()), None, false))
 }
 
 fn malformed(why: String, span: Span) -> Diagnostic {

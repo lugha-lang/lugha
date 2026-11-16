@@ -135,7 +135,10 @@ fn a_packages_table_reaches_the_programs_link() {
             "game/main.la",
             "import fix.math;\nfun main(console: Console) { console.println(math.add(4, 5)); }\n",
         ),
-        ("game/lugha.toml", "[packages]\nfix = \"../fix\"\n"),
+        (
+            "game/lugha.toml",
+            "[packages]\nfix = { path = \"../fix\", allow = [\"ffi\"] }\n",
+        ),
         (
             "fix/lugha.toml",
             "[package]\nname = \"fix\"\n[link]\nlibs = [\"fixture\"]\npaths = [\"lib\"]\n",

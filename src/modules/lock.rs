@@ -1,6 +1,9 @@
 //! `lugha.lock`: the exact commit of every git
 //! package a build used, next to the main file, in the manifest's subset:
-//! one `[locked]` table of `name = { git = "…", version = "…", commit = "…" }`.
+//! one `[locked]` table of `name = { git = "…", version = "…", commit = "…" }`,
+//! then an `[ffi]` table naming every package that may run C code and the
+//! grant that lets it, `name = { through = "…" }`: a record for people and
+//! diffs, which no check reads.
 
 use super::inline;
 use super::version::Version;
@@ -39,6 +42,10 @@ pub fn parse(text: &str, base: usize) -> (Vec<Locked>, Vec<Diagnostic>) {
         if code == "[locked]" && !table {
             table = true;
             continue;
+        }
+        // The `[ffi]` table ends the entries: `ffi_records` reads it.
+        if code == "[ffi]" && table {
+            break;
         }
         match entry(code).filter(|_| table) {
             Some(Ok(locked)) if entries.iter().all(|e: &Locked| e.name != locked.name) => {
@@ -88,8 +95,32 @@ fn locked(name: &str, value: &str) -> Result<Locked, String> {
     })
 }
 
-/// The lock file holding `entries`, sorted by name so it is stable.
-pub fn write(entries: &[Locked]) -> String {
+/// The `[ffi]` table's records in the lock `text`: each package that may
+/// run C code and the grant that lets it. A malformed line is skipped: the
+/// table is a record, never an input.
+pub fn ffi_records(text: &str) -> Vec<(String, String)> {
+    let mut records = Vec::new();
+    let mut table = false;
+    for line in text.lines().map(str::trim) {
+        if line.starts_with('[') {
+            table = line == "[ffi]";
+            continue;
+        }
+        let Some((name, value)) = line.split_once('=').filter(|_| table) else {
+            continue;
+        };
+        if let Ok(pairs) = inline::pairs(value.trim(), &["through"])
+            && let Some(through) = inline::get(&pairs, "through")
+        {
+            records.push((name.trim().to_string(), through));
+        }
+    }
+    records
+}
+
+/// The lock file holding `entries`, sorted by name so it is stable, and
+/// the `[ffi]` table of `ffi`'s records when there are any.
+pub fn write(entries: &[Locked], ffi: &[(String, String)]) -> String {
     let mut sorted = entries.to_vec();
     sorted.sort_by(|a, b| a.name.cmp(&b.name));
     let mut text = String::from("# Written by lughac; `lughac update` refreshes it.\n[locked]\n");
@@ -98,6 +129,14 @@ pub fn write(entries: &[Locked]) -> String {
             "{} = {{ git = \"{}\", version = \"{}\", commit = \"{}\" }}\n",
             e.name, e.url, e.version, e.commit
         ));
+    }
+    if !ffi.is_empty() {
+        text.push_str("\n# Packages that may run C code, and the grant that lets them.\n[ffi]\n");
+        let mut sorted = ffi.to_vec();
+        sorted.sort();
+        for (name, through) in sorted {
+            text.push_str(&format!("{name} = {{ through = \"{through}\" }}\n"));
+        }
     }
     text
 }
@@ -130,7 +169,9 @@ mod tests {
                 commit: C.into(),
             },
         ];
-        let text = write(&entries);
+        let ffi = vec![("zlib".to_string(), "geo".to_string())];
+        let text = write(&entries, &ffi);
+        assert_eq!(super::ffi_records(&text), ffi);
         assert!(text.find("geo =").unwrap() < text.find("zed =").unwrap());
         let (read, errors) = parse(&text, 0);
         assert!(errors.is_empty(), "{errors:?}");

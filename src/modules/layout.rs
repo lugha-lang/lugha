@@ -188,6 +188,7 @@ impl Packages {
                     path: ".".to_string(),
                     git: None,
                     requirement: None,
+                    ffi: false,
                     span: at,
                 };
                 if let Some(root) = root {
