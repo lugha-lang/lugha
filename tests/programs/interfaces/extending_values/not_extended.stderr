@@ -1,10 +1,10 @@
-error[E0422]: `Display` doesn't declare everything `Error` needs
+error[E0422]: a `Display` value isn't an `Error`: only an interface that extends `Error` converts to it
   --> tests/programs/interfaces/extending_values/not_extended.la:9:20
   |
 9 |     let e: Error = d;
   |                    ^
   |
-  = help: `Display` doesn't extend `Error`
+  = help: convert the concrete value instead, from a type with `impl Error for …`
 
 error[E0422]: `P` doesn't implement `Named`
    --> tests/programs/interfaces/extending_values/not_extended.la:10:20

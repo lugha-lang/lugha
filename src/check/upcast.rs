@@ -30,6 +30,11 @@ impl Checker {
     /// to `to`; E0422 naming what it lacks otherwise.
     pub(super) fn upcasts(&mut self, from: &Type, to: &Applied, span: crate::span::Span) -> bool {
         let source = Applied::of(from).expect("an interface type");
+        // A prelude interface met only by `impl` asks for ancestry, not items.
+        if self.prelude_nominal(&to.key) && !self.extends_or_is(&source.key, &to.key) {
+            self.report(super::errors::not_extending(from, &to.to_string(), span));
+            return false;
+        }
         let problems = self.undeclared(&source, to);
         if problems.is_empty() {
             return true;

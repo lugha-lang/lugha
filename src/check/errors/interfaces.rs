@@ -94,6 +94,25 @@ pub(in crate::check) fn interface_uses_self(name: &str, item: &str, span: Span) 
 
 /// E0422 for a value of one interface type that doesn't declare every item
 /// of the interface it should convert to.
+/// E0422: an interface value converted to a prelude interface met only by
+/// `impl` (`Error`) that its interface doesn't extend.
+pub(in crate::check) fn not_extending(
+    from: &crate::check::Type,
+    to: &str,
+    span: Span,
+) -> Diagnostic {
+    Diagnostic::error(
+        "E0422",
+        format!(
+            "a `{from}` value isn't an `{to}`: only an interface that extends `{to}` converts to it"
+        ),
+        span,
+    )
+    .with_help(format!(
+        "convert the concrete value instead, from a type with `impl {to} for …`"
+    ))
+}
+
 pub(in crate::check) fn undeclared(
     from: &crate::check::Type,
     to: &str,
