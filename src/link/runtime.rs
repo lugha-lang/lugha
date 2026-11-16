@@ -20,19 +20,18 @@ pub const TLS_SOURCE: &str = concat!(
 );
 
 /// Every function codegen calls in [`TLS_SOURCE`].
-pub const TLS_SYMBOLS: [&str; 13] = [
-    "lugha_rt_tls_connect",
-    "lugha_rt_tls_listen",
-    "lugha_rt_tls_accept",
-    "lugha_rt_tls_read",
-    "lugha_rt_tls_write",
-    "lugha_rt_tls_fd",
-    "lugha_rt_tls_close",
-    "lugha_rt_tls_close_listener",
-    "lugha_rt_tls_listener_fd",
-    "lugha_rt_tls_connect_keys",
-    "lugha_rt_tls_listen_keys",
+pub const TLS_SYMBOLS: [&str; 12] = [
+    "lugha_rt_tls_client_context",
+    "lugha_rt_tls_server_context",
+    "lugha_rt_tls_key_context",
+    "lugha_rt_tls_free_context",
     "lugha_rt_tls_set_accept",
+    "lugha_rt_tls_new",
+    "lugha_rt_tls_step",
+    "lugha_rt_tls_outgoing",
+    "lugha_rt_tls_incoming",
+    "lugha_rt_tls_incoming_end",
+    "lugha_rt_tls_free",
     "lugha_rt_tls_peer_key",
 ];
 

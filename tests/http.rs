@@ -255,6 +255,9 @@ fn an_address_is_connected_to_with_the_url_host() {
         "import std.http;
 import std.tls;
 
+/** A PEM file's text, empty when it can't be read. */
+fun pem(fs: Fs, name: string): string = fs.cwd().read_file(name).unwrap_or(\"\");
+
 fun main(console: Console, net: Net) {{
     let opts = tls.Options {{ address: \"127.0.0.1\", ..tls.options() }};
     let res = http.request_tls_with(net, \"GET\", \"http://wrong.example:{port}/x\", Map {{}}, [], http.limits(), opts).unwrap();

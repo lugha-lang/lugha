@@ -17,6 +17,9 @@
 static const unsigned char TLS_RPK[] = {TLSEXT_cert_type_rpk};
 
 static void tls_free_keys(EVP_PKEY **keys, int64_t n) {
+    if (keys == NULL) {
+        return;
+    }
     for (int64_t i = 0; i < n; i++) {
         EVP_PKEY_free(keys[i]);
     }
@@ -52,7 +55,9 @@ static EVP_PKEY **tls_public_keys(const LughaArray *accept, int64_t *n, LughaStr
 }
 
 /* Turns on the key check for one connection and adds every accepted key; 1
- * on success. DANE must be on before `SSL_add_expected_rpk` takes a key. */
+ * on success. DANE must be on before `SSL_add_expected_rpk` takes a key, and
+ * the connection takes its own reference to each, so a later `set_accept`
+ * doesn't reach a handshake already started. */
 static int tls_expect(SSL *ssl, EVP_PKEY **keys, int64_t n) {
     if (SSL_dane_enable(ssl, NULL) <= 0) {
         return 0;
@@ -94,49 +99,10 @@ static SSL_CTX *tls_key_context(int server, const LughaArray *secret, LughaStrin
     return ctx;
 }
 
-/* `$os.tls_connect_keys(addr, secret, accept, timeout_ms)`: a connection
- * whose server proved one of `accept`'s keys, or the reason. */
-int32_t lugha_rt_tls_connect_keys(const LughaString *addr, const LughaArray *secret,
-                                  const LughaArray *accept, int64_t timeout_ms, int64_t *handle,
-                                  LughaString **error) {
-    int64_t nkeys = 0;
-    EVP_PKEY **keys = tls_public_keys(accept, &nkeys, error);
-    if (keys == NULL) {
-        return 0;
-    }
-    SSL_CTX *ctx = tls_key_context(0, secret, error);
-    int64_t fd;
-    if (ctx == NULL || !lugha_rt_net_connect(addr, timeout_ms, &fd, error)) {
-        SSL_CTX_free(ctx);
-        tls_free_keys(keys, nkeys);
-        return 0;
-    }
-    TlsConn *c = tls_wrap(ctx, (int)fd);
-    if (c == NULL) {
-        close((int)fd);
-        tls_free_keys(keys, nkeys);
-        return tls_error(error, "TLS unavailable");
-    }
-    c->by_key = 1;
-    // The connection holds its own references to the keys it expects.
-    int expecting = tls_expect(c->ssl, keys, nkeys);
-    tls_free_keys(keys, nkeys);
-    int n;
-    if (!expecting) {
-        tls_free(c);
-        return tls_error(error, "TLS unavailable");
-    }
-    if (!tls_drive(c, net_deadline(timeout_ms), tls_handshake_connect, NULL, 0, &n, error)) {
-        tls_free(c);
-        return 0;
-    }
-    *handle = (int64_t)(intptr_t)c;
-    return 1;
-}
-
-/* `$os.tls_listen_keys(addr, secret, accept)`: a listener whose clients
- * must prove one of `accept`'s keys, or the reason. */
-int32_t lugha_rt_tls_listen_keys(const LughaString *addr, const LughaArray *secret,
+/* `$os.tls_key_context(server, secret, accept)`: a context by key for a
+ * server (1) or a client (0): this side proves `secret`'s key, and a
+ * connection made from it accepts only a peer proving one of `accept`'s. */
+int32_t lugha_rt_tls_key_context(int64_t server, const LughaArray *secret,
                                  const LughaArray *accept, int64_t *handle,
                                  LughaString **error) {
     int64_t nkeys = 0;
@@ -144,32 +110,25 @@ int32_t lugha_rt_tls_listen_keys(const LughaString *addr, const LughaArray *secr
     if (keys == NULL) {
         return 0;
     }
-    SSL_CTX *ctx = tls_key_context(1, secret, error);
-    int64_t fd;
-    if (ctx == NULL || !lugha_rt_net_listen(addr, &fd, error)) {
-        SSL_CTX_free(ctx);
+    SSL_CTX *ctx = tls_key_context(server != 0, secret, error);
+    if (ctx == NULL) {
         tls_free_keys(keys, nkeys);
         return 0;
     }
-    TlsListener *l = malloc(sizeof *l);
-    if (l == NULL) {
-        die("panic: out of memory\n");
-    }
-    l->ctx = ctx;
-    l->fd = (int)fd;
-    l->by_key = 1;
-    l->keys = keys;
-    l->nkeys = nkeys;
-    *handle = (int64_t)(intptr_t)l;
+    TlsContext *t = tls_context_of(ctx, server != 0);
+    t->by_key = 1;
+    t->keys = keys;
+    t->nkeys = nkeys;
+    *handle = (int64_t)(intptr_t)t;
     return 1;
 }
 
-/* `$os.tls_set_accept(listener, accept)`: the keys later connections must
- * prove, replacing the old list; a certificate listener has none. */
-int32_t lugha_rt_tls_set_accept(int64_t listener, const LughaArray *accept, int64_t *done,
+/* `$os.tls_set_accept(context, accept)`: the keys connections made from now
+ * on must prove, replacing the old list; a context by certificate has none. */
+int32_t lugha_rt_tls_set_accept(int64_t context, const LughaArray *accept, int64_t *done,
                                 LughaString **error) {
-    TlsListener *l = (TlsListener *)(intptr_t)listener;
-    if (!l->by_key) {
+    TlsContext *t = (TlsContext *)(intptr_t)context;
+    if (!t->by_key) {
         return net_error(error, "not a by-key listener");
     }
     int64_t nkeys = 0;
@@ -177,9 +136,9 @@ int32_t lugha_rt_tls_set_accept(int64_t listener, const LughaArray *accept, int6
     if (keys == NULL) {
         return 0;
     }
-    tls_free_keys(l->keys, l->nkeys);
-    l->keys = keys;
-    l->nkeys = nkeys;
+    tls_free_keys(t->keys, t->nkeys);
+    t->keys = keys;
+    t->nkeys = nkeys;
     *done = 0;
     return 1;
 }

@@ -79,6 +79,9 @@ impl Drop for Case {
 const HELPERS: &str = "import std.tls;
 import std.crypto;
 
+/** A PEM file's text, empty when it can't be read. */
+fun pem(fs: Fs, name: string): string = fs.cwd().read_file(name).unwrap_or(\"\");
+
 struct Device {
     secret: u8[],
     key: u8[],
@@ -89,9 +92,9 @@ fun device(entropy: Entropy): Device {
     Device { secret: secret, key: key }
 }
 
-fun serve(l: tls.Listener) {
+fun serve(l: tls.SecureListener) {
     while true {
-        match l.accept() {
+        match l.accept_secure() {
             .Ok(conn) => {
                 let _ = conn.write(conn.peer_key());
                 conn.close();
@@ -101,7 +104,7 @@ fun serve(l: tls.Listener) {
     }
 }
 
-fun listening(net: Net, server: Device, accept: u8[][]): tls.Listener {
+fun listening(net: Net, server: Device, accept: u8[][]): tls.SecureListener {
     let l = tls.listen_keys(net, \"127.0.0.1:0\", tls.Keys { secret: server.secret, accept: accept }).unwrap();
     spawn serve(l);
     l
@@ -192,14 +195,14 @@ fn wrong_key_lengths_are_refused() {
 #[test]
 fn certificates_and_keys_do_not_mix() {
     let case = Case::new(
-        "fun main(console: Console, entropy: Entropy, net: Net) {
+        "fun main(console: Console, entropy: Entropy, net: Net, fs: Fs) {
     let (server, a) = (device(entropy), device(entropy));
     // A certificate client at a by-key listener.
     let by_key = listening(net, server, [a.key]);
-    let trust = tls.Options { ca_file: \"self.pem\", ..tls.options() };
+    let trust = tls.Options { ca_pem: pem(fs, \"self.pem\"), ..tls.options() };
     console.println(tls.connect_with(net, by_key.addr(), trust).is_err());
     // A by-key client at a certificate listener, which has no list to change.
-    let by_cert = tls.listen(net, \"127.0.0.1:0\", \"self.pem\", \"self.key\").unwrap();
+    let by_cert = tls.listen(net, \"127.0.0.1:0\", pem(fs, \"self.pem\"), pem(fs, \"self.key\")).unwrap();
     spawn serve(by_cert);
     try(net, console, by_cert.addr(), a, server.key);
     console.println(by_cert.set_accept([a.key]).debug());

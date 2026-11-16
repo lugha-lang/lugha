@@ -121,39 +121,32 @@ pub fn os_signature(op: &str) -> Option<(Vec<Type>, Type)> {
         "udp_option" => (vec![Type::I64, Type::I64, Type::I64], result(Type::I64)),
         "udp_multicast_if" => (vec![Type::I64, Type::String], result(Type::I64)),
         "net_interfaces" => (Vec::new(), result(Type::String)),
-        // `std.tls`: connections and listeners as `i64` handles.
-        "tls_connect" => (
-            vec![Type::String, Type::String, Type::String, Type::I64],
-            result(Type::I64),
-        ),
-        "tls_listen" => (
-            vec![Type::String, Type::String, Type::String],
-            result(Type::I64),
-        ),
-        "tls_accept" => (vec![Type::I64, Type::I64], result(Type::I64)),
-        // By key: this side's secret seed and the public keys it accepts.
-        "tls_connect_keys" => (
-            vec![
-                Type::String,
-                bytes(),
-                Type::Array(Box::new(bytes())),
-                Type::I64,
-            ],
-            result(Type::I64),
-        ),
-        "tls_listen_keys" => (
-            vec![Type::String, bytes(), Type::Array(Box::new(bytes()))],
+        // `std.tls`: contexts and connections as `i64` handles, OpenSSL on
+        // memory buffers that Lugha fills and drains.
+        "tls_client_context" => (vec![Type::String], result(Type::I64)),
+        "tls_server_context" => (vec![Type::String, Type::String], result(Type::I64)),
+        // By key: server or client, this side's secret seed and the public
+        // keys it accepts.
+        "tls_key_context" => (
+            vec![Type::I64, bytes(), Type::Array(Box::new(bytes()))],
             result(Type::I64),
         ),
         "tls_set_accept" => (
             vec![Type::I64, Type::Array(Box::new(bytes()))],
             result(Type::I64),
         ),
-        "tls_peer_key" => (vec![Type::I64], bytes()),
-        "tls_read" => (vec![Type::I64, Type::I64, Type::I64], result(bytes())),
-        "tls_write" => (vec![Type::I64, bytes(), Type::I64], result(Type::I64)),
-        "tls_close" | "tls_close_listener" => (vec![Type::I64], Type::Unit),
-        "tls_fd" | "tls_listener_fd" => (vec![Type::I64], Type::I64),
+        "tls_new" => (vec![Type::I64, Type::String], result(Type::I64)),
+        // `(1, bytes)` done, `(0, [])` wanting the peer's bytes.
+        "tls_step" => (
+            vec![Type::I64, Type::I64, bytes(), Type::I64],
+            result(Type::Struct(
+                format!("{}2", super::tuples::TUPLE),
+                vec![Type::I64, bytes()],
+            )),
+        ),
+        "tls_outgoing" | "tls_peer_key" => (vec![Type::I64], bytes()),
+        "tls_incoming" => (vec![Type::I64, bytes()], Type::Unit),
+        "tls_incoming_end" | "tls_free" | "tls_free_context" => (vec![Type::I64], Type::Unit),
         // `std.crypto`: bytes in, bytes out; a running
         // hash as an opaque `CPtr`; flags as `i64`.
         "crypto_sha256" => (vec![bytes()], bytes()),

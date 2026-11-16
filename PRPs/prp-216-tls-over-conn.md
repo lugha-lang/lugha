@@ -1,6 +1,6 @@
 ## FEATURE: TLS over any `Conn`: OpenSSL runs on memory buffers and Lugha carries the bytes over a `Conn` from a `Net`, so a fake `Net` covers TLS and `https://` too; certificates, keys and CA lists are passed as PEM text, not file paths; milestone 184, in v18's Phase 2. **Changes the C crypto code: needs the user's security review before any code.**
 
-**Status:** proposed 2026-11-16.
+**Status:** proposed 2026-11-16. Approved 2026-11-16 (security review).
 
 ## OBJECTIVE
 ```lugha
@@ -108,14 +108,23 @@ Removed: `tls_connect`, `tls_listen`, `tls_accept`, `tls_read`, `tls_write`, `tl
 - Any other C file; the test runner's fakes; narrowing.
 
 ## TESTS
-- [ ] `tests/tls.rs`, `tests/tls_keys.rs`, `tests/http.rs`: every existing case passes, migrated to PEM text (certificate failures, host and IP checks, timeouts, by-key accept and refuse, `set_accept`, large transfers both ways, a peer closing early).
-- [ ] New: TLS over a fake `Net` whose `Conn` is an in-memory pipe to a TLS server in the same program (a real handshake, no socket); `tls.connect(FakeNet {}, …)` refused by the fake reaches no network; `client` over a `Conn` the program made.
-- [ ] `src/link/runtime.rs`'s own tests (the TLS part defines its symbols).
-- [ ] Full `cargo test`.
+- [x] `tests/tls.rs`, `tests/tls_keys.rs`, `tests/http.rs`: every existing case passes, migrated to PEM text (certificate failures, host and IP checks, timeouts, by-key accept and refuse, `set_accept`, large transfers both ways, a peer closing early).
+- [x] New: TLS over a fake `Net` whose `Conn` is an in-memory pipe to a TLS server in the same program (a real handshake, no socket); `tls.connect(FakeNet {}, …)` refused by the fake reaches no network; `client` over a `Conn` the program made.
+- [x] `src/link/runtime.rs`'s own tests (the TLS part defines its symbols).
+- [x] Full `cargo test`.
 
 ## ACCEPTANCE
-- [ ] The objective prints `pong` twice and exits 0.
-- [ ] No C TLS code opens, reads or waits on a socket or a file.
-- [ ] A test given a fake `Net` can't reach the network through `std.tls` or `std.http`.
-- [ ] `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean
-- [ ] Every `pub` item documented; spec, CHANGELOG and CLAUDE.md updated where they change
+- [x] The objective prints `pong` twice and exits 0.
+- [x] No C TLS code opens, reads or waits on a socket or a file.
+- [x] A test given a fake `Net` can't reach the network through `std.tls` or `std.http`.
+- [x] `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean
+- [x] Every `pub` item documented; spec, CHANGELOG and CLAUDE.md updated where they change
+
+## CHANGES DURING THE BUILD
+- **`tls.Conn` and `tls.Listener` are renamed** `tls.SecureConn` and `tls.SecureListener`: inside `std.tls` a struct named `Conn` would hide the prelude's `Conn` interface it must implement, and `tls.Conn` beside `Conn` read as the same thing.
+- **`SecureListener.accept_secure()`** gives the accepted connection as a `SecureConn`: `accept` goes through the `Listener` interface and gives a `Conn`, which has no `peer_key()`.
+- **The handshake uses `SSL_do_handshake`** after `SSL_set_connect_state`/`SSL_set_accept_state`, one call for both sides.
+- **`SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER`** is set: a write retried after `WANT_READ` may pass the same bytes from another address.
+- **Passphrase prompts are refused** with a callback returning 0, for certificates and keys alike, so an encrypted key fails instead of OpenSSL asking on the terminal.
+- **The new test** `tests/tls_over_conn.rs` runs a real handshake over channel pipes a fake `Net` hands out, `https://` over the same, and a refusing fake stopping both `tls.connect` and `http.get`.
+- **The test programs** read their PEM files through a `Dir` (a `pem(fs, name)` helper), threaded by script.

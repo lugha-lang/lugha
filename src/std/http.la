@@ -15,7 +15,7 @@
 // Named `js` here: `json` is this module's response builder.
 import std.json as js;
 import std.tls;
-import std.$http_wire { Fail, Head, Reader, Stream, clean, digits, lower, reason, token, visible };
+import std.$http_wire { Fail, Head, Reader, clean, digits, lower, reason, token, visible };
 
 /** A request as the server received it. */
 public struct Request {
@@ -149,7 +149,7 @@ public fun serve_with(net: Net, addr: string, limits: Limits, handler: fun(Reque
     let listener = net.listen(addr)?;
     while true {
         if let .Ok(conn) = listener.accept() {
-            spawn connection(Stream.Plain(conn), limits, handler);
+            spawn connection(conn, limits, handler);
         }
     }
     Ok(())
@@ -159,29 +159,29 @@ public fun serve_with(net: Net, addr: string, limits: Limits, handler: fun(Reque
  * `serve` over TLS (`https://`), with a certificate and its private key.
  * @param net the network to connect or listen through
  * @param addr host:port
- * @param cert_file the certificate chain, PEM
- * @param key_file the private key, PEM
+ * @param cert_pem the certificate chain, PEM text, the server's first
+ * @param key_pem its private key, PEM text, unencrypted
  * @param handler makes a response for each request
  */
-public fun serve_tls(net: Net, addr: string, cert_file: string, key_file: string, handler: fun(Request): Response): Result<(), string> =
-    serve_tls_with(net, addr, cert_file, key_file, limits(), handler);
+public fun serve_tls(net: Net, addr: string, cert_pem: string, key_pem: string, handler: fun(Request): Response): Result<(), string> =
+    serve_tls_with(net, addr, cert_pem, key_pem, limits(), handler);
 
 /**
  * `serve_tls` with other limits. A handshake must finish within
  * `limits.timeout_ms`, and the next connection waits for it.
  * @param net the network to connect or listen through
  * @param addr host:port
- * @param cert_file the certificate chain, PEM
- * @param key_file the private key, PEM
+ * @param cert_pem the certificate chain, PEM text, the server's first
+ * @param key_pem its private key, PEM text, unencrypted
  * @param limits what to accept
  * @param handler makes a response for each request
  */
-public fun serve_tls_with(net: Net, addr: string, cert_file: string, key_file: string, limits: Limits, handler: fun(Request): Response): Result<(), string> {
-    let listener = tls.listen(net, addr, cert_file, key_file)?;
+public fun serve_tls_with(net: Net, addr: string, cert_pem: string, key_pem: string, limits: Limits, handler: fun(Request): Response): Result<(), string> {
+    let listener = tls.listen(net, addr, cert_pem, key_pem)?;
     listener.set_timeout(limits.timeout_ms);
     while true {
         if let .Ok(conn) = listener.accept() {
-            spawn connection(Stream.Secure(conn), limits, handler);
+            spawn connection(conn, limits, handler);
         }
     }
     Ok(())
@@ -189,7 +189,7 @@ public fun serve_tls_with(net: Net, addr: string, cert_file: string, key_file: s
 
 
 /** One connection: requests until it closes, fails, or asks to close. */
-fun connection(conn: Stream, limits: Limits, handler: fun(Request): Response) {
+fun connection(conn: Conn, limits: Limits, handler: fun(Request): Response) {
     let mut reader = Reader { conn: conn, buf: [], pos: 0, deadline: 0 };
     let mut open = true;
     while open {
@@ -241,7 +241,7 @@ fun request_of(head: Head, peer: string): Request {
 }
 
 /** Writes `res`; `content-length` (and `connection: close`) are the server's. */
-fun send(conn: Stream, res: Response, keep: bool): Result<(), string> {
+fun send(conn: Conn, res: Response, keep: bool): Result<(), string> {
     let mut head = "HTTP/1.1 {res.status} {reason(res.status)}\r\n";
     for (name, value) of res.headers {
         let lname = lower(name);
@@ -315,7 +315,7 @@ public fun request_with(net: Net, method: string, url: string, headers: Map<stri
 
 /**
  * A request trusting more certificates for `https://` (a private CA, a
- * self-signed server): `opts.ca_file`, and `opts.timeout_ms` when not 0.
+ * self-signed server): `opts.ca_pem`, and `opts.timeout_ms` when not 0.
  * @param net the network to connect or listen through
  * @param method `GET`, `PUT`, …
  * @param url `https://host[:port]/path?query` (or `http://`)
@@ -329,11 +329,11 @@ public fun request_tls(net: Net, method: string, url: string, headers: Map<strin
     if opts.timeout_ms > 0 {
         l.timeout_ms = opts.timeout_ms;
     }
-    exchange(net, method, url, headers, body, l, opts.ca_file, opts.address)
+    exchange(net, method, url, headers, body, l, opts.ca_pem, opts.address)
 }
 
 /**
- * A request with both `limits`, used as given, and `opts`: `opts.ca_file`
+ * A request with both `limits`, used as given, and `opts`: `opts.ca_pem`
  * trusted for `https://`, and `opts.timeout_ms`, when not 0, in place of
  * `limits.timeout_ms`.
  * @param net the network to connect or listen through
@@ -349,7 +349,7 @@ public fun request_tls_with(net: Net, method: string, url: string, headers: Map<
     if opts.timeout_ms > 0 {
         l.timeout_ms = opts.timeout_ms;
     }
-    exchange(net, method, url, headers, body, l, opts.ca_file, opts.address)
+    exchange(net, method, url, headers, body, l, opts.ca_pem, opts.address)
 }
 
 /** `addr`, or `address` (an IP literal) at `addr`'s port, as `std.tls` connects. */
@@ -368,8 +368,8 @@ fun pinned(addr: string, address: string): Result<string, string> {
     Ok(if ip.contains(":") { "[{ip}]:{port}" } else { "{ip}:{port}" })
 }
 
-/** One request on its own connection; `https://` verified (and `ca_file` trusted). */
-fun exchange(net: Net, method: string, url: string, headers: Map<string, string>, body: u8[], limits: Limits, ca_file: string, address: string): Result<Response, string> {
+/** One request on its own connection; `https://` verified (and `ca_pem` trusted). */
+fun exchange(net: Net, method: string, url: string, headers: Map<string, string>, body: u8[], limits: Limits, ca_pem: string, address: string): Result<Response, string> {
     let secure = url.starts_with("https://");
     if !(secure || url.starts_with("http://")) || !token(method) {
         return Err("bad URL");
@@ -390,9 +390,10 @@ fun exchange(net: Net, method: string, url: string, headers: Map<string, string>
     let port = if secure { ":443" } else { ":80" };
     let addr = if host.ends_with("]") || !host.contains(":") { host + port } else { host };
     let conn = if secure {
-        Stream.Secure(tls.connect_with(net, addr, tls.Options { ca_file: ca_file, timeout_ms: limits.timeout_ms, address: address })?)
+        let c: Conn = tls.connect_with(net, addr, tls.Options { ca_pem: ca_pem, timeout_ms: limits.timeout_ms, address: address })?;
+        c
     } else {
-        Stream.Plain(net.connect_timeout(pinned(addr, address)?, limits.timeout_ms)?)
+        net.connect_timeout(pinned(addr, address)?, limits.timeout_ms)?
     };
     conn.set_timeout(limits.timeout_ms);
     let mut head = "{method} {path} HTTP/1.1\r\nhost: {host}\r\ncontent-length: {body.len}\r\nconnection: close\r\n";
@@ -416,7 +417,7 @@ fun exchange(net: Net, method: string, url: string, headers: Map<string, string>
     result
 }
 
-fun read_response(conn: Stream, method: string, limits: Limits): Result<Response, string> {
+fun read_response(conn: Conn, method: string, limits: Limits): Result<Response, string> {
     let mut reader = Reader { conn: conn, buf: [], pos: 0, deadline: $os.now_ms() + limits.timeout_ms };
     let mut status = 100;
     let mut headers: Map<string, string> = Map {};
