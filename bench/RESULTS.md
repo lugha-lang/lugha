@@ -169,3 +169,45 @@ Peak memory (MB, median):
 | wordfreq    | 83.5  | 138.4    |
 
 
+
+## 2026-11-16, commit d232701, reference counting across tasks
+
+`--lang lugha,lugha-rc,c,rust,go`, same machine as the baseline: counts now carry the shared bit (one unsigned compare inline), and `chanping` joins (C and Rust hand off between OS threads). Nothing decided yet.
+
+Median wall time of 5 runs:
+
+| benchmark   | lugha  | lugha-rc | c       | rust    | go     |
+|-------------|--------|----------|---------|---------|--------|
+| binarytrees | 1.084s | 2.428s   | 0.515s  | 1.337s  | 0.790s |
+| chanping    | 0.285s | 0.277s   | 30.510s | 31.976s | 2.802s |
+| fannkuch    | 0.258s | 0.255s   | 0.232s  | 0.216s  | 0.230s |
+| fib         | 0.597s | 0.574s   | 0.229s  | 0.409s  | 0.576s |
+| mandelbrot  | 0.365s | 0.364s   | 0.363s  | 0.405s  | 0.374s |
+| nbody       | 0.656s | 0.656s   | 0.536s  | 0.605s  | 0.691s |
+| wordfreq    | 0.533s | 0.575s   | 0.095s  | 0.151s  | 0.366s |
+
+Fastest run:
+
+| benchmark   | lugha  | lugha-rc | c       | rust    | go     |
+|-------------|--------|----------|---------|---------|--------|
+| binarytrees | 1.073s | 2.413s   | 0.508s  | 1.335s  | 0.778s |
+| chanping    | 0.282s | 0.273s   | 28.490s | 29.446s | 2.413s |
+| fannkuch    | 0.253s | 0.250s   | 0.215s  | 0.216s  | 0.229s |
+| fib         | 0.562s | 0.566s   | 0.227s  | 0.360s  | 0.567s |
+| mandelbrot  | 0.363s | 0.362s   | 0.361s  | 0.404s  | 0.374s |
+| nbody       | 0.651s | 0.648s   | 0.531s  | 0.601s  | 0.681s |
+| wordfreq    | 0.518s | 0.572s   | 0.094s  | 0.149s  | 0.323s |
+
+Peak memory (MB, median):
+
+| benchmark   | lugha | lugha-rc | c    | rust | go    |
+|-------------|-------|----------|------|------|-------|
+| binarytrees | 70.3  | 25.9     | 9.7  | 18.0 | 12.0  |
+| chanping    | 2.0   | 1.9      | 1.8  | 2.3  | 2.0   |
+| fannkuch    | 2.2   | 1.9      | 1.7  | 2.1  | 1.9   |
+| fib         | 2.0   | 1.9      | 1.7  | 2.0  | 1.8   |
+| mandelbrot  | 2.2   | 1.9      | 1.7  | 2.2  | 1.8   |
+| nbody       | 2.1   | 1.9      | 1.7  | 2.1  | 2.0   |
+| wordfreq    | 81.6  | 138.4    | 16.2 | 47.1 | 128.2 |
+
+

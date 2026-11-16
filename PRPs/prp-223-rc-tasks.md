@@ -1,6 +1,6 @@
 ## FEATURE: The memory prototype, second step: reference counting across tasks behind `--memory=rc`: tasks, channels and actors counted, values marked shared (with atomic counts) when they cross to another task, and a channel benchmark; milestone 191.
 
-**Status:** proposed 2026-11-16.
+**Status:** built 2026-11-16, awaiting review.
 
 ## OBJECTIVE
 ```
@@ -101,3 +101,12 @@ Every end-to-end program with tasks, channels or actors runs the same under `--m
 - [ ] `chanping` and the rest are measured under both, and recorded.
 - [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
 - [ ] Every `pub` item is documented. The spec's prototype note, §11 row 191, CHANGELOG and `bench/README.md` are updated.
+
+## CHANGES DURING THE BUILD
+- **Unfinished threads let go when `main` returns** (`lugha_rt_rc_stop_threads`): a thread still running at the end (an idle actor, a `forever` loop) held its environment and task, so every such program reported live objects. What only its stack holds still stays: stopping doesn't unwind.
+- **A panicking actor keeps what its frames held** (`concurrency/actors/supervisor.la`, listed as a known gap): the panic ends its thread without unwinding, which is phase 4's.
+- **`tests/rc_programs.rs` no longer scans sources** for what the prototype doesn't cover: lughac's refusal (exit 2) marks such programs, and the test skips them. A program importing a module that uses C callbacks is caught the same way.
+- **The runtime records** (message records, a task's result block, a channel's ring) are runtime memory freed with their owner. A call's result block is freed by the caller once it has the value (`lugha_rt_rc_block_done`).
+- **`chanping` sends an `i64`**, so it measures channels and task switches, PRF-05's target. A counted value bounced back and forth would mostly measure copy-on-write: the receiving binding and its copy hold the value twice, under the collector as under counting. C and Rust hand off between OS threads, so they are 50 to 100 times slower than Lugha's green threads, and the size is set so C stays well inside the 60-second limit.
+- **`rc.rs`'s tests moved to `rc_tests.rs`** to keep the file under 500 lines.
+- **Targeted runs:** `--lib`, `programs`, `codegen`, `rc_programs`, `bench`; CI the rest.

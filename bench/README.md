@@ -25,6 +25,7 @@ Timings are never run in CI, where machines are too noisy. `cargo test --test be
 | `fannkuch` | array indexing, bounds checks | n = 10 |
 | `mandelbrot` | tight float loops (prints the number of points in the set) | 2000 × 2000 |
 | `wordfreq` | strings, splitting, maps and hashing | 2,000,000 words |
+| `chanping` | channel sends and receives, task switches | 2,000,000 round trips |
 
 Each program takes its size as its only argument. `<name>/size.txt` holds the timed size. `<name>/check.txt` holds a small size on its first line, then exactly what every version prints at that size.
 
@@ -35,6 +36,7 @@ Each program takes its size as its only argument. `<name>/size.txt` holds the ti
 The point is to compare compilers and runtimes, not cleverness:
 
 - **The same algorithm and data structures in every language, written plainly.** No SIMD intrinsics, threads, `unsafe` Rust or hand-unrolled loops.
+- **`chanping` is the one with two tasks:** Lugha's green threads and Go's goroutines over unbuffered channels; Rust's `sync_channel(0)` and C's mutex and condition variable between two OS threads, which hand off through the kernel and are far slower. Node and Python have no version.
 - **`binarytrees` allocates every node separately:** `malloc`/`free` in C, `Box` in Rust, a pointer in Go, an object in JS and Python, and a GC'd enum in Lugha. No pools or arenas.
 - **`-O2` for the default CPU, never `-march=native`:** `lughac build -O2`, `gcc -O2`, `rustc -C opt-level=2`, `go build`. Lugha also gets an informational `-O0` column, and a `lugha-rc` column: `-O2` with the reference-counting prototype (`--memory=rc`) in place of the collector.
 - **Lugha keeps its checks.** Integer overflow always panics in Lugha (spec §12), and every index is bounds-checked. C has neither check, and Rust has only bounds checks at `-O2`. Those costs are part of what the numbers show.

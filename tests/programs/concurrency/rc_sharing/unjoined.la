@@ -1,0 +1,17 @@
+// A task nobody joins: its result goes when its last handle does.
+import std.task;
+
+fun words(n: i64): string[] {
+    let mut out: string[] = [];
+    for i in 0..n {
+        out.push("w{i}");
+    }
+    out
+}
+
+fun main(console: Console) {
+    let t = spawn words(3);
+    task.yield_now();
+    let u = spawn words(2);
+    console.println(u.join().debug());
+}

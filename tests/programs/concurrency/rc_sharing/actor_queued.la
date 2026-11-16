@@ -1,0 +1,16 @@
+// An actor sent several messages and its stop without waiting: they all
+// wait in its mailbox together, and each message's arguments go once it
+// is handled.
+actor Log {
+    lines: string[],
+    fun add(mut self, line: string) { self.lines.push(line); }
+}
+
+fun main(console: Console) {
+    let log = spawn Log { lines: [] };
+    for i in 0..5 {
+        log.add("line {i}");
+    }
+    log.stop();
+    console.println(log.join().is_none());
+}
