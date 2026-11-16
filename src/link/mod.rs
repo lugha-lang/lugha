@@ -27,7 +27,7 @@ pub use self::inputs::{Plan, PlanError};
 
 /// The runtime's source files, in the order they are joined: the core first,
 /// since it holds every `#include`, then the fragments that rely on it.
-pub const RUNTIME_PARTS: [(&str, &str); 26] = [
+pub const RUNTIME_PARTS: [(&str, &str); 27] = [
     ("lugha_rt.c", include_str!("../../runtime/lugha_rt.c")),
     ("stack.c", include_str!("../../runtime/stack.c")),
     ("print.c", include_str!("../../runtime/print.c")),
@@ -42,6 +42,7 @@ pub const RUNTIME_PARTS: [(&str, &str); 26] = [
     ("dir.c", include_str!("../../runtime/dir.c")),
     ("dir_names.c", include_str!("../../runtime/dir_names.c")),
     ("lockdown.c", include_str!("../../runtime/lockdown.c")),
+    ("rc.c", include_str!("../../runtime/rc.c")),
     ("process.c", include_str!("../../runtime/process.c")),
     ("test.c", include_str!("../../runtime/test.c")),
     ("callbacks.c", include_str!("../../runtime/callbacks.c")),
@@ -186,6 +187,7 @@ pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/dir.c"),
     include_str!("../../runtime/dir_names.c"),
     include_str!("../../runtime/lockdown.c"),
+    include_str!("../../runtime/rc.c"),
     include_str!("../../runtime/process.c"),
     include_str!("../../runtime/test.c"),
     include_str!("../../runtime/callbacks.c"),
@@ -229,10 +231,14 @@ pub fn link_with(
     // Compiled C objects are kept between builds.
     let cache = object_cache::Cache::open(cc);
     let shims = c_files::compile(&plan.c_files, temp, &cache)?;
-    let variant = (plan.tls.is_some(), plan.crypto.is_some());
+    let variant = (plan.tls.is_some(), plan.crypto.is_some(), plan.rc);
     let gc = gc::compile(&cache)?;
     let runtime = runtime::compile(variant, &cache, plan.tls.or(plan.crypto), &gc.include)?;
-    let linked = [runtime.path.as_path(), gc.object.as_path()];
+    // Reference counting links no collector (its headers stay on the path).
+    let linked: Vec<&Path> = match plan.rc {
+        true => vec![runtime.path.as_path()],
+        false => vec![runtime.path.as_path(), gc.object.as_path()],
+    };
     let result = cache
         .cc()
         .command()

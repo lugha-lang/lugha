@@ -92,7 +92,16 @@ pub(super) fn build_group(
         .map(|c| c.integration.clone())
         .unwrap_or_default();
     if !keys.is_empty()
-        && let Err(failure) = pipeline::build(&front, (OptLevel::O0, cpu, Target::default()), exe)
+        && let Err(failure) = pipeline::build(
+            &front,
+            (
+                OptLevel::O0,
+                cpu,
+                Target::default(),
+                super::cli::memory_from_env(),
+            ),
+            exe,
+        )
     {
         result.failures.push(counted(failure, members.len()));
         return result;
@@ -178,7 +187,16 @@ fn build(file: &Path, exe: &Path, cpu: Cpu) -> Result<Vec<Listed>, Failure> {
         .map(|c| c.integration.clone())
         .unwrap_or_default();
     if !tests.is_empty() {
-        pipeline::build(&front, (OptLevel::O0, cpu, Target::default()), exe)?;
+        pipeline::build(
+            &front,
+            (
+                OptLevel::O0,
+                cpu,
+                Target::default(),
+                super::cli::memory_from_env(),
+            ),
+            exe,
+        )?;
     }
     // Positions from the main file's own text (offset 0 in the source map).
     let text = &front.source.main().text;

@@ -24,6 +24,8 @@ pub(super) const POSITIONED: &str = "builder is positioned in a block";
 pub(super) struct Lowerer<'ctx> {
     /// The platform: how extern structs cross to C depends on it.
     pub(super) target: super::Target,
+    /// Boehm's collector, or the reference-counting prototype.
+    pub(super) memory: super::Memory,
     /// `out` arguments of the extern call being lowered.
     pub(super) outs: Vec<super::out_params::OutSlot<'ctx>>,
     pub(super) context: &'ctx Context,
@@ -206,10 +208,11 @@ pub(super) fn lower<'ctx>(
     context: &'ctx Context,
     units: &[Unit],
     checked: &Checked,
-    (sources, target): (&[ModuleSource], super::Target),
+    (sources, target, memory): (&[ModuleSource], super::Target, super::Memory),
 ) -> Result<Module<'ctx>, CodegenError> {
     let mut lowerer = Lowerer {
         target,
+        memory,
         context,
         module: context.create_module("lugha"),
         builder: context.create_builder(),

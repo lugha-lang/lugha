@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
-use crate::codegen::{Cpu, OptLevel, Target};
+use crate::codegen::{Cpu, Memory, OptLevel, Target};
 use crate::modules::fetch::Mode;
 
 #[derive(Parser)]
@@ -165,6 +165,9 @@ pub(super) struct Options {
     /// Run no `git`: every git package must be locked and cached
     #[arg(long)]
     pub(super) offline: bool,
+    /// How memory is managed: `gc`, the collector, or `rc`, the reference-counting prototype [default: `$LUGHA_MEMORY`, else gc]
+    #[arg(long, value_enum)]
+    pub(super) memory: Option<MemoryArg>,
 }
 
 impl Options {
@@ -206,6 +209,31 @@ impl Options {
     /// `--cpu`, or the baseline when it isn't given.
     pub(super) fn cpu(&self) -> Cpu {
         self.cpu.map_or(Cpu::default(), Into::into)
+    }
+
+    /// `--memory`, else `$LUGHA_MEMORY`, else the collector.
+    pub(super) fn memory(&self) -> Memory {
+        match self.memory {
+            Some(MemoryArg::Gc) => Memory::Gc,
+            Some(MemoryArg::Rc) => Memory::Rc,
+            None => memory_from_env(),
+        }
+    }
+}
+
+/// `--memory`'s values.
+#[derive(Clone, Copy, ValueEnum)]
+pub(super) enum MemoryArg {
+    Gc,
+    Rc,
+}
+
+/// `$LUGHA_MEMORY`: `rc` chooses reference counting; anything else, or
+/// nothing, the collector. `lughac test` reads only this.
+pub(super) fn memory_from_env() -> Memory {
+    match std::env::var("LUGHA_MEMORY").as_deref() {
+        Ok("rc") => Memory::Rc,
+        _ => Memory::Gc,
     }
 }
 

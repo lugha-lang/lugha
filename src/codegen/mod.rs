@@ -90,7 +90,8 @@ mod upcast;
 mod value;
 
 pub use self::emit::{
-    Cpu, OptLevel, emit_ir, emit_ir_for, emit_ir_modules, emit_object, emit_object_modules,
+    Cpu, Memory, OptLevel, emit_ir, emit_ir_for, emit_ir_modules, emit_ir_with, emit_object,
+    emit_object_modules,
 };
 pub use self::targets::Target;
 

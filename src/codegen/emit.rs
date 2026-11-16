@@ -16,6 +16,16 @@ use super::{CodegenError, ModuleSource, SourceInfo, Target, frames, lower};
 use crate::ast::Program;
 use crate::check::{Checked, Unit};
 
+/// How a program's memory is managed: Boehm's tracing collector (the
+/// default), or the reference-counting prototype (`--memory=rc`), which
+/// counts every heap object's holders and frees it when the last one goes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Memory {
+    #[default]
+    Gc,
+    Rc,
+}
+
 /// Optimisation level for the LLVM pass pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptLevel {
@@ -80,6 +90,26 @@ pub fn emit_ir_modules(
     emit_ir_for(units, checked, sources, Target::default())
 }
 
+/// [`emit_ir_for`] with `memory`'s way of managing memory.
+///
+/// # Errors
+///
+/// As [`emit_ir`].
+pub fn emit_ir_with(
+    units: &[Unit],
+    checked: &Checked,
+    sources: &[ModuleSource],
+    (target, memory): (Target, Memory),
+) -> Result<String, CodegenError> {
+    let context = Context::create();
+    let module = lower::lower(&context, units, checked, (sources, target, memory))?;
+    // Owned locals live to their block's end under reference counting.
+    if memory == Memory::Gc {
+        frames::share_all_slots(&module);
+    }
+    Ok(module.print_to_string().to_string())
+}
+
 /// [`emit_ir_modules`] for `target`: extern structs
 /// cross to C by that target's rules.
 ///
@@ -92,10 +122,7 @@ pub fn emit_ir_for(
     sources: &[ModuleSource],
     target: Target,
 ) -> Result<String, CodegenError> {
-    let context = Context::create();
-    let module = lower::lower(&context, units, checked, (sources, target))?;
-    frames::share_all_slots(&module);
-    Ok(module.print_to_string().to_string())
+    emit_ir_with(units, checked, sources, (target, Memory::Gc))
 }
 
 /// A one-file program's source at offset 0.
@@ -129,7 +156,14 @@ pub fn emit_object(
         package: None,
         origin: None,
     }];
-    emit_object_modules(&units, checked, &[single(source)], opt, (cpu, target), path)
+    emit_object_modules(
+        &units,
+        checked,
+        &[single(source)],
+        opt,
+        (cpu, target, Memory::Gc),
+        path,
+    )
 }
 
 /// [`emit_object`] for a program of several modules, the main file first.
@@ -142,11 +176,11 @@ pub fn emit_object_modules(
     checked: &Checked,
     sources: &[ModuleSource],
     opt: OptLevel,
-    (cpu, target): (Cpu, Target),
+    (cpu, target, memory): (Cpu, Target, Memory),
     path: &Path,
 ) -> Result<(), CodegenError> {
     let context = Context::create();
-    let module = lower::lower(&context, units, checked, (sources, target))?;
+    let module = lower::lower(&context, units, checked, (sources, target, memory))?;
     let machine = target_machine(opt, cpu, target)?;
     module.set_triple(&machine.get_triple());
     module.set_data_layout(&machine.get_target_data().get_data_layout());
@@ -158,7 +192,8 @@ pub fn emit_object_modules(
     // Slots are shared before -O0's passes but after -O2's: the optimiser
     // works far harder on merged slots (kivuli's build: 33 s → 50 s), and
     // removes many slots itself.
-    if opt == OptLevel::O0 {
+    // Not under reference counting: an owned local lives to its block's end.
+    if opt == OptLevel::O0 && memory == Memory::Gc {
         frames::share_all_slots(&module);
     }
     module

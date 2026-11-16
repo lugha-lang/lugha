@@ -121,7 +121,7 @@ where
             options,
         } => {
             let target = target.map_or(Target::default(), Into::into);
-            let code = (options.opt, options.cpu(), target);
+            let code = (options.opt, options.cpu(), target, options.memory());
             build::build(
                 &mut out,
                 file,
@@ -138,7 +138,12 @@ where
             out.diagnostics(&front.source, &front.warnings);
             pipeline::run(
                 &front,
-                (options.opt, options.cpu(), Target::default()),
+                (
+                    options.opt,
+                    options.cpu(),
+                    Target::default(),
+                    options.memory(),
+                ),
                 args,
             )
         }),

@@ -55,6 +55,9 @@ pub struct Plan {
     /// The import that brings in `std.crypto`, for
     /// E0332; `Some` adds the crypto runtime and `-lcrypto`.
     pub crypto: Option<Span>,
+    /// The reference-counting prototype (`--memory=rc`): the runtime
+    /// counts references, and the collector isn't linked.
+    pub rc: bool,
 }
 
 /// Runs `pkg-config` for some names: [`super::pkg_config::run`], or a fake in tests.

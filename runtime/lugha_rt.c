@@ -28,9 +28,36 @@
 #include <netinet/in.h>
 #include <net/if.h>
 #include <ifaddrs.h>
+#ifdef LUGHA_RC
+/* The reference-counting prototype (`--memory=rc`): no collector. The
+ * runtime's own calls to it become plain allocation (zeroed, as the
+ * collector's was) and no-ops; rc.c counts the objects programs hold. */
+struct GC_stack_base {
+    void *mem_base;
+};
+typedef void (*GC_push_other_roots_proc)(void);
+void *lugha_rc_internal(size_t size);
+#define GC_CALLBACK
+#define GC_INIT() ((void)0)
+#define GC_malloc(n) lugha_rc_internal(n)
+#define GC_MALLOC(n) lugha_rc_internal(n)
+#define GC_MALLOC_ATOMIC(n) lugha_rc_internal(n)
+#define GC_MALLOC_UNCOLLECTABLE(n) lugha_rc_internal(n)
+#define GC_FREE(p) free(p)
+#define GC_register_finalizer(p, f, d, of, od) ((void)(f))
+#define GC_gcollect() ((void)0)
+#define GC_invoke_finalizers() 0
+#define GC_push_all_eager(a, b) ((void)0)
+#define GC_get_my_stackbottom(b) ((void)(b))
+#define GC_get_push_other_roots() ((GC_push_other_roots_proc)0)
+#define GC_set_push_other_roots(p) ((void)(p))
+#define GC_set_stackbottom(t, b) ((void)(b))
+#define GC_call_with_alloc_lock(f, a) ((void)(f), (void)(a))
+#else
 /* bdwgc's own layout: lughac passes `-isystem` its include folder. */
 #include <gc.h>
 #include <gc_mark.h>
+#endif
 #include <poll.h>
 #include <pthread.h>
 #include <signal.h>
@@ -116,6 +143,10 @@ static int utf8_encode(uint32_t code, char *out);
 /* Ends the program after a panic, or only the running actor (see
  * actors.c); `text` is what followed "panic: ". */
 static void panic_end(const char *text, size_t len);
+#ifdef LUGHA_RC
+static void lugha_rc_start(void);
+void lugha_rt_rc_free(void *object, void (*drop)(void *));
+#endif
 
 /* The C `main`'s arguments, for `args()`. */
 static int32_t program_argc;
@@ -127,6 +158,9 @@ void lugha_rt_init(int32_t argc, char **argv) {
     GC_INIT();
     /* After GC_INIT: Boehm may use signals while it starts up. */
     install_stack_overflow_handler();
+#ifdef LUGHA_RC
+    lugha_rc_start();
+#endif
 }
 
 static void die(const char *message) {
@@ -158,6 +192,8 @@ __attribute__((format(printf, 1, 2))) static void panic_format(const char *forma
     panic_with(text, (size_t)len);
 }
 
+#ifndef LUGHA_RC
+/* Reference counting's own is in rc.c, with a count before the object. */
 void *lugha_rt_alloc(int64_t size) {
     void *memory = GC_malloc((size_t)size);
     if (memory == NULL) {
@@ -165,10 +201,11 @@ void *lugha_rt_alloc(int64_t size) {
     }
     return memory;
 }
+#endif
 
 /* A copy of `array` with room for at least one more element: capacity
- * doubles, starting at 4. The old object is left to the GC; its single
- * owner switches to the copy. */
+ * doubles, starting at 4. The old object is left to the GC (freed at once
+ * under reference counting); its single owner switches to the copy. */
 LughaArray *lugha_rt_array_grow(const LughaArray *array, int64_t elem_size) {
     /* The top bit of `cap` is the shared flag. Arrays are made unique
      * before they grow, so it should be clear, but a set flag would read as
@@ -183,6 +220,11 @@ LughaArray *lugha_rt_array_grow(const LughaArray *array, int64_t elem_size) {
     grown->len = array->len;
     grown->cap = cap;
     memcpy(grown->elems, array->elems, (size_t)(array->len * elem_size));
+#ifdef LUGHA_RC
+    /* The elements moved to `grown`; the old block, unique since codegen
+     * made it so before growing, goes without dropping them. */
+    lugha_rt_rc_free((void *)array, NULL);
+#endif
     return grown;
 }
 

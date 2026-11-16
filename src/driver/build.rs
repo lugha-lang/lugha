@@ -6,7 +6,7 @@ use std::path::Path;
 use super::pipeline::{self, Failure, Front};
 use super::source::line_col;
 use super::{Emit, Output};
-use crate::codegen::{Cpu, OptLevel, Target};
+use crate::codegen::{Cpu, Memory, OptLevel, Target};
 use crate::modules::fetch::Mode;
 use crate::parser::sexp;
 
@@ -15,7 +15,7 @@ pub(super) fn build(
     file: &Path,
     output: Option<&Path>,
     emit: Option<Emit>,
-    (code, mode): ((OptLevel, Cpu, Target), Mode),
+    (code, mode): ((OptLevel, Cpu, Target, Memory), Mode),
 ) -> Result<u8, Failure> {
     if let Some(Emit::Tokens) = emit {
         return tokens(out, file, mode);
@@ -35,7 +35,7 @@ pub(super) fn build(
                 out.print(&format!("{}\n", sexp::program(program)));
             }
         }
-        Some(Emit::Ir) => out.print(&pipeline::ir(&front, code.2)?),
+        Some(Emit::Ir) => out.print(&pipeline::ir(&front, (code.2, code.3))?),
         Some(Emit::Tokens) => unreachable!("handled above"),
         None => {
             let exe = output.map_or_else(|| pipeline::default_output(file), Path::to_path_buf);

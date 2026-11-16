@@ -113,7 +113,7 @@ impl Drop for RuntimeObject {
 }
 
 /// The runtime's object, with TLS's part when `tls` and crypto's when
-/// `crypto`: from `cache` when it has a fresh one, else `cc -c` of the
+/// `crypto`, counting references instead of using the collector when `rc`: from `cache` when it has a fresh one, else `cc -c` of the
 /// runtime alone, with only `-isystem gc_include`: the
 /// bundled collector's headers, whose warnings aren't the runtime's. `openssl` is where a TLS or crypto
 /// program asked for OpenSSL, for E0332.
@@ -124,7 +124,7 @@ impl Drop for RuntimeObject {
 /// [`LinkError::Failed`] for any other failure, and [`LinkError::CcNotFound`]
 /// or [`LinkError::Io`] when `cc` or the source file can't be used.
 pub(super) fn compile(
-    (tls, crypto): (bool, bool),
+    (tls, crypto, rc): (bool, bool, bool),
     cache: &Cache,
     openssl: Option<Span>,
     gc_include: &Path,
@@ -139,7 +139,11 @@ pub(super) fn compile(
     if crypto {
         text.extend_from_slice(CRYPTO_SOURCE.as_bytes());
     }
-    let flags = [std::ffi::OsString::from("-isystem"), gc_include.into()];
+    let mut flags = vec![std::ffi::OsString::from("-isystem"), gc_include.into()];
+    // The reference-counting runtime: its own cached object.
+    if rc {
+        flags.push("-DLUGHA_RC=1".into());
+    }
     let compile = |extra: &[std::ffi::OsString]| {
         let all: Vec<std::ffi::OsString> = flags.iter().chain(extra).cloned().collect();
         run(cache.cc(), &source.0, &all, &object, openssl)
