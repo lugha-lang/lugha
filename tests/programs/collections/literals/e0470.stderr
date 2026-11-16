@@ -4,7 +4,7 @@ error[E0470]: these braces can't build `Point`: a struct's braces hold `field: v
 4 |     let p = Point { 1, 2 };
   |                     ^
   |
-  = help: implement `FromEntries` or `FromItems` for `Point` to build it from entries or items
+  = help: write its fields, `Point { x: …, y: … }`; to build it from entries or items, implement `FromEntries` or `FromItems` for `Point`
 
 error[E0470]: these braces can't build `Point`: a struct's braces hold `field: value`
   --> tests/programs/collections/literals/e0470.la:5:21
@@ -12,7 +12,7 @@ error[E0470]: these braces can't build `Point`: a struct's braces hold `field: v
 5 |     let q = Point { "x": 1 };
   |                     ^^^
   |
-  = help: implement `FromEntries` or `FromItems` for `Point` to build it from entries or items
+  = help: write its fields, `Point { x: …, y: … }`; to build it from entries or items, implement `FromEntries` or `FromItems` for `Point`
 
 error[E0470]: these braces can't build `Set`: it is built from items
   --> tests/programs/collections/literals/e0470.la:6:19

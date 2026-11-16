@@ -40,10 +40,26 @@ impl Checker {
                 true => "in its own module a type's braces are its fields",
                 false => "a struct's braces hold `field: value`",
             };
-            let help = format!(
-                "implement `FromEntries` or `FromItems` for `{}` to build it from entries or items",
-                lit.name.name
-            );
+            // The fields first, the likelier fix; then the interfaces.
+            let name = &lit.name.name;
+            let fields: Vec<String> = self.structs[key]
+                .fields
+                .iter()
+                .filter(|(f, _)| !f.starts_with('$'))
+                .map(|(f, _)| format!("{f}: …"))
+                .collect();
+            let written = match fields.is_empty() {
+                true => format!("{name} {{}}"),
+                false => format!("{name} {{ {} }}", fields.join(", ")),
+            };
+            let help = match own_module && (entries || items) {
+                true => format!(
+                    "write its fields, `{written}`, or call `{name}.from_entries` or `{name}.from_items`"
+                ),
+                false => format!(
+                    "write its fields, `{written}`; to build it from entries or items, implement `FromEntries` or `FromItems` for `{name}`"
+                ),
+            };
             return Some(self.wrong_form(lit, collection, (why, &help)));
         }
         let call = match (&collection.entries, &collection.items) {
