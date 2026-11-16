@@ -7,6 +7,7 @@
 //! program has errors, 2 bad usage or an internal error.
 
 mod build;
+mod cli;
 mod explain;
 mod fmt;
 mod guard;
@@ -24,17 +25,16 @@ mod update;
 
 use std::ffi::OsString;
 use std::io::Write;
-use std::path::PathBuf;
 use std::process::ExitCode;
 
-use clap::{Args, Parser, Subcommand, ValueEnum};
+use clap::Parser;
 
+use self::cli::{Cli, Command, Emit, Format, TargetArg, offline_mode};
 use self::pipeline::Failure;
 use self::render::Report;
 use self::source::Source;
-use crate::codegen::{Cpu, OptLevel, Target};
+use crate::codegen::Target;
 use crate::diagnostic::Diagnostic;
-use crate::modules::fetch::Mode;
 
 /// Runs `lughac` with the process's arguments and standard streams.
 pub fn main() -> ExitCode {
@@ -156,6 +156,7 @@ where
             paths,
             filter,
             exact,
+            integration,
             timeout,
             list,
             json,
@@ -165,6 +166,7 @@ where
                 paths,
                 filters: filter,
                 exact: *exact,
+                integration: *integration,
                 timeout: std::time::Duration::from_secs(*timeout),
                 list: *list,
                 json: *json,
@@ -198,113 +200,6 @@ where
     }
 }
 
-#[derive(Parser)]
-#[command(name = "lughac", version, about = "The Lugha compiler")]
-struct Cli {
-    #[command(subcommand)]
-    command: Command,
-}
-
-#[derive(Subcommand)]
-enum Command {
-    /// Compile and link an executable
-    Build {
-        /// Source file
-        file: PathBuf,
-        /// Output path [default: the file name without its extension]
-        #[arg(short = 'o', value_name = "OUT")]
-        output: Option<PathBuf>,
-        /// Print one intermediate stage to stdout and stop
-        #[arg(long, value_enum)]
-        emit: Option<Emit>,
-        /// The platform to build for [default: x86_64-unknown-linux-gnu]
-        #[arg(long, value_enum)]
-        target: Option<TargetArg>,
-        #[command(flatten)]
-        options: Options,
-    },
-    /// Build to a temporary file and run it
-    Run {
-        /// Source file
-        file: PathBuf,
-        #[command(flatten)]
-        options: Options,
-        /// Arguments for the program, after `--` (read with `args()`)
-        #[arg(last = true)]
-        args: Vec<String>,
-    },
-    /// Lex, parse and type-check only, reporting errors
-    Check {
-        /// Source file
-        file: PathBuf,
-        /// Diagnostic format
-        #[arg(long, value_enum, default_value = "human")]
-        diagnostics: Format,
-        /// Run no `git`: every git package must be locked and cached
-        #[arg(long)]
-        offline: bool,
-    },
-    /// Fetch every git package's newest matching tag and rewrite `lugha.lock`
-    Update {
-        /// Source file
-        file: PathBuf,
-        /// Diagnostic format
-        #[arg(long, value_enum, default_value = "human")]
-        diagnostics: Format,
-    },
-    /// Format .la files in place in the one canonical style
-    Fmt {
-        /// Files or folders (every .la file under them) [default: the current folder]
-        paths: Vec<PathBuf>,
-        /// Write nothing; list the files that would change and exit 1 if any
-        #[arg(long)]
-        check: bool,
-    },
-    /// Run the `@test` functions in .la files, each in its own process
-    Test {
-        /// Files or folders (every .la file under them) [default: the current folder]
-        paths: Vec<PathBuf>,
-        /// Run only the tests whose `module.name` contains TEXT (repeatable)
-        #[arg(long, value_name = "TEXT")]
-        filter: Vec<String>,
-        /// Each --filter must equal a whole test name
-        #[arg(long)]
-        exact: bool,
-        /// Fail a test that runs longer than SECS seconds
-        #[arg(long, value_name = "SECS", default_value_t = 10, value_parser = clap::value_parser!(u64).range(1..))]
-        timeout: u64,
-        /// List the tests and where they are; build and run nothing
-        #[arg(long)]
-        list: bool,
-        /// One JSON object per line, for tools such as editors
-        #[arg(long)]
-        json: bool,
-        /// The x86-64 level the test executables are built for
-        #[arg(long, value_enum, default_value = "x86-64")]
-        cpu: CpuLevel,
-    },
-    /// Explain an error or warning code, or list every code
-    Explain {
-        /// The code, such as E0501 [default: list every code]
-        code: Option<String>,
-    },
-    /// Print the LLM-ready spec bundled with this compiler version
-    Spec,
-    /// Serve the Language Server Protocol on stdin/stdout, for editors
-    Lsp,
-    /// Start a program (or with --lib a library) in a folder; never overwrites
-    Init {
-        /// The folder [default: the current one]
-        folder: Option<PathBuf>,
-        /// Make a library: src/<name>.la and examples/hello.la
-        #[arg(long)]
-        lib: bool,
-        /// The package name [default: the folder's name]
-        #[arg(long, value_name = "NAME")]
-        name: Option<String>,
-    },
-}
-
 /// `lughac spec`: the embedded spec, byte for byte.
 fn spec(stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
     match stdout
@@ -319,142 +214,6 @@ fn spec(stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
             let _ = writeln!(stderr, "error: cannot write the spec: {error}");
             2
         }
-    }
-}
-
-impl Command {
-    fn format(&self) -> Format {
-        match self {
-            Command::Build { options, .. } | Command::Run { options, .. } => options.diagnostics,
-            Command::Check { diagnostics, .. } | Command::Update { diagnostics, .. } => {
-                *diagnostics
-            }
-            Command::Spec
-            | Command::Init { .. }
-            | Command::Lsp
-            | Command::Fmt { .. }
-            | Command::Test { .. }
-            | Command::Explain { .. } => Format::Human,
-        }
-    }
-
-    /// The source file the command reads, as given.
-    fn file(&self) -> Option<String> {
-        match self {
-            Command::Build { file, .. }
-            | Command::Run { file, .. }
-            | Command::Check { file, .. }
-            | Command::Update { file, .. } => Some(file.display().to_string()),
-            Command::Spec
-            | Command::Init { .. }
-            | Command::Lsp
-            | Command::Fmt { .. }
-            | Command::Test { .. }
-            | Command::Explain { .. } => None,
-        }
-    }
-}
-
-#[derive(Args)]
-struct Options {
-    /// Diagnostic format
-    #[arg(long, value_enum, default_value = "human")]
-    diagnostics: Format,
-    /// Optimisation level: 0 or 2
-    #[arg(short = 'O', value_name = "LEVEL", default_value = "0", value_parser = opt_level)]
-    opt: OptLevel,
-    /// The x86-64 level the executable is built for; `native` runs only on CPUs like this one
-    #[arg(long, value_enum)]
-    cpu: Option<CpuLevel>,
-    /// Run no `git`: every git package must be locked and cached
-    #[arg(long)]
-    offline: bool,
-}
-
-impl Options {
-    fn mode(&self) -> Mode {
-        offline_mode(self.offline)
-    }
-}
-
-/// How a build may fetch git packages: never with `--offline`.
-fn offline_mode(offline: bool) -> Mode {
-    Mode {
-        offline,
-        update: false,
-    }
-}
-
-#[derive(Clone, Copy, ValueEnum)]
-enum Format {
-    Human,
-    Json,
-}
-
-/// `--cpu`'s values: a fixed list, since LLVM only
-/// warns about a CPU name it doesn't know and builds generic code.
-#[derive(Clone, Copy, ValueEnum)]
-enum CpuLevel {
-    #[value(name = "x86-64")]
-    X86_64,
-    #[value(name = "x86-64-v2")]
-    V2,
-    #[value(name = "x86-64-v3")]
-    V3,
-    #[value(name = "x86-64-v4")]
-    V4,
-    Native,
-}
-
-impl Options {
-    /// `--cpu`, or the baseline when it isn't given.
-    fn cpu(&self) -> Cpu {
-        self.cpu.map_or(Cpu::default(), Into::into)
-    }
-}
-
-/// `--target`'s values.
-#[derive(Clone, Copy, ValueEnum)]
-enum TargetArg {
-    #[value(name = "x86_64-unknown-linux-gnu")]
-    X86_64,
-    #[value(name = "aarch64-unknown-linux-gnu")]
-    Aarch64,
-}
-
-impl From<TargetArg> for Target {
-    fn from(target: TargetArg) -> Target {
-        match target {
-            TargetArg::X86_64 => Target::X86_64Linux,
-            TargetArg::Aarch64 => Target::Aarch64Linux,
-        }
-    }
-}
-
-impl From<CpuLevel> for Cpu {
-    fn from(level: CpuLevel) -> Cpu {
-        match level {
-            CpuLevel::X86_64 => Cpu::X86_64,
-            CpuLevel::V2 => Cpu::V2,
-            CpuLevel::V3 => Cpu::V3,
-            CpuLevel::V4 => Cpu::V4,
-            CpuLevel::Native => Cpu::Native,
-        }
-    }
-}
-
-#[derive(Clone, Copy, ValueEnum)]
-enum Emit {
-    Tokens,
-    Ast,
-    Ir,
-}
-
-fn opt_level(level: &str) -> Result<OptLevel, String> {
-    match level {
-        "0" => Ok(OptLevel::O0),
-        "2" => Ok(OptLevel::O2),
-        _ => Err("expected 0 or 2".to_string()),
     }
 }
 

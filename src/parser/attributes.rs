@@ -1,5 +1,5 @@
 //! Attributes: `@name` before an item or a method. `@test` before a `fun`
-//! marks a test, and `@caller_location` before a `fun` or a method makes its
+//! marks a test (`@test(integration)` one that touches the real world), and `@caller_location` before a `fun` or a method makes its
 //! panics report its caller's place; any other name, or either before
 //! anything else, is E0210, and the item is still parsed.
 
@@ -12,6 +12,9 @@ use crate::span::Span;
 /// A test.
 const TEST: &str = "test";
 
+/// The one argument `@test` takes: a test given the real world.
+const INTEGRATION: &str = "integration";
+
 /// A function whose panics report its caller's place.
 const CALLER_LOCATION: &str = "caller_location";
 
@@ -19,11 +22,13 @@ impl Parser<'_> {
     /// `@name` (one or more), then the item they go before.
     pub(super) fn attributed_item(&mut self) -> PResult<Item> {
         let mut test: Option<Span> = None;
+        let mut integration = false;
         let mut located: Option<Span> = None;
         while self.at(&TokenKind::At) {
             let (name, span) = self.attribute()?;
             match name.as_str() {
                 TEST => {
+                    integration |= self.test_argument()?;
                     test.get_or_insert(span);
                 }
                 CALLER_LOCATION => {
@@ -35,7 +40,10 @@ impl Parser<'_> {
         let mut item = self.item()?;
         if let Some(span) = test {
             match &mut item {
-                Item::Fun(f) => f.test = Some(span),
+                Item::Fun(f) => {
+                    f.test = Some(span);
+                    f.integration = integration;
+                }
                 _ => {
                     let message = "`@test` goes before a function";
                     self.error(
@@ -75,6 +83,25 @@ impl Parser<'_> {
         Ok(located)
     }
 
+    /// After `@test`, an optional `(integration)`: true when written. Any
+    /// other argument is E0210, and the test is a plain one.
+    fn test_argument(&mut self) -> PResult<bool> {
+        if !self.eat(&TokenKind::LParen) {
+            return Ok(false);
+        }
+        let argument = self.ident("`integration`")?;
+        self.expect(&TokenKind::RParen)?;
+        if argument.name == INTEGRATION {
+            return Ok(true);
+        }
+        let message = format!("`@test` takes only `integration`, not `{}`", argument.name);
+        self.error(
+            Diagnostic::error("E0210", message, argument.span)
+                .with_help("write `@test` or `@test(integration)`"),
+        );
+        Ok(false)
+    }
+
     /// `@name`: the name and its span.
     fn attribute(&mut self) -> PResult<(String, Span)> {
         let at = self.bump();
@@ -105,8 +132,13 @@ mod tests {
             program("@test private fun adds() { }"),
             "(@test private fun adds () void (block))"
         );
+        assert_eq!(
+            program("@test(integration)\nfun real() { }"),
+            "(@test(integration) fun real () void (block))"
+        );
         // `test` stays an ordinary name.
         assert_eq!(program("fun test() { }"), "(fun test () void (block))");
+        assert_eq!(errors("@test(unit) fun t() { }"), [("E0210", "unit")]);
     }
 
     #[test]

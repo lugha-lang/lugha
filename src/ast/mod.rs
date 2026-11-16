@@ -134,6 +134,9 @@ pub struct FunDecl {
     pub span: Span,
     /// The `@test` before it, which makes it a test.
     pub test: Option<Span>,
+    /// `@test(integration)`: the test touches the real world and runs only
+    /// under `lughac test --integration`.
+    pub integration: bool,
     /// The `@caller_location` before it: its panics report its caller's place.
     pub caller_location: Option<Span>,
 }

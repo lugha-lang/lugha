@@ -8,8 +8,9 @@ use super::lower::{Lowerer, POSITIONED};
 use crate::check::Type;
 
 impl<'ctx> Lowerer<'ctx> {
-    /// `main(argc, argv)` for the tests `names` of the main file, in order.
-    pub(super) fn c_test_main(&mut self, names: &[String]) {
+    /// `main(argc, argv)` for the tests `names` of the main file, in order,
+    /// each with whether it is an integration test.
+    pub(super) fn c_test_main(&mut self, names: &[(String, bool)]) {
         let i32_type = self.context.i32_type();
         let ptr = self.context.ptr_type(Default::default());
         let main_type = i32_type.fn_type(&[i32_type.into(), ptr.into()], false);
@@ -25,7 +26,7 @@ impl<'ctx> Lowerer<'ctx> {
         self.call_const_init();
         // `ptr` stands for a C string: opaque pointers are all alike.
         let is = self.runtime("lugha_rt_test_is", &[Type::String], Some(Type::I32));
-        for name in names {
+        for (name, integration) in names {
             let test = self
                 .functions
                 .get(name)
@@ -54,7 +55,10 @@ impl<'ctx> Lowerer<'ctx> {
                 .build_conditional_branch(yes, run, next)
                 .expect(POSITIONED);
             self.builder.position_at_end(run);
-            let args = self.entry_arguments(&params);
+            let entry = crate::check::Entry::Test {
+                integration: *integration,
+            };
+            let args = self.entry_arguments(&params, entry);
             self.builder.build_call(test, &args, "").expect(POSITIONED);
             self.builder
                 .build_return(Some(&i32_type.const_zero()))

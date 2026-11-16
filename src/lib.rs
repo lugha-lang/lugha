@@ -61,7 +61,8 @@ pub const PRELUDE: &str = concat!(
     include_str!("prelude/capabilities.la"),
     include_str!("prelude/capabilities_real.la"),
     include_str!("prelude/net.la"),
-    include_str!("prelude/net_real.la")
+    include_str!("prelude/net_real.la"),
+    include_str!("prelude/test_caps.la")
 );
 
 /// The language specification this compiler implements, embedded verbatim;

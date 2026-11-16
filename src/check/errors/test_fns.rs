@@ -7,12 +7,23 @@ use crate::span::Span;
 pub(in crate::check) fn bad_test(span: Span) -> Diagnostic {
     Diagnostic::error(
         "E0434",
-        "a test takes only the capabilities (`Console`, `Fs`, `Clock`, `Env`, `Proc`, `Entropy`, `Net`), each at most once, and returns nothing",
+        "a test takes only `Console`, `Dir`, `Clock`, `Env`, `Entropy` and `Net` (and, with `@test(integration)`, `Fs` and `Proc`), each at most once, and returns nothing",
         span,
     )
     .with_help(
-        "write `@test fun name() { … }` or `@test fun name(console: Console) { … }`, and check results with `assert` or `assert_eq`",
+        "write `@test fun name() { … }` or `@test fun name(dir: Dir) { … }`, and check results with `assert` or `assert_eq`",
     )
+}
+
+/// A plain test asking for `Fs` or `Proc`, which only an integration test
+/// is given.
+pub(in crate::check) fn test_needs_integration(span: Span) -> Diagnostic {
+    Diagnostic::error(
+        "E0434",
+        "only an integration test is given `Fs` and `Proc`: a plain test gets a fresh `Dir` and no programs",
+        span,
+    )
+    .with_help("take a `dir: Dir` instead, or mark it `@test(integration)` (run by `lughac test --integration`)")
 }
 
 /// A test called or used as a value.

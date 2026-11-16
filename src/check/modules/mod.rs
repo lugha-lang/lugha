@@ -154,6 +154,20 @@ fn check_with(
                 .collect(),
             const_uses: checker.const_uses,
             includes: checker.includes,
+            integration: tests
+                .map(|roots| {
+                    units
+                        .iter()
+                        .take(roots)
+                        .flat_map(|u| {
+                            super::test_fns::integration_tests_of(u.program)
+                                .into_iter()
+                                .map(|t| qualify(u.path, &t))
+                                .collect::<Vec<_>>()
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
             tests: tests.map(|roots| {
                 // Qualified, so a package's module keeps its tests' keys.
                 units

@@ -115,4 +115,7 @@ pub struct Checked {
     /// Under `lughac test`, the main file's tests in
     /// declaration order; `None` in every other build.
     pub tests: Option<Vec<String>>,
+    /// Which of `tests` are `@test(integration)`: given the real world, and
+    /// run only under `lughac test --integration`.
+    pub integration: HashSet<String>,
 }

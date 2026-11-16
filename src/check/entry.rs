@@ -20,6 +20,59 @@ pub const ENTRY_CAPABILITIES: [(&str, &str); 7] = [
     ("$prelude.Net", "$prelude.$net"),
 ];
 
+/// What a test may take: each capability, the prelude function making a
+/// plain test's (`None`: only an integration test may take it), and the one
+/// making an integration test's. A plain test's are safe stand-ins: a fresh
+/// folder, a fixed clock, an empty environment, seeded randomness, loopback.
+pub const TEST_CAPABILITIES: [(&str, Option<&str>, &str); 8] = [
+    (
+        "$prelude.Console",
+        Some("$prelude.$console"),
+        "$prelude.$console",
+    ),
+    (
+        "$prelude.Dir",
+        Some("$prelude.$test_dir"),
+        "$prelude.$test_dir",
+    ),
+    (
+        "$prelude.Clock",
+        Some("$prelude.$test_clock"),
+        "$prelude.$clock",
+    ),
+    ("$prelude.Env", Some("$prelude.$test_env"), "$prelude.$env"),
+    (
+        "$prelude.Entropy",
+        Some("$prelude.$test_entropy"),
+        "$prelude.$entropy",
+    ),
+    ("$prelude.Net", Some("$prelude.$test_net"), "$prelude.$net"),
+    ("$prelude.Fs", None, "$prelude.$fs"),
+    ("$prelude.Proc", None, "$prelude.$proc"),
+];
+
+/// Whose entry point is being built: `main`'s, or a test's.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Entry {
+    Main,
+    Test { integration: bool },
+}
+
+/// The prelude function that makes capability `key` for `entry`; `None`
+/// when that entry can't take it.
+pub fn maker(key: &str, entry: Entry) -> Option<&'static str> {
+    match entry {
+        Entry::Main => ENTRY_CAPABILITIES
+            .iter()
+            .find(|(c, _)| *c == key)
+            .map(|(_, make)| *make),
+        Entry::Test { integration } => TEST_CAPABILITIES
+            .iter()
+            .find(|(c, _, _)| *c == key)
+            .and_then(|(_, plain, real)| if integration { Some(*real) } else { *plain }),
+    }
+}
+
 /// The intrinsics only the prelude and std may call; a program reaches them
 /// through a capability.
 pub(super) const AMBIENT: [&str; 15] = [
@@ -41,17 +94,21 @@ pub(super) const AMBIENT: [&str; 15] = [
 ];
 
 impl Checker {
-    /// True if `params` are things the runtime supplies, each once:
-    /// `string[]` and the capabilities. Records the prelude functions that make
-    /// the capabilities, as uses of `owner` (`main` or a test).
-    pub(super) fn entry_params(&mut self, owner: &str, params: &[Type], span: Span) -> bool {
+    /// True if `params` are things the runtime supplies to `entry`, each
+    /// once: for `main`, `string[]` and the capabilities; for a test, its
+    /// capabilities. Records the prelude functions that make them, as uses of
+    /// `owner` (`main` or a test).
+    pub(super) fn entry_params(
+        &mut self,
+        (owner, entry): (&str, Entry),
+        params: &[Type],
+        span: Span,
+    ) -> bool {
         let mut seen: Vec<&Type> = Vec::new();
         for p in params {
             let supplied = match p {
-                Type::Array(element) => **element == Type::String,
-                Type::Interface(key, args) => {
-                    args.is_empty() && ENTRY_CAPABILITIES.iter().any(|(c, _)| c == key)
-                }
+                Type::Array(element) => entry == Entry::Main && **element == Type::String,
+                Type::Interface(key, args) => args.is_empty() && maker(key, entry).is_some(),
                 Type::Error => true,
                 _ => false,
             };
@@ -70,7 +127,7 @@ impl Checker {
         let saved = std::mem::replace(&mut self.owner, owner.to_string());
         for p in params {
             if let Type::Interface(key, _) = p
-                && let Some((_, make)) = ENTRY_CAPABILITIES.iter().find(|(c, _)| c == key)
+                && let Some(make) = maker(key, entry)
             {
                 self.used(&anchor, make, &[]);
             }

@@ -186,7 +186,7 @@ impl Checker {
                     .get(&key)
                     .map(|s| s.params.clone())
                     .unwrap_or_default();
-                let supplied = self.entry_params(&key, &params, f.name.span);
+                let supplied = self.entry_params((&key, super::Entry::Main), &params, f.name.span);
                 // A generic `main` has no one instance to call.
                 if !supplied || !f.type_params.is_empty() || bad_return {
                     self.report(errors::bad_main(f.name.span));

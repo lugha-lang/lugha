@@ -254,6 +254,7 @@ impl Parser<'_> {
             body,
             span: Span::new(start, self.prev_end()),
             test: None,
+            integration: false,
             caller_location: None,
         })
     }

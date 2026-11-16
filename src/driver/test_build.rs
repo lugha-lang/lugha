@@ -14,9 +14,9 @@ use super::{test_json, update};
 use crate::codegen::{Cpu, OptLevel, Target};
 use crate::modules::{self, fetch::Mode};
 
-/// A test of a built executable: its key (what `LUGHA_TEST` names), and
-/// its name's line and column in its file.
-pub(super) type Listed = (String, usize, usize);
+/// A test of a built executable: its key (what `LUGHA_TEST` names), its
+/// name's line and column in its file, and whether it is an integration test.
+pub(super) type Listed = (String, usize, usize, bool);
 
 /// What building one group gave.
 pub(super) struct GroupResult {
@@ -86,6 +86,11 @@ pub(super) fn build_group(
         .as_ref()
         .and_then(|c| c.tests.clone())
         .unwrap_or_default();
+    let integration = front
+        .checked
+        .as_ref()
+        .map(|c| c.integration.clone())
+        .unwrap_or_default();
     if !keys.is_empty()
         && let Err(failure) = pipeline::build(&front, (OptLevel::O0, cpu, Target::default()), exe)
     {
@@ -97,8 +102,12 @@ pub(super) fn build_group(
         let tests = test_json::listed(&module.text)
             .unwrap_or_default()
             .into_iter()
-            .map(|(name, line, col)| (crate::check::qualify(&module.path, &name), line, col))
-            .filter(|(key, _, _)| keys.contains(key))
+            .map(|(name, line, col)| {
+                let key = crate::check::qualify(&module.path, &name);
+                let real = integration.contains(&key);
+                (key, line, col, real)
+            })
+            .filter(|(key, _, _, _)| keys.contains(key))
             .collect();
         result.built.push((i, tests));
     }
@@ -163,6 +172,11 @@ fn build(file: &Path, exe: &Path, cpu: Cpu) -> Result<Vec<Listed>, Failure> {
         .as_ref()
         .and_then(|c| c.tests.clone())
         .unwrap_or_default();
+    let integration = front
+        .checked
+        .as_ref()
+        .map(|c| c.integration.clone())
+        .unwrap_or_default();
     if !tests.is_empty() {
         pipeline::build(&front, (OptLevel::O0, cpu, Target::default()), exe)?;
     }
@@ -176,7 +190,8 @@ fn build(file: &Path, exe: &Path, cpu: Cpu) -> Result<Vec<Listed>, Failure> {
                 .iter()
                 .find(|(n, _, _)| n == test_json::bare(&t))
                 .map_or((1, 1), |(_, l, c)| (*l, *c));
-            (t, line, col)
+            let real = integration.contains(&t);
+            (t, line, col, real)
         })
         .collect())
 }

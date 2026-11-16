@@ -423,18 +423,18 @@ fn cpu_reaches_the_test_build() {
 }
 
 #[test]
-fn a_test_takes_capabilities_like_main() {
-    let src = "@test\n\
+fn an_integration_test_takes_the_real_file_system() {
+    let src = "@test(integration)\n\
                fun writes_a_file(console: Console, fs: Fs) {\n\
                    assert(fs.cwd().write_file(\"t.txt\", \"x\").is_ok());\n\
                    console.println(\"written\");\n\
                }\n\
                fun main() {}\n";
     let t = Temp::with(&[("caps.la", src)]);
-    let out = lughac(&t.0, &["test"]);
+    let out = lughac(&t.0, &["test", "--integration"]);
     assert_eq!(out.status.code(), Some(0), "{}", text(&out.stdout));
     assert!(
         t.0.join("t.txt").exists(),
-        "the test wrote through its `Fs`"
+        "the test wrote through the real `Fs`, where `lughac test` ran"
     );
 }

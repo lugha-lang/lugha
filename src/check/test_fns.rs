@@ -3,13 +3,25 @@
 
 use super::errors;
 use super::expr::Expect;
-use super::{Checker, Type};
+use super::{Checker, Entry, Type, maker};
 use crate::ast::{Expr, Item, Program};
 use crate::span::Span;
 
 /// `skip(reason)`, which ends a test as skipped: an intrinsic, since it
 /// talks to the test runner. The assertions are prelude functions.
 pub(super) const ASSERTIONS: [&str; 1] = ["skip"];
+
+/// The names of `program`'s integration tests (`@test(integration)`).
+pub(super) fn integration_tests_of(program: &Program) -> Vec<String> {
+    program
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Fun(f) if f.test.is_some() && f.integration => Some(f.name.name.clone()),
+            _ => None,
+        })
+        .collect()
+}
 
 /// The names of `program`'s tests, in declaration order.
 pub(super) fn tests_of(program: &Program) -> Vec<String> {
@@ -37,8 +49,22 @@ impl Checker {
                     .get(&key)
                     .map(|s| s.params.clone())
                     .unwrap_or_default();
-                let supplied = self.entry_params(&key, &params, f.name.span);
-                if !supplied || !f.type_params.is_empty() || f.ret.is_some() {
+                let entry = Entry::Test {
+                    integration: f.integration,
+                };
+                let supplied = self.entry_params((&key, entry), &params, f.name.span);
+                let shaped = f.type_params.is_empty() && f.ret.is_none();
+                // Only the real `Fs` or `Proc` missing: say how to get them.
+                let real = !f.integration
+                    && params.iter().all(|p| match p {
+                        Type::Interface(k, _) => {
+                            maker(k, Entry::Test { integration: true }).is_some()
+                        }
+                        _ => false,
+                    });
+                if !supplied && shaped && real {
+                    self.report(errors::test_needs_integration(f.name.span));
+                } else if !supplied || !shaped {
                     self.report(errors::bad_test(f.name.span));
                 }
             }
@@ -86,6 +112,24 @@ mod tests {
             [("E0434", "t")]
         );
         ok(&format!("{main}@test fun t() {{ assert(true); }}"));
+    }
+
+    #[test]
+    fn a_plain_test_takes_stand_ins_and_an_integration_test_the_real_world() {
+        let main = "fun main() {}\n";
+        ok(&format!(
+            "{main}@test fun t(d: Dir, c: Clock, e: Env, r: Entropy, n: Net, o: Console) {{}}"
+        ));
+        ok(&format!(
+            "{main}@test(integration) fun t(f: Fs, p: Proc, d: Dir, n: Net) {{}}"
+        ));
+        for params in ["f: Fs", "p: Proc", "a: string[]", "d: Dir, e: Dir"] {
+            assert_eq!(
+                errors(&format!("{main}@test fun t({params}) {{}}")),
+                [("E0434", "t")],
+                "{params}"
+            );
+        }
     }
 
     #[test]

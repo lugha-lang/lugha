@@ -97,6 +97,7 @@ impl Parser<'_> {
                 body,
                 span,
                 test: None,
+                integration: false,
                 caller_location: None,
             })
         };

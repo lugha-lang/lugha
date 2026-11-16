@@ -209,7 +209,11 @@ fn fun(f: &FunDecl) -> String {
     list.extend(f.params.iter().map(param));
     format!(
         "({}{}fun {}{} ({}) {} {})",
-        if f.test.is_some() { "@test " } else { "" },
+        match (f.test.is_some(), f.integration) {
+            (true, true) => "@test(integration) ",
+            (true, false) => "@test ",
+            _ => "",
+        },
         visibility(f.visibility),
         f.name.name,
         type_params(&f.type_params),

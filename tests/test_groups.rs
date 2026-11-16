@@ -55,13 +55,17 @@ fn text(bytes: &[u8]) -> String {
 
 const MANIFEST: &str = "[package]\nname = \"pack\"\nversion = \"0.1.0\"\n";
 
-/// A test file that records its executable's path in `{dir}/<record>`, with
+/// A test file whose integration test records its executable's path (its
+/// first argument, from `/proc/self/cmdline`) in `{dir}/<record>`, with
 /// a helper and a test whose names every such file shares.
 fn recording(record: &str, value: i64) -> String {
     format!(
         "fun helper(): i64 = {value};\n\
-         @test\nfun works(args: string[], fs: Fs) {{\n    assert_eq(helper(), {value});\n    \
-         assert(fs.cwd().write_file(\"{{dir}}/{record}\", args[0]).is_ok());\n}}\n"
+         @test(integration)\nfun works(fs: Fs) {{\n    assert_eq(helper(), {value});\n    \
+         let raw = fs.cwd().read_bytes(\"/proc/self/cmdline\").unwrap();\n    \
+         let mut exe: u8[] = [];\n    \
+         for b of raw {{ if b == 0 {{ break; }} exe.push(b); }}\n    \
+         assert(fs.cwd().write_file(\"{{dir}}/{record}\", string_from_utf8(exe).unwrap()).is_ok());\n}}\n"
     )
 }
 
@@ -74,7 +78,7 @@ fn a_package_folder_builds_once_and_keeps_its_files_apart() {
         ("test/a.la", &a),
         ("test/b.la", &b),
     ]);
-    let out = lughac(&t.0, &["test", "test"]);
+    let out = lughac(&t.0, &["test", "--integration", "test"]);
     let stdout = text(&out.stdout);
     assert_eq!(out.status.code(), Some(0), "{stdout}{}", text(&out.stderr));
     assert!(stdout.contains("a.works ... ok"), "{stdout}");
@@ -96,7 +100,7 @@ fn a_test_file_another_imports_is_loaded_once() {
         ("test/fixtures.la", fixtures),
         ("test/user.la", user),
     ]);
-    let out = lughac(&t.0, &["test", "test"]);
+    let out = lughac(&t.0, &["test", "--integration", "test"]);
     let stdout = text(&out.stdout);
     assert_eq!(out.status.code(), Some(0), "{stdout}{}", text(&out.stderr));
     assert!(stdout.contains("2 tests: 2 passed, 0 failed"), "{stdout}");
@@ -113,7 +117,7 @@ fn a_broken_file_is_reported_alone_and_the_rest_share_a_build() {
         ("test/b.la", broken),
         ("test/c.la", &c),
     ]);
-    let out = lughac(&t.0, &["test", "test"]);
+    let out = lughac(&t.0, &["test", "--integration", "test"]);
     let (stdout, stderr) = (text(&out.stdout), text(&out.stderr));
     assert_eq!(out.status.code(), Some(1), "{stdout}{stderr}");
     assert!(
@@ -134,7 +138,7 @@ fn other_folders_and_loose_files_build_apart() {
         ("test/x/a.la", &recording("a.exe", 1)),
         ("test/y/b.la", &recording("b.exe", 2)),
     ]);
-    let out = lughac(&t.0, &["test", "test"]);
+    let out = lughac(&t.0, &["test", "--integration", "test"]);
     assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
     assert_ne!(t.exe("a.exe"), t.exe("b.exe"));
     // No manifest: each file is its own build, as before.
@@ -142,7 +146,7 @@ fn other_folders_and_loose_files_build_apart() {
         ("a.la", &recording("a.exe", 1)),
         ("b.la", &recording("b.exe", 2)),
     ]);
-    let out = lughac(&loose.0, &["test"]);
+    let out = lughac(&loose.0, &["test", "--integration"]);
     assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
     assert_ne!(loose.exe("a.exe"), loose.exe("b.exe"));
 }
@@ -155,7 +159,10 @@ fn a_filter_builds_only_the_files_it_selects() {
         ("test/a.la", &recording("a.exe", 1)),
         ("test/b.la", broken),
     ]);
-    let out = lughac(&t.0, &["test", "test", "--filter", "a.works"]);
+    let out = lughac(
+        &t.0,
+        &["test", "--integration", "test", "--filter", "a.works"],
+    );
     let (stdout, stderr) = (text(&out.stdout), text(&out.stderr));
     assert_eq!(out.status.code(), Some(0), "{stdout}{stderr}");
     assert!(stderr.is_empty(), "{stderr}");
@@ -170,7 +177,7 @@ fn a_panicking_constant_fails_every_test_of_its_build() {
     let a = "const BAD: i64 = i64.MAX + 1;\n@test\nfun one() { assert(BAD > 0); }\n";
     let b = "@test\nfun two() { assert(true); }\n";
     let t = Temp::with(&[("lugha.toml", MANIFEST), ("test/a.la", a), ("test/b.la", b)]);
-    let out = lughac(&t.0, &["test", "test"]);
+    let out = lughac(&t.0, &["test", "--integration", "test"]);
     let stdout = text(&out.stdout);
     assert_eq!(out.status.code(), Some(1), "{stdout}");
     assert!(stdout.contains("a.one ... FAILED"), "{stdout}");

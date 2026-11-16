@@ -1,6 +1,6 @@
 ## FEATURE: The test runner's capabilities: a test is given a fresh temporary `Dir`, a fixed `Clock`, an empty `Env`, a seeded `Entropy` and a loopback-only `Net`; the real `Fs`, `Proc` and network only in `@test(integration)` tests, run by `lughac test --integration`; milestone 185, in v18's Phase 2.
 
-**Status:** proposed 2026-11-16.
+**Status:** proposed 2026-11-16. Approved 2026-11-16.
 
 ## OBJECTIVE
 ```lugha
@@ -80,14 +80,21 @@ $ lughac test --integration t.la          # all four run
 - A seed option (`--seed`): one fixed seed for now.
 
 ## TESTS
-- [ ] `tests/programs/tooling/test_capabilities/` (run through `lughac test` from `tests/test_runner.rs`): the objective; the folder is empty at the start of each test and gone afterwards, even when the test fails; absolute and `..` paths refused; the clock, env and entropy values; a loopback server and client inside a test; a non-loopback connect refused.
-- [ ] E0434 for `Fs` and `Proc` in a plain test; `@test(integration)` accepted; `@test(other)` is E0210.
-- [ ] `--integration` runs integration tests; without it they are skipped, in text and in `--json`.
-- [ ] Formatter keeps `@test(integration)`.
-- [ ] Full `cargo test`.
+- [x] `tests/programs/tooling/test_capabilities/` (run through `lughac test` from `tests/test_runner.rs`): the objective; the folder is empty at the start of each test and gone afterwards, even when the test fails; absolute and `..` paths refused; the clock, env and entropy values; a loopback server and client inside a test; a non-loopback connect refused.
+- [x] E0434 for `Fs` and `Proc` in a plain test; `@test(integration)` accepted; `@test(other)` is E0210.
+- [x] `--integration` runs integration tests; without it they are skipped, in text and in `--json`.
+- [x] Formatter keeps `@test(integration)`.
+- [x] Full `cargo test`.
 
 ## ACCEPTANCE
-- [ ] The objective's three plain tests pass and the integration test is skipped; with `--integration` all four pass.
-- [ ] A plain test can't reach the real file system outside its folder by path, the network beyond loopback, other programs, the environment or the real clock and randomness.
-- [ ] `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean
-- [ ] Every `pub` item documented; spec, CHANGELOG and CLAUDE.md updated where they change
+- [x] The objective's three plain tests pass and the integration test is skipped; with `--integration` all four pass.
+- [x] A plain test can't reach the real file system outside its folder by path, the network beyond loopback, other programs, the environment or the real clock and randomness.
+- [x] `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean
+- [x] Every `pub` item documented; spec, CHANGELOG and CLAUDE.md updated where they change
+
+## CHANGES DURING THE BUILD
+- **`src/driver/mod.rs` was split** (at 498 lines, with the user's choice): the command-line types (`Cli`, `Command`, `Options`, `Format`, `CpuLevel`, `TargetArg`, `Emit`, `opt_level`, `offline_mode`) moved to `src/driver/cli.rs`; no behaviour changed.
+- **The new tests live in `tests/test_capabilities.rs`** (`tests/test_runner.rs` is at 455 lines); its old `Fs` test became an integration test run with `--integration`.
+- **Every test gets `LUGHA_TEST_DIR`** (its folder's path), and the test `Dir` resolves paths under it, so plain and integration tests share one stand-in; a plain test is also started in the folder.
+- **No closures and no temporary iterators in the stand-ins:** a closure in the prelude counts against every program, and calling a `mut self` method (`any`, `next`) on a temporary is E0502.
+- **A test can no longer take `string[]`:** the parameter check allowed it before, though tests were never meant to get the arguments. `tests/test_groups.rs`'s recorder took `args: string[]` to name its executable; it is now an integration test reading `/proc/self/cmdline`, run with `--integration`.

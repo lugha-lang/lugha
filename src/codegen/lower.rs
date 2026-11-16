@@ -53,9 +53,9 @@ pub(super) struct Lowerer<'ctx> {
     pub(super) functions: HashMap<String, Signature<'ctx>>,
     /// The checker's key for what each call calls.
     pub(super) callees: HashMap<ExprId, String>,
-    /// Under `lughac test`, the main file's tests to run;
-    /// `None` leaves every test out of the build.
-    pub(super) tests: Option<Vec<String>>,
+    /// Under `lughac test`, the main file's tests to run, each with
+    /// whether it is an integration test; `None` leaves every test out.
+    pub(super) tests: Option<Vec<(String, bool)>>,
     /// The checker's type for every written type, by span.
     pub(super) annotations: HashMap<Span, Type>,
     /// Every method and associated function, by `Type.name`.
@@ -257,7 +257,12 @@ pub(super) fn lower<'ctx>(
         derived: checked.derived.clone(),
         derive_calls: checked.derive_calls.clone(),
         iterations: checked.iterations.clone(),
-        tests: checked.tests.clone(),
+        tests: checked.tests.as_ref().map(|tests| {
+            tests
+                .iter()
+                .map(|t| (t.clone(), checked.integration.contains(t)))
+                .collect()
+        }),
         upcasts: Default::default(),
         shows: Vec::new(),
         closure_counts: HashMap::new(),
@@ -357,7 +362,7 @@ impl<'ctx> Lowerer<'ctx> {
             .expect(POSITIONED);
         self.call_const_init();
         // What `main`'s parameters ask for, made once the runtime is up.
-        let args = self.entry_arguments(params);
+        let args = self.entry_arguments(params, crate::check::Entry::Main);
         let call = self
             .builder
             .build_call(user_main, &args, "result")
@@ -382,21 +387,24 @@ impl Lowerer<'_> {
 
 impl<'ctx> Lowerer<'ctx> {
     /// One value per parameter in `params`, in order: the arguments array
-    /// for `string[]`, the prelude's real capability for each interface.
-    pub(super) fn entry_arguments(&mut self, params: &[Type]) -> Vec<BasicMetadataValueEnum<'ctx>> {
+    /// for `string[]`, and for each capability the one `entry` is given
+    /// (a test's stand-ins, or the real ones).
+    pub(super) fn entry_arguments(
+        &mut self,
+        params: &[Type],
+        entry: crate::check::Entry,
+    ) -> Vec<BasicMetadataValueEnum<'ctx>> {
         let mut values = Vec::with_capacity(params.len());
         for param in params {
             let value = match param {
                 Type::Array(_) => self.call_runtime_value("lugha_rt_args", &[], &[]),
                 Type::Interface(key, _) => {
-                    let (_, make) = crate::check::ENTRY_CAPABILITIES
-                        .iter()
-                        .find(|(capability, _)| capability == key)
-                        .expect("checked: `main` takes only capabilities it can be given");
+                    let make = crate::check::maker(key, entry)
+                        .expect("checked: an entry takes only capabilities it can be given");
                     let function = self
                         .monos
-                        .get(*make)
-                        .or_else(|| self.methods.get(*make))
+                        .get(make)
+                        .or_else(|| self.methods.get(make))
                         .unwrap_or_else(|| panic!("checked: `{make}` is listed"))
                         .signature
                         .function;

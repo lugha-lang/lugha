@@ -1,10 +1,10 @@
-error[E0434]: a test takes only the capabilities (`Console`, `Fs`, `Clock`, `Env`, `Proc`, `Entropy`, `Net`), each at most once, and returns nothing
+error[E0434]: a test takes only `Console`, `Dir`, `Clock`, `Env`, `Entropy` and `Net` (and, with `@test(integration)`, `Fs` and `Proc`), each at most once, and returns nothing
   --> tests/programs/tooling/lughac_test/e0434.la:6:5
   |
 6 | fun takes(n: i64) {
   |     ^^^^^
   |
-  = help: write `@test fun name() { … }` or `@test fun name(console: Console) { … }`, and check results with `assert` or `assert_eq`
+  = help: write `@test fun name() { … }` or `@test fun name(dir: Dir) { … }`, and check results with `assert` or `assert_eq`
 
 error[E0434]: `takes` is a test: only `lughac test` runs it
   --> tests/programs/tooling/lughac_test/e0434.la:2:5

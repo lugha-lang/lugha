@@ -7,7 +7,7 @@ use std::io::Write;
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::Mutex;
 
-use super::Format;
+use super::cli::Format;
 use super::json;
 use super::render::{self, Report};
 use super::source::Source;

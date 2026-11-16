@@ -298,7 +298,14 @@ impl Printer<'_> {
         }
         if f.test.is_some() {
             parts.insert(0, Doc::Hard);
-            parts.insert(0, text("@test"));
+            parts.insert(
+                0,
+                text(if f.integration {
+                    "@test(integration)"
+                } else {
+                    "@test"
+                }),
+            );
         }
         concat(parts)
     }

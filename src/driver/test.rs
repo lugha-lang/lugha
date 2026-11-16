@@ -30,6 +30,8 @@ pub(super) struct Request<'a> {
     pub filters: &'a [String],
     /// `--exact`: a filter must equal the whole name.
     pub exact: bool,
+    /// `--integration`: run the `@test(integration)` tests too.
+    pub integration: bool,
     pub timeout: Duration,
     /// `--list`: name the tests, build nothing.
     pub list: bool,
@@ -53,14 +55,17 @@ impl Request<'_> {
     }
 }
 
-/// One test to run: its name as reported, its file's executable, and
-/// where it is declared.
+/// One test to run: its name as reported, its file's executable, where
+/// it is declared, whether it is an integration test, and the fresh folder
+/// it is given (made just before it runs, removed after).
 struct Job {
     name: String,
     test: String,
     exe: PathBuf,
     file: String,
     line: usize,
+    integration: bool,
+    folder: PathBuf,
 }
 
 /// How one test ended.
@@ -146,13 +151,15 @@ pub(super) fn test(request: &Request, out: &mut Output) -> u8 {
         for (i, tests) in result.built {
             let file = &selected[i];
             let module = test_json::module_name(file);
-            jobs.extend(tests.into_iter().map(|(test, line, _)| {
+            jobs.extend(tests.into_iter().map(|(test, line, _, integration)| {
                 let job = Job {
                     name: format!("{module}.{}", test_json::bare(&test)),
                     test,
                     exe: exe.clone(),
                     file: display(file),
                     line,
+                    integration,
+                    folder: PathBuf::new(),
                 };
                 (i, job)
             }));
@@ -162,15 +169,22 @@ pub(super) fn test(request: &Request, out: &mut Output) -> u8 {
     jobs.sort_by_key(|(i, _)| *i);
     let mut jobs: Vec<Job> = jobs.into_iter().map(|(_, job)| job).collect();
     jobs.retain(|j| request.wants(&j.name));
+    for (n, job) in jobs.iter_mut().enumerate() {
+        job.folder = temp.path.join(format!("case{n}"));
+    }
     let (mut passed, mut failed, mut skipped) = (0, 0, 0);
     // `--json` reports each test as it finishes, for an editor's live view.
-    let outcomes = run_all(&jobs, request.timeout, |job, outcome, took| {
-        if request.json
-            && let Some(line) = json_result(job, outcome, took, request.timeout)
-        {
-            out.print(&line);
-        }
-    });
+    let outcomes = run_all(
+        &jobs,
+        (request.timeout, request.integration),
+        |job, outcome, took| {
+            if request.json
+                && let Some(line) = json_result(job, outcome, took, request.timeout)
+            {
+                out.print(&line);
+            }
+        },
+    );
     for (job, outcome) in jobs.iter().zip(&outcomes) {
         if request.json {
             match outcome {
@@ -320,7 +334,7 @@ fn json_result(job: &Job, outcome: &Outcome, took: Duration, timeout: Duration) 
 /// as it finishes (on this thread); the outcomes in job order.
 fn run_all(
     jobs: &[Job],
-    timeout: Duration,
+    (timeout, integration): (Duration, bool),
     mut done: impl FnMut(&Job, &Outcome, Duration),
 ) -> Vec<Outcome> {
     let workers = thread::available_parallelism()
@@ -340,7 +354,10 @@ fn run_all(
                         break;
                     };
                     let started = Instant::now();
-                    let outcome = run_one(job, timeout);
+                    let outcome = match job.integration && !integration {
+                        true => Outcome::Skipped("integration: run with --integration".to_string()),
+                        false => run_one(job, timeout),
+                    };
                     // The receiver lives until every result is in.
                     let _ = send.send((i, outcome, started.elapsed()));
                 }
@@ -358,14 +375,31 @@ fn run_all(
         .collect()
 }
 
-/// Runs one test as its own process, capturing what it prints.
+/// Runs one test as its own process, capturing what it prints, with its
+/// fresh folder (`LUGHA_TEST_DIR`), removed afterwards. A plain test runs in
+/// that folder; an integration test where `lughac test` was started.
 fn run_one(job: &Job, timeout: Duration) -> Outcome {
-    let child = Command::new(&job.exe)
+    if let Err(error) = std::fs::create_dir(&job.folder) {
+        return Outcome::NotStarted(format!("cannot make the test's folder: {error}"));
+    }
+    let mut command = Command::new(&job.exe);
+    command
         .env("LUGHA_TEST", &job.test)
+        .env("LUGHA_TEST_DIR", &job.folder)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn();
+        .stderr(Stdio::piped());
+    if !job.integration {
+        command.current_dir(&job.folder);
+    }
+    let outcome = run_child(command.spawn(), timeout);
+    // Best effort: the run's temporary folder, removed at the end, holds it too.
+    let _ = std::fs::remove_dir_all(&job.folder);
+    outcome
+}
+
+/// Waits for a started test, reading its output, and says how it ended.
+fn run_child(child: std::io::Result<Child>, timeout: Duration) -> Outcome {
     let mut child = match child {
         Ok(child) => child,
         Err(error) => return Outcome::NotStarted(error.to_string()),
