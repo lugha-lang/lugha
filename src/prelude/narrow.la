@@ -1,0 +1,160 @@
+// Narrowing: each wraps the capability it came from and implements the same
+// interface, so it works on any `Net`, `Env` or `Console`, a fake one too,
+// and narrows again by wrapping again. The wrapped value is a field no
+// module outside the prelude can read: there is no way back.
+
+/**
+ * A `Net` reaching one host and port only, at public addresses (unless
+ * `allow_private()`): what `net.only("host:port")` gives.
+ */
+public struct OnlyNet { under: Net, host: string, port: string, open: bool }
+
+impl OnlyNet {
+    /**
+     * The same narrowed network, also reaching private and local addresses
+     * (a service on this machine or the local network), on purpose. Only on
+     * an `OnlyNet` itself: code given it as a `Net` can't widen it.
+     */
+    public fun allow_private(self): OnlyNet = OnlyNet { under: self.under, host: self.host, port: self.port, open: true };
+
+    /** The host and port it reaches, for messages. */
+    fun target(self): string = "{self.host}:{self.port}";
+}
+
+impl Net for OnlyNet {
+    fun connect_timeout(self, addr: string, ms: i64): Result<Conn, string> {
+        let (host, port) = $split_addr(addr);
+        if $ascii_lower(host) != self.host || port != self.port {
+            return Err("this network reaches only {self.target()}");
+        }
+        // One lookup: the address checked is the address connected to.
+        let addresses = self.under.resolve(host)?;
+        for ip of addresses {
+            if self.open || $os.net_private(ip) == 0 {
+                let at = if ip.contains(":") { "[{ip}]:{port}" } else { "{ip}:{port}" };
+                return self.under.connect_timeout(at, ms);
+            }
+        }
+        Err("{host} has no public address")
+    }
+    fun listen(self, addr: string): Result<Listener, string> = Err("this network only connects to {self.target()}");
+    fun resolve(self, name: string): Result<string[], string> {
+        if $ascii_lower(name) != self.host {
+            return Err("this network reaches only {self.target()}");
+        }
+        self.under.resolve(name)
+    }
+    fun udp_bind(self, addr: string): Result<Udp, string> = Err("this network only connects to {self.target()}");
+    fun udp_bind_shared(self, addr: string): Result<Udp, string> = Err("this network only connects to {self.target()}");
+    fun interfaces(self): Result<NetInterface[], string> = Ok([]);
+}
+
+/** A `Net` that only connects (and looks names up): what `net.connect_only()` gives. */
+public struct ConnectNet { under: Net }
+
+impl Net for ConnectNet {
+    fun connect_timeout(self, addr: string, ms: i64): Result<Conn, string> = self.under.connect_timeout(addr, ms);
+    fun listen(self, addr: string): Result<Listener, string> = Err("this network only connects");
+    fun resolve(self, name: string): Result<string[], string> = self.under.resolve(name);
+    fun udp_bind(self, addr: string): Result<Udp, string> = Err("this network only connects");
+    fun udp_bind_shared(self, addr: string): Result<Udp, string> = Err("this network only connects");
+    fun interfaces(self): Result<NetInterface[], string> = self.under.interfaces();
+}
+
+/**
+ * A `Net` that only listens, on one address (`":8080"`: any host, that
+ * port): what `net.listen_only(addr)` gives.
+ */
+public struct ListenNet { under: Net, host: string, port: string }
+
+impl Net for ListenNet {
+    fun connect_timeout(self, addr: string, ms: i64): Result<Conn, string> = Err("this network only listens");
+    fun listen(self, addr: string): Result<Listener, string> {
+        let (host, port) = $split_addr(addr);
+        let any_host = self.host == "";
+        if port != self.port || (!any_host && $ascii_lower(host) != self.host) {
+            let at = if any_host { ":{self.port}" } else { "{self.host}:{self.port}" };
+            return Err("this network only listens on {at}");
+        }
+        self.under.listen(addr)
+    }
+    fun resolve(self, name: string): Result<string[], string> = Err("this network only listens");
+    fun udp_bind(self, addr: string): Result<Udp, string> = Err("this network only listens");
+    fun udp_bind_shared(self, addr: string): Result<Udp, string> = Err("this network only listens");
+    fun interfaces(self): Result<NetInterface[], string> = self.under.interfaces();
+}
+
+/** An `Env` giving only the variables on its list: what `env.only(names)` gives. */
+public struct OnlyEnv { under: Env, names: string[] }
+
+impl Env for OnlyEnv {
+    fun get(self, name: string): Option<string> {
+        for allowed of self.names {
+            if allowed == name {
+                return self.under.get(name);
+            }
+        }
+        None
+    }
+}
+
+/**
+ * A `Console` writing one stream only (`stdout` true: standard output, else
+ * standard error): the other's writes do nothing, and there is no input.
+ * What `console.stdout_only()` and `console.stderr_only()` give.
+ */
+public struct OneStream { under: Console, stdout: bool }
+
+impl Console for OneStream {
+    fun print(self, x: Display) {
+        if self.stdout {
+            self.under.print(x);
+        }
+    }
+    fun println(self, x: Display) {
+        if self.stdout {
+            self.under.println(x);
+        }
+    }
+    fun eprint(self, x: Display) {
+        if !self.stdout {
+            self.under.eprint(x);
+        }
+    }
+    fun eprintln(self, x: Display) {
+        if !self.stdout {
+            self.under.eprintln(x);
+        }
+    }
+    fun read_line(self): Option<string> = None;
+    fun read_bytes(self): u8[] = [];
+    fun flush(self) {
+        self.under.flush();
+    }
+}
+
+/** `addr`'s host and port: `"host:port"`, or an IPv6 address in brackets and a port (the brackets dropped). */
+fun $split_addr(addr: string): (string, string) {
+    if addr.starts_with("[") {
+        let parts = addr.split("]:");
+        if parts.len == 2 {
+            return (parts[0].slice(1, parts[0].len), parts[1]);
+        }
+        return (addr, "");
+    }
+    let parts = addr.split(":");
+    if parts.len < 2 {
+        return (addr, "");
+    }
+    let port = parts[parts.len - 1];
+    (addr.slice(0, addr.len - port.len - 1), port)
+}
+
+/** `s` with its ASCII letters in lower case: host names compare without case. */
+fun $ascii_lower(s: string): string {
+    let mut out = "";
+    for c of s.chars() {
+        out = out + "{c.to_lower()}";
+    }
+    out
+}

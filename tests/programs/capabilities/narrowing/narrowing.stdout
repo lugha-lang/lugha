@@ -1,0 +1,29 @@
+api: connected
+other host: this network reaches only api.example.com:443
+other port: this network reaches only api.example.com:443
+by address: this network reaches only api.example.com:443
+api listen: true udp: true
+api resolve other: Err("this network reaches only api.example.com:443")
+db: db.internal has no public address
+db allowed: connected
+rebind: rebind.example has no public address
+twice: connected
+connect_only: connected
+connect_only listen: true
+listen :8080 on 0.0.0.0: true
+listen :9090: true
+listen_only connect: this network only listens
+listen 0.0.0.0:8080 when 127.0.0.1 named: true
+  resolve api.example.com
+  connect 93.184.215.14:443
+  resolve db.internal
+  resolve db.internal
+  connect 192.168.1.9:5432
+  resolve rebind.example
+  resolve api.example.com
+  connect 93.184.215.14:443
+  connect anything:1
+  listen 0.0.0.0:8080
+env: Some("a") None
+to stdout
+stdout_only reads: None

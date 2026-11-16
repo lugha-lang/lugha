@@ -269,3 +269,26 @@ fn resolve_gives_every_address_once() {
     )
     .runs("true\ntrue\nOk([\"127.0.0.1\"])\nOk([\"::1\"])\ntrue\ntrue\n");
 }
+
+#[test]
+fn narrowed_networks_hold_on_the_real_loopback() {
+    let case = Case::new(&format!(
+        "{ECHO}
+fun main(console: Console, net: Net) {{
+    let server = net.listen_only(\"127.0.0.1:0\");
+    let listener = server.listen(\"127.0.0.1:0\").unwrap();
+    let port = listener.addr().split(\":\")[1];
+    spawn accept_all(console, listener, 1);
+    console.println(server.connect(\"127.0.0.1:{{port}}\").is_err());
+    let local = net.only(\"localhost:{{port}}\");
+    console.println(local.connect(\"localhost:{{port}}\").debug());
+    let conn = local.allow_private().connect(\"localhost:{{port}}\").unwrap();
+    conn.write(\"near\".to_bytes()).unwrap();
+    console.println(string_from_utf8(conn.read(10).unwrap()).unwrap());
+    let out = net.connect_only();
+    console.println(out.listen(\"127.0.0.1:0\").is_err());
+}}
+"
+    ));
+    case.runs("true\nErr(\"localhost has no public address\")\nnear\ntrue\n");
+}

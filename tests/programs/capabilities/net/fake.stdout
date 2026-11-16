@@ -3,3 +3,6 @@ Err("offline: example.com:80")
 Ok(["10.0.0.1"])
 fake0
 200 faked
+true
+200 faked
+Err("this network reaches only web:80")

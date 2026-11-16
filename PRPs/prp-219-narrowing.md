@@ -1,6 +1,6 @@
 ## FEATURE: Narrowing the network, the environment and the console: `net.only("host:port")` (public addresses only, unless `.allow_private()`), `net.connect_only()`, `net.listen_only(addr)`, `env.only(names)`, `console.stdout_only()` and `console.stderr_only()`; each gives a weaker capability, one-way; milestone 187, in v18's Phase 2. **Decides which addresses a narrowed `Net` may reach: needs the user's security review before any code.**
 
-**Status:** proposed 2026-11-16.
+**Status:** proposed 2026-11-16. Approved 2026-11-16 (security review).
 
 ## OBJECTIVE
 ```lugha
@@ -81,14 +81,20 @@ Each narrowing is a default method on the interface returning a prelude struct t
 - More than one host per `only`, or wildcards.
 
 ## TESTS
-- [ ] Unit (`runtime` through a program): every address class above, public and private, IPv4, IPv6, mapped and compatible forms, and non-addresses.
-- [ ] `tests/programs/capabilities/narrowing/` with a fake `Net` that records what it is asked: `only` connecting to its host by the public IP the fake's `resolve` gave, refusing other hosts and ports, refusing a host resolving only to private addresses, refusing a rebinding fake whose second lookup would differ (only one lookup happens), `allow_private`, `connect_only`, `listen_only` (`":8080"` and a full address), narrowing twice; `env.only`; `stdout_only`/`stderr_only` (output checked).
-- [ ] `tests/net.rs`: `listen_only` and `connect_only` over the real loopback; `only("localhost:…")` refused, then allowed with `allow_private`.
-- [ ] HTTP over an `only` fake (`http.get`).
-- [ ] Targeted runs: `--lib`, `programs`, `net`, `http`; CI the rest.
+- [x] Unit (`runtime` through a program): every address class above, public and private, IPv4, IPv6, mapped and compatible forms, and non-addresses.
+- [x] `tests/programs/capabilities/narrowing/` with a fake `Net` that records what it is asked: `only` connecting to its host by the public IP the fake's `resolve` gave, refusing other hosts and ports, refusing a host resolving only to private addresses, refusing a rebinding fake whose second lookup would differ (only one lookup happens), `allow_private`, `connect_only`, `listen_only` (`":8080"` and a full address), narrowing twice; `env.only`; `stdout_only`/`stderr_only` (output checked).
+- [x] `tests/net.rs`: `listen_only` and `connect_only` over the real loopback; `only("localhost:…")` refused, then allowed with `allow_private`.
+- [x] HTTP over an `only` fake (`http.get`).
+- [x] Targeted runs: `--lib`, `programs`, `net`, `http`; CI the rest.
 
 ## ACCEPTANCE
-- [ ] The objective's narrowed values refuse what their comments say.
-- [ ] No narrowed `Net` connects anywhere but its host's public addresses (unless `allow_private`), and none listens or connects beyond what it was narrowed to.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass
-- [ ] Every `pub` item documented; spec, CHANGELOG and CLAUDE.md updated where they change
+- [x] The objective's narrowed values refuse what their comments say.
+- [x] No narrowed `Net` connects anywhere but its host's public addresses (unless `allow_private`), and none listens or connects beyond what it was narrowed to.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass
+- [x] Every `pub` item documented; spec, CHANGELOG and CLAUDE.md updated where they change
+
+## CHANGES DURING THE BUILD
+- **`OnlyNet`'s flag is `open`**, not `private`: `private` is a keyword.
+- **The classifier is tested through `only`** (`addresses.la`): a fake resolving to one address at a time, public neighbours of each private range included (`100.63.255.255`, `172.15.255.255`, `198.17.255.255`), and private IPv4 addresses in IPv6 forms; a mapped public address is allowed.
+- **`tests/programs/capabilities/net/fake.la`** gained HTTP over a narrowed fake; its fake also answers its resolved address, since a narrowed network connects by address.
+- **Targeted runs only** (`--lib`, `programs`, `net`, `http`, `tls_over_conn`, `comments`); CI the rest.

@@ -47,6 +47,23 @@ interface Net {
 
     /** Connects to an address, waiting as long as it takes. */
     fun connect(self, addr: string): Result<Conn, string> = self.connect_timeout(addr, 0);
+    /**
+     * This network narrowed to one host and port (`"api.example.com:443"`):
+     * connecting there only, at the host's public addresses only (add
+     * `.allow_private()` for a local service). The address checked is the
+     * address connected to: one lookup.
+     */
+    fun only(self, addr: string): OnlyNet {
+        let (host, port) = $split_addr(addr);
+        OnlyNet { under: self, host: $ascii_lower(host), port: port, open: false }
+    }
+    /** This network narrowed to connecting (and looking names up): no listening, no UDP. */
+    fun connect_only(self): Net = ConnectNet { under: self };
+    /** This network narrowed to listening on `addr` only (`":8080"`: any host, that port): no connecting. */
+    fun listen_only(self, addr: string): Net {
+        let (host, port) = $split_addr(addr);
+        ListenNet { under: self, host: $ascii_lower(host), port: port }
+    }
 }
 
 /** A socket accepting connections: `net.listen(addr)`. Copies share it. */

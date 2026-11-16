@@ -112,6 +112,8 @@ pub fn os_signature(op: &str) -> Option<(Vec<Type>, Type)> {
         "net_close" => (vec![Type::I64], Type::Unit),
         "net_name" => (vec![Type::I64, Type::I64], result(Type::String)),
         "net_resolve" => (vec![Type::String, Type::I64], result(Type::String)),
+        // 1 when an address isn't a public unicast one, for `net.only`.
+        "net_private" => (vec![Type::String], Type::I64),
         // UDP: sockets as `i64` descriptors, as TCP's; a datagram and its
         // sender as a `(u8[], string)` tuple C fills in.
         "udp_bind" => (vec![Type::String, Type::I64], result(Type::I64)),

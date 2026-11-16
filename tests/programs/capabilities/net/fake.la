@@ -41,7 +41,8 @@ impl Net for Offline {
         if addr.starts_with("echo") {
             return Ok(Echo { said: Ref.new([]), closed: Ref.new(false) });
         }
-        if addr.starts_with("web") {
+        // By name, or by the address its `resolve` gives, as a narrowed network connects.
+        if addr.starts_with("web") || addr == "10.0.0.1:80" {
             return Ok(Canned {});
         }
         Err("offline: {addr}")
@@ -72,4 +73,12 @@ fun main(console: Console) {
         .Ok(r) => console.println("{r.status} {r.text().unwrap()}"),
         .Err(e) => console.println(e),
     }
+    // Narrowed: the fake resolves `web` to a private address, so `only`
+    // refuses it until `allow_private`.
+    console.println(http.get(net.only("web:80"), "http://web/page").is_err());
+    match http.get(net.only("web:80").allow_private(), "http://web/page") {
+        .Ok(r) => console.println("{r.status} {r.text().unwrap()}"),
+        .Err(e) => console.println(e),
+    }
+    console.println(http.get(net.only("web:80").allow_private(), "http://elsewhere/").debug());
 }

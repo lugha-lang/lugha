@@ -1,5 +1,6 @@
 /*
- * resolve.c — part of lugha_rt.c: `std.net`'s name lookup.
+ * resolve.c — part of lugha_rt.c: `Net`'s name lookup, and telling public
+ * addresses from private ones for `net.only`.
  * `getaddrinfo` blocks the OS thread while it runs, as `net_connect`'s
  * lookup does. Every failure comes back as 0 and the resolver's message.
  *
@@ -59,4 +60,51 @@ int32_t lugha_rt_net_resolve(const LughaString *name, int64_t numeric, LughaStri
     }
     *out = string_of(text, (int64_t)len);
     return 1;
+}
+
+/* Whether the IPv4 address `a` (four bytes, network order) is anything but
+ * a public unicast address: unspecified, private, shared, loopback,
+ * link-local, protocol-assigned, benchmarking, multicast, reserved or
+ * broadcast. */
+static bool net_ipv4_private(const unsigned char *a) {
+    return a[0] == 0                                   /* 0.0.0.0/8 */
+           || a[0] == 10                               /* 10/8 */
+           || (a[0] == 100 && (a[1] & 0xC0) == 64)     /* 100.64/10 */
+           || a[0] == 127                              /* 127/8 */
+           || (a[0] == 169 && a[1] == 254)             /* 169.254/16 */
+           || (a[0] == 172 && (a[1] & 0xF0) == 16)     /* 172.16/12 */
+           || (a[0] == 192 && a[1] == 0 && a[2] == 0)  /* 192.0.0/24 */
+           || (a[0] == 192 && a[1] == 168)             /* 192.168/16 */
+           || (a[0] == 198 && (a[1] & 0xFE) == 18)     /* 198.18/15 */
+           || a[0] >= 224;                             /* multicast, reserved, broadcast */
+}
+
+/* `$os.net_private(ip)`: 1 when `ip` is not a public unicast address (or
+ * isn't an IP address at all), 0 when it is. IPv6's `::`, `::1`, unique
+ * local, link-local and multicast addresses are not public, and an IPv4
+ * address in an IPv6 form (mapped `::ffff:a.b.c.d`, or compatible
+ * `::a.b.c.d`) is judged as that IPv4 address. No lookup, no socket. */
+int64_t lugha_rt_net_private(const LughaString *ip) {
+    if (ip->len == 0 || ip->len > 64 || memchr(ip->bytes, 0, (size_t)ip->len) != NULL) {
+        return 1;
+    }
+    unsigned char a[16];
+    if (inet_pton(AF_INET, ip->bytes, a) == 1) {
+        return net_ipv4_private(a);
+    }
+    if (inet_pton(AF_INET6, ip->bytes, a) != 1) {
+        return 1;
+    }
+    static const unsigned char zero[16];
+    bool high_zero = memcmp(a, zero, 10) == 0;
+    if (high_zero && a[10] == 0xFF && a[11] == 0xFF) {
+        return net_ipv4_private(a + 12); /* ::ffff:a.b.c.d */
+    }
+    if (high_zero && a[10] == 0 && a[11] == 0) {
+        /* `::`, `::1`, and the old compatible form `::a.b.c.d`. */
+        return 1;
+    }
+    return (a[0] & 0xFE) == 0xFC                 /* fc00::/7 */
+           || (a[0] == 0xFE && (a[1] & 0xC0) == 0x80) /* fe80::/10 */
+           || a[0] == 0xFF;                      /* ff00::/8 */
 }

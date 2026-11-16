@@ -1,0 +1,42 @@
+// Which addresses `net.only` counts as public: each resolved alone by a
+// fake, then connected to through `only`.
+struct Line {}
+
+impl Conn for Line {
+    fun read(self, max: i64): Result<u8[], string> = Ok([]);
+    fun write(self, bytes: u8[]): Result<(), string> = Ok(());
+    fun set_timeout(self, ms: i64) {}
+    fun peer(self): string = "fake:1";
+    fun addr(self): string = "fake:0";
+    fun close(self) {}
+}
+
+/** Resolves every name to the one address it holds. */
+struct One { ip: string }
+
+impl Net for One {
+    fun connect_timeout(self, addr: string, ms: i64): Result<Conn, string> = Ok(Line {});
+    fun listen(self, addr: string): Result<Listener, string> = Err("no");
+    fun resolve(self, name: string): Result<string[], string> = Ok([self.ip]);
+    fun udp_bind(self, addr: string): Result<Udp, string> = Err("no");
+    fun udp_bind_shared(self, addr: string): Result<Udp, string> = Err("no");
+    fun interfaces(self): Result<NetInterface[], string> = Ok([]);
+}
+
+fun main(console: Console) {
+    let addresses = [
+        "93.184.215.14", "8.8.8.8", "1.1.1.1", "100.63.255.255", "100.128.0.1", "172.15.255.255",
+        "172.32.0.1", "192.169.0.1", "198.17.255.255", "198.20.0.1", "223.255.255.255",
+        "2606:4700::1111", "2001:4860:4860::8888",
+        "0.1.2.3", "10.0.0.1", "100.64.0.1", "100.127.255.255", "127.0.0.1", "127.255.0.9",
+        "169.254.169.254", "172.16.0.1", "172.31.255.255", "192.0.0.8", "192.168.0.1",
+        "198.18.0.1", "198.19.255.255", "224.0.0.251", "239.1.1.1", "240.0.0.1", "255.255.255.255",
+        "::", "::1", "fc00::1", "fd12:3456::1", "fe80::1", "febf::1", "ff02::fb",
+        "::ffff:10.0.0.1", "::ffff:127.0.0.1", "::ffff:169.254.169.254", "::ffff:93.184.215.14",
+        "::10.0.0.1", "not an address", "",
+    ];
+    for ip of addresses {
+        let ok = One { ip: ip }.only("h:1").connect("h:1").is_ok();
+        console.println("{if ok { "public " } else { "refused" }} {ip}");
+    }
+}

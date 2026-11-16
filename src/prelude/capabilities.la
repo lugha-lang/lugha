@@ -23,6 +23,10 @@ interface Console {
     fun read_bytes(self): u8[];
     /** Writes out what standard output holds now: a prompt shows before a long wait. */
     fun flush(self);
+    /** This console narrowed to standard output: `eprint` and `eprintln` do nothing, and there is no input. */
+    fun stdout_only(self): Console = OneStream { under: self, stdout: true };
+    /** This console narrowed to standard error: `print` and `println` do nothing, and there is no input. */
+    fun stderr_only(self): Console = OneStream { under: self, stdout: false };
 }
 
 /**
@@ -172,6 +176,8 @@ interface Clock {
 interface Env {
     /** The variable `name`: `None` when it is unset, isn't valid UTF-8, or `name` contains a NUL byte. */
     fun get(self, name: string): Option<string>;
+    /** This environment narrowed to the variables `names`: any other reads as unset. */
+    fun only(self, names: string[]): Env = OnlyEnv { under: self, names: names };
 }
 
 /**
