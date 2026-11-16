@@ -191,9 +191,9 @@ fn x25519_matches_rfc_7748() {
 
 #[test]
 fn x25519_keypairs_agree_and_bad_keys_are_refused() {
-    let out = run("fun main(console: Console) {
-    let (a, a_public) = crypto.x25519_keypair().unwrap();
-    let (b, b_public) = crypto.x25519_keypair().unwrap();
+    let out = run("fun main(console: Console, entropy: Entropy) {
+    let (a, a_public) = crypto.x25519_keypair(entropy).unwrap();
+    let (b, b_public) = crypto.x25519_keypair(entropy).unwrap();
     console.println(a.len == 32 && a_public.len == 32 && a != b);
     console.println(crypto.x25519_public(a).unwrap() == a_public);
     console.println(crypto.x25519_shared(a, b_public).unwrap() == crypto.x25519_shared(b, a_public).unwrap());
@@ -224,7 +224,7 @@ fn a_match_must_name_the_new_variants() {
     let out = lughac(
         "check",
         "fun main() {
-    match crypto.random_bytes(1) {
+    match crypto.hkdf_sha256([], [], [], 1) {
         .Ok(_) => {}
         .Err(.BadLength(_, _, _)) => {}
         .Err(.OpenSsl(_)) => {}
@@ -257,9 +257,9 @@ fun flipped(bytes: u8[], at: i64): u8[] {
 fn hpke_opens_rfc_9180_and_round_trips() {
     let out = run(&format!(
         "{RFC_9180}
-fun main(console: Console) {{
+fun main(console: Console, entropy: Entropy) {{
     console.println(crypto.hpke_open(sk_r(), info(), sealed(), aad()).unwrap() == plain());
-    let (secret, key) = crypto.x25519_keypair().unwrap();
+    let (secret, key) = crypto.x25519_keypair(entropy).unwrap();
     let once = crypto.hpke_seal(key, info(), plain(), aad()).unwrap();
     let twice = crypto.hpke_seal(key, info(), plain(), aad()).unwrap();
     console.println(once.len);
@@ -281,7 +281,7 @@ fun main(console: Console) {{
 fn hpke_refuses_tampering_bad_keys_and_bad_lengths() {
     let out = run(&format!(
         "{RFC_9180}
-fun main(console: Console) {{
+fun main(console: Console, entropy: Entropy) {{
     let n = sealed().len;
     // The encapsulated key, the ciphertext, the tag, info, aad, another secret.
     console.println(show(crypto.hpke_open(sk_r(), info(), flipped(sealed(), 0), aad())));
@@ -289,7 +289,7 @@ fun main(console: Console) {{
     console.println(show(crypto.hpke_open(sk_r(), info(), flipped(sealed(), n - 1), aad())));
     console.println(show(crypto.hpke_open(sk_r(), flipped(info(), 0), sealed(), aad())));
     console.println(show(crypto.hpke_open(sk_r(), info(), sealed(), flipped(aad(), 0))));
-    let (other, _) = crypto.x25519_keypair().unwrap();
+    let (other, _) = crypto.x25519_keypair(entropy).unwrap();
     console.println(show(crypto.hpke_open(other, info(), sealed(), aad())));
     // Low-order keys.
     console.println(show(crypto.hpke_seal([0 as u8; 32], info(), plain(), aad())));

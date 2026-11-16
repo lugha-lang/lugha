@@ -1,23 +1,10 @@
 /**
- * std.time: the clocks, calendar dates and the system's local offset.
- * `now_ms` for timestamps, `monotonic_ms` for measuring how long something
- * took; `civil` and `from_civil` turn a moment into a date and time at an
- * offset and back, on the proleptic Gregorian calendar; `local_offset`
- * asks the system for its zone's offset at a moment. No zone names, no
+ * std.time: calendar dates. `civil` and `from_civil` turn a moment into a
+ * date and time at an offset and back, on the proleptic Gregorian
+ * calendar. The moments and the system's offset come from a `Clock`
+ * (`clock.now_ms()`, `clock.local_offset(ms)`). No zone names, no
  * formatting by locale, no parsing.
  */
-
-/**
- * Milliseconds since 1970-01-01 00:00 UTC, from the system clock. It can
- * jump when the clock is set: measure intervals with `monotonic_ms`.
- */
-public fun now_ms(): i64 = $os.wall_ms();
-
-/**
- * Milliseconds from an unspecified start that never goes back: subtract two
- * readings to measure an interval.
- */
-public fun monotonic_ms(): i64 = $os.now_ms();
 
 /**
  * A moment as a calendar date and time of day (proleptic Gregorian; year 0
@@ -66,7 +53,7 @@ const DAY_MS: i64 = 86400000;
 /**
  * The moment `ms` (milliseconds since 1970-01-01 00:00 UTC, before it too)
  * as seen at `offset_s` seconds east of UTC: `civil(t, 0)` is UTC,
- * `civil(t, time.local_offset(t)?)` the system's local time.
+ * `civil(t, clock.local_offset(t)?)` the system's local time.
  * @returns the date and time, or an error for an offset beyond 26 hours
  */
 public fun civil(ms: i64, offset_s: i64): Result<Civil, TimeError> {
@@ -142,17 +129,6 @@ public fun from_civil(c: Civil, offset_s: i64): Result<i64, TimeError> {
         .None => fail("{c.year}-{c.month}-{c.day} is past what an i64 moment holds"),
     }
 }
-
-/**
- * The system time zone's offset from UTC at moment `ms`, in seconds east
- * (`TZ` if set, else `/etc/localtime`; UTC when neither says), daylight
- * saving included: ask again for each moment.
- * @returns the offset, or an error for a moment the system can't represent
- */
-public fun local_offset(ms: i64): Result<i64, TimeError> = match $os.local_offset(floor_div(ms, 1000)) {
-    .Ok(offset) => Ok(offset),
-    .Err(message) => Err(TimeError { message: message }),
-};
 
 /** `a / b` rounded down (`b` > 0), for negative moments too. */
 fun floor_div(a: i64, b: i64): i64 {

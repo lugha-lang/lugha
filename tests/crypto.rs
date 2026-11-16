@@ -201,29 +201,32 @@ fun main(console: Console) {{
 }
 
 #[test]
-fn keypairs_random_bytes_and_equality() {
-    let out = run("fun main(console: Console) {
-    let (s1, k1) = crypto.ed25519_keypair().unwrap();
-    let (s2, k2) = crypto.ed25519_keypair().unwrap();
+fn keypairs_from_entropy_and_equality() {
+    let out = run("struct Zeros {}
+impl Entropy for Zeros {
+    fun bytes(self, n: i64): u8[] = [0; n];
+    fun next_u64(self): u64 = 0;
+}
+
+fun main(console: Console, entropy: Entropy) {
+    let (s1, k1) = crypto.ed25519_keypair(entropy).unwrap();
+    let (s2, k2) = crypto.ed25519_keypair(entropy).unwrap();
     console.println(\"{s1.len} {k1.len} {!crypto.equal(s1, s2)} {!crypto.equal(k1, k2)}\");
     console.println(crypto.equal(crypto.ed25519_public(s1).unwrap(), k1));
     let sig = crypto.ed25519_sign(s1, \"hello\".to_bytes()).unwrap();
     console.println(\"{sig.len} {crypto.ed25519_verify(k1, \"hello\".to_bytes(), sig)} {crypto.ed25519_verify(k2, \"hello\".to_bytes(), sig)}\");
-    for n of [0, 1, 32, 1048576] {
-        console.print(crypto.random_bytes(n).unwrap().len);
-        console.print(\" \");
-    }
-    console.println(\"\");
-    console.println(!crypto.equal(crypto.random_bytes(32).unwrap(), crypto.random_bytes(32).unwrap()));
-    console.println(crypto.random_bytes(1048577).debug());
-    console.println(crypto.random_bytes(-1).is_err());
+    // A fake gives the same key every time.
+    let (z1, y1) = crypto.ed25519_keypair(Zeros {}).unwrap();
+    let (z2, y2) = crypto.ed25519_keypair(Zeros {}).unwrap();
+    console.println(\"{crypto.equal(z1, [0; 32])} {crypto.equal(y1, y2)}\");
+    let (x, w) = crypto.x25519_keypair(Zeros {}).unwrap();
+    console.println(crypto.equal(crypto.x25519_public(x).unwrap(), w));
     console.println(\"{crypto.equal([1, 2, 3], [1, 2, 3])} {crypto.equal([1, 2, 3], [1, 2, 4])} {crypto.equal([1, 2], [1, 2, 3])} {crypto.equal([], [])}\");
 }
 ");
     assert_eq!(
         out,
-        "32 32 true true\ntrue\n64 true false\n0 1 32 1048576 \ntrue\n\
-         Err(BadLength(\"random bytes (at most)\", 1048576, 1048577))\ntrue\ntrue false false true\n"
+        "32 32 true true\ntrue\n64 true false\ntrue true\ntrue\ntrue false false true\n"
     );
 }
 

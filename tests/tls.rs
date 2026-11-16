@@ -265,7 +265,6 @@ fn request_tls_with_takes_limits_and_trust() {
     let Some(case) = Case::new(
         "import std.http;
 import std.task;
-import std.time;
 import std.tls;
 
 fun handle(req: http.Request): http.Response = http.bytes(200, [7 as u8; 17000000]);
@@ -290,7 +289,7 @@ fun fetch(console: Console, url: string, body: i64, ca_file: string) {
     }
 }
 
-fun main(console: Console) {
+fun main(console: Console, clock: Clock) {
     let probe = tls.listen(\"127.0.0.1:0\", \"cert.pem\", \"key.pem\").unwrap();
     let addr = probe.addr();
     probe.close();
@@ -307,12 +306,12 @@ fun main(console: Console) {
     let mut limits = http.limits();
     limits.timeout_ms = 60000;
     let opts = tls.Options { ca_file: \"ca.pem\", timeout_ms: 200, address: \"\" };
-    let started = time.monotonic_ms();
+    let started = clock.monotonic_ms();
     match http.request_tls_with(\"GET\", \"https://localhost:{port}/\", Map {}, [], limits, opts) {
         .Ok(_) => console.println(\"?\"),
         .Err(e) => console.println(e),
     }
-    console.println(time.monotonic_ms() - started < 5000);
+    console.println(clock.monotonic_ms() - started < 5000);
 }
 ",
     ) else {

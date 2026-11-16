@@ -27,9 +27,10 @@ impl Checker {
                 self.item_visible(&key, expr.span);
                 Some(key)
             }
-            // A prelude struct no module declares: `Pair { … }`, and the
-            // collections built with braces, `Map { … }` and `Set { … }`.
-            None if matches!(name.name.as_str(), "Map" | "Set") => {
+            // A prelude struct no module declares: `Pair { … }`, what a
+            // fake `Proc` returns, and the collections built with braces,
+            // `Map { … }` and `Set { … }`.
+            None if matches!(name.name.as_str(), "Map" | "Set" | "ProcessOutput") => {
                 Some(format!("$prelude.{}", name.name))
             }
             None => match self.prelude_iter_type(&name.name) {

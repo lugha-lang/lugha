@@ -1,9 +1,9 @@
 // std.random's ranges and edge cases: bounds over many draws, f32 normals,
 // certain and impossible chances, empty choices, shuffles keeping every
-// element, and an OS-seeded generator (its values checked only for range).
+// element, and a generator seeded from `Entropy` (its values checked only for range).
 import std.random;
 
-fun main(console: Console) {
+fun main(console: Console, entropy: Entropy) {
     let mut rng = random.seeded(7);
     let mut lo = 100;
     let mut hi = -100;
@@ -36,8 +36,8 @@ fun main(console: Console) {
     console.println("shuffle keeps every element: {shuffled.sort_by(fun(a: i64, b: i64): bool = a < b) == xs.sort_by(fun(a: i64, b: i64): bool = a < b)}");
     console.println("shuffle leaves the original: {xs.debug()}");
 
-    let mut os = random.from_os();
+    let mut os = random.from_entropy(entropy);
     let u = os.uniform();
     let d = os.below(6);
-    console.println("from_os in range: {u >= 0.0 && u < 1.0 && d >= 0 && d < 6}");
+    console.println("from_entropy in range: {u >= 0.0 && u < 1.0 && d >= 0 && d < 6}");
 }

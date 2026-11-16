@@ -282,11 +282,10 @@ fn std_math_lowers_to_llvm_float_intrinsics() {
 }
 
 #[test]
-fn std_random_seeds_from_the_runtime_only_through_from_os() {
-    // `from_os()` calls `lugha_rt_os_seed`; a program using `seeded`
-    // never reaches it (std's `from_os` is compiled, but `main` doesn't call it).
-    let os =
-        "import std.random;\nfun main() { let mut r = random.from_os(); let x = r.uniform(); }\n";
+fn std_random_seeds_from_the_runtime_only_through_entropy() {
+    // The real `Entropy` calls `lugha_rt_os_seed`; a program using `seeded`
+    // never reaches it.
+    let os = "import std.random;\nfun main(e: Entropy) { let mut r = random.from_entropy(e); let x = r.uniform(); }\n";
     let fixed =
         "import std.random;\nfun main() { let mut r = random.seeded(3); let x = r.uniform(); }\n";
     let dir = TempDir::with(&[("os.la", os.as_bytes()), ("fixed.la", fixed.as_bytes())]);
@@ -300,7 +299,7 @@ fn std_random_seeds_from_the_runtime_only_through_from_os() {
     let main = &fixed_ir[fixed_ir.find("define void @lugha_fn_main").expect("main")..];
     let main = &main[..main.find("\n}").expect("main ends")];
     assert!(
-        !main.contains("from_os") && !main.contains("lugha_rt_os_seed"),
+        !main.contains("from_entropy") && !main.contains("lugha_rt_os_seed"),
         "{main}"
     );
 }

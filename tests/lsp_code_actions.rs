@@ -340,10 +340,10 @@ fn a_std_module_is_imported_after_the_last_import_or_first() {
     assert_eq!(text, format!("import std.math;\n\n{alone}"));
     let t = Temp::with(&[]);
     assert_eq!(checked_codes(&t, &text), Vec::<String>::new(), "{text}");
-    let with = "import std.env;\n\nfun main(console: Console) {\n    console.println(env.current_dir());\n    console.println(math.pi());\n}\n";
+    let with = "import std.time;\n\nfun main(console: Console) {\n    console.println(time.civil(0, 0).is_ok());\n    console.println(math.pi());\n}\n";
     let text = fixed(with, "Add `import std.math;`");
     assert!(
-        text.starts_with("import std.env;\nimport std.math;\n\nfun main"),
+        text.starts_with("import std.time;\nimport std.math;\n\nfun main"),
         "{text}"
     );
 }

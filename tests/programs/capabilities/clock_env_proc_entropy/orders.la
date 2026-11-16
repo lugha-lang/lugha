@@ -1,0 +1,4 @@
+// Any order, any names: matched by type.
+fun main(r: Entropy, p: Proc, c: Clock, e: Env, out: Console) {
+    out.println(c.now_ms() > 0 && r.bytes(3).len == 3);
+}

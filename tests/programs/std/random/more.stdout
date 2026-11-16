@@ -6,4 +6,4 @@ chance(0.0): false, chance(1.0): true
 choice([]): None
 shuffle keeps every element: true
 shuffle leaves the original: [5, 3, 9, 1, 7, 2]
-from_os in range: true
+from_entropy in range: true

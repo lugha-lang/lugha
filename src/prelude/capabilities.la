@@ -1,7 +1,8 @@
 // Capabilities: what a program needs to touch the world outside it. `main`
 // takes the ones it uses as parameters, and passes them on; each is an
 // interface, so a fake for a test is a type that implements it. The real
-// ones reach the runtime through the intrinsics only the prelude may call.
+// ones reach the runtime through the intrinsics and `$os` built-ins only
+// the prelude and std may call.
 
 /**
  * Standard input, output and error: `console.println("hello")`.
@@ -40,6 +41,65 @@ interface Dir {
     fun write_file(self, path: string, text: string): Result<i64, string>;
     /** Adds to the end of the file, creating it if needed: `Ok` with the bytes written. */
     fun append_file(self, path: string, text: string): Result<i64, string>;
+    /** The folder's absolute path, or `Err` with the system's message. */
+    fun path(self): Result<string, string>;
+}
+
+/**
+ * The real date and time: `clock.now_ms()`. Pausing (`std.task.sleep`)
+ * needs no clock.
+ */
+interface Clock {
+    /**
+     * Milliseconds since 1970-01-01 00:00 UTC, from the system clock. It can
+     * jump when the clock is set: measure intervals with `monotonic_ms`.
+     */
+    fun now_ms(self): i64;
+    /** Milliseconds from an unspecified start that never goes back: subtract two readings to measure an interval. */
+    fun monotonic_ms(self): i64;
+    /**
+     * The system time zone's offset from UTC at moment `ms`, in seconds east
+     * (`TZ` if set, else `/etc/localtime`; UTC when neither says), daylight
+     * saving included: ask again for each moment.
+     */
+    fun local_offset(self, ms: i64): Result<i64, string>;
+}
+
+/** The environment variables, read-only: `env.get("HOME")`. */
+interface Env {
+    /** The variable `name`: `None` when it is unset, isn't valid UTF-8, or `name` contains a NUL byte. */
+    fun get(self, name: string): Option<string>;
+}
+
+/**
+ * Starting other programs and waiting for them. There is never a shell:
+ * `cmd` and each argument reach the program exactly as given, so `;`, `|`,
+ * `$( )` and globs mean nothing. A `cmd` without `/` is looked up on `PATH`,
+ * one with `/` is a path. The program gets this one's environment and
+ * working folder, and only stdin, stdout and stderr: every other descriptor
+ * is closed on exec.
+ */
+interface Proc {
+    /** Runs a program with its stdin empty, capturing its output: any exit code is `Ok`; `Err` when it couldn't start or its output isn't UTF-8. */
+    fun run(self, cmd: string, args: string[]): Result<ProcessOutput, string>;
+    /** `run`, with `input` written to the program's stdin. */
+    fun run_with(self, cmd: string, args: string[], input: string): Result<ProcessOutput, string>;
+    /** Runs a program sharing this one's stdin, stdout and stderr: its exit code, or `Err` when it couldn't start. */
+    fun call(self, cmd: string, args: string[]): Result<i32, string>;
+}
+
+/** What a finished program left: its exit code (`128 + n` when signal `n` ended it), and everything it wrote to stdout and stderr. */
+public struct ProcessOutput { public code: i32, public stdout: string, public stderr: string } with Eq
+
+/**
+ * The operating system's randomness, for keys, nonces and seeds. A seeded
+ * generator (`std.random`) needs none.
+ */
+interface Entropy {
+    /** `n` random bytes; panics when `n` is negative. */
+    fun bytes(self, n: i64): u8[];
+    /** 64 random bits. */
+    fun next_u64(self): u64;
 }
 
 /** The real console: the process's standard streams. */
@@ -67,6 +127,88 @@ impl Dir for $Dir {
     fun read_file(self, path: string): Result<string, string> = read_file(path);
     fun write_file(self, path: string, text: string): Result<i64, string> = write_file(path, text);
     fun append_file(self, path: string, text: string): Result<i64, string> = append_file(path, text);
+    fun path(self): Result<string, string> {
+        let bytes = $os.cwd()?;
+        string_from_utf8(bytes)
+    }
+}
+
+/** The system clocks. */
+struct $Clock {}
+
+impl Clock for $Clock {
+    fun now_ms(self): i64 = $os.wall_ms();
+    fun monotonic_ms(self): i64 = $os.now_ms();
+    fun local_offset(self, ms: i64): Result<i64, string> {
+        // Seconds, rounded down for moments before 1970 too.
+        let seconds = if ms >= 0 || ms % 1000 == 0 { ms / 1000 } else { ms / 1000 - 1 };
+        $os.local_offset(seconds)
+    }
+}
+
+/** The process's environment. */
+struct $Env {}
+
+impl Env for $Env {
+    fun get(self, name: string): Option<string> = match $os.env(name) {
+        .Some(bytes) => string_from_utf8(bytes).ok(),
+        .None => None,
+    };
+}
+
+/** The system's programs. */
+struct $Proc {}
+
+impl Proc for $Proc {
+    fun run(self, cmd: string, args: string[]): Result<ProcessOutput, string> = $started(cmd, args, "", 1);
+    fun run_with(self, cmd: string, args: string[], input: string): Result<ProcessOutput, string> =
+        $started(cmd, args, input, 2);
+    fun call(self, cmd: string, args: string[]): Result<i32, string> {
+        let (code, _, _) = $os.start(cmd, args, "", 0)?;
+        Ok(code)
+    }
+}
+
+/** `$os.start` in `mode` 1 (capture, stdin empty) or 2 (capture, stdin `input`), with the output checked as UTF-8. */
+fun $started(cmd: string, args: string[], input: string, mode: i32): Result<ProcessOutput, string> {
+    let (code, out, err) = $os.start(cmd, args, input, mode)?;
+    let stdout = match string_from_utf8(out) {
+        .Ok(text) => text,
+        .Err(_) => {
+            return Err("stdout is not valid UTF-8");
+        }
+    };
+    let stderr = match string_from_utf8(err) {
+        .Ok(text) => text,
+        .Err(_) => {
+            return Err("stderr is not valid UTF-8");
+        }
+    };
+    Ok(ProcessOutput { code: code, stdout: stdout, stderr: stderr })
+}
+
+/** The kernel's randomness (`getrandom`). */
+struct $Entropy {}
+
+impl Entropy for $Entropy {
+    // Eight bytes per kernel read: fine for keys and seeds.
+    fun bytes(self, n: i64): u8[] {
+        if n < 0 {
+            panic("entropy.bytes({n}): a negative count");
+        }
+        let mut out: u8[] = [];
+        while out.len < n {
+            let mut word = $os.seed();
+            for _ in 0..8 {
+                if out.len < n {
+                    out.push((word & 255).truncate<u8>());
+                    word = word >> 8;
+                }
+            }
+        }
+        out
+    }
+    fun next_u64(self): u64 = $os.seed();
 }
 
 /** The console `main` and tests are given. */
@@ -74,3 +216,15 @@ fun $console(): Console = $Console {};
 
 /** The file system `main` and tests are given. */
 fun $fs(): Fs = $Fs {};
+
+/** The clock `main` and tests are given. */
+fun $clock(): Clock = $Clock {};
+
+/** The environment `main` and tests are given. */
+fun $env(): Env = $Env {};
+
+/** The programs `main` and tests may start. */
+fun $proc(): Proc = $Proc {};
+
+/** The randomness `main` and tests are given. */
+fun $entropy(): Entropy = $Entropy {};

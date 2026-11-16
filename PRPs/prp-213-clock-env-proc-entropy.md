@@ -1,6 +1,6 @@
 ## FEATURE: Capabilities, second step: `Clock`, `Env`, `Proc` and `Entropy`, taken by `main` and tests like `Console` and `Fs`; the ambient functions of `std.time`, `std.env`, `std.process`, `std.random` and `std.crypto` that reach them are removed; milestone 181, in v18's Phase 2.
 
-**Status:** proposed 2026-11-16.
+**Status:** proposed 2026-11-16. Approved 2026-11-16.
 
 ## OBJECTIVE
 ```lugha
@@ -51,13 +51,13 @@ fun main(console: Console, clock: Clock, env: Env, proc: Proc, entropy: Entropy)
    struct ProcessOutput { code: i32, stdout: string, stderr: string } with Eq
    interface Entropy {
        fun bytes(self, n: i64): u8[];                      // panics for n < 0
-       fun u64(self): u64;
+       fun next_u64(self): u64;
    }
    ```
    Each method behaves exactly as the std function it replaces (same messages, no shell, `PATH` lookup, UTF-8 checks). `monotonic_ms` belongs to `Clock`, not to scheduling time: it observes real time, so a fake clock must be able to answer it.
 2. **`std.env` and `std.process` are removed**: everything they did is now a method. `std.time` keeps its pure calendar (`Civil`, `civil`, `from_civil`, `TimeError`); `local_offset` moves to `Clock` and returns its message as a `string` (the prelude can't name `std.time`'s `TimeError`).
 3. **The working directory:** `set_current_dir` is gone [CAP-11]. `current_dir` becomes `Dir.path(): Result<string, string>`, the folder's absolute path (`fs.cwd().path()`), the one new `Dir` method here.
-4. **`std.random`:** `from_os()` becomes `from_entropy(entropy: Entropy): Rng`, seeded from `entropy.u64()`; `seeded` is unchanged (not a capability [CAP-03]).
+4. **`std.random`:** `from_os()` becomes `from_entropy(entropy: Entropy): Rng`, seeded from `entropy.next_u64()`; `seeded` is unchanged (not a capability [CAP-03]).
 5. **`std.crypto`:** `random_bytes(n)` is removed (`entropy.bytes(n)`); `ed25519_keypair(entropy)` and `x25519_keypair(entropy)` take the capability and draw their 32-byte secret from it, so a fake `Entropy` gives reproducible keys. `hpke_seal` and TLS keep OpenSSL's own generator for their one-time keys: feeding them a capability's bytes needs a change to the C crypto code, which is security-reviewed work for its own PRP. Listed under Must NOT Do.
 6. **Entropy's real implementation** builds `bytes(n)` from the runtime's 64-bit kernel read (`getrandom`, as `random.from_os` used): no runtime change. One system call per 8 bytes is slow for megabytes but fine for keys and seeds; a bulk read can come later.
 7. **`main` and tests** take any of the six capabilities by type, as in PRP-212 (E0304 and E0434 messages list them). Tests get the real ones for now; the runner's fakes, and keeping `Proc` to integration tests, are the next PRP [CAP-13].
@@ -81,13 +81,20 @@ fun main(console: Console, clock: Clock, env: Env, proc: Proc, entropy: Entropy)
 - Any change to `runtime/process.c` or the C crypto code (security review): `Proc` and the keypairs call what exists.
 
 ## TESTS
-- [ ] `tests/programs/capabilities/clock_env_proc_entropy/`: the objective; parameters in another order; a fake `Clock` and `Entropy` passed to a helper (reproducible key from fixed bytes); E0304 for a repeated `Clock`.
-- [ ] Unit (`check/entry.rs`): `main` accepts each new capability, rejects a repeat.
-- [ ] The existing `std.time`, `std.random`, `std.crypto`, env and process tests, migrated; the removed functions' tests deleted.
-- [ ] Full `cargo test` (the rule change touches programs inline in `tests/*.rs`).
+- [x] `tests/programs/capabilities/clock_env_proc_entropy/`: the objective; parameters in another order; a fake `Clock` and `Entropy` passed to a helper (reproducible key from fixed bytes); E0304 for a repeated `Clock`.
+- [x] Unit (`check/entry.rs`): `main` accepts each new capability, rejects a repeat.
+- [x] The existing `std.time`, `std.random`, `std.crypto`, env and process tests, migrated; the removed functions' tests deleted.
+- [x] Full `cargo test` (the rule change touches programs inline in `tests/*.rs`).
 
 ## ACCEPTANCE
-- [ ] The objective prints `true`, `true`, `hi`, `16`, `true`, `32`, `true` and exits 0.
-- [ ] No std or prelude function reaches the clock, the environment, other programs or kernel randomness except through a capability, apart from `hpke_seal` and TLS (item 5), `std.fs` and `std.net` (later PRPs).
-- [ ] `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean
-- [ ] Every `pub` item documented; spec, CHANGELOG and CLAUDE.md updated where they change
+- [x] The objective prints `true`, `true`, `hi`, `16`, `true`, `32`, `true` and exits 0.
+- [x] No std or prelude function reaches the clock, the environment, other programs or kernel randomness except through a capability, apart from `hpke_seal` and TLS (item 5), `std.fs` and `std.net` (later PRPs).
+- [x] `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean
+- [x] Every `pub` item documented; spec, CHANGELOG and CLAUDE.md updated where they change
+
+## CHANGES DURING THE BUILD
+- **`Entropy.next_u64`**, not `u64`: `u64` is a type name and can't name a method.
+- **`ProcessOutput` by bare name** needed two lists widened: type annotations (`prelude_type`) and struct literals (so a fake `Proc` can build one).
+- **The §10 "Changing directory" program** became "The working folder" (`fs.cwd().path()`, paths relative to it); `tests/programs/std/chdir/` was deleted with `set_current_dir`, and the env and process programs moved to `tests/programs/capabilities/clock_env_proc_entropy/`.
+- **Left in place, unused:** the `$os.chdir`, `$os.crypto_seed` and `$os.crypto_random` built-ins and their runtime functions. Removing them touches `src/link/`'s symbol list and the C crypto code, both security-reviewed; a cleanup for that review.
+- **The VS Code grammar fixture** imported `std.env`; it imports `std.math` now (version 0.34.0).

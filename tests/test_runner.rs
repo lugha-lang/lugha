@@ -267,13 +267,11 @@ fn exact_filters_match_whole_names_and_filters_repeat() {
     );
 }
 
-const SKIPS: &str = "import std.env;
-
-// A test that stops the process itself, through C: 77 is still a failure.
+const SKIPS: &str = "// A test that stops the process itself, through C: 77 is still a failure.
 extern fun _exit(code: i32);
 
 @test
-fun needs_a_screen() {
+fun needs_a_screen(env: Env) {
     if env.get(\"LUGHA_NO_SUCH_SCREEN\") == None {
         skip(\"no display\");
     }

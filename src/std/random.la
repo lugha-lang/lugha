@@ -2,7 +2,7 @@
  * std.random: `import std.random;`, then
  *
  *     let mut rng = random.seeded(42);    // the same numbers on every run
- *     let mut rng = random.from_os();     // seeded from the operating system
+ *     let mut rng = random.from_entropy(entropy); // seeded from an `Entropy`
  *     rng.uniform()  rng.below(6)  rng.normal(0.0, 1.0)  rng.shuffle(xs)
  *
  * The generator is xoshiro256** (Blackman and Vigna), seeded through
@@ -23,8 +23,8 @@ public fun seeded(seed: u64): Rng {
     Rng { s0: x0, s1: x1, s2: x2, s3: x3 }
 }
 
-/** A generator seeded from the operating system's entropy: different on every run. Panics if the system has no randomness to give. */
-public fun from_os(): Rng = seeded($os.seed());
+/** A generator seeded from `entropy`: from the real one, different on every run. */
+public fun from_entropy(entropy: Entropy): Rng = seeded(entropy.next_u64());
 
 // splitmix64: the next state after `state`, and an output that spreads
 // any seed (zero included) over all 64 bits.

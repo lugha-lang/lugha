@@ -1,0 +1,38 @@
+// `Proc`: programs run with an argument list, never through a shell, in a
+// fresh scratch directory.
+fun show(r: Result<ProcessOutput, string>): string = match r {
+    .Ok(o) => "{o.code} {o.stdout.split("\n").debug()} {o.stderr.split("\n").debug()}",
+    .Err(e) => "err {e}",
+};
+
+fun main(console: Console, fs: Fs, proc: Proc, entropy: Entropy) {
+    // An argument with a space stays one argument.
+    console.println(show(proc.run("echo", ["a b", "c"])));
+    console.println(show(proc.run_with("sort", [], "b\na\n")));
+    console.println(show(proc.run("sh", ["-c", "exit 3"])));
+    console.println(show(proc.run("sh", ["-c", "kill -9 $$"])));
+    console.println(show(proc.run("no-such-program-xyz", [])));
+    // Shell syntax in an argument is just text.
+    console.println(show(proc.run("echo", ["; echo injected"])));
+    console.println(show(proc.run("sh", ["-c", "echo out; echo err >&2"])));
+    console.println("before call");
+    match proc.call("echo", ["hi"]) {
+        .Ok(code) => console.println("call {code}"),
+        .Err(e) => console.println(e),
+    }
+    console.println(show(proc.run("echo", ["a\0b"])));
+    console.println(show(proc.run("ec\0ho", [])));
+    console.println(show(proc.run("printf", ["\\377"])));
+    // Both pipes full at once can't deadlock.
+    let big = "head -c 1000000 /dev/zero | tr '\\0' a; head -c 1000000 /dev/zero | tr '\\0' b >&2";
+    match proc.run("sh", ["-c", big]) {
+        .Ok(o) => console.println("{o.stdout.len} {o.stderr.len}"),
+        .Err(e) => console.println(e),
+    }
+    // Only 0, 1 and 2 reach a child, even after the runtime opened files.
+    let seed = entropy.next_u64();
+    let w = fs.cwd().write_file("note.txt", "x");
+    let a = fs.cwd().append_file("note.txt", "y");
+    let r = fs.cwd().read_file("note.txt");
+    console.println(show(proc.run("ls", ["/proc/self/fd"])));
+}

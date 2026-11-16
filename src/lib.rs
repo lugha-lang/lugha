@@ -24,9 +24,7 @@ pub mod template;
 pub const STD: &[(&str, &str)] = &[
     ("math", include_str!("std/math.la")),
     ("random", include_str!("std/random.la")),
-    ("env", include_str!("std/env.la")),
     ("fs", include_str!("std/fs.la")),
-    ("process", include_str!("std/process.la")),
     ("task", include_str!("std/task.la")),
     ("time", include_str!("std/time.la")),
     ("net", include_str!("std/net.la")),

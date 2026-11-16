@@ -1,13 +1,13 @@
-// The system zone's offset, from `TZ`: a POSIX rule,
+// The system zone's offset, from a `Clock` reading `TZ`: a POSIX rule,
 // so no zone database is needed; daylight saving from March to November.
 import std.time;
 
-fun main(console: Console) {
+fun main(console: Console, clock: Clock) {
     let january = 1767225600000;     // 2026-01-01T00:00Z
     let july = 1782864000000;        // 2026-07-01T00:00Z
-    console.println(time.local_offset(january).debug());
-    console.println(time.local_offset(july).debug());
-    let c = time.civil(july, time.local_offset(july).unwrap()).unwrap();
+    console.println(clock.local_offset(january).debug());
+    console.println(clock.local_offset(july).debug());
+    let c = time.civil(july, clock.local_offset(july).unwrap()).unwrap();
     console.println("{c.year}-{c.month:02}-{c.day:02} {c.hour:02}:{c.minute:02}");
-    console.println(time.local_offset(i64.MAX).debug());
+    console.println(clock.local_offset(i64.MAX).debug());
 }

@@ -2,7 +2,6 @@
 // followed, without opening it; a folder, a FIFO, a missing path and a NUL
 // byte are `Err`; a sparse 5 GB file proves sizes past 32 bits.
 import std.fs;
-import std.process;
 
 fun say(console: Console, label: string, r: Result<i64, string>) {
     match r {
@@ -11,7 +10,7 @@ fun say(console: Console, label: string, r: Result<i64, string>) {
     }
 }
 
-fun main(console: Console, files: Fs): i32 {
+fun main(console: Console, files: Fs, proc: Proc): i32 {
     let w = files.cwd().write_file("note.txt", "hello, size");
     let e = files.cwd().write_file("empty.txt", "");
     say(console, "note", fs.size("note.txt"));
@@ -20,11 +19,11 @@ fun main(console: Console, files: Fs): i32 {
     say(console, "folder", fs.size("box"));
     say(console, "missing", fs.size("nope.txt"));
     say(console, "nul", fs.size("note\0.txt"));
-    let l = process.run("ln", ["-s", "note.txt", "link"]);
+    let l = proc.run("ln", ["-s", "note.txt", "link"]);
     say(console, "link", fs.size("link"));
-    let f = process.run("mkfifo", ["pipe"]);
+    let f = proc.run("mkfifo", ["pipe"]);
     say(console, "fifo", fs.size("pipe"));
-    let t = process.run("truncate", ["-s", "5G", "big"]);
+    let t = proc.run("truncate", ["-s", "5G", "big"]);
     say(console, "big", fs.size("big"));
     0
 }

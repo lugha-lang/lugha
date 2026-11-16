@@ -31,8 +31,9 @@ Nov 15, 2026 · @kithinji
 - Maps and sets are written `Map { "ann": 31 }`, `Set { 1, 2 }`, `Map {}` and `Set {}`, through the prelude interfaces `FromEntries` and `FromItems`, which any type may implement; `#{…}` is gone (E0213, E0470) (milestone 178; sections 3–4).
 - The prelude's `Error: Display` is the shared error interface (`Result<T, Error>`, `?` from any error, `"{e}"`), implemented by `string` and std's errors; an interface that extends others is a value type, its table holding its ancestors' items (E0464 retired) (milestone 179; sections 4–6).
 - Capabilities, first step: `main` takes `args: string[]`, `console: Console` and `fs: Fs` by type; printing, reading input and files go through `Console` and `fs.cwd()`; `print`, `println`, `eprint`, `eprintln`, `read_line`, `read_file`, `write_file`, `append_file`, `args` and `exit` are gone (E0471) (milestone 180; sections 5–6).
+- Capabilities, second step: `Clock` (`now_ms`, `monotonic_ms`, `local_offset`), `Env` (`get`), `Proc` (`run`, `run_with`, `call`, giving a `ProcessOutput`) and `Entropy` (`bytes`, `next_u64`), taken by `main` and tests like `Console`; `Dir.path()`; `std.env` and `std.process` are gone, and `std.time`, `std.random` and `std.crypto` take the capabilities (milestone 181; sections 6, 9).
 
-**Breaking:** printing, input, files and the arguments need capabilities (milestone 180): `fun main() { println(x); }` is `fun main(console: Console) { console.println(x); }`; a function that prints takes the `Console` as a parameter; `read_file(p)` is `fs.cwd().read_file(p)` with `fs: Fs` taken by `main`; `args()` is an `args: string[]` parameter of `main`; `exit(n)` is returning `n` from `main`. `#{…}` is gone (milestone 178): `#{"a": 1}` is `Map { "a": 1 }`, `#{1, 2}` is `Set { 1, 2 }`, and `#{}` is `Map {}` or `Set {}`; maps and sets print that way; a struct implementing `FromEntries` or `FromItems` is built with braces only in its own module. A numeric `as` that can lose information is E0469 (milestone 177): `n as u8` for a wider `n` is `n.truncate<u8>()` for the old bits, a float `as` an integer is `x.saturate<i64>()` for the old result, `n as f64` for an `i64` is `n.round<f64>()`, `n as char` is `n.try_into<char>()`; `f(a < b, c > (d))` now passes type arguments. Every variant in a pattern takes a leading dot (milestone 176): `Some(x) =>` is `.Some(x) =>`, `None =>` is `.None =>`, `if let Some(x) = o` is `if let .Some(x) = o`; an undotted one is E0212 or E0468, and `mut None` is E0468, not E0428. A `Result` used as a statement is E0467 (milestone 175): write `let _ = f();` to drop one on purpose. `assert_eq` and `assert_ne` are ordinary generic calls (milestone 173): an argument that can't be typed alone, first (`assert_eq(None, o)`), is E0412; write it second. The prelude's helpers are only methods (milestone 172): `map(xs, f)`, `str_trim(s)` and the like are no longer functions a program can call (E0301); write `xs.map(f)`, `s.trim()`. Operators go through blocks (milestone 171): an own `fun add(self, o: V): V` becomes `impl Add for V { … }`, several `mul`s on one type become one `impl Mul<R> for V` each, and `impl f64 { fun mul(self, v: V): V }` becomes `impl Mul<V> for f64` (that form is now E0466; E0458 is retired); an operator on an interface value is E0404, and a bound gives an operator only when it is an operator interface (`T: Mul<f64>`), not an interface with its own `mul`. Printing needs `Display` (milestone 170): `println(xs)`, `"{opt}"` and `to_string(p)` on an array, `Option`, tuple, map, `()` or a struct or enum without `impl Display` are E0422; write `.debug()` for the old text, or `impl Display`. A type's own `show` method becomes `impl Display for T`, and is no longer used inside an array or another value's text. `unwrap()` on an `Err` shows the error's debug form (`"boom"` quoted). `debug` is a reserved name. A struct or enum ordered with `<`, `sort`, `min` or `max` needs `with Ord` or `impl Ord` (milestone 168); an own `cmp` method no longer orders it, and `Ord` now implies `Eq`. Floats aren't `Ord`: `[1.5].sort()`, `math.min(1.5, 2.0)` and tuples or structs holding a float that are ordered are E0451; sort floats with `xs.sort_by(f64.total_order)`. A struct or enum compared with `==` or used as a map key or set value needs `with Eq` or `with Key` (milestone 167); own `eq` and `hash` methods become `impl Eq` and `impl Key`. A struct or enum encoded, decoded or otherwise used through a derivable interface needs `with I` (milestone 165); a type's own `to_json` or `show` no longer replaces a derived item. A type that met an interface by its methods needs `impl I for T`; methods that implement an interface move from `impl T { … }` into it. A number, string or array converted to a program's interface (`let x: Any = 1;`) is E0422 unless a block implements it for that type (milestone 169).
+**Breaking:** printing, input, files and the arguments need capabilities (milestone 180): `fun main() { println(x); }` is `fun main(console: Console) { console.println(x); }`; a function that prints takes the `Console` as a parameter; `read_file(p)` is `fs.cwd().read_file(p)` with `fs: Fs` taken by `main`; `args()` is an `args: string[]` parameter of `main`; `exit(n)` is returning `n` from `main`. The clock, the environment, other programs and the system's randomness need capabilities too (milestone 181): `time.now_ms()`, `time.monotonic_ms()` and `time.local_offset(ms)` are `clock.now_ms()`, `clock.monotonic_ms()` and `clock.local_offset(ms)` (its error a `string`); `env.get(n)` is the same call on an `env: Env`; `env.current_dir()` is `fs.cwd().path()`; `env.set_current_dir` is gone (the working folder never changes); `process.run`, `run_with` and `call` are `proc.run`, `proc.run_with` and `proc.call`, and `process.Output` is `ProcessOutput`; `random.from_os()` is `random.from_entropy(entropy)`; `crypto.random_bytes(n)` is `entropy.bytes(n)`; `crypto.ed25519_keypair()` and `crypto.x25519_keypair()` take the `Entropy`. `#{…}` is gone (milestone 178): `#{"a": 1}` is `Map { "a": 1 }`, `#{1, 2}` is `Set { 1, 2 }`, and `#{}` is `Map {}` or `Set {}`; maps and sets print that way; a struct implementing `FromEntries` or `FromItems` is built with braces only in its own module. A numeric `as` that can lose information is E0469 (milestone 177): `n as u8` for a wider `n` is `n.truncate<u8>()` for the old bits, a float `as` an integer is `x.saturate<i64>()` for the old result, `n as f64` for an `i64` is `n.round<f64>()`, `n as char` is `n.try_into<char>()`; `f(a < b, c > (d))` now passes type arguments. Every variant in a pattern takes a leading dot (milestone 176): `Some(x) =>` is `.Some(x) =>`, `None =>` is `.None =>`, `if let Some(x) = o` is `if let .Some(x) = o`; an undotted one is E0212 or E0468, and `mut None` is E0468, not E0428. A `Result` used as a statement is E0467 (milestone 175): write `let _ = f();` to drop one on purpose. `assert_eq` and `assert_ne` are ordinary generic calls (milestone 173): an argument that can't be typed alone, first (`assert_eq(None, o)`), is E0412; write it second. The prelude's helpers are only methods (milestone 172): `map(xs, f)`, `str_trim(s)` and the like are no longer functions a program can call (E0301); write `xs.map(f)`, `s.trim()`. Operators go through blocks (milestone 171): an own `fun add(self, o: V): V` becomes `impl Add for V { … }`, several `mul`s on one type become one `impl Mul<R> for V` each, and `impl f64 { fun mul(self, v: V): V }` becomes `impl Mul<V> for f64` (that form is now E0466; E0458 is retired); an operator on an interface value is E0404, and a bound gives an operator only when it is an operator interface (`T: Mul<f64>`), not an interface with its own `mul`. Printing needs `Display` (milestone 170): `println(xs)`, `"{opt}"` and `to_string(p)` on an array, `Option`, tuple, map, `()` or a struct or enum without `impl Display` are E0422; write `.debug()` for the old text, or `impl Display`. A type's own `show` method becomes `impl Display for T`, and is no longer used inside an array or another value's text. `unwrap()` on an `Err` shows the error's debug form (`"boom"` quoted). `debug` is a reserved name. A struct or enum ordered with `<`, `sort`, `min` or `max` needs `with Ord` or `impl Ord` (milestone 168); an own `cmp` method no longer orders it, and `Ord` now implies `Eq`. Floats aren't `Ord`: `[1.5].sort()`, `math.min(1.5, 2.0)` and tuples or structs holding a float that are ordered are E0451; sort floats with `xs.sort_by(f64.total_order)`. A struct or enum compared with `==` or used as a map key or set value needs `with Eq` or `with Key` (milestone 167); own `eq` and `hash` methods become `impl Eq` and `impl Key`. A struct or enum encoded, decoded or otherwise used through a derivable interface needs `with I` (milestone 165); a type's own `to_json` or `show` no longer replaces a derived item. A type that met an interface by its methods needs `impl I for T`; methods that implement an interface move from `impl T { … }` into it. A number, string or array converted to a program's interface (`let x: Any = 1;`) is E0422 unless a block implements it for that type (milestone 169).
 
 **Changes in v17 since v16** (milestones 91–163):
 - Green threads: `spawn f(x)` runs a call concurrently and gives a `Task<T>` (a plain `Task` for a call that returns nothing) whose `join()` waits for the result. `Chan<T>` carries values between green threads: `Chan.new()` (unbuffered) or `Chan.buffered(n)`, `send`, `recv` (an `Option`, `None` once closed), `try_recv`, `close`, `is`. `select` waits on several channels at once, with an `after(ms)` timeout or a `default` that never waits. `std.task` has `sleep(ms)` and `yield_now()`. Every function stays an ordinary function: there is no `async` and no `await`, so nothing is coloured. All green threads share the program's one OS thread; a panic in any of them ends the program, as does `main` returning, and a deadlock is a panic (sections 2–9).
@@ -1231,12 +1232,12 @@ A v0 program is a single `.la` file containing top-level items: functions, exter
 **Green threads** (v17, milestone 91). `spawn` starts a green thread; every one runs on the program's one OS thread, so green threads take turns and never run at the same instant: there are no data races, and `Ref` needs no locks.
 - **Switching:** a green thread runs until it waits — `join` on an unfinished task, `send` or `recv` that can't go on, a `select` that waits, `task.sleep`, `task.yield_now` — or is preempted. Waiting threads wake in the order they began to wait; sleepers in the order of their deadlines. A new thread starts after the threads already ready.
 - **Preemption:** in a program that uses `spawn`, every function entry and every loop iteration counts down a step budget; when it runs out (every 4096 steps) the running thread lets the ready ones run first. There are no signals and no timers, so a program's interleaving is the same on every run given the same input and timing of sleeps. Programs without `spawn` compile exactly as before.
-- **Blocking calls:** reading input, files, `std.process` and `extern` calls run to completion on the one OS thread, so every green thread waits for them. Sockets (`std.net`, milestone 110) don't: a thread waiting to accept, connect, read or write is parked until its socket is ready, and the others run; when no thread is ready, the program waits for a socket or the next sleeper.
+- **Blocking calls:** reading input, files, `Proc` and `extern` calls run to completion on the one OS thread, so every green thread waits for them. Sockets (`std.net`, milestone 110) don't: a thread waiting to accept, connect, read or write is parked until its socket is ready, and the others run; when no thread is ready, the program waits for a socket or the next sleeper.
 - **The end:** when `main` returns, the program exits with `main`'s code; green threads still running are dropped. A panic in any green thread ends the whole program with its message and exit code 101.
 - **Deadlock:** when no green thread can run, none is sleeping, none waits on a socket and one waits, the program panics with `panic: deadlock: every green thread is waiting` (no location), exit 101.
 - **Actors** (milestone 92) are green threads that take messages from an unbounded mailbox one at a time: messages from one caller in the order sent, from several in the order they arrive. A panic inside an actor's method prints its message, as any panic does, but ends only that actor: the caller waiting for that message's result, and every later caller, panics with ``actor `Counter` panicked`` at its call; a call to a stopped actor panics with ``actor `Counter` has stopped``. A stack overflow inside an actor still ends the program. Plain `spawn f()` threads keep the rule above. Actors waiting on each other are a deadlock.
 
-**The standard library** (v15). Version 15 has `std.math`, `std.random`, `std.env`, `std.fs` and `std.process`; version 17 adds `std.task`, `std.time`, `std.net`, `std.tls`, `std.crypto`, `std.http`, `std.toml` and `std.json`.
+**The standard library** (v15). Version 15 has `std.math`, `std.random` and `std.fs` (and had `std.env` and `std.process`, which became the `Env` and `Proc` capabilities in v18, milestone 181); version 17 adds `std.task`, `std.time`, `std.net`, `std.tls`, `std.crypto`, `std.http`, `std.toml` and `std.json`.
 
 `std.math` (milestone 53). The float functions take and return any `T: Float` (`f32` or `f64`) and follow IEEE 754: they never panic, `sqrt(-1.0)` is `NaN`, `ln(0.0)` is `-inf` and `pow(0.0, -1.0)` is `inf`.
 
@@ -1260,7 +1261,7 @@ An integer goes to a float function through a cast: `math.sqrt(n as f64)`; `math
 | Function or method | Result |
 | --- | --- |
 | `seeded(seed: u64): Rng` | a generator whose numbers depend only on `seed`: one seed gives one sequence on every platform, at `-O0` and `-O2`, and in every v15 compiler |
-| `from_os(): Rng` | a generator seeded with 64 bits from the operating system (`getrandom`, else `/dev/urandom`), different on every run; panics with `no randomness available from the operating system` if both fail |
+| `from_entropy(entropy: Entropy): Rng` | a generator seeded with `entropy.next_u64()` (v18, milestone 181): from the real `Entropy`, different on every run |
 | `r.next_u64(): u64` | the next 64 random bits |
 | `r.uniform(): f64` | uniform in [0, 1), with 53 random bits; for `f32`, `r.uniform() as f32` |
 | `r.below(n: i64): i64` | uniform in `0..n`, without bias; panics unless `n > 0` |
@@ -1269,14 +1270,6 @@ An integer goes to a float function through a cast: `math.sqrt(n as f64)`; `math
 | `r.chance(p: f64): bool` | `true` with probability `p` |
 | `r.choice<T>(xs: T[]): Option<T>` | a uniformly chosen element, `None` for an empty array |
 | `r.shuffle<T>(xs: T[]): T[]` | a copy of `xs` in a uniformly random order (Fisher–Yates); `xs` is unchanged |
-
-`std.env` (milestone 64). The program's environment. Variables are read-only: nothing sets them. The working directory can change (v16, milestone 68), for the whole program.
-
-| Function | Result |
-| --- | --- |
-| `get(name: string): Option<string>` | the variable's value, or `None` when it is unset, isn't valid UTF-8, or `name` contains a NUL byte |
-| `current_dir(): Result<string, string>` | the absolute path of the working directory, or `Err` with the system's message (e.g. when it was deleted) |
-| `set_current_dir(path: string): Result<i64, string>` | `Ok(0)` after making `path` the working directory (`chdir`); relative paths in the file functions and `std.fs`, and every program `std.process` starts afterwards, use it. `Err` with the system's message (`No such file or directory`, `Not a directory`), or `Err("path contains a NUL byte")` (v16) |
 
 `std.fs` (milestone 65). Folders, what exists, and (v17, milestone 146) file streams; whole files stay with the intrinsics (`read_file`, `write_file`, …). Errors are the system's message, as for `read_file`; a path holding a NUL byte is `Err("path contains a NUL byte")` (or `false`). Nothing deletes recursively.
 
@@ -1305,17 +1298,6 @@ An integer goes to a float function through a cast: `math.sqrt(n as f64)`; `math
 | `f.write(bytes: u8[]): Result<(), string>` | every byte, straight to the file (`write(2)` until done): nothing is buffered, so nothing is lost if the program stops without closing |
 | `f.write_text(s: string): Result<(), string>` | `s`'s bytes, as `write` |
 | `f.close()` | closes the file and every copy of it; closing twice is fine |
-
-`std.process` (milestone 66). Runs another program and waits for it. **There is never a shell**: the command and each argument reach the program exactly as given (`posix_spawnp`), so `;`, `|`, `$( )`, quotes and globs in them mean nothing. A command without `/` is looked up on `PATH`, one with `/` is a path; whoever controls `PATH` chooses which program a bare name runs, so use a path containing `/` when that matters. The program inherits this one's environment unchanged and gets only stdin, stdout and stderr: every other descriptor is closed on exec. A NUL byte in the command or an argument is `Err` before anything starts. There is no timeout and no limit on output size.
-
-| Function | Result |
-| --- | --- |
-| `run(cmd: string, args: string[]): Result<Output, string>` | runs `cmd` with an empty stdin and captures its output |
-| `run_with(cmd: string, args: string[], input: string): Result<Output, string>` | the same, writing `input` to its stdin |
-| `call(cmd: string, args: string[]): Result<i32, string>` | runs `cmd` sharing this program's stdin, stdout and stderr (what this program printed comes first), and gives its exit code |
-
-`Output` is `{ code: i32, stdout: string, stderr: string }`. `code` is the exit status, or `128 + n` when signal `n` ended the program, as shells report it. Any exit code is `Ok`; `Err` means the program couldn't start (`"tool: No such file or directory"`), an argument held a NUL byte, or its output isn't valid UTF-8 (`"stdout is not valid UTF-8"`). stdin, stdout and stderr are served together, so a program that fills one pipe while another is being read can't deadlock.
-
 
 **Using another module.** `import shapes.circle;` binds the name `circle` in that file only.
 - **Calls:** `circle.area(c)` calls function `area` of the module.
@@ -1350,15 +1332,12 @@ An integer goes to a float function through a cast: `math.sqrt(n as f64)`; `math
 | `sleep(ms: i64)` | pauses this green thread for at least `ms` milliseconds while the others run; `ms <= 0` is `yield_now()` |
 | `yield_now()` | lets every ready green thread run first, then goes on |
 
-`std.time` (v17, milestones 115 and 145). The clocks, calendar dates and the system's local offset; no zone names, no formatting by locale, no parsing.
+`std.time` (v17, milestones 115 and 145). Calendar dates; no zone names, no formatting by locale, no parsing. The moments and the system's offset come from a `Clock` (section 6; milestone 181).
 
 | Function | Gives |
 | --- | --- |
-| `now_ms(): i64` | milliseconds since 1970-01-01 00:00 UTC, from the system clock (`CLOCK_REALTIME`); it can jump when the clock is set |
-| `monotonic_ms(): i64` | milliseconds from an unspecified start that never goes back (`CLOCK_MONOTONIC`): subtract two readings to measure an interval |
 | `civil(ms: i64, offset_s: i64): Result<Civil, TimeError>` | moment `ms` (any `i64`, before 1970 too) as a date and time seen `offset_s` seconds east of UTC (v17, milestone 145) |
 | `from_civil(c: Civil, offset_s: i64): Result<i64, TimeError>` | the moment a date and time at that offset names, the inverse of `civil`; `c.weekday` is ignored |
-| `local_offset(ms: i64): Result<i64, TimeError>` | the system zone's offset from UTC at moment `ms`, in seconds east, daylight saving included (`localtime_r`'s `tm_gmtoff`: `TZ` if set, else `/etc/localtime`, else UTC) |
 
 `Civil { year, month, day, weekday, hour, minute, second, ms }`, every field `public` and `i64`, is a date on the proleptic Gregorian calendar (year 0 is 1 BC) and a time of day: month 1–12, day 1–31, weekday 1 (Monday) to 7 (Sunday) as in ISO 8601, hour 0–23, minute and second 0–59 (no leap seconds), ms 0–999. Offsets are in seconds, as the system gives them, so historical offsets that aren't whole minutes round-trip. A `TimeError { message }` (printing as its message) is an offset beyond ±26 hours, a field out of its range or a date that doesn't exist (`no day 31 in month 2 of 2026`), a moment past `i64`, or one the system can't give a local time for. Nothing panics on any input: `civil(i64.MIN, 0)` is `-292275055-05-16 16:47:04.192`.
 
@@ -1400,16 +1379,15 @@ No broadcast, connected UDP sockets, source-specific multicast or mDNS.
 | --- | --- |
 | `sha256(bytes)` | the 32-byte digest |
 | `Sha256.new()`, `h.update(bytes)`, `h.finish()` | a hash fed in pieces; `finish` gives the digest and starts over; copies share one running hash; nothing needs closing (the collector frees OpenSSL's state) |
-| `ed25519_keypair(): Result<(u8[], u8[]), CryptoError>` | a 32-byte secret seed from OpenSSL's generator and its 32-byte public key |
+| `ed25519_keypair(entropy: Entropy): Result<(u8[], u8[]), CryptoError>` | a 32-byte secret seed drawn from `entropy` (v18, milestone 181; a fake gives the same key every time) and its 32-byte public key |
 | `ed25519_public(secret)` | the public key of a 32-byte seed (`BadLength` otherwise) |
 | `ed25519_sign(secret, message)` | the 64-byte signature |
 | `ed25519_verify(key, message, signature): bool` | `true` only for a valid signature; `false` for anything else — wrong lengths, a malformed key — never an error |
-| `random_bytes(n)` | `n` bytes (0 to 1048576) from OpenSSL's secure generator |
 | `equal(a, b): bool` | the same bytes, compared in time that depends only on the length; `false` at once for different lengths |
 | `hkdf_sha256(key, salt, info, length)` | `length` bytes (1 to 8160, `BadLength` otherwise) of key material derived by HKDF-SHA256, RFC 5869 (extract then expand; an empty salt is the RFC's default; milestone 120) |
-| `chacha20poly1305_seal(key, nonce, plaintext, aad)` | the ciphertext with the 16-byte tag appended (RFC 8439); `key` 32 bytes, `nonce` 12 (`BadLength` otherwise), `plaintext` and `aad` up to 1073741824 bytes, either may be empty; a key and nonce must never seal twice (`random_bytes(12)` is safe for about 2³² messages per key) |
+| `chacha20poly1305_seal(key, nonce, plaintext, aad)` | the ciphertext with the 16-byte tag appended (RFC 8439); `key` 32 bytes, `nonce` 12 (`BadLength` otherwise), `plaintext` and `aad` up to 1073741824 bytes, either may be empty; a key and nonce must never seal twice (`entropy.bytes(12)` is safe for about 2³² messages per key) |
 | `chacha20poly1305_open(key, nonce, sealed, aad)` | the plaintext, only when the tag matches; `NotAuthentic` (and no plaintext) for any changed byte or wrong key, nonce or `aad`; `sealed` at least 16 bytes |
-| `x25519_keypair(): Result<(u8[], u8[]), CryptoError>` | 32 secret bytes from OpenSSL's generator and their 32-byte X25519 public key |
+| `x25519_keypair(entropy: Entropy): Result<(u8[], u8[]), CryptoError>` | 32 secret bytes drawn from `entropy` (v18, milestone 181) and their 32-byte X25519 public key |
 | `x25519_public(secret)` | the public key of 32 secret bytes (any 32 bytes are a secret) |
 | `x25519_shared(secret, peer_public)` | the 32-byte shared secret (RFC 7748), the same from either side; `BadKey` for a low-order peer key (an all-zero result); derive keys from it with `hkdf_sha256` |
 | `hpke_seal(public, info, plaintext, aad)` | HPKE (RFC 9180) base mode with DHKEM(X25519, HKDF-SHA256), HKDF-SHA256 and ChaCha20-Poly1305, single-shot: the 32-byte encapsulated key, then the ciphertext and its 16-byte tag; a fresh one-time key each time, so no nonce; the sender is anonymous; `public` 32 bytes, `info` at most 1024, `plaintext` from 1 to 1073741824 (OpenSSL refuses an empty one); `BadKey` for a low-order `public` |
@@ -1484,13 +1462,18 @@ A `panic(...);` statement also counts as definitely returning, because it never 
 
 This rejects a few correct programs, such as a function whose only exit is a `return` inside `while true`. Write that loop as `loop { … }`, which counts (v17), or add a final `panic("unreachable");`. `return` stays available for early exits. In a function returning `()`, `return;` (the same as `return ();`) is allowed and falling off the end is an implicit return.
 
-**Entry point.** Every program defines `main`, without type parameters, returning `()` or an `i32` (the process exit code; 0 for `()`). Its parameters are what the runtime supplies (v18, milestone 180), matched by type, with any names, in any order, each at most once: `string[]`, the command-line arguments with the program's path first; `Console`; and `Fs`. Anything else is E0304: `main(args: string[], console: Console): i32`, `main(out: Console)` and `main()` are all fine, `main(n: i64)` and `main(a: string[], b: string[])` aren't. The user's `main` is emitted as `lugha_fn_main`, like every Lugha function, and the compiler emits a real C `main` that initializes the runtime, makes the values `main` asks for, and calls it (see section 9). A `@test` function takes the same capabilities (not the arguments), and `lughac test` gives it the real ones.
+**Entry point.** Every program defines `main`, without type parameters, returning `()` or an `i32` (the process exit code; 0 for `()`). Its parameters are what the runtime supplies (v18, milestone 180), matched by type, with any names, in any order, each at most once: `string[]`, the command-line arguments with the program's path first; and the capabilities `Console`, `Fs`, `Clock`, `Env`, `Proc` and `Entropy` (milestone 181). Anything else is E0304: `main(args: string[], console: Console): i32`, `main(out: Console)` and `main()` are all fine, `main(n: i64)` and `main(a: string[], b: string[])` aren't. The user's `main` is emitted as `lugha_fn_main`, like every Lugha function, and the compiler emits a real C `main` that initializes the runtime, makes the values `main` asks for, and calls it (see section 9). A `@test` function takes the same capabilities (not the arguments), and `lughac test` gives it the real ones.
 
 **Capabilities** (v18, milestone 180). A program touches the world outside it only through values it is given: `main` takes them, and passes them on as ordinary parameters and fields, so a function's signature says what it may do (`fun price(order: Order): Money` touches nothing). They are prelude interfaces, visible in every module unless a module declares its own name, met only by `impl` (so a fake for a test is a type that says it implements one), and may be sent to tasks and actors:
 - **`Console`:** `print(x)`, `println(x)`, `eprint(x)`, `eprintln(x)`, each taking any `Display` value (it converts where the parameter expects the interface, as any value does; `println("")` for an empty line), writing its text to stdout or stderr (`eprint` flushes stdout first, so a terminal shows output in program order); `read_line(): Option<string>`, the next line of stdin without its `\n` (and a `\r` before it), a last line without `\n` still returned, `None` at the end of input or on a read error, stdout flushed first so a prompt shows.
 - **`Fs`:** `cwd(): Dir`, the folder the program started in.
 - **`Dir`:** `read_file(path): Result<string, string>`, the whole file or `Err` with the system's message (`"No such file or directory"`); `write_file(path, text): Result<i64, string>`, replacing the file's contents, `Ok` with the bytes written; `append_file(path, text): Result<i64, string>`, adding to the end and creating the file if needed. Paths are relative to the folder. A `Dir` isn't confined yet: until narrowing arrives (`fs.dir(path)`, with `..` and symbolic links kept inside), `fs.cwd()` reaches what the process can, as the old intrinsics did.
-- `debug(x)`, `panic` and the assertions need no capability. `std`'s modules (`std.fs`, `std.net`, `std.time`, …) still reach the system directly; taking capabilities is their next step.
+- **`Dir.path(): Result<string, string>`** (milestone 181): the folder's absolute path, or `Err` with the system's message (when it was deleted). The working folder never changes.
+- **`Clock`** (milestone 181): `now_ms(): i64`, milliseconds since 1970-01-01 00:00 UTC from the system clock (`CLOCK_REALTIME`), which can jump when the clock is set; `monotonic_ms(): i64`, milliseconds from an unspecified start that never goes back (`CLOCK_MONOTONIC`), for intervals; `local_offset(ms): Result<i64, string>`, the system zone's offset from UTC at moment `ms` in seconds east, daylight saving included (`localtime_r`'s `tm_gmtoff`: `TZ` if set, else `/etc/localtime`, else UTC), or `Err` for a moment the system can't represent. Pausing (`task.sleep`) needs no clock.
+- **`Env`** (milestone 181): `get(name): Option<string>`, the variable's value, `None` when it is unset, isn't valid UTF-8, or `name` contains a NUL byte. Variables are read-only.
+- **`Proc`** (milestone 181): runs another program and waits for it. **There is never a shell**: the command and each argument reach the program exactly as given (`posix_spawnp`), so `;`, `|`, `$( )`, quotes and globs in them mean nothing. A command without `/` is looked up on `PATH`, one with `/` is a path; whoever controls `PATH` chooses which program a bare name runs, so use a path containing `/` when that matters. The program inherits this one's environment and working folder unchanged and gets only stdin, stdout and stderr: every other descriptor is closed on exec. A NUL byte in the command or an argument is `Err` before anything starts. There is no timeout and no limit on output size. `run(cmd, args): Result<ProcessOutput, string>` runs `cmd` with an empty stdin and captures its output; `run_with(cmd, args, input)` does the same, writing `input` to its stdin; `call(cmd, args): Result<i32, string>` runs `cmd` sharing this program's stdin, stdout and stderr (what this program printed comes first), and gives its exit code. `ProcessOutput` is a prelude struct, `{ code: i32, stdout: string, stderr: string } with Eq`: `code` is the exit status, or `128 + n` when signal `n` ended the program, as shells report it. Any exit code is `Ok`; `Err` means the program couldn't start (`"tool: No such file or directory"`), an argument held a NUL byte, or its output isn't valid UTF-8 (`"stdout is not valid UTF-8"`). stdin, stdout and stderr are served together, so a program that fills one pipe while another is being read can't deadlock.
+- **`Entropy`** (milestone 181): the operating system's randomness, for keys, nonces and seeds: `bytes(n): u8[]`, `n` random bytes (a panic for a negative `n`); `next_u64(): u64`, 64 random bits. The real one reads the kernel (`getrandom`, else `/dev/urandom`, else a panic). A seeded generator (`std.random`) needs none.
+- `debug(x)`, `panic` and the assertions need no capability. `std.fs` and `std.net` (with `std.tls` and `std.http`) still reach the system directly; taking capabilities is their next step. `hpke_seal` and TLS draw their one-time keys from OpenSSL's own generator.
 
 ## 7. Memory model
 
@@ -1643,9 +1626,9 @@ on_clicked(button, "clicked", fun(b: GtkWidget) { clicks.update(fun(n) = n + 1);
 - The v13 iterator helpers are Lugha in the prelude's third file, compiled only when reached like the others. `flat_map` keeps its current inner iterator in a 0- or 1-element array, so `next` steps it in place.
 - A format specifier (v13) is parsed once by the checker (E0431) and again by codegen, which passes its parts to `lugha_rt_fmt_int`, `lugha_rt_fmt_float` or `lugha_rt_pad`, from a runtime fragment `format.c`. Programs without specifiers give byte-identical IR.
 - `format` (v14) splits its template into text and holes in the checker and again in codegen, then lowers like an interpolated string with the arguments as its parts. Programs without `format` give byte-identical IR.
-- `std.process` (v15) is Lugha code over one built-in, `$os.start(cmd, args, input, mode): Result<(i32, u8[], u8[]), string>` (named `$os.spawn` until `spawn` became a keyword in v17; `lugha_rt_spawn`: `posix_spawnp`, `pipe2(O_CLOEXEC)` pipes, a `poll` loop, `SIGPIPE` blocked while writing, `waitpid`); the outputs become strings through `string_from_utf8`. The runtime opens its own files close-on-exec (`fopen` mode `"e"`, `O_CLOEXEC`). Changes to `runtime/process.c` need the user's security review, like `modules/git.rs`.
+- `Proc` (v18; `std.process` before) is prelude code over one built-in, `$os.start(cmd, args, input, mode): Result<(i32, u8[], u8[]), string>` (named `$os.spawn` until `spawn` became a keyword in v17; `lugha_rt_spawn`: `posix_spawnp`, `pipe2(O_CLOEXEC)` pipes, a `poll` loop, `SIGPIPE` blocked while writing, `waitpid`); the outputs become strings through `string_from_utf8`. The runtime opens its own files close-on-exec (`fopen` mode `"e"`, `O_CLOEXEC`). Changes to `runtime/process.c` need the user's security review, like `modules/git.rs`.
 - `std.fs` (v15) is Lugha code over `$os.list_dir` (names as bytes, sorted in Lugha), `$os.make_dir`, `$os.remove_file`, `$os.remove_dir` (`mkdir`, `unlink`, `rmdir`) and `$os.stat_kind` (`stat`: 0 none, 1 file, 2 folder, 3 other); `make_dirs` is Lugha over `make_dir` and `is_dir`.
-- `std.env` (v15) is Lugha code over `$os.env(name): Option<u8[]>` (`lugha_rt_env`, `getenv`, a copy) and `$os.cwd(): Result<u8[], string>` (`lugha_rt_cwd`, `getcwd` with a growing buffer); the bytes become strings through `string_from_utf8`, so C never decides what UTF-8 is.
+- `Env` and `Dir.path` (v18; `std.env` before) are prelude code over `$os.env(name): Option<u8[]>` (`lugha_rt_env`, `getenv`, a copy) and `$os.cwd(): Result<u8[], string>` (`lugha_rt_cwd`, `getcwd` with a growing buffer); the bytes become strings through `string_from_utf8`, so C never decides what UTF-8 is.
 - `std.random` (v15) is Lugha code except `$os.seed()`, which calls the runtime's `lugha_rt_os_seed() -> u64`, and `$float.from_f64(x)`, which is a no-op at `f64` and `fptrunc` at `f32`; both built-ins can be named only in bundled sources.
 - A std module (v15) is embedded in `lughac` (`lugha::STD`) and joins the program's offset space like a file when imported; its items' symbols carry its path, `lugha_fn_std/math/sqrt<f64>`. A `$float.<op>` built-in at `f32` or `f64` lowers to LLVM's intrinsic at that width (`llvm.sqrt.f64`, `llvm.log` for `ln`, `llvm.round`, `llvm.atan2`, …), so `std.math` makes no call into libm. Programs that import nothing from `std` give byte-identical IR.
 - An overloaded operator (v15) lowers to a call of the method, `lugha_fn_Vec2.add(self, other)` with a pointer to a copy of the left operand as for any `self` method, or through the interface's table for an interface value. A generic body's operator on `T` is lowered per instance: at a number or string type it is the built-in operator, so `add<i64>` is a plain checked `add`; at a struct or enum type, the method call. A `0` or `1` of type `T` is the instance's constant (`0.0` at `f64`). Programs without overloaded operators give byte-identical IR.
@@ -1754,11 +1737,11 @@ The compiler, `lughac`, is written in Rust with inkwell. It turns one `.la` file
 | `lugha_rt_array_grow(array, elem_size)` | A copy of a full array with double the capacity (at least 4), for `push`; the copy is unshared |
 | `lugha_rt_print_*` / `lugha_rt_to_string_*` | One per primitive type (plus `lugha_rt_print_str`), for the intrinsics; `bool` and `u8` arguments are passed zero-extended to 32 bits; `u32` goes to the `u64` functions zero-extended (v7), as does `u16`, and `i8`/`i16` go to the `i64` ones sign-extended (v10) |
 | `lugha_rt_str_quote(s)` | `s` quoted and escaped, for strings inside a printed value (v12) |
-| `lugha_rt_os_seed()` | 64 bits of OS entropy for `std.random`'s `from_os()` (v15): `getrandom`, else `/dev/urandom`, else a panic |
-| `lugha_rt_env(name, out)` / `lugha_rt_cwd(out, error)` / `lugha_rt_chdir(path, error)` (v16) | `std.env` (v15): a variable's bytes, or 0 when unset or the name holds a NUL; the working directory's bytes, or 0 and the system's message |
+| `lugha_rt_os_seed()` | 64 bits of OS entropy for the real `Entropy` (v18; `std.random`'s `from_os()` before): `getrandom`, else `/dev/urandom`, else a panic |
+| `lugha_rt_env(name, out)` / `lugha_rt_cwd(out, error)` / `lugha_rt_chdir(path, error)` (v16) | `Env` and `Dir.path` (v18; `std.env` before, `chdir` now unused): a variable's bytes, or 0 when unset or the name holds a NUL; the working directory's bytes, or 0 and the system's message |
 | `lugha_rt_list_dir(path, out, error)` / `lugha_rt_make_dir` / `lugha_rt_remove_file` / `lugha_rt_remove_dir(path, error)` / `lugha_rt_stat_kind(path)` | `std.fs` (v15): a folder's names as bytes, one folder made or removed, a file removed, each with the system's message on failure; the kind of thing at a path |
 | `lugha_rt_file_open(path, mode, out, error)` / `lugha_rt_file_read(fd, max, out, error)` / `lugha_rt_file_write(fd, bytes, error)` / `lugha_rt_file_close(fd)` | `std.fs`'s file streams (v17, milestone 146): a descriptor opened close-on-exec (mode 0 reads, 1 creates or truncates, 2 appends), one read, a write of every byte, a close |
-| `lugha_rt_spawn(cmd, args, input, mode, code, out, err, error)` | `std.process` (v15): runs a program without a shell (mode 0 shares stdio, 1 captures with an empty stdin, 2 also writes `input`), and gives its code and output bytes, or 0 and why it couldn't start |
+| `lugha_rt_spawn(cmd, args, input, mode, code, out, err, error)` | `Proc` (v18; `std.process` before): runs a program without a shell (mode 0 shares stdio, 1 captures with an empty stdin, 2 also writes `input`), and gives its code and output bytes, or 0 and why it couldn't start |
 | `lugha_rt_fmt_int(v, bits, signed, kind, alt, fill, align, width, zero)` / `lugha_rt_fmt_float(v, f32, precision, fill, align, width, zero)` / `lugha_rt_pad(text, fill, align, width)` | Format specifiers (v13): an integer (sign- or zero-extended to `i64`), a float (as `f64`), or any other value's text, padded; all arguments are plain numbers |
 | `lugha_rt_print_newline()` | The newline `println` adds |
 | `lugha_rt_args()` | A new `string[]` of the program's arguments (v3) |
@@ -3613,15 +3596,13 @@ fun main(console: Console) {
 **Environment** (milestone 64). Prints `true`, `default`, `true` on three lines, exits with 0.
 
 ```
-// std.env (v15): read-only environment variables and the current
-// directory.
-import std.env;
-
-fun main(console: Console) {
+// `Env` (v18): read-only environment variables; and the working
+// folder's path, from `Fs`.
+fun main(console: Console, env: Env, fs: Fs) {
     console.println(env.get("LUGHA_SURELY_UNSET").is_none());
     let home = env.get("LUGHA_SURELY_UNSET").unwrap_or("default");
     console.println(home);
-    console.println(env.current_dir().is_ok());
+    console.println(fs.cwd().path().is_ok());
 }
 ```
 
@@ -3656,24 +3637,22 @@ fun main(console: Console, files: Fs) {
 **Processes** (milestone 66). Prints `0: hello ; not a command`, `["apple", "pear", ""]`, `7`, `true` on four lines, exits with 0.
 
 ```
-// std.process (v15): run a program with an argument list (never a shell),
+// `Proc` (v18): run a program with an argument list (never a shell),
 // wait, and read its exit code and output.
-import std.process;
-
-fun main(console: Console) {
-    match process.run("echo", ["hello", "; not a command"]) {
+fun main(console: Console, proc: Proc) {
+    match proc.run("echo", ["hello", "; not a command"]) {
         .Ok(out) => console.println("{out.code}: {out.stdout.trim()}"),
         .Err(e) => console.println(e),
     }
-    match process.run_with("sort", [], "pear\napple\n") {
+    match proc.run_with("sort", [], "pear\napple\n") {
         .Ok(out) => console.println(out.stdout.split("\n").debug()),
         .Err(e) => console.println(e),
     }
-    match process.run("sh", ["-c", "exit 7"]) {
+    match proc.run("sh", ["-c", "exit 7"]) {
         .Ok(out) => console.println(out.code),
         .Err(e) => console.println(e),
     }
-    console.println(process.run("surely-not-a-program", []).is_err());
+    console.println(proc.run("surely-not-a-program", []).is_err());
 }
 ```
 
@@ -3706,22 +3685,20 @@ fun main(console: Console) {
 }
 ```
 
-**Changing directory** (milestone 68). Prints `Ok(0)`, `true`, `Err("No such file or directory")` on three lines, exits with 0, and leaves nothing behind.
+**The working folder** (milestone 181). Prints `true`, `true`, `Ok("hi")` on three lines, exits with 0, and leaves nothing behind.
 
 ```
-// Changing the working directory (v16): relative paths follow it.
-import std.env;
+// The working folder (v18): `fs.cwd()` is where the program started, and
+// it never changes; paths are relative to it.
 import std.fs;
 
 fun main(console: Console, files: Fs) {
-    let start = env.current_dir().unwrap_or("?");
+    let here = files.cwd();
     let made = fs.make_dirs("inbox/2026");
-    let moved = env.set_current_dir("inbox/2026");
-    console.println(moved.debug());
-    let wrote = files.cwd().write_file("note.txt", "hi");
-    let back = env.set_current_dir(start);
+    let wrote = here.write_file("inbox/2026/note.txt", "hi");
+    console.println(here.path().is_ok());
     console.println(fs.is_file("inbox/2026/note.txt"));
-    console.println(env.set_current_dir("missing").debug());
+    console.println(here.read_file("inbox/2026/note.txt").debug());
     let a = fs.remove_file("inbox/2026/note.txt");
     let b = fs.remove_dir("inbox/2026");
     let c = fs.remove_dir("inbox");
@@ -4081,6 +4058,7 @@ The spec is implemented in five milestones, each ending in a program that runs. 
 | 178 | Collection literals (v18) | `Map { "a": 1 }`, `Set { 1, 2 }`, `Map {}`; `FromEntries` and `FromItems`; `#{…}` removed; E0213, E0470 | `tests/programs/collections/literals` (done) |
 | 179 | `Error` and extending interfaces as values (v18) | `interface Error: Display`, `impl Error for string` and std's errors; an interface that extends others is a value type; E0464 retired | `tests/programs/interfaces/extending_values` (done) |
 | 180 | Capabilities, first step (v18) | `main` takes `string[]`, `Console`, `Fs`; `Console`, `Fs`, `Dir`; `print`, `println`, `eprint`, `eprintln`, `read_line`, `read_file`, `write_file`, `append_file`, `args`, `exit` removed (E0471) | `tests/programs/capabilities/console_fs` (done) |
+| 181 | Capabilities, second step (v18) | `Clock`, `Env`, `Proc` (with `ProcessOutput`) and `Entropy`, taken by `main` and tests; `Dir.path`; `std.env` and `std.process` removed; `std.time`'s clocks, `random.from_os` and `crypto.random_bytes` removed; key pairs take `Entropy` | `tests/programs/capabilities/clock_env_proc_entropy/` (done) |
 
 In milestones 1 and 2, every value can be treated as `i64`, so codegen can start before the type checker exists. Until milestone 4 provides `lugha_rt_panic`, integer `+`, `-` and `*` wrap, and `/` and `%` stop the program with a trap on a zero divisor or `MIN / -1`. Milestone 3 then replaces that assumption with real types. The process exit code is the low 8 bits of `main`'s result, so milestone tests use results below 256.
 

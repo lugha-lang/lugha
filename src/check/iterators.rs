@@ -54,6 +54,10 @@ impl Checker {
                 | "Console"
                 | "Fs"
                 | "Dir"
+                | "Clock"
+                | "Env"
+                | "Proc"
+                | "Entropy"
         ) || is_operator_bound(name))
             && self.interfaces.contains_key(&prelude);
         if module.is_none() && known && !declared {

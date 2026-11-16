@@ -1,6 +1,6 @@
 // SYNTAX TEST "source.lugha" "keywords, types, numbers and comments"
 
-import std.env;
+import std.math;
 // <----- keyword.other.import.lugha
 
 public fun area(s: Shape, n: i64): f64 {

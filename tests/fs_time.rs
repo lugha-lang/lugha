@@ -139,13 +139,12 @@ fn the_clocks_tell_the_time() {
         .as_millis() as i64;
     let out = t.run(
         "import std.task;
-import std.time;
 
-fun main(console: Console) {
-    console.println(time.now_ms());
-    let a = time.monotonic_ms();
+fun main(console: Console, clock: Clock) {
+    console.println(clock.now_ms());
+    let a = clock.monotonic_ms();
     task.sleep(20);
-    let b = time.monotonic_ms();
+    let b = clock.monotonic_ms();
     console.println(b - a >= 20);
 }
 ",

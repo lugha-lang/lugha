@@ -1,5 +1,5 @@
 /**
- * std.crypto: SHA-256, Ed25519 signatures (RFC 8032), random bytes,
+ * std.crypto: SHA-256, Ed25519 signatures (RFC 8032),
  * constant-time comparison, HKDF-SHA256 (RFC 5869), ChaCha20-Poly1305
  * sealing (RFC 8439), X25519 key exchange (RFC 7748) and HPKE, sealing to
  * a public key (RFC 9180), through the
@@ -86,11 +86,13 @@ impl Sha256 {
 }
 
 /**
- * A new Ed25519 key pair from OpenSSL's random generator.
+ * A new Ed25519 key pair, its secret drawn from `entropy`: a fake one gives
+ * the same key every time.
+ * @param entropy where the 32 secret bytes come from
  * @returns `(secret, key)`: the 32-byte secret seed and its 32-byte public key
  */
-public fun ed25519_keypair(): Result<(u8[], u8[]), CryptoError> {
-    let secret = $os.crypto_seed().map_err(failed)?;
+public fun ed25519_keypair(entropy: Entropy): Result<(u8[], u8[]), CryptoError> {
+    let secret = entropy.bytes(32);
     let key = ed25519_public(secret)?;
     Ok((secret, key))
 }
@@ -131,17 +133,6 @@ public fun ed25519_verify(key: u8[], message: u8[], signature: u8[]): bool {
 }
 
 /**
- * Bytes from OpenSSL's cryptographically secure random generator.
- * @param n how many, from 0 to 1048576
- */
-public fun random_bytes(n: i64): Result<u8[], CryptoError> {
-    if n < 0 || n > 1048576 {
-        return Err(CryptoError.BadLength("random bytes (at most)", 1048576, n));
-    }
-    $os.crypto_random(n).map_err(failed)
-}
-
-/**
  * Whether two byte arrays are equal, in time that depends only on their
  * length: for comparing secrets, digests and tags. `false` at once for
  * different lengths.
@@ -168,7 +159,7 @@ public fun hkdf_sha256(key: u8[], salt: u8[], info: u8[], length: i64): Result<u
  * Seals bytes with ChaCha20-Poly1305 (RFC 8439): encrypts `plaintext` and
  * authenticates it together with `aad`, which is sent as it is. Never seal
  * two messages with the same key and nonce: that reveals both. A nonce from
- * `random_bytes(12)` is safe for up to about 4 billion messages per key.
+ * `entropy.bytes(12)` is safe for up to about 4 billion messages per key.
  * @param key 32 secret bytes
  * @param nonce 12 bytes, never used before with this key
  * @param plaintext what to seal, at most 1073741824 bytes
@@ -204,11 +195,13 @@ public fun chacha20poly1305_open(key: u8[], nonce: u8[], sealed: u8[], aad: u8[]
 }
 
 /**
- * A new X25519 key pair from OpenSSL's random generator.
+ * A new X25519 key pair, its secret drawn from `entropy`: a fake one gives
+ * the same key every time.
+ * @param entropy where the 32 secret bytes come from
  * @returns `(secret, key)`: 32 secret bytes and the 32-byte public key
  */
-public fun x25519_keypair(): Result<(u8[], u8[]), CryptoError> {
-    let secret = $os.crypto_seed().map_err(failed)?;
+public fun x25519_keypair(entropy: Entropy): Result<(u8[], u8[]), CryptoError> {
+    let secret = entropy.bytes(32);
     let key = x25519_public(secret)?;
     Ok((secret, key))
 }

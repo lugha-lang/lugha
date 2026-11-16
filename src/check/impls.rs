@@ -85,15 +85,14 @@ pub fn is_operator(key: &str) -> bool {
 /// The prelude's error interface, `Error: Display`.
 pub(super) const ERROR: &str = "$prelude.Error";
 
-/// The capabilities the prelude declares: met only by `impl`, so a fake is a
-/// type that says it implements one.
-pub(super) const CONSOLE: &str = "$prelude.Console";
-pub(super) const FS: &str = "$prelude.Fs";
+/// The folder capability, which `main` reaches through `Fs`. The
+/// capabilities are met only by `impl`, so a fake is a type that says it
+/// implements one.
 pub(super) const DIR: &str = "$prelude.Dir";
 
-/// True for a capability interface: `Console`, `Fs`, `Dir`.
+/// True for a capability interface: those `main` may take, and `Dir`.
 pub(super) fn is_capability(key: &str) -> bool {
-    [CONSOLE, FS, DIR].contains(&key)
+    key == DIR || super::ENTRY_CAPABILITIES.iter().any(|(c, _)| *c == key)
 }
 
 /// The module part of an item's key: `geo` for `geo.Circle`, `""` for an
@@ -150,11 +149,9 @@ impl Checker {
                 super::collections::FROM_ENTRIES,
                 super::collections::FROM_ITEMS,
                 ERROR,
-                CONSOLE,
-                FS,
-                DIR,
             ]
             .contains(&key)
+            || is_capability(key)
             || is_operator(key)
     }
 
@@ -174,11 +171,11 @@ impl Checker {
             super::collections::FROM_ENTRIES,
             super::collections::FROM_ITEMS,
             ERROR,
-            CONSOLE,
-            FS,
-            DIR,
         ];
-        (module_of(key) != "$prelude" || prelude_nominal.contains(&key) || is_operator(key))
+        (module_of(key) != "$prelude"
+            || prelude_nominal.contains(&key)
+            || is_capability(key)
+            || is_operator(key))
             && !self.derives.derivable(key)
     }
 

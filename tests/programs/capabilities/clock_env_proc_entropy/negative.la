@@ -1,0 +1,4 @@
+// A negative count is a bug: `bytes` panics.
+fun main(entropy: Entropy) {
+    let b = entropy.bytes(-1);
+}

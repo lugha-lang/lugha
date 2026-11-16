@@ -84,8 +84,8 @@ struct Device {
     key: u8[],
 }
 
-fun device(): Device {
-    let (secret, key) = crypto.ed25519_keypair().unwrap();
+fun device(entropy: Entropy): Device {
+    let (secret, key) = crypto.ed25519_keypair(entropy).unwrap();
     Device { secret: secret, key: key }
 }
 
@@ -126,8 +126,8 @@ fun try(console: Console, addr: string, client: Device, server_key: u8[]) {
 #[test]
 fn accepted_keys_get_in_and_others_are_refused() {
     Case::new(
-        "fun main(console: Console) {
-    let (server, a, b, c) = (device(), device(), device(), device());
+        "fun main(console: Console, entropy: Entropy) {
+    let (server, a, b, c) = (device(entropy), device(entropy), device(entropy), device(entropy));
     let l = listening(server, [a.key, b.key]);
     try(console, l.addr(), a, server.key);
     try(console, l.addr(), b, server.key);
@@ -145,8 +145,8 @@ fn accepted_keys_get_in_and_others_are_refused() {
 #[test]
 fn set_accept_changes_who_gets_in_next() {
     Case::new(
-        "fun main(console: Console) {
-    let (server, a, c) = (device(), device(), device());
+        "fun main(console: Console, entropy: Entropy) {
+    let (server, a, c) = (device(entropy), device(entropy), device(entropy));
     let l = listening(server, [a.key]);
     try(console, l.addr(), c, server.key);
     l.set_accept([a.key, c.key]).unwrap();
@@ -163,8 +163,8 @@ fn set_accept_changes_who_gets_in_next() {
 #[test]
 fn wrong_key_lengths_are_refused() {
     Case::new(
-        "fun main(console: Console) {
-    let a = device();
+        "fun main(console: Console, entropy: Entropy) {
+    let a = device(entropy);
     let short = [1 as u8; 31];
     console.println(tls.listen_keys(\"127.0.0.1:0\", tls.Keys { secret: short, accept: [] }).is_err());
     match tls.listen_keys(\"127.0.0.1:0\", tls.Keys { secret: short, accept: [] }) {
@@ -192,8 +192,8 @@ fn wrong_key_lengths_are_refused() {
 #[test]
 fn certificates_and_keys_do_not_mix() {
     let case = Case::new(
-        "fun main(console: Console) {
-    let (server, a) = (device(), device());
+        "fun main(console: Console, entropy: Entropy) {
+    let (server, a) = (device(entropy), device(entropy));
     // A certificate client at a by-key listener.
     let by_key = listening(server, [a.key]);
     let trust = tls.Options { ca_file: \"self.pem\", ..tls.options() };

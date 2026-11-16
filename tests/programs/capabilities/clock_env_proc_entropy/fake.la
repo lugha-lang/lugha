@@ -1,0 +1,55 @@
+// Fakes: a `Clock` stopped at a fixed moment, an `Entropy` that counts and
+// a `Proc` that runs nothing, so what a helper computes from them is the same on every run.
+import std.random;
+import std.time;
+
+struct Stopped { at: i64 }
+
+impl Clock for Stopped {
+    fun now_ms(self): i64 = self.at;
+    fun monotonic_ms(self): i64 = 0;
+    fun local_offset(self, ms: i64): Result<i64, string> = Ok(3600);
+}
+
+struct Counting {}
+
+impl Entropy for Counting {
+    fun bytes(self, n: i64): u8[] {
+        let mut out: u8[] = [];
+        for i in 0..n {
+            out.push((i % 256).truncate<u8>());
+        }
+        out
+    }
+    fun next_u64(self): u64 = 42;
+}
+
+struct Canned {}
+
+impl Proc for Canned {
+    fun run(self, cmd: string, args: string[]): Result<ProcessOutput, string> =
+        Ok(ProcessOutput { code: 0, stdout: "canned {cmd}\n", stderr: "" });
+    fun run_with(self, cmd: string, args: string[], input: string): Result<ProcessOutput, string> = self.run(cmd, args);
+    fun call(self, cmd: string, args: string[]): Result<i32, string> = Err("no programs here");
+}
+
+fun stamp(clock: Clock): string {
+    let now = clock.now_ms();
+    let c = time.civil(now, clock.local_offset(now).unwrap()).unwrap();
+    "{c.year}-{c.month:02}-{c.day:02} {c.hour:02}:{c.minute:02}"
+}
+
+fun roll(entropy: Entropy): i64 {
+    let mut rng = random.from_entropy(entropy);
+    rng.below(1000)
+}
+
+fun main(console: Console, entropy: Entropy) {
+    console.println(stamp(Stopped { at: 1767225600000 }));    // 2026-01-01T00:00Z
+    console.println(roll(Counting {}) == roll(Counting {}));
+    console.println(Counting {}.bytes(4).debug());
+    console.println(entropy.bytes(0).len);
+    let p: Proc = Canned {};
+    console.print(p.run("ls", []).unwrap().stdout);
+    console.println(p.call("ls", []).debug());
+}
