@@ -61,6 +61,13 @@ impl JsonError {
     public fun message(self): string = "{self.detail} (line {self.line}, column {self.column})";
 }
 
+impl Display for JsonError {
+    /** Printed as its message. */
+    fun show(self): string = self.message();
+}
+
+impl Error for JsonError {}
+
 /** How much `parse_with` accepts (`limits()` gives the defaults). */
 public struct Limits {
     /** The text's size in bytes (1048576). */
@@ -121,6 +128,8 @@ impl Display for DecodeError {
     /** Printed as its message. */
     fun show(self): string = self.message();
 }
+
+impl Error for DecodeError {}
 
 // ---- How each type meets `Json` ----
 

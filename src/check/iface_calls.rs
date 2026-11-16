@@ -17,7 +17,12 @@ impl Checker {
         name: &Ident,
     ) -> Option<Method> {
         let key = &interface.key;
-        let items = self.items(interface);
+        // An extending interface's value reaches its ancestors' items too.
+        let items: Vec<_> = self
+            .value_items(interface)
+            .into_iter()
+            .map(|(_, r)| r)
+            .collect();
         let Some(req) = items.iter().find(|r| r.name == name.name).cloned() else {
             let names: Vec<String> = items.iter().map(|r| format!("`{}`", r.name)).collect();
             let help = match names.is_empty() {

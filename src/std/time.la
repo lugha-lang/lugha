@@ -56,6 +56,8 @@ impl Display for TimeError {
     fun show(self): string = self.message;
 }
 
+impl Error for TimeError {}
+
 /** The widest offset accepted, in seconds: 26 hours. */
 const MAX_OFFSET: i64 = 93600;
 

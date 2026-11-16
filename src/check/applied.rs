@@ -80,6 +80,83 @@ impl Checker {
             .collect()
     }
 
+    /// An interface value's items: those of every interface it extends,
+    /// transitively and each once, ancestors first in declaration order,
+    /// then its own; each with the interface that declares it, at
+    /// `applied`'s arguments.
+    pub(super) fn value_items(&self, applied: &Applied) -> Vec<(Applied, Requirement)> {
+        let mut out = Vec::new();
+        self.collect_value_items(applied, &mut out, 0);
+        out
+    }
+
+    fn collect_value_items(
+        &self,
+        applied: &Applied,
+        out: &mut Vec<(Applied, Requirement)>,
+        depth: usize,
+    ) {
+        // A cycle is reported where the interfaces are declared; stop here.
+        let Some(info) = self.interfaces.get(&applied.key).filter(|_| depth < 32) else {
+            return;
+        };
+        for parent in &info.extends {
+            let args = parent
+                .args
+                .iter()
+                .map(|t| subst(t, &info.generics, &applied.args));
+            let parent = Applied {
+                key: parent.key.clone(),
+                args: args.collect(),
+            };
+            self.collect_value_items(&parent, out, depth + 1);
+        }
+        for req in self.items(applied) {
+            if !out.iter().any(|(_, r)| r.name == req.name) {
+                out.push((applied.clone(), req));
+            }
+        }
+    }
+
+    /// The first item of `key` or an interface it extends that keeps its
+    /// values from existing: an associated function, or one using `Self`.
+    pub(super) fn value_blockers(&self, key: &str) -> (Option<String>, Option<String>) {
+        let mut todo = vec![key.to_string()];
+        let mut seen: Vec<String> = Vec::new();
+        let (mut not_value, mut uses_self) = (None, None);
+        while let Some(k) = todo.pop() {
+            if seen.contains(&k) {
+                continue;
+            }
+            if let Some(info) = self.interfaces.get(&k) {
+                not_value = not_value.or_else(|| info.not_value.clone());
+                uses_self = uses_self.or_else(|| info.uses_self.clone());
+                todo.extend(info.extends.iter().map(|p| p.key.clone()));
+            }
+            seen.push(k);
+        }
+        (not_value, uses_self)
+    }
+
+    /// True if `ancestor` is `of` or an interface it extends, transitively.
+    pub(super) fn extends_or_is(&self, of: &str, ancestor: &str) -> bool {
+        let mut todo = vec![of.to_string()];
+        let mut seen: Vec<String> = Vec::new();
+        while let Some(key) = todo.pop() {
+            if key == ancestor {
+                return true;
+            }
+            if seen.contains(&key) {
+                continue;
+            }
+            if let Some(info) = self.interfaces.get(&key) {
+                todo.extend(info.extends.iter().map(|p| p.key.clone()));
+            }
+            seen.push(key);
+        }
+        false
+    }
+
     /// The parameters of interface `key`; none for a plain one.
     pub(super) fn interface_generics(&self, key: &str) -> Vec<Generic> {
         self.interfaces
@@ -242,6 +319,30 @@ pub(super) mod tests {
         assert_eq!(
             codes("fun d(s: Source<string>): i64 = match s { c: Count => 1, _ => 0 };"),
             ["E0426"]
+        );
+    }
+
+    #[test]
+    fn an_extending_interface_is_a_value_with_its_ancestors_items() {
+        let src = "interface Named { fun name(self): string; }\n\
+            interface Greeter: Named { fun greet(self): string = \"hi {self.name()}\"; }\n\
+            struct A {}\n\
+            impl Named for A { fun name(self): string = \"a\"; }\n\
+            impl Greeter for A {}\n\
+            fun main() { let g: Greeter = A {}; let s = g.name() + g.greet(); let n: Named = g; }";
+        let checked = crate::check::test_util::ok(src);
+        let shape = &checked.interfaces["Greeter"];
+        let names: Vec<&str> = shape.methods.iter().map(|m| m.name.as_str()).collect();
+        assert_eq!(names, ["name", "greet"]);
+        assert_eq!(shape.methods[0].owner, "Named");
+        // A plain value meets `Error` only by `impl`; an interface value only
+        // by extending it.
+        let src = "struct P {}\nimpl Display for P { fun show(self): string = \"p\"; }\n\
+            fun main() { let d: Display = P {}; let e: Error = d; }";
+        assert_eq!(crate::check::test_util::errors(src)[0].0, "E0422");
+        crate::check::test_util::ok(
+            "struct P {}\nimpl Display for P { fun show(self): string = \"p\"; }\nimpl Error for P {}\n\
+             fun main() { let e: Error = P {}; let s = \"{e}\"; let d: Display = e; }",
         );
     }
 }

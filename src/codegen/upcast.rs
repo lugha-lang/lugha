@@ -148,8 +148,15 @@ impl<'ctx> Lowerer<'ctx> {
                 .as_pointer_value()
                 .into(),
         ];
+        let root_methods = self.interfaces[root_key].methods_at(root_args);
         for m in self.interfaces[key].methods.clone() {
-            let method = self.method_of(concrete, root_key, root_args, &m.name);
+            // Whatever the root table has for the item: the root's own, or
+            // an ancestor's block or default.
+            let (owner, args) = match root_methods.iter().find(|r| r.name == m.name) {
+                Some(r) => (r.owner.clone(), r.owner_args.clone()),
+                None => (root_key.clone(), root_args.clone()),
+            };
+            let method = self.method_of(concrete, &owner, &args, &m.name);
             slots.push(method.as_global_value().as_pointer_value().into());
         }
         let name = format!(

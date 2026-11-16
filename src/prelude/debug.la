@@ -107,3 +107,13 @@ impl Display for f64 { fun show(self): string = to_string(self); }
 impl Display for bool { fun show(self): string = to_string(self); }
 impl Display for char { fun show(self): string = to_string(self); }
 impl Display for string { fun show(self): string = self; }
+
+/**
+ * An error a program can show: anything with `Display` that says it is an
+ * error. `Result<T, Error>` holds any of them, and `?` converts a concrete
+ * error into one; `"{e}"` shows it.
+ */
+interface Error: Display {}
+
+/** A message is an error: `Result<T, string>` converts with `?`. */
+impl Error for string {}

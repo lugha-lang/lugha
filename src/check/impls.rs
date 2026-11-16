@@ -82,6 +82,9 @@ pub fn is_operator(key: &str) -> bool {
     )
 }
 
+/// The prelude's error interface, `Error: Display`.
+pub(super) const ERROR: &str = "$prelude.Error";
+
 /// The module part of an item's key: `geo` for `geo.Circle`, `""` for an
 /// item of the main file.
 fn module_of(key: &str) -> &str {
@@ -130,9 +133,16 @@ impl Checker {
                 super::derive::DISPLAY,
                 super::collections::FROM_ENTRIES,
                 super::collections::FROM_ITEMS,
+                ERROR,
             ]
             .contains(&key)
             || is_operator(key)
+    }
+
+    /// True for a prelude interface met only through `impl I for T`:
+    /// `Display`, `Error` and the collection literals' interfaces.
+    pub(super) fn prelude_nominal(&self, key: &str) -> bool {
+        module_of(key) == "$prelude" && self.nominal(key) && !is_operator(key)
     }
 
     /// True for an interface a type meets only through `impl I for T`:
@@ -144,6 +154,7 @@ impl Checker {
             super::derive::DISPLAY,
             super::collections::FROM_ENTRIES,
             super::collections::FROM_ITEMS,
+            ERROR,
         ];
         (module_of(key) != "$prelude" || prelude_nominal.contains(&key) || is_operator(key))
             && !self.derives.derivable(key)

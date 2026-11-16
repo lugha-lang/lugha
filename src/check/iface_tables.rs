@@ -17,6 +17,10 @@ pub struct InterfaceMethod {
     pub mutable: bool,
     pub params: Vec<Type>,
     pub ret: Type,
+    /// The interface that declares it, itself or one it extends, and that
+    /// interface's arguments: whose block or default fills the slot.
+    pub owner: String,
+    pub owner_args: Vec<Type>,
 }
 
 /// An interface as codegen needs it: its type parameters' names and
@@ -36,6 +40,7 @@ impl InterfaceShape {
             .map(|m| InterfaceMethod {
                 params: m.params.iter().map(|p| p.substitute(&map)).collect(),
                 ret: m.ret.substitute(&map),
+                owner_args: m.owner_args.iter().map(|a| a.substitute(&map)).collect(),
                 ..m.clone()
             })
             .collect()
@@ -48,8 +53,9 @@ impl Checker {
     /// calls them directly: a generic type's methods at its arguments, a
     /// type parameter's through its bound in each instance.
     pub(super) fn conversion_uses(&mut self, expr: &Expr, ty: &Type, interface: &Applied) {
-        let items = self.items(interface);
-        for item in items {
+        // An ancestor's item comes from the ancestor's block or default.
+        for (owner, item) in self.value_items(interface) {
+            let interface = &owner;
             let name = &item.name;
             // A built-in type's block item: `impl Show for f64`.
             if let Some(target) = self.builtin_block(&interface.key, ty).and_then(|_| {
@@ -113,26 +119,32 @@ impl Checker {
     /// Every interface's methods, for `Checked.interfaces`. Interfaces with
     /// an associated function are never values, so they have no tables.
     pub(super) fn interface_methods(&self) -> HashMap<String, InterfaceShape> {
-        let methods = |items: &[super::interfaces::Requirement]| {
-            items
-                .iter()
-                .filter_map(|r| {
-                    Some(InterfaceMethod {
-                        name: r.name.clone(),
-                        mutable: r.receiver?,
-                        params: r.params.clone(),
-                        ret: r.ret.clone(),
-                    })
-                })
-                .collect()
-        };
         self.interfaces
             .iter()
-            .filter(|(_, info)| info.not_value.is_none() && info.uses_self.is_none())
+            .filter(|(key, _)| self.value_blockers(key) == (None, None))
             .map(|(key, info)| {
+                // In the interface's own parameters, ancestors' items first.
+                let applied = Applied {
+                    key: key.clone(),
+                    args: super::generics::params(&info.generics),
+                };
+                let methods = self
+                    .value_items(&applied)
+                    .into_iter()
+                    .filter_map(|(owner, r)| {
+                        Some(InterfaceMethod {
+                            name: r.name.clone(),
+                            mutable: r.receiver?,
+                            params: r.params.clone(),
+                            ret: r.ret.clone(),
+                            owner: owner.key,
+                            owner_args: owner.args,
+                        })
+                    })
+                    .collect();
                 let shape = InterfaceShape {
                     params: info.generics.iter().map(|g| g.name.clone()).collect(),
-                    methods: methods(&info.items),
+                    methods,
                 };
                 (key.clone(), shape)
             })

@@ -1,0 +1,11 @@
+struct P {}
+impl Display for P { fun show(self): string = "p"; }
+
+interface Named { fun name(self): string; }
+interface Greeter: Named { fun greet(self): string; }
+
+fun main() {
+    let d: Display = P {};
+    let e: Error = d;
+    let n: Named = P {};
+}

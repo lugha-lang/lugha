@@ -42,7 +42,15 @@ impl Checker {
         let prelude = format!("$prelude.{name}");
         let known = (matches!(
             name,
-            "Iter" | "Display" | "Debug" | "Eq" | "Key" | "Ord" | "FromEntries" | "FromItems"
+            "Iter"
+                | "Display"
+                | "Debug"
+                | "Eq"
+                | "Key"
+                | "Ord"
+                | "FromEntries"
+                | "FromItems"
+                | "Error"
         ) || is_operator_bound(name))
             && self.interfaces.contains_key(&prelude);
         if module.is_none() && known && !declared {

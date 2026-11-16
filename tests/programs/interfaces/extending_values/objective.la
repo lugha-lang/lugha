@@ -1,0 +1,41 @@
+// Errors as values, and interfaces that extend others as value types.
+struct ParseError { text: string }
+impl Display for ParseError { fun show(self): string = "not a number: {self.text}"; }
+impl Error for ParseError {}
+
+fun parse(s: string): Result<i64, ParseError> {
+    match parse_i64(s) {
+        .Some(n) => Ok(n),
+        .None => Err(ParseError { text: s }),
+    }
+}
+
+fun total(a: string, b: string): Result<i64, Error> {
+    let x = parse(a)?;                      // a ParseError becomes an Error
+    let y = check(b)?;                      // so does a string
+    Ok(x + y)
+}
+
+fun check(s: string): Result<i64, string> = if s == "" { Err("empty") } else { Ok(s.len) };
+
+interface Named { fun name(self): string; }
+interface Greeter: Named { fun greet(self): string = "hello, {self.name()}"; }
+struct Ann {}
+impl Named for Ann { fun name(self): string = "Ann"; }
+impl Greeter for Ann {}
+
+fun main() {
+    match total("4", "") {
+        .Ok(n) => println(n),
+        .Err(e) => println("failed: {e}"),  // Error is Display: prints `failed: empty`
+    }
+    match total("x", "ab") {
+        .Ok(n) => println(n),
+        .Err(e) => println(e.show()),       // not a number: x
+    }
+    let g: Greeter = Ann {};                // was E0464
+    println(g.greet());                     // hello, Ann
+    println(g.name());                      // Named's item, through Greeter's table
+    let n: Named = g;                       // a Greeter value is a Named value
+    println(n.name());
+}

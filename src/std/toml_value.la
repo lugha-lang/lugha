@@ -71,6 +71,13 @@ impl TomlError {
     public fun message(self): string = "{self.detail} (line {self.line}, column {self.column})";
 }
 
+impl Display for TomlError {
+    /** Printed as its message. */
+    fun show(self): string = self.message();
+}
+
+impl Error for TomlError {}
+
 /** How much `parse_with` accepts (`limits()` gives the defaults). */
 public struct Limits {
     /** The text's size in bytes (1048576). */

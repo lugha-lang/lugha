@@ -124,8 +124,18 @@ impl Checker {
         if self.builtin_implements(arg, interface) {
             return Vec::new();
         }
+        // An interface value meets a prelude interface met only by `impl`
+        // (`Error`) when it is its own or one it extends.
+        if let Type::Interface(key, _) = arg
+            && self.prelude_nominal(&interface.key)
+        {
+            return match self.extends_or_is(key, &interface.key) {
+                true => Vec::new(),
+                false => vec![format!("`{key}` doesn't extend `{interface}`")],
+            };
+        }
         // A nominal interface is met only through `impl I for T`; a type
-        // parameter and an interface value still offer their items.
+        // parameter still offers its items.
         if self.nominal(&interface.key) && !matches!(arg, Type::Param(_) | Type::Interface(..)) {
             return match self.impl_for(arg, interface) {
                 Some(entry) if super::impls::is_operator(&interface.key) => {
@@ -184,9 +194,15 @@ impl Checker {
                 Some(_) => return Offer::Mismatched,
                 None => return Offer::Missing,
             },
-            // An interface value offers what its interface declares.
+            // An interface value offers what its interface declares, its
+            // ancestors' items included.
             Type::Interface(..) => {
-                let items = self.items_for(&Applied::of(arg).expect("an interface type"), arg);
+                let applied = Applied::of(arg).expect("an interface type");
+                let items: Vec<Requirement> = self
+                    .value_items(&applied)
+                    .into_iter()
+                    .map(|(_, r)| r)
+                    .collect();
                 return match items.iter().find(|r| r.name == req.name) {
                     Some(item) if item.same(req) => Offer::Matches,
                     Some(_) => Offer::Mismatched,

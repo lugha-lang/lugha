@@ -1,0 +1,43 @@
+// Three levels, a default at each, ancestors' items through any level,
+// a type pattern on an `Error`, and `?` from a std error.
+import std.json;
+
+interface Base { fun id(self): i64; fun label(self): string = "#{self.id()}"; }
+interface Mid: Base { fun twice(self): i64 = self.id() * 2; }
+interface Top: Mid { fun all(self): string = "{self.label()} {self.twice()}"; }
+
+struct Item { n: i64 }
+impl Base for Item { fun id(self): i64 = self.n; }
+impl Mid for Item {}
+impl Top for Item {}
+
+struct Odd { why: string }
+impl Display for Odd { fun show(self): string = "odd: {self.why}"; }
+impl Error for Odd {}
+
+fun first(text: string): Result<i64, Error> {
+    let v = json.parse(text)?;
+    match v {
+        .Integer(n) if n % 2 == 1 => Err(Odd { why: "{n}" }),
+        .Integer(n) => Ok(n),
+        _ => Err("not a number"),
+    }
+}
+
+fun main() {
+    let t: Top = Item { n: 7 };
+    println(t.all());
+    let m: Mid = t;
+    println(m.twice());
+    let b: Base = m;
+    println(b.label());
+    for text of ["4", "3", "true", "[1"] {
+        match first(text) {
+            .Ok(n) => println("ok {n}"),
+            .Err(e) => match e {
+                o: Odd => println("an odd one: {o.why}"),
+                _ => println("error: {e}"),
+            },
+        }
+    }
+}

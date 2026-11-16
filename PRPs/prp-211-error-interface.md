@@ -1,6 +1,6 @@
 ## FEATURE: Interfaces that extend others are value types (E0464 retired), and the prelude's `Error: Display`; milestone 179, in v18's Phase 1.
 
-**Status:** proposed 2026-11-16.
+**Status:** proposed 2026-11-16. Approved 2026-11-16.
 
 ## OBJECTIVE
 ```lugha
@@ -79,12 +79,19 @@ fun main() {
 - Changing which interfaces may be values for other reasons (`Self` in an item, E0421-style rules stay).
 
 ## TESTS
-- [ ] `tests/programs/interfaces/extending_values/`: the OBJECTIVE (runs); a three-level chain with defaults at each level; an ancestor value from a descendant; a type pattern on an `Error` value; `?` from a std error.
-- [ ] Checker unit tests: calls through ancestors, conversions both ways (a `Named` isn't a `Greeter`: E0403), bounds.
-- [ ] Codegen unit test: a table's slot order.
-- [ ] The full `cargo test`.
+- [x] `tests/programs/interfaces/extending_values/`: the OBJECTIVE (runs); a three-level chain with defaults at each level; an ancestor value from a descendant; a type pattern on an `Error` value; `?` from a std error.
+- [x] Checker unit tests: calls through ancestors, conversions both ways (a `Named` isn't a `Greeter`: E0403), bounds.
+- [x] Codegen unit test: a table's slot order.
+- [x] The full `cargo test`.
 
 ## ACCEPTANCE
-- [ ] The OBJECTIVE prints `failed: empty`, `not a number: x`, `hello, Ann`, `Ann`, `Ann`.
-- [ ] The full `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
-- [ ] Spec, CHANGELOG and the error pages updated.
+- [x] The OBJECTIVE prints `failed: empty`, `not a number: x`, `hello, Ann`, `Ann`, `Ann`.
+- [x] The full `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
+- [x] Spec, CHANGELOG and the error pages updated.
+
+## CHANGES DURING THE BUILD
+- **Between program interfaces, conversion stays by items** (the v6 rule): a value of interface `J` converts to another program interface `I` when `J` declares `I`'s items, now counting `J`'s ancestors' items. Only the prelude's interfaces met by `impl` (`Display`, `Error`, `FromEntries`, `FromItems`) ask for ancestry, so a `Display` value isn't an `Error`.
+- **An ancestor's blocking item counts:** an interface extending one with an associated function or an item using `Self` (`interface Scaled: Mul<f64>`) is still not a type (E0425, E0427), naming the ancestor's item.
+- **Each table slot records the interface that declares its item** (`InterfaceMethod.owner`), so a slot is filled by that interface's block or default; conversions between interfaces read it from the root table.
+- **std:** `JsonError`, `TomlError` and `CryptoError` gained `Display` (their message) along with `Error`.
+- **Tests:** `interfaces/eq_key/e0464` became a valid program, so it moved to `interfaces/extending_values`.

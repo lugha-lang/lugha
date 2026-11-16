@@ -9,9 +9,14 @@ impl Checker {
     /// What `from` lacks to convert to `to`, both interfaces at their
     /// arguments, one entry per item: empty when it declares them all.
     pub(super) fn undeclared(&self, from: &Applied, to: &Applied) -> Vec<String> {
-        let declared = self.items(from);
+        // A prelude interface met only by `impl` (`Error`) is only the value
+        // of one that extends it; a program's interfaces convert by items.
+        if self.prelude_nominal(&to.key) && !self.extends_or_is(&from.key, &to.key) {
+            return vec![format!("`{from}` doesn't extend `{to}`")];
+        }
+        let declared: Vec<_> = self.value_items(from).into_iter().map(|(_, r)| r).collect();
         let mut problems = Vec::new();
-        for req in self.items(to) {
+        for (_, req) in self.value_items(to) {
             match declared.iter().find(|d| d.name == req.name) {
                 Some(d) if d.same(&req) => {}
                 Some(_) => problems.push(format!("`{}` is declared differently", req.name)),

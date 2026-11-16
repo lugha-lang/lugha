@@ -1,0 +1,17 @@
+error[E0422]: `Display` doesn't declare everything `Error` needs
+  --> tests/programs/interfaces/extending_values/not_extended.la:9:20
+  |
+9 |     let e: Error = d;
+  |                    ^
+  |
+  = help: `Display` doesn't extend `Error`
+
+error[E0422]: `P` doesn't implement `Named`
+   --> tests/programs/interfaces/extending_values/not_extended.la:10:20
+   |
+10 |     let n: Named = P {};
+   |                    ^^^^
+   |
+   = help: add `impl Named for P { … }`
+
+For more about E0422, run `lughac explain E0422`.

@@ -28,8 +28,10 @@ impl Checker {
         if let Some(m) = module {
             self.module_named(m.span, &m.name);
         }
-        let info = &self.interfaces[&key];
-        if let Some(item) = info.not_value.clone() {
+        // An ancestor's items are the value's too: an associated function or
+        // `Self` there rules it out as here.
+        let (not_value, uses_self) = self.value_blockers(&key);
+        if let Some(item) = not_value {
             let shown = module.map_or_else(
                 || name.name.clone(),
                 |m| format!("{}.{}", m.name, name.name),
@@ -37,17 +39,7 @@ impl Checker {
             self.report(errors::interface_not_value(&shown, &item, span));
             return Some(Type::Error);
         }
-        // Values of an interface that extends another come later.
-        if let Some(first) = info.extends.first() {
-            let shown = module.map_or_else(
-                || name.name.clone(),
-                |m| format!("{}.{}", m.name, name.name),
-            );
-            let extended = super::derive_with::shown_interface(&first.key);
-            self.report(errors::extending_not_value(&shown, &extended, span));
-            return Some(Type::Error);
-        }
-        if let Some(item) = info.uses_self.clone() {
+        if let Some(item) = uses_self {
             let shown = module.map_or_else(
                 || name.name.clone(),
                 |m| format!("{}.{}", m.name, name.name),

@@ -133,18 +133,6 @@ pub(in crate::check) fn extended_missing(
     ))
 }
 
-/// E0464: interface `name`, which extends `extended`, used as a type.
-pub(in crate::check) fn extending_not_value(name: &str, extended: &str, span: Span) -> Diagnostic {
-    Diagnostic::error(
-        "E0464",
-        format!("`{name}` extends `{extended}`, so it can't be a type"),
-        span,
-    )
-    .with_help(format!(
-        "use it as a bound: `fun f<T: {name}>(x: T)`, or use an interface that extends none"
-    ))
-}
-
 /// E0461: a second `impl interface for ty`; the first is at `first`.
 pub(in crate::check) fn duplicate_impl(
     interface: &str,

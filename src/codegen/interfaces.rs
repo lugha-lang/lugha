@@ -132,7 +132,8 @@ impl<'ctx> Lowerer<'ctx> {
                 .into(),
         ];
         for m in self.interfaces[key].methods_at(args) {
-            let method = self.method_of(ty, key, args, &m.name);
+            // An ancestor's item: the ancestor's block or default.
+            let method = self.method_of(ty, &m.owner, &m.owner_args, &m.name);
             slots.push(method.as_global_value().as_pointer_value().into());
         }
         let table_type = self.table_type(key);
