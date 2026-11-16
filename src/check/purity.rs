@@ -40,8 +40,6 @@ fn intrinsic_reason(name: &str) -> Option<&'static str> {
     Some(match name {
         "print" | "println" | "eprint" | "eprintln" | "flush" | "debug" => "prints",
         "read_line" | "read_stdin_bytes" => "reads input",
-        "read_file" | "read_bytes" => "reads files",
-        "write_file" | "append_file" | "write_bytes" | "append_bytes" => "writes files",
         "args" => "reads the command line",
         "exit" => "ends the program",
         "c_read" | "c_write" => "uses C memory",

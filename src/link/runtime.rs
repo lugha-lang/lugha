@@ -43,16 +43,14 @@ pub const CRYPTO_SOURCE: &str = concat!(
 );
 
 /// Every function codegen calls in [`CRYPTO_SOURCE`].
-pub const CRYPTO_SYMBOLS: [&str; 17] = [
+pub const CRYPTO_SYMBOLS: [&str; 15] = [
     "lugha_rt_crypto_sha256",
     "lugha_rt_crypto_sha256_new",
     "lugha_rt_crypto_sha256_update",
     "lugha_rt_crypto_sha256_finish",
-    "lugha_rt_crypto_seed",
     "lugha_rt_crypto_ed25519_public",
     "lugha_rt_crypto_ed25519_sign",
     "lugha_rt_crypto_ed25519_verify",
-    "lugha_rt_crypto_random",
     "lugha_rt_crypto_equal",
     "lugha_rt_crypto_hkdf",
     "lugha_rt_crypto_seal",
@@ -224,9 +222,9 @@ mod tests {
         };
         assert!(!read(false, false).contains("openssl"));
         let tls = read(true, false);
-        assert!(tls.contains("#include <openssl/ssl.h>") && !tls.contains("openssl/rand.h"));
+        assert!(tls.contains("#include <openssl/ssl.h>") && !tls.contains("openssl/hpke.h"));
         let crypto = read(false, true);
-        assert!(crypto.contains("#include <openssl/rand.h>") && !crypto.contains("openssl/ssl.h"));
+        assert!(crypto.contains("#include <openssl/hpke.h>") && !crypto.contains("openssl/ssl.h"));
     }
 
     #[test]

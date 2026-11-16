@@ -5,7 +5,7 @@
  * limits — its size, nesting depth and count of values (`Limits`) — and
  * every mistake, contradiction or overflow is a `TomlError` with its line
  * and column; nothing panics on any input. To read a file, pass
- * `read_file(path)`'s text.
+ * a `Dir`'s `read_file(path)`'s text.
  */
 public import std.$toml_value { * };
 import std.$toml_parse { parse_document };

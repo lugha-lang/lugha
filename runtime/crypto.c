@@ -1,7 +1,7 @@
 /*
  * crypto.c — `std.crypto`'s built-ins: SHA-256,
- * Ed25519, random bytes, constant-time comparison, HKDF, ChaCha20-Poly1305
- * and X25519, through the system's
+ * Ed25519, constant-time comparison, HKDF, ChaCha20-Poly1305 and X25519,
+ * through the system's
  * OpenSSL (3.2 or newer). Appended to the runtime only for programs that load
  * `std.crypto` (they link -lcrypto); every other program never sees it.
  *
@@ -11,9 +11,9 @@
  * OpenSSL's error queue read or cleared, on every path. Lengths are checked
  * here too, though `std.crypto` checks them first.
  *
- * Secrets: the seed this file makes is wiped from its stack buffer with
- * `OPENSSL_cleanse`, derived keys are wiped from their buffer, and OpenSSL
- * clears its key objects when they are freed.
+ * Secrets: derived keys are wiped from their buffer with `OPENSSL_cleanse`,
+ * and OpenSSL clears its key objects when they are freed. Random secrets
+ * come from the program's `Entropy`, not from here.
  * The bytes handed to Lugha live in collected memory, which isn't wiped.
  */
 #include <openssl/crypto.h>
@@ -22,7 +22,6 @@
 #include <openssl/evp.h>
 #include <openssl/hpke.h>
 #include <openssl/kdf.h>
-#include <openssl/rand.h>
 
 /* X25519 and ChaCha20-Poly1305 are in any OpenSSL 3, but Lugha needs one
  * floor for everything OpenSSL does; the driver turns this message into E0332. */
@@ -34,7 +33,6 @@ enum {
     CRYPTO_KEY = 32,
     CRYPTO_SIGNATURE = 64,
     CRYPTO_DIGEST = 32,
-    CRYPTO_MAX_RANDOM = 1048576,
     CRYPTO_MAX_HKDF = 255 * CRYPTO_DIGEST,
     CRYPTO_NONCE = 12,
     CRYPTO_TAG = 16,
@@ -137,19 +135,6 @@ LughaArray *lugha_rt_crypto_sha256_finish(void *hasher) {
     return bytes_of(md, CRYPTO_DIGEST);
 }
 
-/* `$os.crypto_seed()`: a 32-byte Ed25519 secret seed from OpenSSL's CSPRNG
- * for private values; the stack copy is wiped. */
-int32_t lugha_rt_crypto_seed(LughaArray **out, LughaString **error) {
-    unsigned char seed[CRYPTO_KEY];
-    if (RAND_priv_bytes(seed, CRYPTO_KEY) != 1) {
-        OPENSSL_cleanse(seed, sizeof seed);
-        return crypto_error(error, "no randomness available");
-    }
-    *out = bytes_of(seed, CRYPTO_KEY);
-    OPENSSL_cleanse(seed, sizeof seed);
-    return 1;
-}
-
 /* The Ed25519 key of a 32-byte secret seed; NULL (with OpenSSL's reason
  * queued) when OpenSSL refuses it. */
 static EVP_PKEY *crypto_secret(const LughaArray *secret) {
@@ -223,19 +208,6 @@ int64_t lugha_rt_crypto_ed25519_verify(const LughaArray *pub, const LughaArray *
     EVP_PKEY_free(key);
     ERR_clear_error();
     return valid;
-}
-
-/* `$os.crypto_random(n)`: `n` bytes (0 to 1 MiB) from OpenSSL's CSPRNG. */
-int32_t lugha_rt_crypto_random(int64_t n, LughaArray **out, LughaString **error) {
-    if (n < 0 || n > CRYPTO_MAX_RANDOM) {
-        return net_error(error, "random byte count must be from 0 to 1048576");
-    }
-    unsigned char *buffer = lugha_rt_alloc(n > 0 ? n : 1);
-    if (RAND_bytes(buffer, (int)n) != 1) {
-        return crypto_error(error, "no randomness available");
-    }
-    *out = bytes_of(buffer, n);
-    return 1;
 }
 
 /* `$os.crypto_equal(a, b)`: 1 when the arrays hold the same bytes, compared

@@ -10,22 +10,16 @@ use crate::format;
 
 /// The input and I/O intrinsics, checked here rather than in
 /// `check::call`, except `eprint`/`eprintln`, which follow `print`'s rules.
-pub(super) const INPUT: [&str; 20] = [
+pub(super) const INPUT: [&str; 14] = [
     "args",
     "parse_i64",
     "parse_u64",
     "parse_f64",
     "read_line",
-    "read_file",
-    "write_file",
-    "append_file",
     "eprint",
     "eprintln",
     "exit",
     // Bytes.
-    "read_bytes",
-    "write_bytes",
-    "append_bytes",
     "read_stdin_bytes",
     "string_from_utf8",
     // C memory.
@@ -65,10 +59,6 @@ impl Checker {
             "parse_f64" => (vec![Type::String], Type::Option(Box::new(Type::F64))),
             "parse_u64" => (vec![Type::String], Type::Option(Box::new(Type::U64))),
             "read_line" => (Vec::new(), Type::Option(Box::new(Type::String))),
-            "read_file" => (vec![Type::String], result(Type::String)),
-            "write_file" | "append_file" => (vec![Type::String, Type::String], result(Type::I64)),
-            "read_bytes" => (vec![Type::String], result(bytes())),
-            "write_bytes" | "append_bytes" => (vec![Type::String, bytes()], result(Type::I64)),
             "read_stdin_bytes" => (Vec::new(), bytes()),
             "string_from_utf8" => (vec![bytes()], result(Type::String)),
             // C memory: copies only, through a `CPtr`.

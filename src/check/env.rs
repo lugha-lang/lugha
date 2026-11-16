@@ -14,6 +14,8 @@ pub(super) const INTRINSICS: [&str; 6] =
 /// True for every intrinsic name, the input intrinsics (`check::input`) included.
 pub(super) fn is_intrinsic(name: &str) -> bool {
     INTRINSICS.contains(&name)
+        // Kept reserved after they were removed, so a call is E0471 with help.
+        || super::entry::AMBIENT.contains(&name)
         || super::input::INPUT.contains(&name)
         || super::test_fns::ASSERTIONS.contains(&name)
         || super::includes::INCLUDES.contains(&name)

@@ -1,6 +1,6 @@
 /*
- * env.c — part of lugha_rt.c: the environment for `Env`, and the unused
- * `chdir`. Values are returned as bytes; the prelude checks them as UTF-8.
+ * env.c — part of lugha_rt.c: the environment for `Env`. Values are
+ * returned as bytes; the prelude checks them as UTF-8.
  *
  * A fragment, not compiled on its own: lughac's link.rs joins it after the
  * core (lugha_rt.c), whose includes (`<stdlib.h>`, `<unistd.h>`,
@@ -21,20 +21,4 @@ int32_t lugha_rt_env(const LughaString *name, LughaArray **out) {
     }
     *out = bytes_of(value, (int64_t)strlen(value));
     return 1;
-}
-
-/* `$os.chdir(path)`: 1 after making `path` the working
- * directory, or 0 and the system's message; a NUL byte would cut the path
- * short, so it is refused. */
-int32_t lugha_rt_chdir(const LughaString *path, LughaString **error) {
-    const char *message = NULL;
-    if (memchr(path->bytes, 0, (size_t)path->len) != NULL) {
-        message = "path contains a NUL byte";
-    } else if (chdir(path->bytes) != 0) {
-        message = strerror(errno);
-    } else {
-        return 1;
-    }
-    *error = string_of(message, (int64_t)strlen(message));
-    return 0;
 }

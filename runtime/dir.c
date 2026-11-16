@@ -233,7 +233,7 @@ int32_t lugha_rt_dir_read_bytes(void *dir, const LughaString *path, LughaArray *
 }
 
 /* `$os.dir_read_text(dir, path)`: the whole file as text, its bytes as
- * they are (as `read_file` always gave them). */
+ * they are, never checked as UTF-8 here. */
 int32_t lugha_rt_dir_read_text(void *dir, const LughaString *path, LughaString **out,
                                LughaString **error) {
     int fd = dir_open_beneath(dir, path, O_RDONLY, 0, error);

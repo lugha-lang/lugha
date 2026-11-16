@@ -56,11 +56,9 @@ pub const RUNTIME_PARTS: [(&str, &str); 25] = [
 ];
 
 /// Every runtime function codegen may call; `lugha_rt.c` defines them all.
-pub const RUNTIME_SYMBOLS: [&str; 113] = [
+pub const RUNTIME_SYMBOLS: [&str; 108] = [
     "lugha_rt_init",
     "lugha_rt_read_line",
-    "lugha_rt_read_file",
-    "lugha_rt_write_file",
     "lugha_rt_eprint",
     "lugha_rt_exit",
     "lugha_rt_str_slice",
@@ -85,13 +83,10 @@ pub const RUNTIME_SYMBOLS: [&str; 113] = [
     "lugha_rt_fmt_int",
     "lugha_rt_fmt_float",
     "lugha_rt_pad",
-    "lugha_rt_read_bytes",
-    "lugha_rt_write_bytes",
     "lugha_rt_read_stdin_bytes",
     "lugha_rt_str_to_bytes",
     "lugha_rt_str_from_bytes",
     "lugha_rt_env",
-    "lugha_rt_chdir",
     "lugha_rt_spawn",
     "lugha_rt_show_enter",
     "lugha_rt_show_leave",

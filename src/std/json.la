@@ -6,7 +6,7 @@
  * within limits — its size, nesting depth and count of values (`Limits`) —
  * and every mistake, duplicate key or overflow is a `JsonError` with its
  * line and column; nothing panics on any input. To read a file, pass
- * `read_file(path)`'s text.
+ * a `Dir`'s `read_file(path)`'s text.
  */
 public import std.$json_value { * };
 import std.$json_parse { parse_text };

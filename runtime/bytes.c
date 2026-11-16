@@ -1,5 +1,5 @@
 
-/* Bytes: binary files, stdin as bytes, and
+/* Bytes: stdin as bytes, and
  * conversions between `string` and `u8[]`. Text never holds invalid UTF-8:
  * the prelude's `text_from_utf8` checks bytes before
  * `lugha_rt_str_from_bytes` turns them into a string. */
@@ -13,24 +13,6 @@ static LughaArray *bytes_of(const void *data, int64_t len) {
         memcpy(array->elems, data, (size_t)len);
     }
     return array;
-}
-
-/* `read_bytes(path)`: 1 and the file's bytes in `*out`, or 0 and the
- * system's message in `*error`. */
-int32_t lugha_rt_read_bytes(const LughaString *path, LughaArray **out, LughaString **error) {
-    LughaString *text = NULL;
-    if (!lugha_rt_read_file(path, &text, error)) {
-        return 0;
-    }
-    *out = bytes_of(text->bytes, text->len);
-    return 1;
-}
-
-/* `write_bytes(path, data)` (or `append_bytes` when `append` is 1). */
-int32_t lugha_rt_write_bytes(const LughaString *path, const LughaArray *data, int32_t append,
-                             int64_t *count, LughaString **error) {
-    LughaString *text = string_of((const char *)data->elems, data->len);
-    return lugha_rt_write_file(path, text, append, count, error);
 }
 
 /* `read_stdin_bytes()`: everything left on stdin. */

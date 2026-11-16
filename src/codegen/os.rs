@@ -47,14 +47,6 @@ impl<'ctx> Lowerer<'ctx> {
                 let none = self.construct_values(&option, "None", Vec::new());
                 self.choose(found, some, none)
             }
-            // `Ok(0)` or `Err(message)`.
-            "chdir" => {
-                let path = self.get(&args[0], &Type::String)?;
-                let (zero, error) = (self.out_slot(&Type::I64), self.out_slot(&Type::String));
-                let params = [Type::String, Type::String];
-                let ok = self.call_flag(&format!("lugha_rt_{op}"), &params, &[path, error.into()]);
-                self.result(call, ok, (zero, &Type::I64), error)
-            }
             // `std.process`: `Ok((code, stdout, stderr))` or `Err(reason)`.
             "start" => {
                 let cmd = self.get(&args[0], &Type::String)?;

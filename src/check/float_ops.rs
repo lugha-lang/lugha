@@ -51,8 +51,6 @@ pub fn os_signature(op: &str) -> Option<(Vec<Type>, Type)> {
         // The system zone's offset at a moment, in seconds.
         "local_offset" => (vec![Type::I64], result(Type::I64)),
         "env" => (vec![Type::String], Type::Option(Box::new(bytes()))),
-        // Unused: the working directory can't change.
-        "chdir" => (vec![Type::String], result(Type::I64)),
         // A `Dir`: its folder as an opaque handle, every path opened beneath
         // it (`runtime/dir.c`).
         "dir_cwd" => (Vec::new(), result(cptr())),
@@ -170,11 +168,9 @@ pub fn os_signature(op: &str) -> Option<(Vec<Type>, Type)> {
             Type::Unit,
         ),
         "crypto_sha256_finish" => (vec![Type::Handle(super::input::CPTR.to_string())], bytes()),
-        "crypto_seed" => (Vec::new(), result(bytes())),
         "crypto_ed25519_public" => (vec![bytes()], result(bytes())),
         "crypto_ed25519_sign" => (vec![bytes(), bytes()], result(bytes())),
         "crypto_ed25519_verify" => (vec![bytes(), bytes(), bytes()], Type::I64),
-        "crypto_random" => (vec![Type::I64], result(bytes())),
         "crypto_equal" => (vec![bytes(), bytes()], Type::I64),
         "crypto_hkdf" => (vec![bytes(), bytes(), bytes(), Type::I64], result(bytes())),
         "crypto_seal" | "crypto_open" | "crypto_hpke_seal" | "crypto_hpke_open" => {

@@ -1753,7 +1753,7 @@ The compiler, `lughac`, is written in Rust with inkwell. It turns one `.la` file
 | `lugha_rt_print_*` / `lugha_rt_to_string_*` | One per primitive type (plus `lugha_rt_print_str`), for the intrinsics; `bool` and `u8` arguments are passed zero-extended to 32 bits; `u32` goes to the `u64` functions zero-extended (v7), as does `u16`, and `i8`/`i16` go to the `i64` ones sign-extended (v10) |
 | `lugha_rt_str_quote(s)` | `s` quoted and escaped, for strings inside a printed value (v12) |
 | `lugha_rt_os_seed()` | 64 bits of OS entropy for the real `Entropy` (v18; `std.random`'s `from_os()` before): `getrandom`, else `/dev/urandom`, else a panic |
-| `lugha_rt_env(name, out)` / `lugha_rt_chdir(path, error)` (v16) | `Env` (v18; `std.env` before; `chdir` now unused): a variable's bytes, or 0 when unset or the name holds a NUL |
+| `lugha_rt_env(name, out)` | `Env` (v18; `std.env` before): a variable's bytes, or 0 when unset or the name holds a NUL |
 | `lugha_rt_dir_cwd` / `lugha_rt_dir_open` / `lugha_rt_dir_sub` / `lugha_rt_dir_read_bytes` / `lugha_rt_dir_read_text` / `lugha_rt_dir_write` / `lugha_rt_dir_list` / `lugha_rt_dir_make` / `lugha_rt_dir_remove` / `lugha_rt_dir_rename` / `lugha_rt_dir_kind` / `lugha_rt_dir_size` / `lugha_rt_dir_chmod` / `lugha_rt_dir_sync` / `lugha_rt_dir_file` / `lugha_rt_dir_path` | `Dir` (v18, milestone 186): every path opened beneath the folder's descriptor with `openat2` and `RESOLVE_BENEATH \| RESOLVE_NO_MAGICLINKS`, as above |
 | `lugha_rt_file_read(fd, max, out, error)` / `lugha_rt_file_write(fd, bytes, error)` / `lugha_rt_file_close(fd)` | `File`'s (v18; `std.fs`'s before) file streams (v17, milestone 146): one read, a write of every byte, a close, on a descriptor `lugha_rt_dir_file` opened |
 | `lugha_rt_spawn(cmd, args, input, mode, code, out, err, error)` | `Proc` (v18; `std.process` before): runs a program without a shell (mode 0 shares stdio, 1 captures with an empty stdin, 2 also writes `input`), and gives its code and output bytes, or 0 and why it couldn't start |
@@ -1762,10 +1762,9 @@ The compiler, `lughac`, is written in Rust with inkwell. It turns one `.la` file
 | `lugha_rt_args()` | A new `string[]` of the program's arguments (v3) |
 | `lugha_rt_parse_f64(s, out)` | Parse `s` into `*out`; return 1, or 0 for `None` (v3). `parse_i64` and `parse_u64` are prelude functions since v15 (milestone 62) |
 | `lugha_rt_str_slice(s, from, to, file, line, col)` | `s.slice(from, to)`: a new string of those bytes, or the bounds panic (v4) |
-| `lugha_rt_read_bytes` / `lugha_rt_write_bytes` / `lugha_rt_read_stdin_bytes` / `lugha_rt_str_to_bytes` / `lugha_rt_str_from_bytes` | Bytes (v14): file and stdin bytes, a string's bytes, failing ones by flag and out-pointers as the v4 file functions do; and (v15) checked bytes as a new string, behind the prelude's `$string.from_bytes`. The UTF-8 check behind `string_from_utf8` and `s.chars()` is one prelude decoder, `utf8_decode` (milestone 62) |
+| `lugha_rt_read_stdin_bytes` / `lugha_rt_str_to_bytes` / `lugha_rt_str_from_bytes` | Bytes (v14): stdin's bytes, a string's bytes; and (v15) checked bytes as a new string, behind the prelude's `$string.from_bytes`. The UTF-8 check behind `string_from_utf8` and `s.chars()` is one prelude decoder, `utf8_decode` (milestone 62) |
 | `lugha_rt_print_char` / `lugha_rt_to_string_char` / `lugha_rt_char_quote` | A `char` written as UTF-8, as a string, and quoted for a built-in form (v14) |
 | `lugha_rt_read_line(out)` | `read_line()`: 1 and the line, or 0 at the end of input (v4) |
-| `lugha_rt_read_file(path, out, error)` / `lugha_rt_write_file(path, text, append, count, error)` | The file intrinsics: 1 and the value, or 0 and the C library's `strerror` message (v4) |
 | `lugha_rt_eprint(text, newline)` / `lugha_rt_exit(code)` | `eprint`/`eprintln` (values formatted first) and `exit`, each flushing stdout first (v4) |
 
 The runtime writes through C's `stdout` stream, so output from `print`/`println` and from libc functions such as `puts` appears in program order.

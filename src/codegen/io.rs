@@ -31,35 +31,6 @@ impl<'ctx> Lowerer<'ctx> {
                 let none = self.construct_values(&option, "None", Vec::new());
                 Ok(Value::Val(self.choose(ok, some, none)))
             }
-            "read_file" => {
-                let path = self.get(&args[0], &Type::String)?;
-                let (text, error) = (self.out_slot(&Type::String), self.out_slot(&Type::String));
-                let params = [Type::String, Type::String, Type::String];
-                let ok = self.call_flag(
-                    "lugha_rt_read_file",
-                    &params,
-                    &[path, text.into(), error.into()],
-                );
-                Ok(Value::Val(self.result(
-                    call,
-                    ok,
-                    (text, &Type::String),
-                    error,
-                )))
-            }
-            // Bytes, like their text versions.
-            "read_bytes" => {
-                let path = self.get(&args[0], &Type::String)?;
-                let bytes = Type::Array(Box::new(Type::U8));
-                let (data, error) = (self.out_slot(&bytes), self.out_slot(&Type::String));
-                let params = [Type::String, Type::String, Type::String];
-                let ok = self.call_flag(
-                    "lugha_rt_read_bytes",
-                    &params,
-                    &[path, data.into(), error.into()],
-                );
-                Ok(Value::Val(self.result(call, ok, (data, &bytes), error)))
-            }
             // C memory: copies through a `CPtr`.
             "c_read" => {
                 let cptr = Type::Handle("CPtr".to_string());
@@ -100,60 +71,11 @@ impl<'ctx> Lowerer<'ctx> {
                     .expect(POSITIONED);
                 Ok(Value::Void)
             }
-            "write_bytes" | "append_bytes" => {
-                let path = self.get(&args[0], &Type::String)?;
-                let bytes = Type::Array(Box::new(Type::U8));
-                let data = self.get(&args[1], &bytes)?;
-                let (count, error) = (self.out_slot(&Type::I64), self.out_slot(&Type::String));
-                let append = self
-                    .context
-                    .i32_type()
-                    .const_int(u64::from(name == "append_bytes"), false);
-                let params = [
-                    Type::String,
-                    Type::String,
-                    Type::I32,
-                    Type::String,
-                    Type::String,
-                ];
-                let values = [path, data, append.into(), count.into(), error.into()];
-                let ok = self.call_flag("lugha_rt_write_bytes", &params, &values);
-                Ok(Value::Val(self.result(
-                    call,
-                    ok,
-                    (count, &Type::I64),
-                    error,
-                )))
-            }
             "read_stdin_bytes" => Ok(Value::Val(self.call_runtime_value(
                 "lugha_rt_read_stdin_bytes",
                 &[],
                 &[],
             ))),
-            "write_file" | "append_file" => {
-                let path = self.get(&args[0], &Type::String)?;
-                let text = self.get(&args[1], &Type::String)?;
-                let (count, error) = (self.out_slot(&Type::I64), self.out_slot(&Type::String));
-                let append = self
-                    .context
-                    .i32_type()
-                    .const_int(u64::from(name == "append_file"), false);
-                let params = [
-                    Type::String,
-                    Type::String,
-                    Type::I32,
-                    Type::String,
-                    Type::String,
-                ];
-                let values = [path, text, append.into(), count.into(), error.into()];
-                let ok = self.call_flag("lugha_rt_write_file", &params, &values);
-                Ok(Value::Val(self.result(
-                    call,
-                    ok,
-                    (count, &Type::I64),
-                    error,
-                )))
-            }
             "eprint" | "eprintln" => {
                 let text = match args.first() {
                     Some(arg) => {
