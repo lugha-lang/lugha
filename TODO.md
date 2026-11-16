@@ -12,12 +12,12 @@ What's next. Shipped work is in CHANGELOG.md (and the spec's §11 milestone tabl
 - [ ] **JSON, later:** per-field options (renaming, skipping, defaults), an `@json` attribute, base64 bytes.
 - [ ] **Boxes and bytes** (v16 §12): editing a box in place (`r.with`); a bounds-checked byte buffer.
 - [ ] **`std.process`:** streaming pipes to a running child and timeouts (found with oyster). Needs the user's security review.
-- [ ] **A separate debug form, and parsing values back from text.** Also module paths in printed type names, so two modules' `Point`s print differently.
+- [ ] **Parsing values back from text.** Also module paths in printed type names, so two modules' `Point`s print differently.
 - [ ] **One-element tuples.**
-- [ ] **Explicit type arguments and `.len()`.**
+- [ ] **`.len()`** as a method beside the `.len` field.
 - [ ] **Format specifiers chosen at run time.**
 - [ ] **Literal patterns on `f64`.**
-- [ ] **Warnings:** an irrefutable `if let`, and a `show` of the wrong shape.
+- [ ] **Warnings:** an irrefutable `if let`.
 - [ ] **Small values stored inline in interface values** (an optimisation only).
 - [ ] **Packages, more:** a registry; `ssh` URLs; branches or commits as requirements; two versions of one package in a build; full version ranges and pre-release versions.
 - [ ] **Imports, more:** re-export chains (`m.v.w.X`), a `--package` flag, package-level (not `public`) re-exports.
