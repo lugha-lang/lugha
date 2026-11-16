@@ -13,13 +13,13 @@ impl Point { fun scale(self, k: f64): Point = Point { x: self.x * k }; }
 enum Shape { Circle(f64), Rect(f64, f64), Dot }
 fun twice(n: i64): i64 = n * 2;
 fun max<T: Ord>(a: T, b: T): T { if a > b { a } else { b } }
-fun main() {
+fun main(console: Console) {
     let p = Point { x: 1.0 };
     let s = Shape.Dot;
     let xs = [1, 2];
     let o: Option<i64> = Some(1);
     let r: Result<i64, string> = Ok(1);
-    println(p.x);
+    console.println(p.x);
 }
 ";
 
@@ -31,8 +31,8 @@ const SNIPPETS: &str =
 fn items(typed: &str, after: &str, snippets: bool) -> Vec<Value> {
     let t = Temp::with(&[("main.la", MAIN)]);
     let text = MAIN.replacen(
-        "    println(p.x);",
-        &format!("    {typed}{after}\n    println(p.x);"),
+        "    console.println(p.x);",
+        &format!("    {typed}{after}\n    console.println(p.x);"),
         1,
     );
     let before = &text[..text.find(&format!("    {typed}{after}\n")).unwrap() + 4 + typed.len()];

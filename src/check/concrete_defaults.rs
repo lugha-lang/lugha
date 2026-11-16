@@ -161,7 +161,7 @@ mod tests {
         ok(&format!(
             "{DESCRIBE}struct P {{ x: i64 }}\nimpl Describe for P {{ fun name(self): string = \"p\"; }}\n\
              enum L {{ Red, Green }}\nimpl Describe for L {{ fun name(self): string = \"l\"; }}\n\
-             fun main() {{ let s: string = P {{ x: 1 }}.describe(); println(L.Red.describe()); }}"
+             fun main(console: Console) {{ let s: string = P {{ x: 1 }}.describe(); console.println(L.Red.describe()); }}"
         ));
     }
 
@@ -191,7 +191,7 @@ mod tests {
             "{DESCRIBE}interface Other {{ fun describe(self): string = \"other\"; }}\n\
              struct P {{ x: i64 }}\nimpl Describe for P {{ fun name(self): string = \"p\"; }}\n\
              impl Other for P {{}}\n\
-             fun main() {{ println(P {{ x: 1 }}.describe()); println(Other.describe(P {{ x: 1 }})); }}"
+             fun main(console: Console) {{ console.println(P {{ x: 1 }}.describe()); console.println(Other.describe(P {{ x: 1 }})); }}"
         );
         assert_eq!(errors(&src), [("E0460", "describe")]);
     }
@@ -200,10 +200,12 @@ mod tests {
     fn no_supplier_is_still_e0415() {
         // `Q` doesn't implement `Describe`.
         let src = format!(
-            "{DESCRIBE}struct Q {{ x: i64 }}\nfun main() {{ println(Q {{ x: 1 }}.describe()); }}"
+            "{DESCRIBE}struct Q {{ x: i64 }}\nfun main() {{ debug(Q {{ x: 1 }}.describe()); }}"
         );
         assert_eq!(errors(&src), [("E0415", "describe")]);
-        let src = format!("{DESCRIBE}fun main() {{ let n = 1; println(n.describe()); }}");
+        let src = format!(
+            "{DESCRIBE}fun main(console: Console) {{ let n = 1; console.println(n.describe()); }}"
+        );
         assert_eq!(errors(&src), [("E0415", "describe")]);
     }
 

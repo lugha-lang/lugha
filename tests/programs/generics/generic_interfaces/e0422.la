@@ -12,6 +12,6 @@ impl Source<i64> for Count {
 
 fun words<S: Source<string>>(src: S): i64 = 0;
 
-fun main() {
-    println(words(Count { n: 1 }));
+fun main(console: Console) {
+    console.println(words(Count { n: 1 }));
 }

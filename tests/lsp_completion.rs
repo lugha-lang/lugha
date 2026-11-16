@@ -25,16 +25,16 @@ impl P { fun len(self): i64 = self.n; }
 enum Shape { Circle(f64), Dot }
 impl Shape { fun unit(): Shape = Shape.Dot; }
 fun twice(n: i64): i64 = n * 2;
-fun other() { let hidden = 1; println(hidden); }
-fun main() {
+fun other(console: Console) { let hidden = 1; console.println(hidden); }
+fun main(console: Console) {
     let p = P { x: 1.0, n: 2 };
     let xs = [1, 2, 3];
     let word = \"hi\";
-    println(p.n);
-    println(xs.len);
-    println(word);
+    console.println(p.n);
+    console.println(xs.len);
+    console.println(word);
     let later = 0;
-    println(later);
+    console.println(later);
 }
 ";
 
@@ -170,7 +170,10 @@ fn a_plain_word_offers_names_in_scope() {
     );
     assert_eq!(find(&items, "P").map(|i| i.1), Some(STRUCT));
     assert_eq!(find(&items, "geo").map(|i| i.1), Some(MODULE));
-    assert!(find(&items, "println").is_some(), "{items:?}");
+    // Intrinsics a program may call, not those behind a capability.
+    assert!(find(&items, "panic").is_some(), "{items:?}");
+    assert!(find(&items, "println").is_none(), "{items:?}");
+    assert_eq!(find(&items, "console").map(|i| i.1), Some(VARIABLE));
     assert!(find(&items, "Some").is_some(), "{items:?}");
     assert_eq!(find(&items, "while").map(|i| i.1), Some(KEYWORD));
     assert_eq!(find(&items, "defer").map(|i| i.1), Some(KEYWORD));
@@ -238,7 +241,7 @@ fn nothing_completes_inside_a_string_or_comment() {
 
 #[test]
 fn a_maps_members_complete_without_its_internals() {
-    let main = "fun main() {\n    let m = Map { \"a\": 1 };\n    println(m.len);\n}\n";
+    let main = "fun main(console: Console) {\n    let m = Map { \"a\": 1 };\n    console.println(m.len);\n}\n";
     let t = Temp::with(&[("main.la", main)]);
     let uri = t.uri("main.la");
     let mut server = Server::start(&t, json!({}));

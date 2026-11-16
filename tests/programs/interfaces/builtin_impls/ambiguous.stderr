@@ -1,8 +1,8 @@
 error[E0460]: `label` on `f64` is an item of both `Labels` and `Show`
-   --> tests/programs/interfaces/builtin_impls/ambiguous.la:19:17
+   --> tests/programs/interfaces/builtin_impls/ambiguous.la:19:25
    |
-19 |     println(2.0.label());
-   |                 ^^^^^
+19 |     console.println(2.0.label());
+   |                         ^^^^^
    |
    = help: say which one you mean: `Labels.label(…)` or `Show.label(…)`
 

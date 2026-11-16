@@ -32,14 +32,14 @@ impl Show for Point {
 
 fun all<T: Show>(xs: T[]): string = xs.label();
 
-fun main() {
-    println(2.5.label());                                       // 2.5 m
-    println(Show.label("hi"));                                  // "hi"
-    println(all([[1.0, 2.0], [3.0]]));                         // [[1.0 m, 2.0 m], [3.0 m]]
-    println(Some(Point { x: 1.0, y: 2.0 }).label());            // some (1.0, 2.0)
+fun main(console: Console) {
+    console.println(2.5.label());                                       // 2.5 m
+    console.println(Show.label("hi"));                                  // "hi"
+    console.println(all([[1.0, 2.0], [3.0]]));                         // [[1.0 m, 2.0 m], [3.0 m]]
+    console.println(Some(Point { x: 1.0, y: 2.0 }).label());            // some (1.0, 2.0)
     let items: Show[] = [1.5, "a", Point { x: 0.0, y: 0.0 }];   // interface values
     for i of items {
-        println(i.label());
+        console.println(i.label());
     }
-    println(3.cmp(4) == Ordering.Less);                        // true: the prelude's blocks count too
+    console.println(3.cmp(4) == Ordering.Less);                        // true: the prelude's blocks count too
 }

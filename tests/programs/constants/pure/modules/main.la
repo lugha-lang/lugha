@@ -5,7 +5,7 @@ import std.math;
 const AREA: f64 = geo.circle(2.0);
 const ROOT: f64 = math.sqrt(16.0);
 
-fun main() {
-    println(AREA);
-    println(ROOT);
+fun main(console: Console) {
+    console.println(AREA);
+    console.println(ROOT);
 }

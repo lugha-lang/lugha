@@ -7,21 +7,21 @@ fun double(s: string): i64 {
     n * 2
 }
 
-fun main() {
+fun main(console: Console) {
     let mut total = 0;
     for w of ["3", "x", "4"] {
         if let .Some(n) = parse_i64(w) {
             total += n;
         } else {
-            println("skipped {w}");
+            console.println("skipped {w}");
         }
     }
-    println(total);
+    console.println(total);
     let mut stack = [1, 2, 3];
     while let .Some(top) = stack.pop() {
-        print(top);
+        console.print(top);
     }
-    println("");
-    println(double("21"));
-    println(double("x"));
+    console.println("");
+    console.println(double("21"));
+    console.println(double("x"));
 }

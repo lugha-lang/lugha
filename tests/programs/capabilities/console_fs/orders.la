@@ -1,0 +1,4 @@
+// `main`'s parameters are matched by type, in any order, with any names.
+fun main(out: Console, argv: string[]) {
+    out.println(argv.len > 0);
+}

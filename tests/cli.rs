@@ -238,7 +238,8 @@ fn structs_and_methods_compile_and_run() {
 #[test]
 fn generics_run() {
     // Each instance compiles under its own symbol.
-    let src = b"fun id<T>(x: T): T = x;\nfun main() { println(id(41) + 1); }\n";
+    let src =
+        b"fun id<T>(x: T): T = x;\nfun main(console: Console) { console.println(id(41) + 1); }\n";
     let dir = TempDir::with(&[("g.la", src)]);
     let ast = lughac(&dir.0, &["build", "--emit=ast", "g.la"]);
     assert_eq!(ast.status.code(), Some(0), "{}", text(&ast.stderr));
@@ -348,7 +349,7 @@ fn check_takes_a_loose_library_file_in_a_cycle_as_a_module() {
             "vdom.la",
             b"import diff;\npublic fun size(n: i64): i64 = n * 2;\npublic fun both(n: i64): i64 = diff.patch(n);\n",
         ),
-        ("main.la", b"import vdom;\nfun main() { println(vdom.both(1)); }\n"),
+        ("main.la", b"import vdom;\nfun main(console: Console) { console.println(vdom.both(1)); }\n"),
     ]);
     let checked = lughac(&dir.0, &["check", "diff.la"]);
     assert_eq!(checked.status.code(), Some(0), "{}", text(&checked.stderr));
@@ -423,7 +424,8 @@ fn a_reader_that_stops_early_is_not_a_failure() {
 
 #[test]
 fn debug_is_e0465_in_an_optimized_build_only() {
-    let src = b"fun main() {\n    let x = debug(1 + 2);\n    println(x);\n}\n";
+    let src =
+        b"fun main(console: Console) {\n    let x = debug(1 + 2);\n    console.println(x);\n}\n";
     let dir = TempDir::with(&[("d.la", src)]);
     let built = lughac(&dir.0, &["build", "-O2", "d.la"]);
     assert_eq!(built.status.code(), Some(1));

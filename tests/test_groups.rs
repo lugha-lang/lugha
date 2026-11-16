@@ -60,8 +60,8 @@ const MANIFEST: &str = "[package]\nname = \"pack\"\nversion = \"0.1.0\"\n";
 fn recording(record: &str, value: i64) -> String {
     format!(
         "fun helper(): i64 = {value};\n\
-         @test\nfun works() {{\n    assert_eq(helper(), {value});\n    \
-         assert(write_file(\"{{dir}}/{record}\", args()[0]).is_ok());\n}}\n"
+         @test\nfun works(args: string[], fs: Fs) {{\n    assert_eq(helper(), {value});\n    \
+         assert(fs.cwd().write_file(\"{{dir}}/{record}\", args[0]).is_ok());\n}}\n"
     )
 }
 

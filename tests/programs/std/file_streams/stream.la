@@ -3,12 +3,12 @@
 // closing twice, and using a closed file.
 import std.fs;
 
-fun run(): Result<(), string> {
+fun run(console: Console, files: Fs): Result<(), string> {
     let out = fs.create("notes.txt")?;
     out.write_text("first\r\nsecond\n")?;
     out.write("last".to_bytes())?;
-    println(out.read(10).debug());
-    println(out.read_line().debug());
+    console.println(out.read(10).debug());
+    console.println(out.read_line().debug());
     out.close();
 
     let log = fs.append("notes.txt")?;
@@ -19,29 +19,29 @@ fun run(): Result<(), string> {
     let copy = f;
     while true {
         match f.read_line()? {
-            .Some(line) => println("[{line}]"),
+            .Some(line) => console.println("[{line}]"),
             .None => {
                 break;
             }
         }
     }
-    println(copy.read_line().debug());
-    println(f.read(10).debug());
-    println(f.write_text("x").debug());
-    println((f.write("y".to_bytes())).debug());
+    console.println(copy.read_line().debug());
+    console.println(f.read(10).debug());
+    console.println(f.write_text("x").debug());
+    console.println((f.write("y".to_bytes())).debug());
     f.close();
     copy.close();
-    println(f.read(10).debug());
-    println(f.read_line().debug());
-    println(copy.write_text("x").debug());
+    console.println(f.read(10).debug());
+    console.println(f.read_line().debug());
+    console.println(copy.write_text("x").debug());
 
     let again = fs.create("notes.txt")?;
     again.write_text("fresh")?;
     again.close();
-    println(read_file("notes.txt").debug());
+    console.println(files.cwd().read_file("notes.txt").debug());
     Ok(())
 }
 
-fun main() {
-    println(run().debug());
+fun main(files: Fs, console: Console) {
+    console.println(run(console, files).debug());
 }

@@ -1,9 +1,9 @@
-fun main() {
+fun main(console: Console) {
     let mut total = 0;
     let mut bad: string[] = [];
     let mut lines = 0;
     while true {
-        match read_line() {
+        match console.read_line() {
             .Some(line) => {
                 lines += 1;
                 match parse_i64(line.trim()) {
@@ -14,6 +14,6 @@ fun main() {
             .None => { break; }
         }
     }
-    println("{lines} lines, total {total}");
-    println("bad: " + bad.join("|"));
+    console.println("{lines} lines, total {total}");
+    console.println("bad: " + bad.join("|"));
 }

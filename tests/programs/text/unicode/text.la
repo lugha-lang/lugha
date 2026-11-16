@@ -6,12 +6,12 @@ fun shout(s: string): string {
     out
 }
 
-fun main() {
+fun main(console: Console) {
     let s = "naïve café";
-    println("{s.char_count()} chars, {s.len} bytes");
-    println(shout(s));
-    println(s.chars().filter(fun(c) = c.is_alphabetic()).count());
-    println(['é', 'a', '\n'].debug());
-    println('é' as u32);
-    println(char_from(55296).debug());
+    console.println("{s.char_count()} chars, {s.len} bytes");
+    console.println(shout(s));
+    console.println(s.chars().filter(fun(c) = c.is_alphabetic()).count());
+    console.println(['é', 'a', '\n'].debug());
+    console.println('é' as u32);
+    console.println(char_from(55296).debug());
 }

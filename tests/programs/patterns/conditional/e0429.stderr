@@ -3,7 +3,7 @@ error[E0429]: the `else` of a `let … else` must not finish
   |
 4 |       let .Some(n) = parse_i64("x") else {
   | /----------------------------------------^
-5 | |         println("no number");
+5 | |         console.println("no number");
 6 | |     };
   | \-----^
   |

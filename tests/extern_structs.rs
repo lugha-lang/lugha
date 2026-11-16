@@ -125,18 +125,18 @@ fn nullable_handle_fields() {
          extern fun fill(out s: Slot, some: i32);\n\
          extern fun sum(s: Slot): i64;\n\
          extern fun count(xs: Slot[], n: i64): i64;\n\
-         fun main() {\n\
+         fun main(console: Console) {\n\
              let mut s = Slot { n: 0, w: None };\n\
-             println(sum(s));\n\
+             console.println(sum(s));\n\
              fill(out s, 1);\n\
-             if let .Some(w) = s.w { println(peek(w)); }\n\
-             println(sum(s));\n\
+             if let .Some(w) = s.w { console.println(peek(w)); }\n\
+             console.println(sum(s));\n\
              fill(out s, 0);\n\
-             println(s.w.is_none());\n\
+             console.println(s.w.is_none());\n\
              s.w = Some(make());\n\
              let xs = [s, Slot { n: 1, w: None }, Slot { n: 2, w: Some(make()) }];\n\
-             println(count(xs, 3));\n\
-             println(sum(xs[2]));\n\
+             console.println(count(xs, 3));\n\
+             console.println(sum(xs[2]));\n\
          }\n",
         side,
     )
@@ -160,31 +160,31 @@ fn option_handles_held_anywhere() {
              for x of xs { if let .Some(w) = x { sum += peek(w); } }\n\
              sum\n\
          }\n\
-         fun main() {\n\
+         fun main(console: Console) {\n\
              let mut xs: Option<W>[] = [Some(make(0)), None];\n\
              xs.push(Some(make(1)));\n\
-             println(total(xs));\n\
+             console.println(total(xs));\n\
              xs[1] = Some(make(1));\n\
              let last = xs.pop();\n\
-             println(total(xs));\n\
-             println(last.is_some());\n\
+             console.println(total(xs));\n\
+             console.println(last.is_some());\n\
              let mut h = Holder { label: \"h\", w: None, nested: Some(None) };\n\
-             println(h.w.is_none());\n\
+             console.println(h.w.is_none());\n\
              h.w = xs[0];\n\
              h.nested = Some(xs[1]);\n\
-             if let .Some(.Some(w)) = h.nested { println(peek(w)); }\n\
+             if let .Some(.Some(w)) = h.nested { console.println(peek(w)); }\n\
              let copy = h;\n\
-             println(copy.w == h.w);\n\
+             console.println(copy.w == h.w);\n\
              let s = Slot.Full(h.w, 2);\n\
-             match s { .Full(.Some(w), n) => println(peek(w) * n), _ => println(0) }\n\
+             match s { .Full(.Some(w), n) => console.println(peek(w) * n), _ => console.println(0) }\n\
              let r = Ref.new(xs[0]);\n\
              r.set(None);\n\
-             println(r.get().is_none());\n\
+             console.println(r.get().is_none());\n\
              let t = (xs[1], 5);\n\
-             match t { (.Some(w), n) => println(peek(w) + n), (.None, _) => println(0) }\n\
-             match xs[0] { .Some(w) => println(peek(w)), .None => println(0) }\n\
+             match t { (.Some(w), n) => console.println(peek(w) + n), (.None, _) => console.println(0) }\n\
+             match xs[0] { .Some(w) => console.println(peek(w)), .None => console.println(0) }\n\
              let ys: (Option<W>, i64)[] = [(None, 1), (Some(make(1)), 2)];\n\
-             for (o, k) of ys { if let .Some(w) = o { println(peek(w) * k); } }\n\
+             for (o, k) of ys { if let .Some(w) = o { console.println(peek(w) * k); } }\n\
          }\n",
         side,
     )

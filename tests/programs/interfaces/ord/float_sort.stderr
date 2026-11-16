@@ -1,8 +1,8 @@
 error[E0451]: `f64` isn't `Ord`: floats have `<` but no order of their own
-  --> tests/programs/interfaces/ord/float_sort.la:3:13
+  --> tests/programs/interfaces/ord/float_sort.la:3:21
   |
-3 |     println([2.5, 1.0].sort());
-  |             ^^^^^^^^^^^^^^^^^
+3 |     console.println([2.5, 1.0].sort());
+  |                     ^^^^^^^^^^^^^^^^^
   |
   = help: sort them with `xs.sort_by(f64.total_order)`, IEEE 754's total order
 

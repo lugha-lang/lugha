@@ -152,7 +152,7 @@ mod tests {
     #[test]
     fn input_intrinsics_have_their_types() {
         assert_eq!(
-            let_type("fun main() { let a = args(); }", "a"),
+            let_type("fun main(args: string[]) { let a = args; }", "a"),
             Type::Array(Box::new(Type::String))
         );
         assert_eq!(
@@ -167,9 +167,10 @@ mod tests {
             errors("fun main() { let n = parse_i64(true); }"),
             [("E0403", "true")]
         );
+        // The arguments come as `main`'s parameter, not from `args()`.
         assert_eq!(
-            errors("fun main() { let a = args(1); }"),
-            [("E0405", "args(1)")]
+            errors("fun main() { let a = args(); }"),
+            [("E0471", "args")]
         );
         assert_eq!(errors("fun args() {}\nfun main() {}"), [("E0302", "args")]);
     }
@@ -177,38 +178,47 @@ mod tests {
     #[test]
     fn io_intrinsics_have_their_types() {
         let result = |a: Type| Type::Enum("$prelude.Result".into(), vec![a, Type::String]);
-        let t = |body: &str, name: &str| let_type(&format!("fun main() {{ {body} }}"), name);
+        let t = |body: &str, name: &str| {
+            let_type(
+                &format!("fun main(console: Console, fs: Fs) {{ {body} }}"),
+                name,
+            )
+        };
         assert_eq!(
-            t("let l = read_line();", "l"),
+            t("let l = console.read_line();", "l"),
             Type::Option(Box::new(Type::String))
         );
-        assert_eq!(t("let f = read_file(\"p\");", "f"), result(Type::String));
         assert_eq!(
-            t("let w = write_file(\"p\", \"t\");", "w"),
+            t("let f = fs.cwd().read_file(\"p\");", "f"),
+            result(Type::String)
+        );
+        assert_eq!(
+            t("let w = fs.cwd().write_file(\"p\", \"t\");", "w"),
             result(Type::I64)
         );
         assert_eq!(
-            t("let a = append_file(\"p\", \"t\");", "a"),
+            t("let a = fs.cwd().append_file(\"p\", \"t\");", "a"),
             result(Type::I64)
         );
-        crate::check::test_util::ok("fun main() { eprint(1); eprintln(\"x\"); eprintln(); }");
-        let w = crate::check::test_util::warnings("fun main() { exit(1); println(2); }");
-        assert_eq!(w, [("W0101", "println(2);")]);
+        crate::check::test_util::ok(
+            "fun main(console: Console) { console.eprint(1); console.eprintln(\"x\"); console.eprintln(\"\"); }",
+        );
+        // A program ends by returning from `main`; `exit` is gone.
+        assert_eq!(errors("fun main() { exit(1); }"), [("E0471", "exit")]);
     }
 
     #[test]
     fn io_intrinsics_check_their_arguments() {
         assert_eq!(
-            errors("fun main() { let l = read_line(1); }"),
-            [("E0405", "read_line(1)")]
+            errors("fun main(console: Console) { let l = console.read_line(1); }"),
+            [("E0405", "console.read_line(1)")]
         );
         assert_eq!(
-            errors("fun main() { let w = write_file(1, \"t\"); }"),
+            errors("fun main(fs: Fs) { let w = fs.cwd().write_file(1, \"t\"); }"),
             [("E0401", "1")]
         );
-        assert_eq!(errors("fun main() { exit(\"x\"); }"), [("E0403", "\"x\"")]);
         assert_eq!(
-            errors("fun f() {}\nfun main() { eprint(f()); }"),
+            errors("fun f() {}\nfun main(console: Console) { console.eprint(f()); }"),
             [("E0422", "f()")]
         );
         assert_eq!(errors("fun exit() {}\nfun main() {}"), [("E0302", "exit")]);

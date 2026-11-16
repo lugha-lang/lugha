@@ -27,11 +27,11 @@ fun read(s: string): Result<i64, Error> {
     Ok(m * 2)
 }
 
-fun main() {
+fun main(console: Console) {
     for s of ["21", "x", "500"] {
         match read(s) {
-            .Ok(n) => println(n),
-            .Err(e) => println(e.report()),
+            .Ok(n) => console.println(n),
+            .Err(e) => console.println(e.report()),
         }
     }
 }

@@ -1,4 +1,4 @@
-fun main() {
-    println("a,b".split(",").len);
-    println("a,b".split("").len);
+fun main(console: Console) {
+    console.println("a,b".split(",").len);
+    console.println("a,b".split("").len);
 }

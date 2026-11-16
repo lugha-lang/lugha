@@ -7,10 +7,12 @@ use crate::span::Span;
 pub(in crate::check) fn bad_test(span: Span) -> Diagnostic {
     Diagnostic::error(
         "E0434",
-        "a test takes no parameters and returns nothing",
+        "a test takes only `Console` and `Fs`, each at most once, and returns nothing",
         span,
     )
-    .with_help("write `@test fun name() { … }`, and check results with `assert` or `assert_eq`")
+    .with_help(
+        "write `@test fun name() { … }` or `@test fun name(console: Console) { … }`, and check results with `assert` or `assert_eq`",
+    )
 }
 
 /// A test called or used as a value.

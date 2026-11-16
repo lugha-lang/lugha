@@ -44,17 +44,17 @@ mod tests {
         ok(&with(
             "struct Win { w: W, title: string }\n\
              fun pick(ws: W[], i: i64): W = ws[i];\n\
-             fun main() {\n\
+             fun main(console: Console) {\n\
                  let w = make();\n\
                  take(w);\n\
                  let s = Win { w: w, title: \"t\" };\n\
                  let ws = [w, s.w];\n\
                  take(pick(ws, 1));\n\
                  let o: Option<W> = Some(w);\n\
-                 println(w == s.w);\n\
-                 println(w != make());\n\
-                 println(w.debug());\n\
-                 println(\"{w.debug()}\");\n\
+                 console.println(w == s.w);\n\
+                 console.println(w != make());\n\
+                 console.println(w.debug());\n\
+                 console.println(\"{w.debug()}\");\n\
              }",
         ));
     }
@@ -63,7 +63,7 @@ mod tests {
     fn handles_are_eq_and_work_in_generics() {
         ok(&with(
             "fun same<T: Eq>(a: T, b: T): bool = a == b;\n\
-             fun main() { println(same(make(), make())); let ws: W[] = [make()]; println(ws == ws); }",
+             fun main(console: Console) { console.println(same(make(), make())); let ws: W[] = [make()]; console.println(ws == ws); }",
         ));
     }
 
@@ -154,11 +154,11 @@ mod extern_struct_tests {
             extern fun draw(at: V2, c: Color): Cam;\n\
             extern fun each(f: fun(V2, data): Color, u: data);\n\
             impl Color { fun dim(self): Color = Color { r: self.r / 2, g: self.g / 2, b: self.b / 2, a: self.a }; }\n\
-            fun main() {\n\
+            fun main(console: Console) {\n\
                 let red = Color { r: 230, g: 41, b: 55, a: 255 };\n\
                 let cam = draw(V2 { x: 1.0, y: 2.0 }, red.dim());\n\
-                println(cam.at.x);\n\
-                println(red == red);\n\
+                console.println(cam.at.x);\n\
+                console.println(red == red);\n\
                 each(fun(v: V2): Color = red);\n\
             }");
     }
@@ -185,10 +185,10 @@ mod extern_struct_tests {
         ok("extern type W;\n\
             extern struct S { n: u64, w: Option<W>, p: Option<CPtr> }\n\
             extern fun f(out s: S);\n\
-            fun main() {\n\
+            fun main(console: Console) {\n\
                 let mut s = S { n: 0, w: None, p: None };\n\
                 f(out s);\n\
-                if let .Some(w) = s.w { println(1); }\n\
+                if let .Some(w) = s.w { console.println(1); }\n\
                 s.w = None;\n\
             }");
     }

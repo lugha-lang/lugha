@@ -8,7 +8,7 @@ impl Zero for P { fun zero(): P = P { n: 7 }; }
 struct Q { n: i64 }
 impl Zero for Q { fun zero(): Q = Q { n: 1 }; fun pair(): (Q, Q) = (Q { n: 2 }, Q { n: 3 }); }
 fun both<T: Zero>(x: T): (T, T) = T.pair();
-fun main() {
-    println(both(P { n: 0 }).debug());
-    println(both(Q { n: 0 }).debug());
+fun main(console: Console) {
+    console.println(both(P { n: 0 }).debug());
+    console.println(both(Q { n: 0 }).debug());
 }

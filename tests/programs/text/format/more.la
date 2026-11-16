@@ -3,20 +3,20 @@
 struct P { x: i64, y: i64 }
 enum Shape { Circle(f64), Square(f64) }
 
-fun main() {
-    println(format("{{}}"));
-    println(format(""));
-    println(format("[{:>6}] [{:<6}] [{:^6}] [{:*^7}]", 1, 2, 3, 4));
-    println(format("{:x} {:X} {:b} {:o} {:#b} {:#o} {:08.3}", 255, 255, 5, 8, 5, 8, -2.5));
-    println(format("{} {} {}", (P { x: 1, y: 2 }).debug(), [Some(1), None].debug(), Shape.Circle(1.5).debug()));
-    println(format("{} {} {}", ("a", 2).debug(), 'é', true));
-    println(format("<{}>", format("{}-{}", 1, format("{}", 2))));
-    println(format("tab:\t{}\nquote: \"{}\"", 1, "q"));
+fun main(console: Console) {
+    console.println(format("{{}}"));
+    console.println(format(""));
+    console.println(format("[{:>6}] [{:<6}] [{:^6}] [{:*^7}]", 1, 2, 3, 4));
+    console.println(format("{:x} {:X} {:b} {:o} {:#b} {:#o} {:08.3}", 255, 255, 5, 8, 5, 8, -2.5));
+    console.println(format("{} {} {}", (P { x: 1, y: 2 }).debug(), [Some(1), None].debug(), Shape.Circle(1.5).debug()));
+    console.println(format("{} {} {}", ("a", 2).debug(), 'é', true));
+    console.println(format("<{}>", format("{}-{}", 1, format("{}", 2))));
+    console.println(format("tab:\t{}\nquote: \"{}\"", 1, "q"));
     let s = format("{}", "x").len;
-    println(format("{}", s));
+    console.println(format("{}", s));
     let words = ["a", "bb", "ccc"];
     for w of words {
-        print(format("{:>4}|", w));
+        console.print(format("{:>4}|", w));
     }
-    println("");
+    console.println("");
 }

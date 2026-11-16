@@ -11,50 +11,50 @@ fun list(n: i64): List {
     l
 }
 
-fun main() {
+fun main(console: Console) {
     // Structs: field by field, through arrays and strings.
     let a = Item { name: "x", tags: ["t", "u"], counts: [[1, 2], [3]], ok: true };
     let mut b = a;
-    println(a == b);
+    console.println(a == b);
     b.counts[1].push(4);
-    println(a == b);
-    println(a != b);
+    console.println(a == b);
+    console.println(a != b);
     let mut c = a;
     c.ok = false;
-    println(a == c);
+    console.println(a == c);
 
     // Arrays: length, then elements.
-    println([[1, 2], [3]] == [[1, 2], [3]]);
-    println([1, 2] == [1, 2, 3]);
-    println([1, 2] == [1, 3]);
+    console.println([[1, 2], [3]] == [[1, 2], [3]]);
+    console.println([1, 2] == [1, 2, 3]);
+    console.println([1, 2] == [1, 3]);
     let empty: i64[] = [];
-    println(empty == []);
+    console.println(empty == []);
 
     // Enums: variant, then payloads; recursive ones too.
-    println(Shape.Rect(1.0, 2.0) == Shape.Rect(1.0, 2.0));
-    println(Shape.Rect(1.0, 2.0) == Shape.Rect(2.0, 1.0));
-    println(Shape.Circle(1.0) == Shape.Empty);
-    println(Shape.Empty == Shape.Empty);
-    println(list(5) == list(5));
-    println(list(5) == list(4));
+    console.println(Shape.Rect(1.0, 2.0) == Shape.Rect(1.0, 2.0));
+    console.println(Shape.Rect(1.0, 2.0) == Shape.Rect(2.0, 1.0));
+    console.println(Shape.Circle(1.0) == Shape.Empty);
+    console.println(Shape.Empty == Shape.Empty);
+    console.println(list(5) == list(5));
+    console.println(list(5) == list(4));
 
     // Option, from either side.
     let o: Option<string> = Some("a");
-    println(o == None);
-    println(None == o);
-    println(o == Some("a"));
+    console.println(o == None);
+    console.println(None == o);
+    console.println(o == Some("a"));
 
     // NaN is unequal to itself, even inside an array.
     let nan = 0.0 / 0.0;
     let xs = [1.0, nan];
-    println(xs == xs);
-    println(xs != xs);
+    console.println(xs == xs);
+    console.println(xs != xs);
 
     // Strings order bytewise; a prefix is smaller; bytes are unsigned.
-    println("ab" < "abc");
-    println("abc" < "ab");
-    println("b" > "abc");
-    println("a" <= "a");
-    println("é" > "z");
-    println("Z" < "a");
+    console.println("ab" < "abc");
+    console.println("abc" < "ab");
+    console.println("b" > "abc");
+    console.println("a" <= "a");
+    console.println("é" > "z");
+    console.println("Z" < "a");
 }

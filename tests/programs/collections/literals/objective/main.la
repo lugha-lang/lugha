@@ -1,6 +1,6 @@
 import bag { Bag };
 
-fun main() {
+fun main(console: Console) {
     let ages = Map { "ann": 31, "bo": 40 };
     let primes = Set { 2, 3, 5, 7 };
     let index = Map<string, i64[]> {};
@@ -8,12 +8,12 @@ fun main() {
     let name = "cy";
     let more = Map { name: 22 };
     let fruit = Bag { "apple", "apple", "pear" };
-    println(ages.debug());
-    println(primes.debug());
-    println("{index.len} {empty.len} {more["cy"]}");
-    println(fruit.counts["apple"]);
+    console.println(ages.debug());
+    console.println(primes.debug());
+    console.println("{index.len} {empty.len} {more["cy"]}");
+    console.println(fruit.counts["apple"]);
     if ages == (Map { "bo": 40, "ann": 31 }) {
-        println("same");
+        console.println("same");
     }
-    println(empty.debug());
+    console.println(empty.debug());
 }

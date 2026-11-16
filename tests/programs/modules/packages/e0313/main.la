@@ -1,8 +1,8 @@
 // `diameter` and the field `r` aren't `public`: package geo keeps them.
 import geo.shapes;
 
-fun main() {
+fun main(console: Console) {
     let c = shapes.circle(2.0);
-    println(c.diameter());
+    console.println(c.diameter());
     let d = shapes.Circle { r: 1.0 };
 }

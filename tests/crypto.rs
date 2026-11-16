@@ -64,14 +64,14 @@ fn run(main: &str) -> String {
 
 #[test]
 fn sha256_matches_the_fips_examples_streamed_or_not() {
-    let out = run("fun main() {
-    println(hex(crypto.sha256([])));
-    println(hex(crypto.sha256(\"abc\".to_bytes())));
+    let out = run("fun main(console: Console) {
+    console.println(hex(crypto.sha256([])));
+    console.println(hex(crypto.sha256(\"abc\".to_bytes())));
     let long = \"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq\".to_bytes();
-    println(hex(crypto.sha256(long)));
+    console.println(hex(crypto.sha256(long)));
     let million = [97 as u8; 1000000];
     let whole = crypto.sha256(million);
-    println(hex(whole));
+    console.println(hex(whole));
     // Streaming equals one-shot at every split of a short message…
     let mut every = true;
     for cut in 0..long.len + 1 {
@@ -85,7 +85,7 @@ fn sha256_matches_the_fips_examples_streamed_or_not() {
         h.update(second);
         every = every && crypto.equal(h.finish(), crypto.sha256(long));
     }
-    println(every);
+    console.println(every);
     // …and at block-edge chunk sizes over the million `a`.
     for size of [1, 63, 64, 65, 4096] {
         let h = crypto.Sha256.new();
@@ -96,13 +96,13 @@ fn sha256_matches_the_fips_examples_streamed_or_not() {
             fed += size;
         }
         h.update([97 as u8; 1000000 - fed]);
-        println(crypto.equal(h.finish(), whole));
+        console.println(crypto.equal(h.finish(), whole));
     }
     // `finish` starts the hash over.
     let h = crypto.Sha256.new();
     h.update(\"abc\".to_bytes());
     let _ = h.finish();
-    println(hex(h.finish()));
+    console.println(hex(h.finish()));
 }
 ");
     assert_eq!(
@@ -161,31 +161,31 @@ fun cut(xs: u8[], n: i64): u8[] {{
     ys
 }}
 
-fun main() {{
+fun main(console: Console) {{
     let secret = unhex(\"{secret}\");
     let key = unhex(\"{public}\");
     let message = unhex(\"{message}\");
     let sig = unhex(\"{signature}\");
-    println(hex(crypto.ed25519_public(secret).unwrap()));
-    println(hex(crypto.ed25519_sign(secret, message).unwrap()));
-    println(crypto.ed25519_verify(key, message, sig));
+    console.println(hex(crypto.ed25519_public(secret).unwrap()));
+    console.println(hex(crypto.ed25519_sign(secret, message).unwrap()));
+    console.println(crypto.ed25519_verify(key, message, sig));
     let mut longer = message;
     longer.push(0);
-    println(crypto.ed25519_verify(key, longer, sig));
-    println(crypto.ed25519_verify(key, message, flip(sig, 0)));
-    println(crypto.ed25519_verify(key, message, flip(sig, 63)));
-    println(crypto.ed25519_verify(flip(key, 0), message, sig));
+    console.println(crypto.ed25519_verify(key, longer, sig));
+    console.println(crypto.ed25519_verify(key, message, flip(sig, 0)));
+    console.println(crypto.ed25519_verify(key, message, flip(sig, 63)));
+    console.println(crypto.ed25519_verify(flip(key, 0), message, sig));
     let mut long_key = key;
     long_key.push(0);
     let mut long_sig = sig;
     long_sig.push(0);
-    println(crypto.ed25519_verify(cut(key, 31), message, sig) || crypto.ed25519_verify(long_key, message, sig) || crypto.ed25519_verify([], message, sig));
-    println(crypto.ed25519_verify(key, message, cut(sig, 63)) || crypto.ed25519_verify(key, message, long_sig) || crypto.ed25519_verify(key, message, []));
-    println(crypto.ed25519_verify([255 as u8; 32], message, sig));
-    println((crypto.ed25519_sign(cut(secret, 31), message)).debug());
+    console.println(crypto.ed25519_verify(cut(key, 31), message, sig) || crypto.ed25519_verify(long_key, message, sig) || crypto.ed25519_verify([], message, sig));
+    console.println(crypto.ed25519_verify(key, message, cut(sig, 63)) || crypto.ed25519_verify(key, message, long_sig) || crypto.ed25519_verify(key, message, []));
+    console.println(crypto.ed25519_verify([255 as u8; 32], message, sig));
+    console.println((crypto.ed25519_sign(cut(secret, 31), message)).debug());
     let mut long_secret = secret;
     long_secret.push(0);
-    println((crypto.ed25519_public(long_secret).map_err(fun(e: crypto.CryptoError): string = e.message())).debug());
+    console.println((crypto.ed25519_public(long_secret).map_err(fun(e: crypto.CryptoError): string = e.message())).debug());
 }}
 "
         ));
@@ -202,22 +202,22 @@ fun main() {{
 
 #[test]
 fn keypairs_random_bytes_and_equality() {
-    let out = run("fun main() {
+    let out = run("fun main(console: Console) {
     let (s1, k1) = crypto.ed25519_keypair().unwrap();
     let (s2, k2) = crypto.ed25519_keypair().unwrap();
-    println(\"{s1.len} {k1.len} {!crypto.equal(s1, s2)} {!crypto.equal(k1, k2)}\");
-    println(crypto.equal(crypto.ed25519_public(s1).unwrap(), k1));
+    console.println(\"{s1.len} {k1.len} {!crypto.equal(s1, s2)} {!crypto.equal(k1, k2)}\");
+    console.println(crypto.equal(crypto.ed25519_public(s1).unwrap(), k1));
     let sig = crypto.ed25519_sign(s1, \"hello\".to_bytes()).unwrap();
-    println(\"{sig.len} {crypto.ed25519_verify(k1, \"hello\".to_bytes(), sig)} {crypto.ed25519_verify(k2, \"hello\".to_bytes(), sig)}\");
+    console.println(\"{sig.len} {crypto.ed25519_verify(k1, \"hello\".to_bytes(), sig)} {crypto.ed25519_verify(k2, \"hello\".to_bytes(), sig)}\");
     for n of [0, 1, 32, 1048576] {
-        print(crypto.random_bytes(n).unwrap().len);
-        print(\" \");
+        console.print(crypto.random_bytes(n).unwrap().len);
+        console.print(\" \");
     }
-    println();
-    println(!crypto.equal(crypto.random_bytes(32).unwrap(), crypto.random_bytes(32).unwrap()));
-    println(crypto.random_bytes(1048577).debug());
-    println(crypto.random_bytes(-1).is_err());
-    println(\"{crypto.equal([1, 2, 3], [1, 2, 3])} {crypto.equal([1, 2, 3], [1, 2, 4])} {crypto.equal([1, 2], [1, 2, 3])} {crypto.equal([], [])}\");
+    console.println(\"\");
+    console.println(!crypto.equal(crypto.random_bytes(32).unwrap(), crypto.random_bytes(32).unwrap()));
+    console.println(crypto.random_bytes(1048577).debug());
+    console.println(crypto.random_bytes(-1).is_err());
+    console.println(\"{crypto.equal([1, 2, 3], [1, 2, 3])} {crypto.equal([1, 2, 3], [1, 2, 4])} {crypto.equal([1, 2], [1, 2, 3])} {crypto.equal([], [])}\");
 }
 ");
     assert_eq!(
@@ -231,8 +231,8 @@ fn keypairs_random_bytes_and_equality() {
 fn abandoned_hashers_are_freed() {
     // Each hasher holds an OpenSSL context outside the collector; without
     // the finalizer, 300 000 of them would hold well over 50 MB.
-    let out = run("fun rss_kb(): i64 {
-    let status = read_file(\"/proc/self/status\").unwrap_or(\"\");
+    let out = run("fun rss_kb(fs: Fs): i64 {
+    let status = fs.cwd().read_file(\"/proc/self/status\").unwrap_or(\"\");
     for line of status.lines() {
         if line.starts_with(\"VmRSS:\") {
             let digits = line.slice(6, line.len).trim().split(\" \")[0];
@@ -242,12 +242,12 @@ fn abandoned_hashers_are_freed() {
     0
 }
 
-fun main() {
+fun main(console: Console, fs: Fs) {
     for _ in 0..300000 {
         let h = crypto.Sha256.new();
         h.update([1, 2, 3]);
     }
-    println(rss_kb() < 50000);
+    console.println(rss_kb(fs) < 50000);
 }
 ");
     assert_eq!(out, "true\n");
@@ -270,19 +270,19 @@ fun derive(key: u8[], salt: u8[], info: u8[], length: i64): string {
     }
 }
 
-fun main() {
+fun main(console: Console) {
     let ikm = [11 as u8; 22];
-    println(derive(ikm, span(0, 13), span(240, 250), 42));
-    println(derive(span(0, 80), span(96, 176), span(176, 256), 82));
-    println(derive(ikm, [], [], 42));
-    println(derive(ikm, [], span(240, 250), 32) == derive(ikm, [0 as u8; 32], span(240, 250), 32));
+    console.println(derive(ikm, span(0, 13), span(240, 250), 42));
+    console.println(derive(span(0, 80), span(96, 176), span(176, 256), 82));
+    console.println(derive(ikm, [], [], 42));
+    console.println(derive(ikm, [], span(240, 250), 32) == derive(ikm, [0 as u8; 32], span(240, 250), 32));
     let longest = crypto.hkdf_sha256(ikm, [], [], 8160).unwrap();
     for n of [1, 32, 42, 8160] {
         let okm = crypto.hkdf_sha256(ikm, [], [], n).unwrap();
-        println(\"{okm.len} {hex(okm) == hex(longest).slice(0, 2 * n)}\");
+        console.println(\"{okm.len} {hex(okm) == hex(longest).slice(0, 2 * n)}\");
     }
-    println(derive(ikm, [], [], 0));
-    println(derive(ikm, [], [], 8161));
+    console.println(derive(ikm, [], [], 0));
+    console.println(derive(ikm, [], [], 8161));
 }
 ");
     assert_eq!(

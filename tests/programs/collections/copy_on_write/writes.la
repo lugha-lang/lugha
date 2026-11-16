@@ -9,17 +9,17 @@ impl Bag {
 
 fun echo(xs: i64[]): i64[] = xs;
 
-fun main() {
+fun main(console: Console) {
     // Assignment after a copy, and the copy after a write.
     let mut a = [1, 2, 3];
     let b = a;
     a[0] = 10;
-    println("{a.debug()} {b.debug()}");
+    console.println("{a.debug()} {b.debug()}");
 
     // Passing and returning a parameter.
     let mut c = echo(b);
     c[1] = 20;
-    println("{b.debug()} {c.debug()}");
+    console.println("{b.debug()} {c.debug()}");
 
     // push, pop and clear on a shared array.
     let mut d = b;
@@ -28,20 +28,20 @@ fun main() {
     let popped = e.pop();
     let mut f = b;
     f.clear();
-    println("{b.debug()} {d.debug()} {e.debug()} {popped.debug()} {f.debug()}");
+    console.println("{b.debug()} {d.debug()} {e.debug()} {popped.debug()} {f.debug()}");
 
     // Compound assignment.
     let mut g = b;
     g[2] += 100;
     g[0] *= 7;
-    println("{b.debug()} {g.debug()}");
+    console.println("{b.debug()} {g.debug()}");
 
     // swap between and within shared arrays.
     let mut h = b;
     let mut k = b;
     swap(h[0], k[2]);
     swap(h[1], h[2]);
-    println("{b.debug()} {h.debug()} {k.debug()}");
+    console.println("{b.debug()} {h.debug()} {k.debug()}");
 
     // Nested arrays: shared outer and inner.
     let mut grid = [[1, 2], [3, 4]];
@@ -49,7 +49,7 @@ fun main() {
     let row = grid[1];
     grid[1][0] = 30;
     grid[0].push(5);
-    println("{grid.debug()} {snapshot.debug()} {row.debug()}");
+    console.println("{grid.debug()} {snapshot.debug()} {row.debug()}");
 
     // Struct fields holding arrays, and `mut self` methods.
     let mut bag = Bag { items: [1, 2], name: "bag" };
@@ -57,17 +57,17 @@ fun main() {
     let items = bag.items;
     bag.add(3);
     bag.set(0, 9);
-    println("{bag.items.debug()} {copy.items.debug()} {items.debug()}");
+    console.println("{bag.items.debug()} {copy.items.debug()} {items.debug()}");
 
     // Arrays of structs holding arrays.
     let mut bags = [bag, copy];
     let saved = bags;
     bags[0].items[1] = 77;
     bags[1].add(8);
-    println("{bags[0].items.debug()} {bags[1].items.debug()} {saved[0].items.debug()} {saved[1].items.debug()}");
+    console.println("{bags[0].items.debug()} {bags[1].items.debug()} {saved[0].items.debug()} {saved[1].items.debug()}");
 
     // Repeat literals share one value until written.
     let mut rows = [[0, 0]; 3];
     rows[1][1] = 5;
-    println("{rows.debug()}");
+    console.println("{rows.debug()}");
 }

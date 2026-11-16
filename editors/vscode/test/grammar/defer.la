@@ -1,7 +1,7 @@
 // SYNTAX TEST "source.lugha" "defer: a keyword"
 
-fun main() {
-    defer println("done");
+fun main(console: Console) {
+    defer console.println("done");
 //  ^^^^^ keyword.control.lugha
     let deferred = 1;
 //      ^^^^^^^^ - keyword.control.lugha

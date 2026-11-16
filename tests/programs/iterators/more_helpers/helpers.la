@@ -1,11 +1,11 @@
-fun main() {
+fun main(console: Console) {
     let xs = [1, 2, 3, 1, 9];
-    println((xs.iter().zip(["a", "b"].iter()).collect()).debug());
-    println(([1, 2].iter().chain([3, 4].iter()).collect()).debug());
-    println((xs.iter().take_while(fun(n) = n < 3).collect()).debug());
-    println((xs.iter().skip_while(fun(n) = n < 3).take(2).collect()).debug());
-    println((range(1, 4).flat_map(fun(n) = range(0, n)).collect()).debug());
-    println(xs.iter().min().debug());
-    println(xs.iter().max().debug());
-    println((xs.iter().position(fun(n) = n == 3)).debug());
+    console.println((xs.iter().zip(["a", "b"].iter()).collect()).debug());
+    console.println(([1, 2].iter().chain([3, 4].iter()).collect()).debug());
+    console.println((xs.iter().take_while(fun(n) = n < 3).collect()).debug());
+    console.println((xs.iter().skip_while(fun(n) = n < 3).take(2).collect()).debug());
+    console.println((range(1, 4).flat_map(fun(n) = range(0, n)).collect()).debug());
+    console.println(xs.iter().min().debug());
+    console.println(xs.iter().max().debug());
+    console.println((xs.iter().position(fun(n) = n == 3)).debug());
 }

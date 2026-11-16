@@ -7,21 +7,21 @@ import points;
 
 struct Point { x: i64 }
 
-fun main() {
-    println(parity.even(10));
-    println(parity.odd(7));
+fun main(console: Console) {
+    console.println(parity.even(10));
+    console.println(parity.odd(7));
     let c = circle.Circle { r: 2.0 };
-    println(c.area());
+    console.println(c.area());
     let s = circle.Shape.Round(c);
     match s {
-        .Round(k) => println(k.r),
-        .Flat => println("flat"),
+        .Round(k) => console.println(k.r),
+        .Flat => console.println("flat"),
     }
     let r = range.Range.new(9, 3);
-    println(r.len());
-    println(r.contains(4));
+    console.println(r.len());
+    console.println(r.contains(4));
     let p = Point { x: 1 };
     let q = points.Point { x: 2, y: 3 };
-    println(p.x + q.x + q.y);
-    println(range.checked(100));
+    console.println(p.x + q.x + q.y);
+    console.println(range.checked(100));
 }

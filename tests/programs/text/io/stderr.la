@@ -1,10 +1,10 @@
-fun main() {
-    println("out 1");
-    eprintln("err 1");
-    eprint(42);
-    eprint(" ");
-    eprint(2.5);
-    eprintln();
-    eprintln(true);
-    println("out 2");
+fun main(console: Console) {
+    console.println("out 1");
+    console.eprintln("err 1");
+    console.eprint(42);
+    console.eprint(" ");
+    console.eprint(2.5);
+    console.eprintln("");
+    console.eprintln(true);
+    console.println("out 2");
 }

@@ -67,16 +67,16 @@ mod tests {
     #[test]
     fn plus_assign_joins_arrays_and_strings() {
         ok(&main(
-            "let mut ys = xs; ys += [3]; ys += []; let mut s = \"a\"; s += \"b\"; println(\"{ys.debug()} {s}\");",
+            "let mut ys = xs; ys += [3]; ys += []; let mut s = \"a\"; s += \"b\"; debug(\"{ys.debug()} {s}\");",
         ));
         ok("struct B { items: i64[] }\n\
-            fun main() { let mut b = B { items: [] }; b.items += [1]; println(b.items.debug()); }");
+            fun main(console: Console) { let mut b = B { items: [] }; b.items += [1]; console.println(b.items.debug()); }");
     }
 
     #[test]
     fn arrays_satisfy_add() {
         ok("fun both<T: Add>(a: T, b: T): T = a + b;\n\
-            fun main() { println(both([1], [2]).debug()); println(both(\"a\", \"b\")); println(both(1, 2)); }");
+            fun main(console: Console) { console.println(both([1], [2]).debug()); console.println(both(\"a\", \"b\")); console.println(both(1, 2)); }");
     }
 
     #[test]

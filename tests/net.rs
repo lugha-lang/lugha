@@ -62,23 +62,23 @@ impl Drop for Case {
     }
 }
 
-const ECHO: &str = "fun serve(conn: net.Conn) {
+const ECHO: &str = "fun serve(console: Console, conn: net.Conn) {
     match conn.read(4096) {
         .Ok(bytes) => {
             let _ = conn.write(bytes);
         }
-        .Err(e) => eprintln(e),
+        .Err(e) => console.eprintln(e),
     }
     conn.close();
 }
 
-fun accept_all(listener: net.Listener, n: i64) {
+fun accept_all(console: Console, listener: net.Listener, n: i64) {
     for _ in 0..n {
         match listener.accept() {
             .Ok(conn) => {
-                spawn serve(conn);
+                spawn serve(console, conn);
             }
-            .Err(e) => eprintln(e),
+            .Err(e) => console.eprintln(e),
         }
     }
 }
@@ -88,23 +88,23 @@ fun accept_all(listener: net.Listener, n: i64) {
 fn a_server_and_a_client_talk_in_one_program() {
     Case::new(&format!(
         "{ECHO}
-fun main() {{
+fun main(console: Console) {{
     let listener = net.listen(\"127.0.0.1:0\").unwrap();
     let addr = listener.addr();
-    println(addr.starts_with(\"127.0.0.1:\"));
-    spawn accept_all(listener, 1);
+    console.println(addr.starts_with(\"127.0.0.1:\"));
+    spawn accept_all(console, listener, 1);
     let conn = net.connect(addr).unwrap();
-    println(conn.peer() == addr);
+    console.println(conn.peer() == addr);
     conn.write(\"hello\".to_bytes()).unwrap();
-    println(string_from_utf8(conn.read(100).unwrap()).unwrap());
-    println(conn.read(100).unwrap().len);
+    console.println(string_from_utf8(conn.read(100).unwrap()).unwrap());
+    console.println(conn.read(100).unwrap().len);
     let copy = conn;
     copy.close();
-    println(conn.read(1).debug());
-    println(conn.write([1]).debug());
+    console.println(conn.read(1).debug());
+    console.println(conn.write([1]).debug());
     conn.close();
     listener.close();
-    println(listener.accept().is_err());
+    console.println(listener.accept().is_err());
 }}
 "
     ))
@@ -130,10 +130,10 @@ fun ticker(ticks: Chan<i64>) {{
     ticks.send(20);
 }}
 
-fun main() {{
+fun main(console: Console) {{
     let listener = net.listen(\"127.0.0.1:0\").unwrap();
     let addr = listener.addr();
-    spawn accept_all(listener, 200);
+    spawn accept_all(console, listener, 200);
     let ticks: Chan<i64> = Chan.buffered(1);
     spawn ticker(ticks);
     let done: Chan<i64> = Chan.buffered(200);
@@ -144,8 +144,8 @@ fun main() {{
     for _ in 0..200 {{
         ok += done.recv().unwrap();
     }}
-    println(ok);
-    println(ticks.recv().unwrap());
+    console.println(ok);
+    console.println(ticks.recv().unwrap());
     listener.close();
 }}
 "
@@ -162,27 +162,27 @@ fn waits_time_out_and_failures_are_errors() {
     conn.close();
 }
 
-fun main() {
+fun main(console: Console) {
     let listener = net.listen(\"127.0.0.1:0\").unwrap();
     let addr = listener.addr();
     spawn hold(listener);
     let conn = net.connect(addr).unwrap();
     conn.set_timeout(50);
-    println(conn.read(10).debug());
-    println(conn.read(0).debug());
+    console.println(conn.read(10).debug());
+    console.println(conn.read(0).debug());
     conn.close();
     let gone = net.listen(\"127.0.0.1:0\").unwrap();
     let free = gone.addr();
     gone.close();
     match net.connect(free) {
-        .Ok(_) => println(\"connected?\"),
-        .Err(e) => println(e),
+        .Ok(_) => console.println(\"connected?\"),
+        .Err(e) => console.println(e),
     }
-    println(net.listen(\"nope\").debug());
-    println(net.listen(\"127.0.0.1:70000\").debug());
+    console.println(net.listen(\"nope\").debug());
+    console.println(net.listen(\"127.0.0.1:70000\").debug());
     let quiet = net.listen(\"127.0.0.1:0\").unwrap();
     quiet.set_timeout(20);
-    println(quiet.accept().is_err());
+    console.println(quiet.accept().is_err());
     quiet.close();
     listener.close();
 }
@@ -199,17 +199,17 @@ fun main() {
 fn ipv6_works_where_the_host_has_it() {
     let case = Case::new(&format!(
         "{ECHO}
-fun main() {{
+fun main(console: Console) {{
     match net.listen(\"[::1]:0\") {{
         .Ok(listener) => {{
             let addr = listener.addr();
-            spawn accept_all(listener, 1);
+            spawn accept_all(console, listener, 1);
             let conn = net.connect(addr).unwrap();
             conn.write(\"six\".to_bytes()).unwrap();
-            println(string_from_utf8(conn.read(10).unwrap()).unwrap());
-            println(addr.starts_with(\"[::1]:\"));
+            console.println(string_from_utf8(conn.read(10).unwrap()).unwrap());
+            console.println(addr.starts_with(\"[::1]:\"));
         }}
-        .Err(_) => println(\"six\\ntrue\"),
+        .Err(_) => console.println(\"six\\ntrue\"),
     }}
 }}
 "
@@ -220,10 +220,10 @@ fun main() {{
 #[test]
 fn main_alone_waits_for_a_client() {
     let case = Case::new(
-        "fun main() {
+        "fun main(console: Console) {
     let listener = net.listen(\"127.0.0.1:0\").unwrap();
     // stderr isn't buffered: the test reads the address while this waits.
-    eprintln(listener.addr());
+    console.eprintln(listener.addr());
     let conn = listener.accept().unwrap();
     let got = conn.read(100).unwrap();
     conn.write(got).unwrap();
@@ -252,9 +252,9 @@ fn main_alone_waits_for_a_client() {
 #[test]
 fn resolve_gives_every_address_once() {
     Case::new(
-        "fun main() {
+        "fun main(console: Console) {
     let local = net.resolve(\"localhost\").unwrap();
-    println(local.any(fun(a: string): bool = a == \"127.0.0.1\" || a == \"::1\"));
+    console.println(local.any(fun(a: string): bool = a == \"127.0.0.1\" || a == \"::1\"));
     let mut once = true;
     for i in 0..local.len {
         for j in 0..i {
@@ -263,11 +263,11 @@ fn resolve_gives_every_address_once() {
             }
         }
     }
-    println(once);
-    println(net.resolve(\"127.0.0.1\").debug());
-    println(net.resolve(\"::1\").debug());
-    println(net.resolve(\"\").is_err());
-    println(net.resolve(\"nothing.invalid\").is_err());
+    console.println(once);
+    console.println(net.resolve(\"127.0.0.1\").debug());
+    console.println(net.resolve(\"::1\").debug());
+    console.println(net.resolve(\"\").is_err());
+    console.println(net.resolve(\"nothing.invalid\").is_err());
 }
 ",
     )

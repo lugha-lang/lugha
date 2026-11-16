@@ -122,7 +122,7 @@ fn has_popcnt(code: &[u8]) -> bool {
 fn the_default_cpu_is_baseline_x86_64_and_cpu_levels_add_instructions() {
     // `args()` keeps the value unknown until the program runs, so LLVM
     // can't fold the count away: 12345 has six bits set.
-    let src = "fun main(): i32 { let x = args().len.truncate<u64>() * 12345; x.count_ones().truncate<i32>() }\n";
+    let src = "fun main(args: string[]): i32 { let x = args.len.truncate<u64>() * 12345; x.count_ones().truncate<i32>() }\n";
     let (baseline, code) = object_and_exit(src, Cpu::default());
     assert_eq!(code, Some(6));
     assert!(!has_popcnt(&baseline), "baseline x86-64 has no popcnt");

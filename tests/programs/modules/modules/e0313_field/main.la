@@ -1,6 +1,6 @@
 import range;
 
-fun main() {
+fun main(console: Console) {
     let r = range.Range.new(1, 5);
-    println(r.lo);
+    console.println(r.lo);
 }

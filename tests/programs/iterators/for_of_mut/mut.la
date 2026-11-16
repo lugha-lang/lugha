@@ -1,9 +1,9 @@
-fun main() {
+fun main(console: Console) {
     let mut xs = [1, 2, 3];
     for x of mut xs {
         x *= 2;
     }
-    println(xs.debug());
+    console.println(xs.debug());
     let mut words = ["a", "b", "--", "c", "d"].iter();
     let mut first = "";
     for w of mut words {
@@ -12,10 +12,10 @@ fun main() {
         }
         first = first + w + " ";
     }
-    println(first.trim());
+    console.println(first.trim());
     let mut rest = "";
     for w of mut words {
         rest = rest + w + " ";
     }
-    println(rest.trim());
+    console.println(rest.trim());
 }

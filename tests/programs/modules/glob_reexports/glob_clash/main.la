@@ -1,5 +1,5 @@
 import gtk;
 
-fun main() {
-    println(gtk.twice(1));
+fun main(console: Console) {
+    console.println(gtk.twice(1));
 }

@@ -189,7 +189,7 @@ mod tests {
         let found = errors(&[
             (
                 "main.la",
-                "import gtk;\nfun main() { println(gtk.hidden() + gtk.secret()); }",
+                "import gtk;\nfun main() { debug(gtk.hidden() + gtk.secret()); }",
             ),
             ("gtk.la", "public import raw { * };\n"),
             ("raw.la", RAW),
@@ -226,10 +226,7 @@ mod tests {
     #[test]
     fn whole_module_re_exports_stay_members() {
         let found = errors(&[
-            (
-                "main.la",
-                "import gtk;\nfun main() { println(gtk.extra()); }",
-            ),
+            ("main.la", "import gtk;\nfun main() { debug(gtk.extra()); }"),
             ("gtk.la", "public import mid { * };\n"),
             ("mid.la", "public import more;\n"),
             ("more.la", "public fun extra(): i64 = 3;\n"),

@@ -1,8 +1,8 @@
 error[E0422]: `T` doesn't implement `Display`
-  --> tests/programs/text/printing/not_display_param.la:4:19
+  --> tests/programs/text/printing/not_display_param.la:4:27
   |
-4 |         println("{x}");
-  |                   ^
+4 |         console.println("{x}");
+  |                           ^
   |
   = help: add the bound `T: Display`, or show its debug form with `.debug()`
 

@@ -12,14 +12,14 @@ const MAIN: &str = "import geo;
 import std.math;
 
 struct P { x: i64 }
-fun main() {
+fun main(console: Console) {
     let a = 1;
     let b = 2;
     let p = P { x: a };
-    println(p.x + b);
-    println(a);
-    println(geo.double(b));
-    println(math.sqrt(4.0));
+    console.println(p.x + b);
+    console.println(a);
+    console.println(geo.double(b));
+    console.println(math.sqrt(4.0));
 }
 ";
 
@@ -187,9 +187,9 @@ fn bad_names_the_prelude_and_modules_are_refused() {
     assert!(refused(&rename(&mut s, &uri, a, "1abc")).contains("isn't a name"));
     let sqrt = pos(MAIN, "math.sqrt", "sqrt");
     assert!(refused(&rename(&mut s, &uri, sqrt, "root")).contains("std or the prelude"));
-    // An intrinsic has no declaration to rename.
+    // A capability's method is the prelude's.
     let println = pos(MAIN, "println(a)", "println");
-    assert!(refused(&rename(&mut s, &uri, println, "say")).contains("nothing to rename"));
+    assert!(refused(&rename(&mut s, &uri, println, "say")).contains("std or the prelude"));
     let module = pos(MAIN, "geo.double", "geo");
     assert!(refused(&rename(&mut s, &uri, module, "g")).contains("module"));
     assert_eq!(s.finish(), Some(0));
@@ -259,7 +259,8 @@ fn prepare_answers_the_names_range_or_the_refusal() {
 
 #[test]
 fn renaming_a_function_renames_it_inside_import_braces() {
-    let main = "import geo { double };\nfun main() { println(double(2)); }\n";
+    let main =
+        "import geo { double };\nfun main(console: Console) { console.println(double(2)); }\n";
     let t = Temp::with(&[("main.la", main), ("geo.la", GEO)]);
     let (mut s, uri) = opened(&t, &[("main.la", main), ("geo.la", GEO)]);
     let reply = rename(&mut s, &uri, pos(main, "println(double", "double"), "twice");
@@ -267,7 +268,8 @@ fn renaming_a_function_renames_it_inside_import_braces() {
     assert!(
         texts.contains(&(
             "main.la".to_string(),
-            "import geo { twice };\nfun main() { println(twice(2)); }\n".to_string()
+            "import geo { twice };\nfun main(console: Console) { console.println(twice(2)); }\n"
+                .to_string()
         )),
         "{texts:?}"
     );

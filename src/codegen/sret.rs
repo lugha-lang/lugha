@@ -195,7 +195,7 @@ mod tests {
     fn a_struct_result_goes_through_a_hidden_pointer() {
         let ir = ir(&format!(
             "{P}fun make(n: i64): P = P {{ x: n, y: 2 }};\n\
-             fun main() {{ let p = make(1); println(p.x); }}"
+             fun main(console: Console) {{ let p = make(1); console.println(p.x); }}"
         ));
         let def = define(&ir, "@lugha_fn_make(");
         assert!(
@@ -212,7 +212,7 @@ mod tests {
             "{P}enum E {{ A(i64), B }}\n\
              impl P {{ fun flip(self): P = P {{ x: self.y, y: self.x }}; }}\n\
              fun e(): E = E.A(1);\nfun o(): Option<i64> = Some(1);\nfun t(): (i64, bool) = (1, true);\n\
-             fun main() {{ let p = P {{ x: 1, y: 2 }}.flip(); let a = e(); let b = o(); let c = t(); println(p.x); }}"
+             fun main(console: Console) {{ let p = P {{ x: 1, y: 2 }}.flip(); let a = e(); let b = o(); let c = t(); console.println(p.x); }}"
         ));
         for symbol in [
             "@lugha_fn_e(",
@@ -231,7 +231,7 @@ mod tests {
             "{P}interface Make {{ fun make(self): P; }}\n\
              struct M {{ n: i64 }}\nimpl Make for M {{ fun make(self): P = P {{ x: self.n, y: 0 }}; }}\n\
              fun via(m: Make): P = m.make();\n\
-             fun main() {{ let f = fun(n: i64): P = P {{ x: n, y: n }}; let p = f(3); let q = via(M {{ n: 1 }}); println(p.x + q.x); }}"
+             fun main(console: Console) {{ let f = fun(n: i64): P = P {{ x: n, y: n }}; let p = f(3); let q = via(M {{ n: 1 }}); console.println(p.x + q.x); }}"
         ));
         // Every call returning `%P`, direct or not, returns nothing now.
         assert!(!ir.contains("call %P"), "{ir}");
@@ -247,7 +247,7 @@ mod tests {
     fn other_results_and_main_are_unchanged() {
         let ir = ir(
             "fun n(): i64 = 1;\nfun s(): string = \"a\";\nfun xs(): i64[] = [1];\n\
-             fun main() { println(n()); println(s()); println(xs().debug()); }",
+             fun main(console: Console) { console.println(n()); console.println(s()); console.println(xs().debug()); }",
         );
         assert!(
             define(&ir, "@lugha_fn_n(").starts_with("define i64"),

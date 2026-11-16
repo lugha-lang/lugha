@@ -21,18 +21,18 @@ fun half<T: Float>(x: T): T = x * 0.5;
 fun widen<T: Num>(x: T): f64 = x.round<f64>() / 4.0;
 fun narrow<T: Num, U: Num>(x: T): U = x.saturate<U>();
 
-fun main() {
-    println("{mean([1, 2, 4])} {mean([1 as i32, 2, 4])} {mean([10 as u8, 20, 31])}");
-    println("{mean([1.0, 2.0, 4.0])} {mean([1.0 as f32, 2.0, 4.5])}");
+fun main(console: Console) {
+    console.println("{mean([1, 2, 4])} {mean([1 as i32, 2, 4])} {mean([10 as u8, 20, 31])}");
+    console.println("{mean([1.0, 2.0, 4.0])} {mean([1.0 as f32, 2.0, 4.5])}");
     let is: i64[] = arange(4);
     let fs: f64[] = arange(3);
     let bs: u8[] = arange(3);
-    println("{is.debug()} {fs.debug()} {bs.debug()}");
-    println("{scale(5)} {scale(5 as u8)} {scale(2.5)} {scale(1.5 as f32)}");
-    println("{half(3.0)} {half(5.0 as f32)}");
-    println("{widen(10)} {widen(10 as u8)} {widen(2.0 as f32)}");
+    console.println("{is.debug()} {fs.debug()} {bs.debug()}");
+    console.println("{scale(5)} {scale(5 as u8)} {scale(2.5)} {scale(1.5 as f32)}");
+    console.println("{half(3.0)} {half(5.0 as f32)}");
+    console.println("{widen(10)} {widen(10 as u8)} {widen(2.0 as f32)}");
     let a: u8 = narrow(300);
     let b: i64 = narrow(2.9);
     let c: f32 = narrow(7 as u16);
-    println("{a} {b} {c}");
+    console.println("{a} {b} {c}");
 }

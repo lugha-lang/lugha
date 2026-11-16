@@ -1,8 +1,8 @@
 error[E0422]: `P` doesn't implement `Ord`
-   --> tests/programs/interfaces/user_ord/e0422_own_cmp.la:10:13
+   --> tests/programs/interfaces/user_ord/e0422_own_cmp.la:10:21
    |
-10 |     println(a < a);
-   |             ^^^^^
+10 |     console.println(a < a);
+   |                     ^^^^^
    |
    = help: add `with Ord` after `P`'s declaration, or implement it by hand with `impl Ord for P`
 

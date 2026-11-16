@@ -1,14 +1,21 @@
-fun check(n: i64) {
+// A program ends by returning from `main`: its `i32` is the exit code.
+fun too_big(console: Console, n: i64): bool {
     if n > 2 {
-        print("too big, ");
-        println("stopping");
-        exit(3);
+        console.print("too big, ");
+        console.println("stopping");
+        return true;
     }
+    false
 }
 
-fun main() {
-    print("start ");
-    check(1);
-    check(5);
-    println("never printed");
+fun main(console: Console): i32 {
+    console.print("start ");
+    if too_big(console, 1) {
+        return 3;
+    }
+    if too_big(console, 5) {
+        return 3;
+    }
+    console.println("never printed");
+    0
 }

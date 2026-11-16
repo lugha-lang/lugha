@@ -21,7 +21,7 @@ const MODE: string = if DEBUG { "dev" } else { "prod" };
 const DEBUG: bool = false;
 const BANNER: string = "crc[1] = {CRC[1]}, mode {MODE}";
 
-fun main() {
-    println(BANNER);
-    println(CRC.len);
+fun main(console: Console) {
+    console.println(BANNER);
+    console.println(CRC.len);
 }

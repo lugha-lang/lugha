@@ -17,13 +17,13 @@ fun keep<T: Ord>(xs: T[], limit: T): T[] {
     out
 }
 
-fun main() {
-    println(apply(fun(x) = x + 1, 41));
-    println(apply(fun(s) = s + "!", "hey"));
+fun main(console: Console) {
+    console.println(apply(fun(x) = x + 1, 41));
+    console.println(apply(fun(s) = s + "!", "hey"));
     let threes = repeat(3, 4);
-    println(threes().len);
+    console.println(threes().len);
     let words = repeat("ab", 2)();
-    println(words[0] + words[1]);
-    println(keep([5, 1, 7, 2], 4).len);
-    println(keep(["pear", "apple", "fig"], "g")[1]);
+    console.println(words[0] + words[1]);
+    console.println(keep([5, 1, 7, 2], 4).len);
+    console.println(keep(["pear", "apple", "fig"], "g")[1]);
 }

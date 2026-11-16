@@ -73,28 +73,28 @@ fun run(s: string): Result<i64, Problem> {
     Ok(n + 1)
 }
 
-fun main() {
+fun main(console: Console) {
     let a: Animal = Dog { called: "rex" };
     let p: Pet = a;
-    println(p.intro());
+    console.println(p.intro());
     let n: Named = p;
-    println(greet(n));
+    console.println(greet(n));
     let p2: Pet2 = p;
     let back: Pet = p2;
-    println(back.intro());
+    console.println(back.intro());
 
     let mut m: Animal = Dog { called: "max" };
     let before: Named = m;
     m.rename("bo");
-    println("{before.name()} {m.name()}");
+    console.println("{before.name()} {m.name()}");
 
     let pet: Pet = Dog { called: "fido" };
-    println(greet(as_named(pet)));
+    console.println(greet(as_named(pet)));
 
     for s of ["ok", "no"] {
         match run(s) {
-            .Ok(v) => println(v),
-            .Err(e) => println(e.text()),
+            .Ok(v) => console.println(v),
+            .Err(e) => console.println(e.text()),
         }
     }
 }

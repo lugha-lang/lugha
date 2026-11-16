@@ -292,7 +292,7 @@ fn existing_files_are_kept_byte_for_byte() {
     std::fs::write(dir.join(".gitignore"), "mine\n").unwrap();
     std::fs::write(
         dir.join("src/main.la"),
-        "fun main() { println(\"mine\"); }\n",
+        "fun main(console: Console) { console.println(\"mine\"); }\n",
     )
     .unwrap();
     std::fs::create_dir(dir.join("test")).unwrap();

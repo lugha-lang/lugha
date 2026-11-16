@@ -1,0 +1,25 @@
+// A fake `Console`: an ordinary type that implements the interface.
+struct Recorder { lines: Ref<string[]> }
+
+impl Console for Recorder {
+    fun print(self, x: Display) { self.lines.update(fun(ls: string[]): string[] = ls + [x.show()]); }
+    fun println(self, x: Display) { self.print(x); }
+    fun eprint(self, x: Display) { self.print(x); }
+    fun eprintln(self, x: Display) { self.print(x); }
+    fun read_line(self): Option<string> = Some("canned");
+}
+
+fun greet(console: Console, name: string) {
+    console.println("hello, {name}");
+    match console.read_line() {
+        .Some(line) => console.println("got {line}"),
+        .None => {}
+    }
+}
+
+fun main(console: Console) {
+    let lines: Ref<string[]> = Ref.new([]);
+    greet(Recorder { lines: lines }, "fake");
+    console.println(lines.get().debug());
+    greet(console, "real");
+}

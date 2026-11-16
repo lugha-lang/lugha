@@ -77,7 +77,7 @@ fn setup(t: &Temp, version: &str) -> (PathBuf, PathBuf, String) {
     std::fs::create_dir_all(&app).unwrap();
     std::fs::write(
         app.join("main.la"),
-        "import geo.shapes;\nfun main() { println(shapes.area()); }\n",
+        "import geo.shapes;\nfun main(console: Console) { console.println(shapes.area()); }\n",
     )
     .unwrap();
     let url = format!("file://{}", repo.display());
@@ -188,7 +188,8 @@ fn lughac_on(t: &Temp, file: &Path, args: &[&str]) -> Output {
 fn one_lock_per_package_beside_its_manifest() {
     let t = Temp::new();
     let (_, app, newest) = setup(&t, "1");
-    let main = "import geo.shapes;\nfun main() { println(shapes.area()); }\n";
+    let main =
+        "import geo.shapes;\nfun main(console: Console) { console.println(shapes.area()); }\n";
     std::fs::create_dir_all(app.join("examples")).unwrap();
     std::fs::write(app.join("examples/demo.la"), main).unwrap();
     let demo = app.join("examples/demo.la");

@@ -230,11 +230,11 @@ fn eq_through_a_bound_reaches_eq_and_hash() {
 fn e0451_says_whether_the_part_is_a_union_or_holds_one() {
     let src = "extern union U { a: i32, b: f64 }\n\
         struct W { u: U }\n\
-        fun main() {\n\
+        fun main(console: Console) {\n\
             let v = U { a: 1 };\n\
             let w = W { u: U { a: 2 } };\n\
-            println(v == v);\n\
-            println(w == w);\n\
+            console.println(v == v);\n\
+            console.println(w == w);\n\
         }";
     let messages: Vec<String> = crate::check::test_util::diagnostics(src)
         .into_iter()

@@ -1,5 +1,5 @@
-fun main() {
+fun main(console: Console) {
     let m = Map { "a": 1, "a": 2 };
     let s = Set { 1, 1 };
-    println("{m.len} {s.len}");
+    console.println("{m.len} {s.len}");
 }

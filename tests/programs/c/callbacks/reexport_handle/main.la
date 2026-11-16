@@ -4,6 +4,6 @@ import handles { Handle as H };
 
 fun same(h: mid.Handle): H = h;
 
-fun main() {
-    println("same");
+fun main(console: Console) {
+    console.println("same");
 }

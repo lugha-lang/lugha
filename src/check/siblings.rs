@@ -230,10 +230,10 @@ mod tests {
     #[test]
     fn equality_takes_the_type_from_either_side() {
         ok(&format!(
-            "{VIEW}fun main() {{\n\
+            "{VIEW}fun main(console: Console) {{\n\
                  let expected: View<Msg> = View.Text(\"hi\");\n\
-                 println(text(\"hi\") == expected);\n\
-                 println(expected != text(\"hi\"));\n\
+                 console.println(text(\"hi\") == expected);\n\
+                 console.println(expected != text(\"hi\"));\n\
              }}"
         ));
     }
@@ -255,13 +255,13 @@ mod tests {
         let src = format!(
             "{VIEW}fun column<M>(kids: View<M>[]): View<M> = kids[0];\n\
              fun wrap<M>(v: View<M>): View<M> = v;\n\
-             @test fun t() {{\n\
+             @test fun t(console: Console) {{\n\
                  let expected: View<Msg> = View.Text(\"a\");\n\
                  assert_eq(column([text(\"a\")]), expected);\n\
                  assert_eq(expected, column([text(\"a\"), text(\"b\")]));\n\
                  assert_eq(wrap(column([wrap(text(\"a\"))])), expected);\n\
                  assert_eq(Some(text(\"a\")), Some(expected));\n\
-                 println(column([text(\"a\")]) == expected);\n\
+                 console.println(column([text(\"a\")]) == expected);\n\
              }}"
         );
         assert_eq!(test_mode(&src).err(), None);
@@ -276,7 +276,7 @@ mod tests {
         ));
         let src = format!(
             "{VIEW}fun column<M>(kids: View<M>[]): View<M> = kids[0];\n\
-             fun main() {{ println(column([text(\"a\")]) == column([])); }}"
+             fun main(console: Console) {{ console.println(column([text(\"a\")]) == column([])); }}"
         );
         let found = errors(&src);
         assert_eq!(found.first().map(|(c, _)| *c), Some("E0412"), "{found:?}");
@@ -286,11 +286,11 @@ mod tests {
     fn a_tuple_holding_a_waiting_call_waits() {
         let src = format!(
             "{VIEW}fun keyed_column<M>(kids: (string, View<M>)[]): View<M> = kids[0].1;\n\
-             @test fun t() {{\n\
+             @test fun t(console: Console) {{\n\
                  let expected: View<Msg> = View.Text(\"a\");\n\
                  assert_eq(keyed_column([(\"a\", text(\"a\"))]), expected);\n\
                  assert_eq(expected, keyed_column([(\"a\", text(\"a\")), (\"b\", text(\"b\"))]));\n\
-                 println(keyed_column([(\"a\", text(\"a\"))]) == expected);\n\
+                 console.println(keyed_column([(\"a\", text(\"a\"))]) == expected);\n\
                  let pair: (string, View<Msg>) = (\"a\", text(\"a\"));\n\
                  assert_eq((\"a\", text(\"a\")), pair);\n\
              }}"
@@ -298,7 +298,7 @@ mod tests {
         assert_eq!(test_mode(&src).err(), None);
         // Tuples of literals keep their own types.
         ok(
-            "fun main() { let t = (1, \"a\"); let u: (i64, string) = t; println(t == (1, \"a\")); }",
+            "fun main(console: Console) { let t = (1, \"a\"); let u: (i64, string) = t; console.println(t == (1, \"a\")); }",
         );
     }
 
@@ -319,7 +319,9 @@ mod tests {
         let src = format!("{node}fun main() {{ let s: i64 = leaf(\"x\").size(); }}");
         let found = errors(&src);
         assert_eq!(found.first().map(|(c, _)| *c), Some("E0412"), "{found:?}");
-        let src = format!("{node}fun main() {{ println(leaf(\"x\").pad(1) == leaf(\"y\")); }}");
+        let src = format!(
+            "{node}fun main(console: Console) {{ console.println(leaf(\"x\").pad(1) == leaf(\"y\")); }}"
+        );
         let found = errors(&src);
         assert_eq!(found.first().map(|(c, _)| *c), Some("E0412"), "{found:?}");
     }
@@ -332,15 +334,15 @@ mod tests {
             fun take(p: Person) {}\n";
         ok(&format!(
             "{lib}fun get(): Person = decode(\"x\").unwrap();\n\
-             fun main() {{\n\
+             fun main(console: Console) {{\n\
                  let p: Person = decode(\"x\").unwrap();\n\
                  let q: Person = decode(\"x\").expect(\"a person\");\n\
                  let r: Person = maybe().unwrap();\n\
                  let s: string = maybe().expect(\"text\");\n\
                  take(decode(\"x\").unwrap());\n\
                  let all: Person[] = [decode(\"x\").unwrap(), maybe().unwrap()];\n\
-                 println(decode(\"x\").unwrap() == p);\n\
-                 println(q == maybe().unwrap());\n\
+                 console.println(decode(\"x\").unwrap() == p);\n\
+                 console.println(q == maybe().unwrap());\n\
              }}"
         ));
         // Nothing wanting a type: still E0412.
@@ -393,7 +395,9 @@ mod tests {
 
     #[test]
     fn with_nothing_to_fix_it_it_is_still_e0412() {
-        let src = format!("{VIEW}fun main() {{ println(text(\"hi\") == text(\"ho\")); }}");
+        let src = format!(
+            "{VIEW}fun main(console: Console) {{ console.println(text(\"hi\") == text(\"ho\")); }}"
+        );
         let found = errors(&src);
         assert_eq!(found.first().map(|(c, _)| *c), Some("E0412"), "{found:?}");
     }

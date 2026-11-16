@@ -1,16 +1,16 @@
 // `yield_now` lets every ready thread run first: turns alternate.
 import std.task;
 
-fun say(name: string) {
+fun say(console: Console, name: string) {
     for i in 0..3 {
-        println("{name}{i}");
+        console.println("{name}{i}");
         task.yield_now();
     }
 }
 
-fun main() {
-    let a = spawn say("a");
-    let b = spawn say("b");
+fun main(console: Console) {
+    let a = spawn say(console, "a");
+    let b = spawn say(console, "b");
     a.join();
     b.join();
 }

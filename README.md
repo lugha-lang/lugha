@@ -16,8 +16,8 @@ program your computer can run on its own.
 fun fib(n: i64): i64 =
     if n < 2 { n } else { fib(n - 1) + fib(n - 2) };
 
-fun main(): i32 {
-    println(fib(30));
+fun main(console: Console): i32 {
+    console.println(fib(30));
     0
 }
 ```
@@ -58,12 +58,12 @@ original.
 ```lugha
 struct Point { x: i64, y: i64 }
 
-fun main(): i32 {
+fun main(console: Console): i32 {
     let a = Point { x: 1, y: 2 };
     let mut b = a;
     b.x = 9;
-    println(a);
-    println(b);
+    console.println(a);
+    console.println(b);
     0
 }
 ```
@@ -122,13 +122,13 @@ fun work(c: Counter, n: i64) {
     c.add(n);
 }
 
-fun main() {
+fun main(console: Console) {
     let c = spawn Counter { count: 0 };
     let tasks = [spawn work(c, 1), spawn work(c, 2), spawn work(c, 3)];
     for t of tasks {
         t.join();
     }
-    println("count = {c.get()}");
+    console.println("count = {c.get()}");
 }
 ```
 

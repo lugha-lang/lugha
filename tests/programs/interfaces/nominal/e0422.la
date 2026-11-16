@@ -10,8 +10,8 @@ impl Shape for Square { fun area(self): i64 = 1; fun extra(self) {} }
 
 fun total<T: Shape>(xs: T[]): f64 = xs.len.round<f64>();
 
-fun main() {
-    println(total([Circle { r: 1.0 }]));
+fun main(console: Console) {
+    console.println(total([Circle { r: 1.0 }]));
     let s: Shape = Circle { r: 1.0 };
-    println(Shape.area(Circle { r: 1.0 }));
+    console.println(Shape.area(Circle { r: 1.0 }));
 }

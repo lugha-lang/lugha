@@ -36,9 +36,9 @@ const MIXED: i64 = mixed();
 const UNIQUE: i64 = counts(["a", "b", "a", "c"]);
 const DOUBLED: i64[] = [1, 2, 3].map(fun(x: i64): i64 = x * 2);
 
-fun main() {
-    println(SQUARES);
-    println(MIXED);
-    println(UNIQUE);
-    println(DOUBLED.debug());
+fun main(console: Console) {
+    console.println(SQUARES);
+    console.println(MIXED);
+    console.println(UNIQUE);
+    console.println(DOUBLED.debug());
 }

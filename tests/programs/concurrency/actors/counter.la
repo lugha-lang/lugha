@@ -8,14 +8,14 @@ public actor Counter {
     fun divide(mut self, by: i64) { self.count = self.count / by; }
 }
 
-fun main() {
+fun main(console: Console) {
     let c = spawn Counter.new(10);
     c.add(5);
-    println(c.get());
+    console.println(c.get());
     c.divide(0);
-    println(c.join().debug());
+    console.println(c.join().debug());
     let d = spawn Counter { count: 0 };
     d.stop();
-    println(d.join().debug());
-    println(d.debug());
+    console.println(d.join().debug());
+    console.println(d.debug());
 }

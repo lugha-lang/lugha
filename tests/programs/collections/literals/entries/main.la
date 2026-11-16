@@ -1,17 +1,17 @@
 // A program's own type built from `key: value` entries.
 import table { Table };
 
-fun main() {
+fun main(console: Console) {
     let t = Table { "ann": 3, "bo": 5, "ann": 4 };
-    println(t.rows.debug());
+    console.println(t.rows.debug());
     let nested = Map { "x": Set { 1, 2 }, "y": Set {} };
-    println(nested.debug());
+    console.println(nested.debug());
     let words = Map<string, string[]> { "a": [] };
-    println(words.debug());
+    console.println(words.debug());
     let key = 7;
     let by_key = Map { key: "seven", key + 1: "eight" };
-    println(by_key.debug());
+    console.println(by_key.debug());
     let a = "x";
     let label = Map { a: loop { break 1; } };
-    println(label.debug());
+    console.println(label.debug());
 }

@@ -4,10 +4,10 @@ import raw;
 
 fun keep(w: Widget): raw.Widget = w;
 
-fun main() {
+fun main(console: Console) {
     let p: raw.Point = Point { x: twice(2), y: gtk.twice(3) };
     let q: gtk.Point = p;
-    println(q.x + q.y);
-    println(match Dir.Up { .Up => "up", .Down => "down" });
-    println(gtk.run());
+    console.println(q.x + q.y);
+    console.println(match Dir.Up { .Up => "up", .Down => "down" });
+    console.println(gtk.run());
 }

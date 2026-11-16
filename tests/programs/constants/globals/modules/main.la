@@ -3,9 +3,9 @@ import geo { SIDES };
 
 const AREA: i64 = geo.UNIT.w * geo.UNIT.h * SIDES;
 
-fun main() {
-    println(geo.UNIT.debug());
-    println(SIDES);
-    println(AREA);
-    println(geo.describe());
+fun main(console: Console) {
+    console.println(geo.UNIT.debug());
+    console.println(SIDES);
+    console.println(AREA);
+    console.println(geo.describe());
 }

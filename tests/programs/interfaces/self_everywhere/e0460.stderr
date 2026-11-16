@@ -1,8 +1,8 @@
 error[E0460]: `describe` on `P` is an item of both `Named` and `Shown`
-   --> tests/programs/interfaces/self_everywhere/e0460.la:19:24
+   --> tests/programs/interfaces/self_everywhere/e0460.la:19:32
    |
-19 |     println(P { x: 1 }.describe());
-   |                        ^^^^^^^^
+19 |     console.println(P { x: 1 }.describe());
+   |                                ^^^^^^^^
    |
    = help: say which one you mean: `Named.describe(P { … })` or `Shown.describe(P { … })`
 

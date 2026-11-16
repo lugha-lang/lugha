@@ -35,11 +35,11 @@ fun total(it: Iter<i64>): i64 {
     sum
 }
 
-fun main() {
+fun main(console: Console) {
     let c = Count { n: 0, end: 3 };
     for n of c {
-        println(n);
+        console.println(n);
     }
-    println(c.n);
-    println(total(Fib { a: 0, b: 1, left: 10 }));
+    console.println(c.n);
+    console.println(total(Fib { a: 0, b: 1, left: 10 }));
 }

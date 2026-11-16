@@ -1,19 +1,19 @@
 // The unit type `()`: a value like any other.
-fun log(s: string) {
-    println(s);
+fun log(console: Console, s: string) {
+    console.println(s);
 }
 
-fun save(path: string): Result<(), string> {
+fun save(console: Console, path: string): Result<(), string> {
     if path == "" {
         return Err("no path");
     }
-    log("saved {path}");
+    log(console, "saved {path}");
     Ok(())
 }
 
-fun both(a: string, b: string): Result<(), string> {
-    save(a)?;
-    save(b)
+fun both(console: Console, a: string, b: string): Result<(), string> {
+    save(console, a)?;
+    save(console, b)
 }
 
 fun id<T>(x: T): T = x;
@@ -23,25 +23,25 @@ struct Tick {
     done: (),
 }
 
-fun main() {
-    println(both("a", "b").debug());
-    println(both("a", "").debug());
-    let u: () = log("hi");
-    println(u.debug());
-    println(u == ());
+fun main(console: Console) {
+    console.println(both(console, "a", "b").debug());
+    console.println(both(console, "a", "").debug());
+    let u: () = log(console, "hi");
+    console.println(u.debug());
+    console.println(u == ());
     let us = [(), id(()), u];
-    println(us.debug());
-    println(us.len);
+    console.println(us.debug());
+    console.println(us.len);
     let o: Option<()> = Some(());
-    println("{o.debug()} {u.debug()}");
+    console.println("{o.debug()} {u.debug()}");
     let t = Tick { at: 3, done: () };
-    println(t.debug());
+    console.println(t.debug());
     let done: Chan<()> = Chan.buffered(1);
     done.send(());
-    println(done.recv().debug());
-    let task: Task<()> = spawn log("from a task");
+    console.println(done.recv().debug());
+    let task: Task<()> = spawn log(console, "from a task");
     let r: () = task.join();
-    println(r.debug());
+    console.println(r.debug());
     let seen: Map<string, ()> = Map { "x": () };
-    println(seen.has("x"));
+    console.println(seen.has("x"));
 }

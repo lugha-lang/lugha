@@ -22,12 +22,12 @@ impl Neg for Vec2 {
 fun twice<T: Add>(x: T): T = x + x;                  // T + T gives T
 fun scaled<T: Mul<f64>>(x: T): T = x * 2.0;
 
-fun main() {
+fun main(console: Console) {
     let v = Vec2 { x: 1.0, y: 2.0 };
     let w = 2.0 * v + v * 0.5;
-    println((-w).debug());                           // Vec2 { x: -2.5, y: -5.0 }
+    console.println((-w).debug());                           // Vec2 { x: -2.5, y: -5.0 }
     let mut u = v;
     u *= 3.0;
-    println("{u.x} {twice(v).y} {scaled(v).x} {twice(5)}");   // 3.0 4.0 2.0 10
-    println(Mul.mul(v, 2.0).y);                      // 4.0
+    console.println("{u.x} {twice(v).y} {scaled(v).x} {twice(5)}");   // 3.0 4.0 2.0 10
+    console.println(Mul.mul(v, 2.0).y);                      // 4.0
 }

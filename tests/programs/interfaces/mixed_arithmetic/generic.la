@@ -43,12 +43,12 @@ impl Scales for V {
 fun twice<T: Scales>(s: T): T = s.mul(2.0);
 fun thrice<T: Scales + Mul<f64>>(s: T): T = s * 3.0;
 
-fun main() {
+fun main(console: Console) {
     let a = Arr { xs: [1.0, 2.0] };
-    println(((a * a).xs).debug());
-    println(((a * 3.0).xs).debug());
+    console.println(((a * a).xs).debug());
+    console.println(((a * 3.0).xs).debug());
     let i = Arr { xs: [1, 2] };
-    println(((i * 5).xs).debug());
-    println(twice(V { x: 4.0 }).get());
-    println(thrice(V { x: 4.0 }).get());
+    console.println(((i * 5).xs).debug());
+    console.println(twice(V { x: 4.0 }).get());
+    console.println(thrice(V { x: 4.0 }).get());
 }

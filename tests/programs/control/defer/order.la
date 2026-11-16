@@ -1,17 +1,17 @@
 // `defer`: several run last first, at the end of
 // their own block, reading values as they are when they run.
-fun main() {
-    defer println("c");
+fun main(console: Console) {
+    defer console.println("c");
     {
-        defer println("inner end");
-        println("inner");
+        defer console.println("inner end");
+        console.println("inner");
     }
     defer {
-        println("b");
+        console.println("b");
     }
     let mut n = 1;
-    defer println("n = {n}");
+    defer console.println("n = {n}");
     n = 2;
     let n = 10;
-    println("a {n}");
+    console.println("a {n}");
 }

@@ -39,7 +39,13 @@ impl Checker {
         if let Some((declared, Some(expect))) = result {
             // A context that already failed was reported; it can't decide anything.
             failed = expect.ty == Type::Error;
-            unify(declared, &expect.ty, &names, &mut bound);
+            // An expected interface converts the result afterwards: it
+            // doesn't make a bare `T` the interface (`console.println(fold(…))`).
+            let converts =
+                matches!(expect.ty, Type::Interface(..)) && matches!(declared, Type::Param(_));
+            if !converts {
+                unify(declared, &expect.ty, &names, &mut bound);
+            }
         }
         // What can be typed alone goes first, so `max(x, 3)` makes `3` a `u8`.
         // A call only its result can type waits too: `pair(text("a"), v)`.

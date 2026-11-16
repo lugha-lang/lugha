@@ -12,7 +12,7 @@ fun customer(account: Account, times: i64) {
     }
 }
 
-fun main() {
+fun main(console: Console) {
     let account = spawn Account { balance: 0 };
     let mut tasks: Task[] = [];
     for c in 0..10 {
@@ -21,7 +21,7 @@ fun main() {
     for t of tasks {
         t.join();
     }
-    println(account.total());
+    console.println(account.total());
     account.stop();
-    println(account.join().debug());
+    console.println(account.join().debug());
 }

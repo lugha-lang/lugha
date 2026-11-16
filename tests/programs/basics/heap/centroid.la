@@ -11,12 +11,12 @@ fun centroid(pts: Point[]): Point {
     Point { x: sx / n, y: sy / n }
 }
 
-fun main() {
+fun main(console: Console) {
     let pts = [
         Point { x: 0.0, y: 0.0 },
         Point { x: 4.0, y: 0.0 },
         Point { x: 2.0, y: 3.0 },
     ];
     let c = centroid(pts);
-    println("centroid: " + to_string(c.x) + ", " + to_string(c.y));
+    console.println("centroid: " + to_string(c.x) + ", " + to_string(c.y));
 }

@@ -17,14 +17,14 @@ interface Area { fun area(self): f64; }
 impl Area for Circle { fun area(self): f64 = 3.0 * self.r * self.r; }
 fun measure(a: Area): f64 = a.area();
 // A comment.
-fun main() {
+fun main(console: Console) {
     let c = Circle { r: 1.0 };
-    println(c.area());
-    println(measure(c));
+    console.println(c.area());
+    console.println(measure(c));
     let s = Shape.Round(2.0);
-    match s { .Round(x) => println(x), .Dot => {} }
-    println(geo.double(2));
-    println(math.sqrt(2.0));
+    match s { .Round(x) => console.println(x), .Dot => {} }
+    console.println(geo.double(2));
+    console.println(math.sqrt(2.0));
 }
 ";
 
@@ -108,7 +108,7 @@ fn names_jump_to_their_declarations() {
         here("{ fun area(self): f64; }", "area")
     );
     assert_eq!(
-        jump(&mut s, &uri, at("=> println(x)", "x)")),
+        jump(&mut s, &uri, at("=> console.println(x)", "x)")),
         here("Round(x)", "x")
     );
     assert_eq!(s.finish(), Some(0));
@@ -209,7 +209,7 @@ fn a_declaration_is_its_own_definition() {
 
 #[test]
 fn definitions_work_while_the_program_has_errors() {
-    let text = "fun main() {\n    let fine = 2.5;\n    let bad = nope;\n    println(fine);\n}\n";
+    let text = "fun main(console: Console) {\n    let fine = 2.5;\n    let bad = nope;\n    console.println(fine);\n}\n";
     let t = Temp::with(&[("main.la", text)]);
     let uri = t.uri("main.la");
     let mut s = Server::start(&t, json!({}));
@@ -242,7 +242,7 @@ fn a_jump_right_after_typing_sees_the_new_text() {
 
 #[test]
 fn handle_types_jump_to_their_extern_type() {
-    const HANDLES: &str = "extern type Win;\nextern fun open_win(): Win;\nfun keep(w: Win): Win = w;\nfun main() { let w = keep(open_win()); println(w.debug()); }\n";
+    const HANDLES: &str = "extern type Win;\nextern fun open_win(): Win;\nfun keep(w: Win): Win = w;\nfun main(console: Console) { let w = keep(open_win()); console.println(w.debug()); }\n";
     let t = Temp::with(&[("main.la", HANDLES)]);
     let uri = t.uri("main.la");
     let mut s = Server::start(&t, json!({}));
@@ -258,7 +258,7 @@ fn handle_types_jump_to_their_extern_type() {
 #[test]
 fn names_inside_import_braces_hover_and_go_to_their_declarations() {
     let main = "import shapes { area, Circle as C };\n\
-                fun main() { println(area(C { r: 1.0 })); }\n";
+                fun main(console: Console) { console.println(area(C { r: 1.0 })); }\n";
     let shapes = "public struct Circle { public r: f64 }\n\
                   public fun area(c: Circle): f64 = c.r;\n";
     let t = Temp::with(&[("main.la", main), ("shapes.la", shapes)]);
@@ -311,7 +311,7 @@ fn a_named_imported_extern_type_hovers_and_goes_to_its_declaration() {
 
 #[test]
 fn glob_re_exported_names_hover_complete_and_go_to_their_declarations() {
-    let main = "import gtk { twice };\nfun main() { println(twice(1) + gtk.twice(2)); }\n";
+    let main = "import gtk { twice };\nfun main(console: Console) { console.println(twice(1) + gtk.twice(2)); }\n";
     let raw = "/** Doubles. */\npublic fun twice(n: i64): i64 = n * 2;\n";
     let t = Temp::with(&[
         ("main.la", main),
@@ -350,13 +350,14 @@ fn glob_re_exported_names_hover_complete_and_go_to_their_declarations() {
 
 #[test]
 fn an_included_path_goes_to_its_file() {
-    let program = "fun main() {\n    print(include_str(\"notes/a.txt\"));\n}\n";
+    let program =
+        "fun main(console: Console) {\n    console.print(include_str(\"notes/a.txt\"));\n}\n";
     let t = Temp::with(&[("main.la", program), ("notes/a.txt", "hi\n")]);
     let uri = t.uri("main.la");
     let mut server = Server::start(&t, json!({}));
     server.open(&uri, program);
     server.expect(&uri, &[]);
-    let found = jump(&mut server, &uri, (1, 25));
+    let found = jump(&mut server, &uri, (1, 33));
     let target = found["uri"].as_str().unwrap_or_default();
     assert!(target.ends_with("/notes/a.txt"), "{found}");
     assert_eq!(found["range"]["start"]["line"], 0, "{found}");

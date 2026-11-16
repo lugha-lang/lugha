@@ -15,13 +15,13 @@ fun verdict(bytes: u8[]): string = match string_from_utf8(bytes) {
     .Err(e) => e.slice(e.len - 1, e.len),
 };
 
-fun main() {
+fun main(console: Console) {
     let cases = ["0", "-0", "7", "-7", "007", "", "-", "+1", " 1", "1 ", "1a", "--1",
         "9223372036854775807", "9223372036854775808", "-9223372036854775808",
         "-9223372036854775809", "18446744073709551615", "18446744073709551616",
         "99999999999999999999", "١٢"];
     for c of cases {
-        println("[{c}] {show_i64(c)} {show_u64(c)}");
+        console.println("[{c}] {show_i64(c)} {show_u64(c)}");
     }
     // Every two-byte input, one line per first byte.
     for b0 in 0..256 {
@@ -29,7 +29,7 @@ fun main() {
         for b1 in 0..256 {
             line = line + verdict([b0.truncate<u8>(), b1.truncate<u8>()]);
         }
-        println("{b0}: {line}");
+        console.println("{b0}: {line}");
     }
     // Chosen longer sequences: valid, overlong, surrogate, too high, truncated.
     let seqs: u8[][] = [
@@ -45,9 +45,9 @@ fun main() {
                 for c of text.chars() {
                     codes = codes + " {c as u32}";
                 }
-                println("ok{codes} ({text.char_count()})");
+                console.println("ok{codes} ({text.char_count()})");
             }
-            .Err(e) => println(e),
+            .Err(e) => console.println(e),
         }
     }
 }

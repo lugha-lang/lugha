@@ -18,9 +18,9 @@ fun check(t: Tree): i64 = match t {
     .Node(l, r) => 1 + check(l) + check(r),
 };
 
-fun main() {
-    let max_depth = parse_i64(args()[1]).unwrap();
-    println("stretch {max_depth + 1} {check(make(max_depth + 1))}");
+fun main(args: string[], console: Console) {
+    let max_depth = parse_i64(args[1]).unwrap();
+    console.println("stretch {max_depth + 1} {check(make(max_depth + 1))}");
     let long_lived = make(max_depth);
     let mut depth = 4;
     while depth <= max_depth {
@@ -29,8 +29,8 @@ fun main() {
         for _ in 0..iterations {
             sum += check(make(depth));
         }
-        println("{iterations} {depth} {sum}");
+        console.println("{iterations} {depth} {sum}");
         depth += 2;
     }
-    println("long {max_depth} {check(long_lived)}");
+    console.println("long {max_depth} {check(long_lived)}");
 }

@@ -1,5 +1,5 @@
-fun main() {
+fun main(console: Console) {
     let s = "hello";
     let b = s[7];
-    println(b);
+    console.println(b);
 }

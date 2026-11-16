@@ -1,7 +1,7 @@
 // Ten thousand green threads, each with its own stack.
 fun one(): i64 = 1;
 
-fun main() {
+fun main(console: Console) {
     let mut tasks: Task<i64>[] = [];
     for i in 0..10000 {
         tasks.push(spawn one());
@@ -10,5 +10,5 @@ fun main() {
     for t of tasks {
         sum += t.join();
     }
-    println(sum);
+    console.println(sum);
 }

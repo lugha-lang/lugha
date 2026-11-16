@@ -1,6 +1,6 @@
 // `it.sum()` at every numeric type (one generic
 // `iter_sum<T: Num>` behind them all).
-fun main() {
+fun main(console: Console) {
     let a: i8[] = [1, -2, 3];
     let b: i16[] = [300, -1];
     let c: i32[] = [100000, 2];
@@ -11,9 +11,9 @@ fun main() {
     let h: u64[] = [18000000000000000000, 1];
     let i: f32[] = [0.5, 0.25];
     let j: f64[] = [0.1, 0.2];
-    println("{a.iter().sum()} {b.iter().sum()} {c.iter().sum()} {d.iter().sum()}");
-    println("{e.iter().sum()} {f.iter().sum()} {g.iter().sum()} {h.iter().sum()}");
-    println("{i.iter().sum()} {j.iter().sum()}");
+    console.println("{a.iter().sum()} {b.iter().sum()} {c.iter().sum()} {d.iter().sum()}");
+    console.println("{e.iter().sum()} {f.iter().sum()} {g.iter().sum()} {h.iter().sum()}");
+    console.println("{i.iter().sum()} {j.iter().sum()}");
     let empty: f64[] = [];
-    println("{empty.iter().sum()} {"ab".bytes().sum()} {range(1, 5).sum()}");
+    console.println("{empty.iter().sum()} {"ab".bytes().sum()} {range(1, 5).sum()}");
 }

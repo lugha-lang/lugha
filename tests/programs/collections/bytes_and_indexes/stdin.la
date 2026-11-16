@@ -1,5 +1,5 @@
-fun main() {
+fun main(console: Console) {
     let b = read_stdin_bytes();
-    println(b.len);
-    println(b[0]);
+    console.println(b.len);
+    console.println(b[0]);
 }

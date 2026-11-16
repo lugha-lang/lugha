@@ -55,7 +55,7 @@ fn two_modules() -> Fixture {
     let f = Fixture::new();
     f.file(
         "main.la",
-        "import geometry;\n\nfun main() {\n    let mut p = geometry.origin();\n    println(p.x);\n}\n",
+        "import geometry;\n\nfun main(console: Console) {\n    let mut p = geometry.origin();\n    console.println(p.x);\n}\n",
     )
     .file(
         "geometry.la",
@@ -185,7 +185,10 @@ fn the_prelude_shows_only_as_compiled_instances() {
         "main.la",
         "fun main() { let xs = [1, 2]; let ys = xs.map(fun(x) = x + 1); }\n",
     )
-    .file("plain.la", "fun main() { println(1); }\n");
+    .file(
+        "plain.la",
+        "fun main(console: Console) { console.println(1); }\n",
+    );
     let ast = text(&lughac(f.path(), &["build", "--emit=ast", "main.la"]).stdout);
     assert!(
         !ast.contains("prelude") && !ast.contains("sort_by"),
@@ -197,19 +200,23 @@ fn the_prelude_shows_only_as_compiled_instances() {
         "{ir}"
     );
     assert!(!ir.contains("sort_by"), "only what is used compiles: {ir}");
+    // Printing goes through the prelude's console; nothing else of it compiles.
     let plain = text(&lughac(f.path(), &["build", "--emit=ir", "plain.la"]).stdout);
-    assert!(!plain.contains("prelude"), "{plain}");
+    assert!(!plain.contains("$array"), "{plain}");
 }
 
 #[test]
 fn only_the_prelude_functions_a_program_reaches_compile() {
     // The prelude's methods compile only when reached, generic or not.
     let f = Fixture::new();
-    f.file("trim.la", "fun main() { println(\" x \".trim()); }\n")
-        .file(
-            "split.la",
-            "fun main() { println(\"a,b\".split(\",\").len); }\n",
-        );
+    f.file(
+        "trim.la",
+        "fun main(console: Console) { console.println(\" x \".trim()); }\n",
+    )
+    .file(
+        "split.la",
+        "fun main(console: Console) { console.println(\"a,b\".split(\",\").len); }\n",
+    );
     let ir = text(&lughac(f.path(), &["build", "--emit=ir", "trim.la"]).stdout);
     assert!(ir.contains("@\"lugha_fn_$prelude/$string.trim\""), "{ir}");
     assert!(
@@ -231,7 +238,7 @@ fn with_package(manifest: &str) -> Fixture {
     f.file("lugha.toml", manifest)
         .file(
             "main.la",
-            "import geo.shapes;\n\nfun main() {\n    println(shapes.area(2.0));\n}\n",
+            "import geo.shapes;\n\nfun main(console: Console) {\n    console.println(shapes.area(2.0));\n}\n",
         )
         .file(
             "libs/geo/shapes.la",

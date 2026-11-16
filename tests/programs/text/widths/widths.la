@@ -1,21 +1,21 @@
 // Format widths count characters, not bytes, and any
 // character can fill.
-fun main() {
+fun main(console: Console) {
     let n = "Zoë";
-    println("[{n:<6}]");
-    println("[{n:>6}]");
-    println("[{n:^7}]");
+    console.println("[{n:<6}]");
+    console.println("[{n:>6}]");
+    console.println("[{n:^7}]");
     let j = "日本";
-    println("[{j:<4}]");
+    console.println("[{j:<4}]");
     let e = "😀";
-    println("[{e:>3}]");
-    println("[{n:é^9}]");
-    println("[{n:<2}]");
+    console.println("[{e:>3}]");
+    console.println("[{n:é^9}]");
+    console.println("[{n:<2}]");
     let c = 'ñ';
-    println("[{c:>3}]");
-    println(format("[{:*<5}]", "añb"));
+    console.println("[{c:>3}]");
+    console.println(format("[{:*<5}]", "añb"));
     let k = 42;
-    println("[{k:é>5}]");
+    console.println("[{k:é>5}]");
     let o = Some("é");
-    println("[{o.debug():<12}]");
+    console.println("[{o.debug():<12}]");
 }

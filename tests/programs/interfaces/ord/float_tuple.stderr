@@ -1,8 +1,8 @@
 error[E0451]: `(f64, i64)` isn't `Ord`: `.0` is a float
-  --> tests/programs/interfaces/ord/float_tuple.la:3:13
+  --> tests/programs/interfaces/ord/float_tuple.la:3:21
   |
-3 |     println((1.5, 2) < (2.5, 1));
-  |             ^^^^^^^^^^^^^^^^^^^
+3 |     console.println((1.5, 2) < (2.5, 1));
+  |                     ^^^^^^^^^^^^^^^^^^^
   |
   = help: compare the parts yourself, the float with `f64.total_order`, or sort with `xs.sort_by(f)`
 

@@ -24,19 +24,19 @@ fun first(text: string): Result<i64, Error> {
     }
 }
 
-fun main() {
+fun main(console: Console) {
     let t: Top = Item { n: 7 };
-    println(t.all());
+    console.println(t.all());
     let m: Mid = t;
-    println(m.twice());
+    console.println(m.twice());
     let b: Base = m;
-    println(b.label());
+    console.println(b.label());
     for text of ["4", "3", "true", "[1"] {
         match first(text) {
-            .Ok(n) => println("ok {n}"),
+            .Ok(n) => console.println("ok {n}"),
             .Err(e) => match e {
-                o: Odd => println("an odd one: {o.why}"),
-                _ => println("error: {e}"),
+                o: Odd => console.println("an odd one: {o.why}"),
+                _ => console.println("error: {e}"),
             },
         }
     }

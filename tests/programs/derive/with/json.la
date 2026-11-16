@@ -25,11 +25,11 @@ impl json.Json for Tags {
 
 struct Post { title: string, tags: Tags, at: Point } with json.Json
 
-fun main() {
-    println(json.stringify(json.encode(Site { name: "a", url: "b" })).unwrap());
-    println(json.stringify(json.encode([Status.Up(200), Status.Down("dns")])).unwrap());
-    println(json.stringify(json.encode(Point { x: 1, y: 2 })).unwrap());
+fun main(console: Console) {
+    console.println(json.stringify(json.encode(Site { name: "a", url: "b" })).unwrap());
+    console.println(json.stringify(json.encode([Status.Up(200), Status.Down("dns")])).unwrap());
+    console.println(json.stringify(json.encode(Point { x: 1, y: 2 })).unwrap());
     let v = json.parse("{{\"title\": \"hi\", \"at\": 1}}").unwrap();
     let p: Result<Post, json.DecodeError> = json.decode(v);
-    println(p.debug());
+    console.println(p.debug());
 }

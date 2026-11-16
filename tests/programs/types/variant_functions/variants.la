@@ -17,43 +17,43 @@ fun parse(s: string): Result<i64, string> =
 
 fun wrap<T>(xs: T[]): Option<T>[] = xs.iter().map(Some).collect();
 
-fun main() {
+fun main(console: Console) {
     let shapes: Shape[] = [1.0, 2.5].iter().map(Shape.Circle).collect();
-    println(shapes.debug());
+    console.println(shapes.debug());
     let rect = Shape.Rect;
-    println(rect(2.0, 3.0).debug());
-    println(Shape.Empty.debug());
+    console.println(rect(2.0, 3.0).debug());
+    console.println(Shape.Empty.debug());
 
     let maybes: Option<i64>[] = [1, 2].iter().map(Some).collect();
-    println(maybes.debug());
-    println(wrap(["a", "b"]).debug());
+    console.println(maybes.debug());
+    console.println(wrap(["a", "b"]).debug());
 
     // Stored in a struct and an array, called later.
     let h = Handler { on_name: Msg.Named };
-    println(h.on_name("ada").debug());
+    console.println(h.on_name("ada").debug());
     let fs = [Msg.Named, Msg.Named];
-    println(fs[1]("bo").debug());
-    println(apply(Msg.Named, "cy").debug());
+    console.println(fs[1]("bo").debug());
+    console.println(apply(Msg.Named, "cy").debug());
 
     // Arrays inside payloads keep value semantics.
     let mut tags = ["x"];
     let make = Msg.Tags;
     let m = make(tags);
     tags.push("y");
-    println("{m.debug()} {tags.debug()}");
+    console.println("{m.debug()} {tags.debug()}");
 
     // A recursive enum's variant (an indirect slot).
     let cons = List.Cons;
-    println((cons(1, cons(2, List.Nil))).debug());
+    console.println((cons(1, cons(2, List.Nil))).debug());
 
     // Ok and Err where the type is known.
     let ok: fun(i64): Result<i64, string> = Ok;
     let err: fun(string): Result<i64, string> = Err;
-    println(ok(5).debug());
-    println(err("bad").debug());
-    println((parse("2").map_err(fun(e) = "wrapped: {e}")).debug());
+    console.println(ok(5).debug());
+    console.println(err("bad").debug());
+    console.println((parse("2").map_err(fun(e) = "wrapped: {e}")).debug());
 
     // A generic user enum, typed by what's expected.
     let node: fun(Tree<i64>, i64, Tree<i64>): Tree<i64> = Tree.Node;
-    println(node(Tree.Leaf, 7, Tree.Leaf).debug());
+    console.println(node(Tree.Leaf, 7, Tree.Leaf).debug());
 }

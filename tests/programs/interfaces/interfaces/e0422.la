@@ -17,6 +17,6 @@ fun total<T: Shape>(xs: T[]): f64 {
     sum
 }
 
-fun main() {
-    println(total([Circle { r: 1.0 }]));
+fun main(console: Console) {
+    console.println(total([Circle { r: 1.0 }]));
 }

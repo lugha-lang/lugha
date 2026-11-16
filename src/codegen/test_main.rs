@@ -29,8 +29,8 @@ impl<'ctx> Lowerer<'ctx> {
             let test = self
                 .functions
                 .get(name)
-                .expect("checked: a listed test is a declared function")
-                .function;
+                .expect("checked: a listed test is a declared function");
+            let (test, params) = (test.function, test.params.clone());
             let text = self
                 .builder
                 .build_global_string_ptr(name, "test")
@@ -54,7 +54,8 @@ impl<'ctx> Lowerer<'ctx> {
                 .build_conditional_branch(yes, run, next)
                 .expect(POSITIONED);
             self.builder.position_at_end(run);
-            self.builder.build_call(test, &[], "").expect(POSITIONED);
+            let args = self.entry_arguments(&params);
+            self.builder.build_call(test, &args, "").expect(POSITIONED);
             self.builder
                 .build_return(Some(&i32_type.const_zero()))
                 .expect(POSITIONED);

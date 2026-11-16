@@ -2,7 +2,7 @@
 const BIG: i64 = 9223372036854775807;
 const TOO_BIG: i64 = BIG + 1;
 
-fun main() {
-    println("never");
-    println(TOO_BIG);
+fun main(console: Console) {
+    console.println("never");
+    console.println(TOO_BIG);
 }

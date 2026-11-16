@@ -60,27 +60,27 @@ fun shown(x: Show): string = x.label();
 
 fun pick(b: bool): Show = if b { 7 } else { "seven" };
 
-fun main() {
-    println(true.label());
-    println(().label());
-    println((1, false).label());
+fun main(console: Console) {
+    console.println(true.label());
+    console.println(().label());
+    console.println((1, false).label());
     let m: Map<string, bool> = Map { "a": true };
     // A block for a map, called as a method and qualified.
-    println(m.label());
-    println(Show.label(m));
+    console.println(m.label());
+    console.println(Show.label(m));
     let r: Result<i64, string> = Err("no");
-    println(r.label());
-    println(5.twice());
-    println(Show.twice(false));
+    console.println(r.label());
+    console.println(5.twice());
+    console.println(Show.twice(false));
     let mut xs = [1];
     xs.push_two(2);
-    println(xs.debug());
+    console.println(xs.debug());
     Stack.push_two(xs, 3);
-    println(xs.len);
-    println(shown((2, "x")));
-    println(pick(true).label());
-    println(pick(false).twice());
-    println("  a ".trim());
-    println(Trim.trim("  a "));
-    println("{3.cmp(4) == Ordering.Less} {"a".eq("b")} {[1, 2].eq([1, 2])}");
+    console.println(xs.len);
+    console.println(shown((2, "x")));
+    console.println(pick(true).label());
+    console.println(pick(false).twice());
+    console.println("  a ".trim());
+    console.println(Trim.trim("  a "));
+    console.println("{3.cmp(4) == Ordering.Less} {"a".eq("b")} {[1, 2].eq([1, 2])}");
 }

@@ -1,34 +1,34 @@
 // Every way out of a block runs its defers: `return`, `?`, `break`,
 // `continue` and the end, innermost block first.
-fun early(x: i64): i64 {
-    defer println("early done {x}");
+fun early(console: Console, x: i64): i64 {
+    defer console.println("early done {x}");
     if x > 0 {
-        defer println("positive");
+        defer console.println("positive");
         return x * 10;
     }
     0
 }
 
-fun parse(s: string): Result<i64, string> {
-    defer println("parse done {s}");
+fun parse(console: Console, s: string): Result<i64, string> {
+    defer console.println("parse done {s}");
     let n = parse_i64(s).ok_or("bad number")?;
     Ok(n + 1)
 }
 
-fun loops() {
+fun loops(console: Console) {
     for i in 0..4 {
-        defer println("iteration {i} done");
+        defer console.println("iteration {i} done");
         if i == 1 {
             continue;
         }
         if i == 3 {
             break;
         }
-        println("body {i}");
+        console.println("body {i}");
     }
     let mut k = 0;
     while true {
-        defer println("while {k}");
+        defer console.println("while {k}");
         k += 1;
         if k == 2 {
             break;
@@ -36,19 +36,19 @@ fun loops() {
     }
 }
 
-fun unreached(x: i64): i64 {
+fun unreached(console: Console, x: i64): i64 {
     if x == 0 {
         return 0;
     }
-    defer println("never for 0");
+    defer console.println("never for 0");
     x
 }
 
-fun main() {
-    println(early(1));
-    println(early(0));
-    println(parse("41").debug());
-    println(parse("x").debug());
-    loops();
-    println(unreached(0));
+fun main(console: Console) {
+    console.println(early(console, 1));
+    console.println(early(console, 0));
+    console.println(parse(console, "41").debug());
+    console.println(parse(console, "x").debug());
+    loops(console);
+    console.println(unreached(console, 0));
 }

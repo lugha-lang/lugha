@@ -32,10 +32,10 @@ fun greet(n: Named): string = match n {
     _ => "hello, {n.name()}",
 };
 
-fun main() {
+fun main(console: Console) {
     let pets: Pet[] = [Dog { called: "rex" }, Cat { called: "tom" }];
     for p of pets {
-        println(greet(p));
-        println(p.sound());
+        console.println(greet(p));
+        console.println(p.sound());
     }
 }

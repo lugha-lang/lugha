@@ -24,18 +24,18 @@ struct Ann {}
 impl Named for Ann { fun name(self): string = "Ann"; }
 impl Greeter for Ann {}
 
-fun main() {
+fun main(console: Console) {
     match total("4", "") {
-        .Ok(n) => println(n),
-        .Err(e) => println("failed: {e}"),  // Error is Display: prints `failed: empty`
+        .Ok(n) => console.println(n),
+        .Err(e) => console.println("failed: {e}"),  // Error is Display: prints `failed: empty`
     }
     match total("x", "ab") {
-        .Ok(n) => println(n),
-        .Err(e) => println(e.show()),       // not a number: x
+        .Ok(n) => console.println(n),
+        .Err(e) => console.println(e.show()),       // not a number: x
     }
     let g: Greeter = Ann {};                // was E0464
-    println(g.greet());                     // hello, Ann
-    println(g.name());                      // Named's item, through Greeter's table
+    console.println(g.greet());                     // hello, Ann
+    console.println(g.name());                      // Named's item, through Greeter's table
     let n: Named = g;                       // a Greeter value is a Named value
-    println(n.name());
+    console.println(n.name());
 }

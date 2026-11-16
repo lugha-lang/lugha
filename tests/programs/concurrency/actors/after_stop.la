@@ -3,10 +3,10 @@ actor Counter {
     fun get(self): i64 = self.count;
 }
 
-fun main() {
+fun main(console: Console) {
     let c = spawn Counter { count: 1 };
-    println(c.get());
+    console.println(c.get());
     c.stop();
-    println(c.join().debug());
-    println(c.get());
+    console.println(c.join().debug());
+    console.println(c.get());
 }

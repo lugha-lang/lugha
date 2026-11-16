@@ -4,7 +4,7 @@ actor Echo {
     fun say(self, text: string) { self.out.send("echo: {text}"); }
 }
 
-fun main() {
+fun main(console: Console) {
     let out: Chan<string> = Chan.buffered(4);
     let e = spawn Echo { out: out };
     e.say("hi");
@@ -13,6 +13,6 @@ fun main() {
     e.join();
     out.close();
     while let .Some(line) = out.recv() {
-        println(line);
+        console.println(line);
     }
 }

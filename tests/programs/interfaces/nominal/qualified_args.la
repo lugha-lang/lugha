@@ -3,9 +3,9 @@ interface Sink {
     fun put(self, x: i64, tag: string);
     fun sum(self, a: i64, b: i64): i64 = a + b;
 }
-struct Shout {}
-impl Sink for Shout { fun put(self, x: i64, tag: string) { println("{tag}{x}"); } }
-fun main() {
-    Sink.put(Shout {}, 5, "#");
-    println(Sink.sum(Shout {}, 2, 3));
+struct Shout { console: Console }
+impl Sink for Shout { fun put(self, x: i64, tag: string) { self.console.println("{tag}{x}"); } }
+fun main(console: Console) {
+    Sink.put(Shout { console: console }, 5, "#");
+    console.println(Sink.sum(Shout { console: console }, 2, 3));
 }

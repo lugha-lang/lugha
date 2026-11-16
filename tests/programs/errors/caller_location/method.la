@@ -17,8 +17,8 @@ fun careful(a: Account, n: i64): Account = between(a, n);
 
 fun between(a: Account, n: i64): Account = a.withdraw(n);
 
-fun main() {
+fun main(console: Console) {
     let a = Account { balance: 10 };
-    println(a.withdraw(3).balance);
-    println(careful(a, 50).balance);
+    console.println(a.withdraw(3).balance);
+    console.println(careful(a, 50).balance);
 }

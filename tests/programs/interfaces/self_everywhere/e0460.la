@@ -15,6 +15,6 @@ impl Named for P {
 
 impl Shown for P {}
 
-fun main() {
-    println(P { x: 1 }.describe());
+fun main(console: Console) {
+    console.println(P { x: 1 }.describe());
 }

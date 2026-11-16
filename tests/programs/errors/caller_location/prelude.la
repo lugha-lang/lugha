@@ -1,10 +1,10 @@
 // The prelude's `unwrap`, `expect` and assertions report their caller.
-fun main() {
+fun main(console: Console) {
     let o: Option<i64> = Some(4);
-    println(o.unwrap() + o.expect("there"));
+    console.println(o.unwrap() + o.expect("there"));
     assert(o.is_some());
     assert_eq(o, Some(4));
     assert_ne(o, None);
     let r: Result<i64, string> = Err("broken");
-    println(r.unwrap());
+    console.println(r.unwrap());
 }

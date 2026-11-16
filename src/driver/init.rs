@@ -209,7 +209,7 @@ fn program(name: &str) -> String {
         "// {name}: a Lugha program. Run it with `lughac run src/main.la`.\n\
          import greeting;\n\
          \n\
-         fun main() {{\n    println(greeting.hello(\"world\"));\n}}\n"
+         fun main(console: Console) {{\n    console.println(greeting.hello(\"world\"));\n}}\n"
     )
 }
 
@@ -259,7 +259,7 @@ fn example(name: &str) -> String {
         "// An example using {name}. Run it with `lughac run examples/hello.la`.\n\
          import {name};\n\
          \n\
-         fun main() {{\n    println({name}.greet(\"world\"));\n}}\n"
+         fun main(console: Console) {{\n    console.println({name}.greet(\"world\"));\n}}\n"
     )
 }
 

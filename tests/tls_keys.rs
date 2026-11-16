@@ -108,17 +108,17 @@ fun listening(server: Device, accept: u8[][]): tls.Listener {
 }
 
 // `in` when the server named this client's key back, `refused: …` otherwise.
-fun try(addr: string, client: Device, server_key: u8[]) {
+fun try(console: Console, addr: string, client: Device, server_key: u8[]) {
     match tls.connect_keys(addr, tls.Keys { secret: client.secret, accept: [server_key] }, 5000) {
         .Ok(c) => {
             let ours = c.peer_key() == server_key;
             match c.read(100) {
-                .Ok(seen) => println(if seen == client.key && ours { \"in\" } else { \"refused\" }),
-                .Err(_) => println(\"refused\"),
+                .Ok(seen) => console.println(if seen == client.key && ours { \"in\" } else { \"refused\" }),
+                .Err(_) => console.println(\"refused\"),
             }
             c.close();
         }
-        .Err(e) => println(\"refused: {e}\"),
+        .Err(e) => console.println(\"refused: {e}\"),
     }
 }
 ";
@@ -126,17 +126,17 @@ fun try(addr: string, client: Device, server_key: u8[]) {
 #[test]
 fn accepted_keys_get_in_and_others_are_refused() {
     Case::new(
-        "fun main() {
+        "fun main(console: Console) {
     let (server, a, b, c) = (device(), device(), device(), device());
     let l = listening(server, [a.key, b.key]);
-    try(l.addr(), a, server.key);
-    try(l.addr(), b, server.key);
-    try(l.addr(), c, server.key);
+    try(console, l.addr(), a, server.key);
+    try(console, l.addr(), b, server.key);
+    try(console, l.addr(), c, server.key);
     // A client that doesn't accept the server's key stops at connect.
-    try(l.addr(), a, c.key);
+    try(console, l.addr(), a, c.key);
     // Nobody is accepted by an empty list.
     let empty = listening(server, []);
-    try(empty.addr(), a, server.key);
+    try(console, empty.addr(), a, server.key);
 }",
     )
     .runs("in\nin\nrefused\nrefused: peer key not accepted\nrefused\n");
@@ -145,16 +145,16 @@ fn accepted_keys_get_in_and_others_are_refused() {
 #[test]
 fn set_accept_changes_who_gets_in_next() {
     Case::new(
-        "fun main() {
+        "fun main(console: Console) {
     let (server, a, c) = (device(), device(), device());
     let l = listening(server, [a.key]);
-    try(l.addr(), c, server.key);
+    try(console, l.addr(), c, server.key);
     l.set_accept([a.key, c.key]).unwrap();
-    try(l.addr(), c, server.key);
+    try(console, l.addr(), c, server.key);
     l.set_accept([]).unwrap();
-    try(l.addr(), a, server.key);
+    try(console, l.addr(), a, server.key);
     l.close();
-    println(l.set_accept([]).debug());
+    console.println(l.set_accept([]).debug());
 }",
     )
     .runs("refused\nin\nrefused\nErr(\"closed\")\n");
@@ -163,24 +163,24 @@ fn set_accept_changes_who_gets_in_next() {
 #[test]
 fn wrong_key_lengths_are_refused() {
     Case::new(
-        "fun main() {
+        "fun main(console: Console) {
     let a = device();
     let short = [1 as u8; 31];
-    println(tls.listen_keys(\"127.0.0.1:0\", tls.Keys { secret: short, accept: [] }).is_err());
+    console.println(tls.listen_keys(\"127.0.0.1:0\", tls.Keys { secret: short, accept: [] }).is_err());
     match tls.listen_keys(\"127.0.0.1:0\", tls.Keys { secret: short, accept: [] }) {
-        .Err(e) => println(e),
-        .Ok(_) => println(\"listening\"),
+        .Err(e) => console.println(e),
+        .Ok(_) => console.println(\"listening\"),
     }
     match tls.listen_keys(\"127.0.0.1:0\", tls.Keys { secret: a.secret, accept: [a.key, short] }) {
-        .Err(e) => println(e),
-        .Ok(_) => println(\"listening\"),
+        .Err(e) => console.println(e),
+        .Ok(_) => console.println(\"listening\"),
     }
     match tls.connect_keys(\"127.0.0.1:1\", tls.Keys { secret: a.secret, accept: [short] }, 1000) {
-        .Err(e) => println(e),
-        .Ok(_) => println(\"connected\"),
+        .Err(e) => console.println(e),
+        .Ok(_) => console.println(\"connected\"),
     }
     let l = tls.listen_keys(\"127.0.0.1:0\", tls.Keys { secret: a.secret, accept: [] }).unwrap();
-    println(l.set_accept([short]).debug());
+    console.println(l.set_accept([short]).debug());
 }",
     )
     .runs(
@@ -192,20 +192,20 @@ fn wrong_key_lengths_are_refused() {
 #[test]
 fn certificates_and_keys_do_not_mix() {
     let case = Case::new(
-        "fun main() {
+        "fun main(console: Console) {
     let (server, a) = (device(), device());
     // A certificate client at a by-key listener.
     let by_key = listening(server, [a.key]);
     let trust = tls.Options { ca_file: \"self.pem\", ..tls.options() };
-    println(tls.connect_with(by_key.addr(), trust).is_err());
+    console.println(tls.connect_with(by_key.addr(), trust).is_err());
     // A by-key client at a certificate listener, which has no list to change.
     let by_cert = tls.listen(\"127.0.0.1:0\", \"self.pem\", \"self.key\").unwrap();
     spawn serve(by_cert);
-    try(by_cert.addr(), a, server.key);
-    println(by_cert.set_accept([a.key]).debug());
+    try(console, by_cert.addr(), a, server.key);
+    console.println(by_cert.set_accept([a.key]).debug());
     // A certificate connection has no peer key.
     let c = tls.connect_with(by_cert.addr(), trust).unwrap();
-    println(c.peer_key().len);
+    console.println(c.peer_key().len);
     c.close();
 }",
     );

@@ -15,14 +15,14 @@ import std.math;
 struct Circle { r: f64 }
 enum Shape { Round(f64), Dot }
 impl Circle { fun area(self): f64 = 3.0 * self.r * self.r; }
-fun main() {
+fun main(console: Console) {
     let c = Circle { r: 1.0 };
-    println(c.area());
-    println(c.r);
+    console.println(c.area());
+    console.println(c.r);
     let s = Shape.Round(2.0);
-    match s { .Round(x) => println(x), .Dot => {} }
-    println(geo.double(2));
-    println(math.sqrt(4.0) + math.sqrt(9.0));
+    match s { .Round(x) => console.println(x), .Dot => {} }
+    console.println(geo.double(2));
+    console.println(math.sqrt(4.0) + math.sqrt(9.0));
 }
 ";
 
@@ -204,11 +204,7 @@ fn a_std_function_lists_its_uses_and_nothing_under_the_cursor_is_null() {
     ];
     want.sort();
     assert_eq!(found, want);
-    // An intrinsic has no declaration; a blank line has no name.
-    assert_eq!(
-        refs(&mut s, &uri, pos(MAIN, "println(c.area", "println"), true),
-        None
-    );
+    // A blank line has no name.
     assert_eq!(refs(&mut s, &uri, (1, 0), true), None);
     assert_eq!(s.finish(), Some(0));
 }
@@ -217,12 +213,12 @@ const SHARED: &str = "struct P { name: string }
 impl P { fun name(self): string = \"Dr. {self.name}\"; }
 enum Shape { Circle(f64), Dot }
 impl Shape { fun Circle(self): bool = match self { .Circle(_) => true, .Dot => false }; }
-fun main() {
+fun main(console: Console) {
     let p = P { name: \"Ada\" };
-    println(p.name);
-    println(p.name());
+    console.println(p.name);
+    console.println(p.name());
     let s = Shape.Circle(1.0);
-    println(s.Circle());
+    console.println(s.Circle());
 }
 ";
 

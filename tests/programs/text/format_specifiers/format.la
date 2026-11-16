@@ -1,11 +1,11 @@
-fun main() {
+fun main(console: Console) {
     let pi = 3.14159;
     let n = 42;
-    println("{pi:.2}");
-    println("|{n:6}|");
-    println("|{n:<6}|");
-    println("{-42:05}");
-    println("{255:#x}");
-    println("{"ann":*^9}");
-    println("{-1 as i8:b}");
+    console.println("{pi:.2}");
+    console.println("|{n:6}|");
+    console.println("|{n:<6}|");
+    console.println("{-42:05}");
+    console.println("{255:#x}");
+    console.println("{"ann":*^9}");
+    console.println("{-1 as i8:b}");
 }

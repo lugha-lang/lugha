@@ -19,10 +19,10 @@ fun pass<T: Greeter>(x: T): string = first(x);
 
 struct Pair<T> { a: T, b: T } with Key
 
-fun main() {
+fun main(console: Console) {
     let d = Dog { called: "rex" };
-    println(both(d));
-    println(pass(d));
+    console.println(both(d));
+    console.println(pass(d));
     let seen = Map { Pair { a: 1, b: 2 }: "one-two" };
-    println(seen.get(Pair { a: 1, b: 2 }).debug());
+    console.println(seen.get(Pair { a: 1, b: 2 }).debug());
 }

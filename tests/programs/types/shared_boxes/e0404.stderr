@@ -1,8 +1,8 @@
 error[E0404]: cannot apply `==` to Ref<i64>
-  --> tests/programs/types/shared_boxes/e0404.la:5:13
+  --> tests/programs/types/shared_boxes/e0404.la:5:21
   |
-5 |     println(a == b);
-  |             ^^^^^^
+5 |     console.println(a == b);
+  |                     ^^^^^^
   |
   = help: compare boxes with `a.is(b)` (the same box) or `a.get() == b.get()` (the same contents)
 

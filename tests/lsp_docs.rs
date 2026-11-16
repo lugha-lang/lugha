@@ -44,17 +44,17 @@ fun max<T: Ord>(a: T, b: T): T { if a > b { a } else { b } }
 
 fun plain(): i64 = 1;
 
-fun main() {
+fun main(console: Console) {
     let p = Point { x: 1.0 };
     let s = Shape.Circle(1.0);
     let xs = [1, 2];
     let word = \"a b\";
-    println(max(1, 2));
-    println(p.scale(2.0).x);
-    println(plain());
-    println(math.sqrt(4.0));
-    println(xs.map(fun(n: i64): i64 = n * 2).debug());
-    println(word.split(\" \").debug());
+    console.println(max(1, 2));
+    console.println(p.scale(2.0).x);
+    console.println(plain());
+    console.println(math.sqrt(4.0));
+    console.println(xs.map(fun(n: i64): i64 = n * 2).debug());
+    console.println(word.split(\" \").debug());
 }
 ";
 
@@ -156,8 +156,8 @@ fn hover_answers_on_type_and_variant_names() {
 /// `println(plain());`, as JSON.
 fn items(t: &Temp, typed: &str) -> Vec<Value> {
     let text = MAIN.replacen(
-        "    println(plain());",
-        &format!("    {typed}\n    println(plain());"),
+        "    console.println(plain());",
+        &format!("    {typed}\n    console.println(plain());"),
         1,
     );
     let (line, col) = pos(&text, &format!("    {typed}\n"), "\n");
@@ -202,8 +202,8 @@ fn completion_items_carry_their_docs() {
 fn signature_help_shows_the_summary_and_the_active_parameters_doc() {
     let t = Temp::with(&[("main.la", MAIN)]);
     let text = MAIN.replacen(
-        "    println(plain());",
-        "    max(1, \n    println(plain());",
+        "    console.println(plain());",
+        "    max(1, \n    console.println(plain());",
         1,
     );
     let (line, col) = pos(&text, "    max(1, \n", "\n");
@@ -253,9 +253,9 @@ const MODULES: &str = "import geo.shapes;
 import geo.plain;
 import std.math;
 
-fun main() {
-    println(shapes.area() + plain.one());
-    println(math.sqrt(4.0));
+fun main(console: Console) {
+    console.println(shapes.area() + plain.one());
+    console.println(math.sqrt(4.0));
 }
 ";
 
@@ -304,7 +304,7 @@ fn hover_on_a_module_shows_its_module_doc() {
 
 #[test]
 fn a_packages_entry_hovers_and_opens_as_its_module() {
-    let main = "import geo;\nfun main() { println(geo.one()); }\n";
+    let main = "import geo;\nfun main(console: Console) { console.println(geo.one()); }\n";
     let t = Temp::with(&[
         ("main.la", main),
         ("lugha.toml", "[packages]\ngeo = \"geo\"\n"),
@@ -322,7 +322,7 @@ fn a_packages_entry_hovers_and_opens_as_its_module() {
         .unwrap_or_default()
         .to_string();
     assert_eq!(shown, format!("{}\n\nGeometry.", code("module geo")));
-    let found = s.definition(&uri, 1, 22);
+    let found = s.definition(&uri, 1, 46);
     assert!(
         found["uri"]
             .as_str()
@@ -338,7 +338,7 @@ fn extern_types_and_actors_carry_their_docs() {
     let main = "/** A C window. */\npublic extern type Win;\n\n\
                 /** Counts. */\nactor Counter {\n    n: i64,\n    fun get(self): i64 = self.n;\n}\n\n\
                 fun keep(w: Win) {}\n\
-                fun main() {\n    let c = spawn Counter { n: 0 };\n    println(c.get());\n}\n";
+                fun main(console: Console) {\n    let c = spawn Counter { n: 0 };\n    console.println(c.get());\n}\n";
     let t = Temp::with(&[("main.la", main)]);
     let uri = t.uri("main.la");
     let mut s = Server::start(&t, json!({}));

@@ -15,12 +15,12 @@ fun depth<T>(t: Tree<T>): i64 = match t {
     }
 };
 
-fun main() {
+fun main(console: Console) {
     let t: Tree<string> = Tree.Node(Tree.Leaf, "a", Tree.Node(Tree.Leaf, "b", Tree.Leaf));
-    println(depth(t));
+    console.println(depth(t));
     let c = Chain { value: 1, rest: [Chain { value: 2, rest: [] }] };
-    println(c.debug());
+    console.println(c.debug());
     let m = geo.Menu { name: "top", items: [geo.Menu { name: "sub", items: [] }] };
-    println(m.items[0].name);
-    println(m.debug());
+    console.println(m.items[0].name);
+    console.println(m.debug());
 }

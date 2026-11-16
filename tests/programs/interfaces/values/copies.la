@@ -34,32 +34,32 @@ fun area_of(o: Option<Shape>): f64 = match o {
     .None => 0.0,
 };
 
-fun main() {
+fun main(console: Console) {
     // A copy of an interface value is its own.
     let a: Shape = Circle { r: 2.0 };
     let mut b = a;
     b.grow(10.0);
-    println(a.area());
-    println(b.area());
+    console.println(a.area());
+    console.println(b.area());
     // Converting copies a value still in use, arrays included.
     let p = Poly { sides: [1.0, 2.0] };
     let mut q: Shape = p;
     q.grow(3.0);
-    println(p.sides.len);
-    println(p.sides[0]);
-    println(q.area());
+    console.println(p.sides.len);
+    console.println(p.sides[0]);
+    console.println(q.area());
     // Inside a struct, an array and an `Option`.
     let scene = Scene { main: q, all: [a, q], spare: Some(a) };
     let mut copy = scene;
     copy.main.grow(2.0);
     copy.all[1].grow(2.0);
-    println(scene.main.area());
-    println(copy.main.area());
-    println(scene.all[1].area());
-    println(copy.all[1].area());
-    println(area_of(copy.spare));
+    console.println(scene.main.area());
+    console.println(copy.main.area());
+    console.println(scene.all[1].area());
+    console.println(copy.all[1].area());
+    console.println(area_of(copy.spare));
     // A last use moves.
     let last: Shape = Circle { r: 5.0 };
     let moved = last;
-    println(moved.area());
+    console.println(moved.area());
 }

@@ -30,8 +30,9 @@ Nov 15, 2026 · @kithinji
 - Type arguments may be written at a use, `pick<string>([])`, `xs.map<string>(f)`, `Chan<Job>.new()`, `Pair<u8> { … }`, `Option<i64>.None`, with `_` for one left to inference; `as` converts only where nothing can be lost, and `try_into`, `truncate`, `saturate`, `round`, `floor` and `ceil` name the rest (E0469) (milestone 177; sections 3–5).
 - Maps and sets are written `Map { "ann": 31 }`, `Set { 1, 2 }`, `Map {}` and `Set {}`, through the prelude interfaces `FromEntries` and `FromItems`, which any type may implement; `#{…}` is gone (E0213, E0470) (milestone 178; sections 3–4).
 - The prelude's `Error: Display` is the shared error interface (`Result<T, Error>`, `?` from any error, `"{e}"`), implemented by `string` and std's errors; an interface that extends others is a value type, its table holding its ancestors' items (E0464 retired) (milestone 179; sections 4–6).
+- Capabilities, first step: `main` takes `args: string[]`, `console: Console` and `fs: Fs` by type; printing, reading input and files go through `Console` and `fs.cwd()`; `print`, `println`, `eprint`, `eprintln`, `read_line`, `read_file`, `write_file`, `append_file`, `args` and `exit` are gone (E0471) (milestone 180; sections 5–6).
 
-**Breaking:** `#{…}` is gone (milestone 178): `#{"a": 1}` is `Map { "a": 1 }`, `#{1, 2}` is `Set { 1, 2 }`, and `#{}` is `Map {}` or `Set {}`; maps and sets print that way; a struct implementing `FromEntries` or `FromItems` is built with braces only in its own module. A numeric `as` that can lose information is E0469 (milestone 177): `n as u8` for a wider `n` is `n.truncate<u8>()` for the old bits, a float `as` an integer is `x.saturate<i64>()` for the old result, `n as f64` for an `i64` is `n.round<f64>()`, `n as char` is `n.try_into<char>()`; `f(a < b, c > (d))` now passes type arguments. Every variant in a pattern takes a leading dot (milestone 176): `Some(x) =>` is `.Some(x) =>`, `None =>` is `.None =>`, `if let Some(x) = o` is `if let .Some(x) = o`; an undotted one is E0212 or E0468, and `mut None` is E0468, not E0428. A `Result` used as a statement is E0467 (milestone 175): write `let _ = f();` to drop one on purpose. `assert_eq` and `assert_ne` are ordinary generic calls (milestone 173): an argument that can't be typed alone, first (`assert_eq(None, o)`), is E0412; write it second. The prelude's helpers are only methods (milestone 172): `map(xs, f)`, `str_trim(s)` and the like are no longer functions a program can call (E0301); write `xs.map(f)`, `s.trim()`. Operators go through blocks (milestone 171): an own `fun add(self, o: V): V` becomes `impl Add for V { … }`, several `mul`s on one type become one `impl Mul<R> for V` each, and `impl f64 { fun mul(self, v: V): V }` becomes `impl Mul<V> for f64` (that form is now E0466; E0458 is retired); an operator on an interface value is E0404, and a bound gives an operator only when it is an operator interface (`T: Mul<f64>`), not an interface with its own `mul`. Printing needs `Display` (milestone 170): `println(xs)`, `"{opt}"` and `to_string(p)` on an array, `Option`, tuple, map, `()` or a struct or enum without `impl Display` are E0422; write `.debug()` for the old text, or `impl Display`. A type's own `show` method becomes `impl Display for T`, and is no longer used inside an array or another value's text. `unwrap()` on an `Err` shows the error's debug form (`"boom"` quoted). `debug` is a reserved name. A struct or enum ordered with `<`, `sort`, `min` or `max` needs `with Ord` or `impl Ord` (milestone 168); an own `cmp` method no longer orders it, and `Ord` now implies `Eq`. Floats aren't `Ord`: `[1.5].sort()`, `math.min(1.5, 2.0)` and tuples or structs holding a float that are ordered are E0451; sort floats with `xs.sort_by(f64.total_order)`. A struct or enum compared with `==` or used as a map key or set value needs `with Eq` or `with Key` (milestone 167); own `eq` and `hash` methods become `impl Eq` and `impl Key`. A struct or enum encoded, decoded or otherwise used through a derivable interface needs `with I` (milestone 165); a type's own `to_json` or `show` no longer replaces a derived item. A type that met an interface by its methods needs `impl I for T`; methods that implement an interface move from `impl T { … }` into it. A number, string or array converted to a program's interface (`let x: Any = 1;`) is E0422 unless a block implements it for that type (milestone 169).
+**Breaking:** printing, input, files and the arguments need capabilities (milestone 180): `fun main() { println(x); }` is `fun main(console: Console) { console.println(x); }`; a function that prints takes the `Console` as a parameter; `read_file(p)` is `fs.cwd().read_file(p)` with `fs: Fs` taken by `main`; `args()` is an `args: string[]` parameter of `main`; `exit(n)` is returning `n` from `main`. `#{…}` is gone (milestone 178): `#{"a": 1}` is `Map { "a": 1 }`, `#{1, 2}` is `Set { 1, 2 }`, and `#{}` is `Map {}` or `Set {}`; maps and sets print that way; a struct implementing `FromEntries` or `FromItems` is built with braces only in its own module. A numeric `as` that can lose information is E0469 (milestone 177): `n as u8` for a wider `n` is `n.truncate<u8>()` for the old bits, a float `as` an integer is `x.saturate<i64>()` for the old result, `n as f64` for an `i64` is `n.round<f64>()`, `n as char` is `n.try_into<char>()`; `f(a < b, c > (d))` now passes type arguments. Every variant in a pattern takes a leading dot (milestone 176): `Some(x) =>` is `.Some(x) =>`, `None =>` is `.None =>`, `if let Some(x) = o` is `if let .Some(x) = o`; an undotted one is E0212 or E0468, and `mut None` is E0468, not E0428. A `Result` used as a statement is E0467 (milestone 175): write `let _ = f();` to drop one on purpose. `assert_eq` and `assert_ne` are ordinary generic calls (milestone 173): an argument that can't be typed alone, first (`assert_eq(None, o)`), is E0412; write it second. The prelude's helpers are only methods (milestone 172): `map(xs, f)`, `str_trim(s)` and the like are no longer functions a program can call (E0301); write `xs.map(f)`, `s.trim()`. Operators go through blocks (milestone 171): an own `fun add(self, o: V): V` becomes `impl Add for V { … }`, several `mul`s on one type become one `impl Mul<R> for V` each, and `impl f64 { fun mul(self, v: V): V }` becomes `impl Mul<V> for f64` (that form is now E0466; E0458 is retired); an operator on an interface value is E0404, and a bound gives an operator only when it is an operator interface (`T: Mul<f64>`), not an interface with its own `mul`. Printing needs `Display` (milestone 170): `println(xs)`, `"{opt}"` and `to_string(p)` on an array, `Option`, tuple, map, `()` or a struct or enum without `impl Display` are E0422; write `.debug()` for the old text, or `impl Display`. A type's own `show` method becomes `impl Display for T`, and is no longer used inside an array or another value's text. `unwrap()` on an `Err` shows the error's debug form (`"boom"` quoted). `debug` is a reserved name. A struct or enum ordered with `<`, `sort`, `min` or `max` needs `with Ord` or `impl Ord` (milestone 168); an own `cmp` method no longer orders it, and `Ord` now implies `Eq`. Floats aren't `Ord`: `[1.5].sort()`, `math.min(1.5, 2.0)` and tuples or structs holding a float that are ordered are E0451; sort floats with `xs.sort_by(f64.total_order)`. A struct or enum compared with `==` or used as a map key or set value needs `with Eq` or `with Key` (milestone 167); own `eq` and `hash` methods become `impl Eq` and `impl Key`. A struct or enum encoded, decoded or otherwise used through a derivable interface needs `with I` (milestone 165); a type's own `to_json` or `show` no longer replaces a derived item. A type that met an interface by its methods needs `impl I for T`; methods that implement an interface move from `impl T { … }` into it. A number, string or array converted to a program's interface (`let x: Any = 1;`) is E0422 unless a block implements it for that type (milestone 169).
 
 **Changes in v17 since v16** (milestones 91–163):
 - Green threads: `spawn f(x)` runs a call concurrently and gives a `Task<T>` (a plain `Task` for a call that returns nothing) whose `join()` waits for the result. `Chan<T>` carries values between green threads: `Chan.new()` (unbuffered) or `Chan.buffered(n)`, `send`, `recv` (an `Option`, `None` once closed), `try_recv`, `close`, `is`. `select` waits on several channels at once, with an `after(ms)` timeout or a `default` that never waits. `std.task` has `sleep(ms)` and `yield_now()`. Every function stays an ordinary function: there is no `async` and no `await`, so nothing is coloured. All green threads share the program's one OS thread; a panic in any of them ends the program, as does `main` returning, and a deadlock is a panic (sections 2–9).
@@ -292,12 +293,12 @@ fun dist2(a: Point, b: Point): f64 {
     dx * dx + dy * dy
 }
 
-fun main() {
+fun main(console: Console) {
     let mut total = 0;
     for i in 0..10 {
         total += i;
     }
-    println(total);
+    console.println(total);
 }
 ```
 
@@ -1104,24 +1105,17 @@ for path in paths {
 
 | Intrinsic | Accepts | Effect |
 | --- | --- | --- |
-| `print(x)` | A value with `Display` (v18; any value v12–v17) | Writes `x`'s text (below) to stdout with no newline |
-| `println(x)` | The same, or nothing | Writes `x`'s text and a newline |
 | `panic(msg)` | `string` | Panics with `msg` |
 | `assert(c)` (v16; a prelude function since v18) | `bool` | Panics with `assertion failed` unless `c` holds, at the call (`@caller_location`) |
 | `assert_eq(a, b)` (v16; prelude, `assert_eq<T: Eq>`, since v18) | two values of one type with `==`, inferred as for any generic call | Panics with `assert_eq failed: left <a>, right <b>` unless `a == b`, each value in its debug form |
 | `assert_ne(a, b)` (v16) | the same | Panics with `assert_ne failed: both <a>` if `a == b` |
 | `skip(reason)` (v17) | a `string` | In a test, ends it at once and reports it skipped with `reason`; outside a test, panics with `skip outside a test` |
-| `to_string(x)` | The same as `print` | Returns the text `print` would write; a `string` is itself |
+| `to_string(x)` | A value with `Display` | Returns its text, as `console.print` writes it; a `string` is itself |
 | `debug(x)` (v18) | Any value | Writes `[file:line] <x as written> = <x's debug form>` to stderr and returns `x`; E0465 in an `-O2` build |
 | `swap(a, b)` | Two places of the same type | Exchanges their contents |
-| `args()` | Nothing | Returns the program's command-line arguments as a new `string[]`; `args()[0]` is the program's path (v3) |
 | `parse_i64(s)` | `string` | `Some(n)` if `s` is an optional `-` followed by decimal digits and fits in `i64`, else `None`; no `+`, spaces, `_` or hex (v3) |
 | `parse_u64(s)` | `string` | `Some(n)` if `s` is decimal digits only and fits in `u64`, else `None`; no sign (v10) |
 | `parse_f64(s)` | `string` | `Some(x)` if `s` is an optional `-`, digits, an optional `.` and digits, and an optional exponent (`e`/`E`, optional sign, digits), else `None`; `"3"` gives `3.0`, while `".5"`, `"5."`, `"inf"` and `"nan"` give `None` (v3) |
-| `read_line()` | Nothing | `Option<string>`: the next line of stdin without its `\n` (and a `\r` before it); a last line without `\n` is still returned; `None` at the end of input (or on a read error). Stdout is flushed first, so a prompt shows (v4) |
-| `read_file(path)` | `string` | `Result<string, string>`: the whole file, or `Err` with the system's message, such as `"No such file or directory"` (v4) |
-| `write_file(path, text)` | `string`, `string` | `Result<i64, string>`: replaces the file's contents; `Ok` with the bytes written (v4) |
-| `append_file(path, text)` | `string`, `string` | `Result<i64, string>`: adds to the end, creating the file if needed (v4) |
 | `read_bytes(path)` | `string` | `Result<u8[], string>`: the whole file as bytes, or `Err` with the system's message (v14) |
 | `write_bytes(path, data)`, `append_bytes(path, data)` | `string`, `u8[]` | `Result<i64, string>`: like `write_file` and `append_file`, writing exactly `data` (v14) |
 | `read_stdin_bytes()` | Nothing | `u8[]`: everything left on stdin (v14) |
@@ -1131,8 +1125,8 @@ for path in paths {
 | `include_str(path)` | a string literal | `string`: the same, as text; the file must be UTF-8 (E0448) |
 | `c_read(p, offset, len)` | `CPtr`, `u64`, `u64` | `u8[]`: a copy of `len` bytes at `p + offset` in C's memory; a null `p` panics (v17, section 8) |
 | `c_write(p, offset, bytes)` | `CPtr`, `u64`, `u8[]` | `()`: copies `bytes` to `p + offset` in C's memory; a null `p` panics (v17, section 8) |
-| `eprint(x)`, `eprintln(x)` | Like `print`, `println` | Writes to stderr, formatted as `print` does, after flushing stdout so a terminal shows output in program order (v4) |
-| `exit(code)` | `i32` | Flushes stdout and stops the program with exit code `code`; never returns, so code after it is unreachable (W0101) (v4) |
+
+**Gone from programs** (v18, milestone 180): `print`, `println`, `eprint`, `eprintln`, `read_line`, `read_file`, `write_file`, `append_file`, `args` and `exit`. Each reached outside the program without being given the means to, so a call is E0471, naming the capability to take instead (Capabilities, section 6); the names stay reserved (E0302). Their behaviour lives on as the methods of `Console` and `Dir`, and the arguments as a parameter of `main`; a program ends by returning from `main`.
 
 **Included files** (v17, milestone 128). `include_bytes(path)` and `include_str(path)` build a file's contents into the program: lughac reads the file while checking (so `lughac check` and the language server report the errors too) and the compiled program holds the bytes, read-only, without reading anything when it runs. Rebuilding reads the file again. The argument is a string literal (not a constant or interpolation) holding a path relative to the folder of the `.la` file that names it, with `/` between folders; `.` and `..` may appear. The file must lie inside its package's folder — the folder of the `lugha.toml` that governs the file, or the main file's folder when there is none — after symbolic links are resolved, so no path, `..` or link reaches the builder's other files; and it must be a regular file of at most 16 MiB (16 777 216 bytes). Anything else is E0447, saying why: not one string literal, empty, absolute, holding `\`, outside the package's folder, missing, not a file, unreadable or too large. `include_str` of bytes that aren't UTF-8 is E0448, naming the first bad byte. Both calls are constant expressions (section 6), so a `const` may hold one; and like any value, `let mut b = LOGO; b[0] = 1;` changes only `b`. The bundled `std` modules and the prelude include nothing.
 
@@ -1465,7 +1459,7 @@ fun is_even(n: i64): bool = n % 2 == 0;
 
 fun max(a: i64, b: i64): i64 = if a > b { a } else { b };
 
-fun greet(name: string) = println("hello, " + name);
+fun greet(console: Console, name: string) = console.println("hello, " + name);
 
 fun clamp(x: i64, lo: i64, hi: i64): i64 {
     let low = max(x, lo);
@@ -1490,7 +1484,13 @@ A `panic(...);` statement also counts as definitely returning, because it never 
 
 This rejects a few correct programs, such as a function whose only exit is a `return` inside `while true`. Write that loop as `loop { … }`, which counts (v17), or add a final `panic("unreachable");`. `return` stays available for early exits. In a function returning `()`, `return;` (the same as `return ();`) is allowed and falling off the end is an implicit return.
 
-**Entry point.** Every program must define `main` as either `fun main()` or `fun main(): i32`, without type parameters (E0304). The process exit code is 0 for the first form and `main`'s return value for the second. The user's `main` is emitted as `lugha_fn_main`, like every Lugha function, and the compiler emits a real C `main` that initializes the runtime and calls it (see section 9). Command-line arguments are not accessible in v0.
+**Entry point.** Every program defines `main`, without type parameters, returning `()` or an `i32` (the process exit code; 0 for `()`). Its parameters are what the runtime supplies (v18, milestone 180), matched by type, with any names, in any order, each at most once: `string[]`, the command-line arguments with the program's path first; `Console`; and `Fs`. Anything else is E0304: `main(args: string[], console: Console): i32`, `main(out: Console)` and `main()` are all fine, `main(n: i64)` and `main(a: string[], b: string[])` aren't. The user's `main` is emitted as `lugha_fn_main`, like every Lugha function, and the compiler emits a real C `main` that initializes the runtime, makes the values `main` asks for, and calls it (see section 9). A `@test` function takes the same capabilities (not the arguments), and `lughac test` gives it the real ones.
+
+**Capabilities** (v18, milestone 180). A program touches the world outside it only through values it is given: `main` takes them, and passes them on as ordinary parameters and fields, so a function's signature says what it may do (`fun price(order: Order): Money` touches nothing). They are prelude interfaces, visible in every module unless a module declares its own name, met only by `impl` (so a fake for a test is a type that says it implements one), and may be sent to tasks and actors:
+- **`Console`:** `print(x)`, `println(x)`, `eprint(x)`, `eprintln(x)`, each taking any `Display` value (it converts where the parameter expects the interface, as any value does; `println("")` for an empty line), writing its text to stdout or stderr (`eprint` flushes stdout first, so a terminal shows output in program order); `read_line(): Option<string>`, the next line of stdin without its `\n` (and a `\r` before it), a last line without `\n` still returned, `None` at the end of input or on a read error, stdout flushed first so a prompt shows.
+- **`Fs`:** `cwd(): Dir`, the folder the program started in.
+- **`Dir`:** `read_file(path): Result<string, string>`, the whole file or `Err` with the system's message (`"No such file or directory"`); `write_file(path, text): Result<i64, string>`, replacing the file's contents, `Ok` with the bytes written; `append_file(path, text): Result<i64, string>`, adding to the end and creating the file if needed. Paths are relative to the folder. A `Dir` isn't confined yet: until narrowing arrives (`fs.dir(path)`, with `..` and symbolic links kept inside), `fs.cwd()` reaches what the process can, as the old intrinsics did.
+- `debug(x)`, `panic` and the assertions need no capability. `std`'s modules (`std.fs`, `std.net`, `std.time`, …) still reach the system directly; taking capabilities is their next step.
 
 ## 7. Memory model
 
@@ -1895,7 +1895,7 @@ Name and type errors, reported by the checker:
 | E0301 | Undefined name | `count + 1` with no `count` in scope; a call to an undefined function |
 | E0302 | Name defined more than once, or a function named like an intrinsic | two `fun area`; `fun println()`; `import vec { add };` in a file declaring `add` |
 | E0303 | No `main` function | (not under `lughac test` nor `lughac check`) |
-| E0304 | `main` with the wrong signature, generic, or outside the main file | `fun main(argc: i32): i32`; `fun main<T>()`; a `main` in a module |
+| E0304 | `main` with the wrong signature, generic, or outside the main file | `fun main(argc: i32): i32`; `fun main(a: string[], b: string[])`; `fun main<T>()`; a `main` in a module |
 | E0305 | Unknown type name | `let p: Point = 1;` with no `Point` |
 | E0306 | Reserved extern name, or one C function declared with two signatures | `extern fun lugha_rt_alloc(size: i64): i64;` (§8); `extern "not a name" fun f();` |
 | E0307 | Struct contains itself | `struct A { b: B }` with `struct B { a: A }` — hold it in an array instead (`A[]`) |
@@ -1986,6 +1986,7 @@ Name and type errors, reported by the checker:
 | E0468 | A variant name used as a binding in a pattern (v18) | `None =>` on an `Option`; `.Some(Empty)` on an `Option<Shape>` |
 | E0469 | A cast that can lose information (v18) | `big as u8` for `big: i64`; `2.5 as i64`; `n as f64` for `n: i64`; `n as T` for `T: Num` |
 | E0470 | Braces that can't build their type (v18) | `Point { 1, 2 }`; `Set { "a": 1 }`; `Map { 1, 2 }`; `Bag { "a" }` in `Bag`'s own module |
+| E0471 | Touching the world without a capability (v18) | `println(x)` (take `console: Console`); `read_file(p)` (take `fs: Fs`); `args()`; `exit(1)` |
 | E0437 | A malformed `extern struct` | `extern struct S { s: string }`; a field of an array, a plain struct, an enum, `Option` (other than of a handle) or a function type; a handle, `Option` of one or `CPtr` in an `extern union`, at any depth; `extern struct S<T> { … }`; `extern struct S {}` |
 | E0433 | A pattern that must match every value but might not | `let (1, x) = t;`, `let Some(n) = o;` without `else`, `for (Some(a), b) of …` |
 | E0428 | Or-pattern alternatives that bind differently | `.Some(x) \| .None`; `.Count(n) \| .Circle(n)` with `n` an `i64` and an `f64` |
@@ -2033,8 +2034,8 @@ These programs are the v0 acceptance tests: a conforming compiler builds and run
 **Hello world** (milestone 4). Prints `Hello, world!`, exits with 0.
 
 ```
-fun main() {
-    println("Hello, world!");
+fun main(console: Console) {
+    console.println("Hello, world!");
 }
 ```
 
@@ -2043,8 +2044,8 @@ fun main() {
 ```
 fun fib(n: i64): i64 = if n < 2 { n } else { fib(n - 1) + fib(n - 2) };
 
-fun main(): i32 {
-    println(fib(30));
+fun main(console: Console): i32 {
+    console.println(fib(30));
     0
 }
 ```
@@ -2068,8 +2069,8 @@ fun count_primes(limit: i64): i64 {
     count
 }
 
-fun main() {
-    println(count_primes(100));
+fun main(console: Console) {
+    console.println(count_primes(100));
 }
 ```
 
@@ -2089,14 +2090,14 @@ fun centroid(pts: Point[]): Point {
     Point { x: sx / n, y: sy / n }
 }
 
-fun main() {
+fun main(console: Console) {
     let pts = [
         Point { x: 0.0, y: 0.0 },
         Point { x: 4.0, y: 0.0 },
         Point { x: 2.0, y: 3.0 },
     ];
     let c = centroid(pts);
-    println("centroid: " + to_string(c.x) + ", " + to_string(c.y));
+    console.println("centroid: " + to_string(c.x) + ", " + to_string(c.y));
 }
 ```
 
@@ -2106,9 +2107,9 @@ fun main() {
 extern fun puts(s: string): i32;
 extern fun sqrt(x: f64): f64;
 
-fun main() {
+fun main(console: Console) {
     puts("hello from libc");
-    println(sqrt(2.0));
+    console.println(sqrt(2.0));
 }
 ```
 
@@ -2127,10 +2128,10 @@ fun area(s: Shape): f64 = match s {
     .Empty => 0.0,
 };
 
-fun main() {
+fun main(console: Console) {
     let shapes = [Shape.Circle(2.0), Shape.Rect(2.0, 3.0), Shape.Empty];
     for s of shapes {
-        println(area(s));
+        console.println(area(s));
     }
 }
 ```
@@ -2148,9 +2149,9 @@ fun sum(l: List): i64 = match l {
     .Cons(x, rest) => x + sum(rest),
 };
 
-fun main() {
+fun main(console: Console) {
     let l = List.Cons(1, List.Cons(2, List.Cons(3, List.Nil)));
-    println(sum(l));
+    console.println(sum(l));
 }
 ```
 
@@ -2168,31 +2169,31 @@ impl Vec2 {
     }
 }
 
-fun main() {
+fun main(console: Console) {
     let mut v = Vec2.new(1.0, 2.0);
-    println(v.len_sq());
+    console.println(v.len_sq());
     v.scale(2.0);
-    println(v.x + v.y);
+    console.println(v.x + v.y);
 }
 ```
 
 **A stack** (milestone 8). Prints `3` then `2` then `empty` on three lines, exits with 0.
 
 ```
-fun main() {
+fun main(console: Console) {
     let mut stack: i64[] = [];
     stack.push(1);
     stack.push(2);
     stack.push(3);
     match stack.pop() {
-        .Some(x) => println(x),
-        .None => println("empty"),
+        .Some(x) => console.println(x),
+        .None => console.println("empty"),
     }
-    println(stack.len);
+    console.println(stack.len);
     stack.clear();
     match stack.pop() {
-        .Some(x) => println(x),
-        .None => println("empty"),
+        .Some(x) => console.println(x),
+        .None => console.println("empty"),
     }
 }
 ```
@@ -2258,13 +2259,13 @@ fun describe(s: Option<Shape>): string = match s {
     .None => "nothing",
 };
 
-fun main() {
-    println(describe(Some(Shape.Circle(2.0))));
-    println(describe(Some(Shape.Rect(3.0, 3.0))));
-    println(describe(None));
-    println([1, 2] == [1, 2]);
-    println(Shape.Rect(1.0, 2.0) == Shape.Rect(1.0, 2.0));
-    println("apple" < "banana");
+fun main(console: Console) {
+    console.println(describe(Some(Shape.Circle(2.0))));
+    console.println(describe(Some(Shape.Rect(3.0, 3.0))));
+    console.println(describe(None));
+    console.println([1, 2] == [1, 2]);
+    console.println(Shape.Rect(1.0, 2.0) == Shape.Rect(1.0, 2.0));
+    console.println("apple" < "banana");
 }
 ```
 
@@ -2285,10 +2286,10 @@ fun origin(): Vec2 = Vec2 { x: 0.0, y: 0.0 };
 // main.la
 import geometry;
 
-fun main() {
+fun main(console: Console) {
     let mut p = geometry.origin();
     p = p.add(geometry.Vec2 { x: 1.5, y: 2.0 });
-    println(p.x + p.y);
+    console.println(p.x + p.y);
 }
 ```
 
@@ -2319,18 +2320,18 @@ fun largest<T: Ord>(xs: T[]): Option<T> {
     Some(best)
 }
 
-fun main() {
+fun main(console: Console) {
     let mut s: Stack<string> = Stack.new();
     s.push("a");
     s.push("b");
     match s.pop() {
-        .Some(x) => println(x),
-        .None => println("empty"),
+        .Some(x) => console.println(x),
+        .None => console.println("empty"),
     }
-    println(contains([1, 2, 3], 2));
+    console.println(contains([1, 2, 3], 2));
     match largest(["pear", "apple", "plum"]) {
-        .Some(w) => println(w),
-        .None => println("none"),
+        .Some(w) => console.println(w),
+        .None => console.println("none"),
     }
 }
 ```
@@ -2367,25 +2368,25 @@ fun total_area<T: Shape>(shapes: T[]): f64 {
 
 fun describe<T: Shape>(s: T): string = s.name();
 
-fun main() {
-    println(total_area([Circle { r: 1.0 }, Circle { r: 2.0 }]));
-    println(total_area([Square { side: 3.0 }]));
-    println(describe(Square { side: 1.0 }));
+fun main(console: Console) {
+    console.println(total_area([Circle { r: 1.0 }, Circle { r: 2.0 }]));
+    console.println(total_area([Square { side: 3.0 }]));
+    console.println(describe(Square { side: 1.0 }));
 }
 ```
 
 **Arguments and interpolation** (milestone 13). Run as `prog 21`. Prints `21 doubled is 42`, exits with 0.
 
 ```
-fun main() {
-    let a = args();
+fun main(args: string[], console: Console) {
+    let a = args;
     if a.len < 2 {
-        println("usage: prog <n>");
+        console.println("usage: prog <n>");
         return;
     }
     match parse_i64(a[1]) {
-        .Some(n) => println("{n} doubled is {n * 2}"),
-        .None => println("usage: prog <n>"),
+        .Some(n) => console.println("{n} doubled is {n * 2}"),
+        .None => console.println("usage: prog <n>"),
     }
 }
 ```
@@ -2398,10 +2399,10 @@ fun triple(x: i64): i64 = x * 3;
 
 fun apply(f: fun(i64): i64, x: i64): i64 = f(x);
 
-fun main() {
+fun main(console: Console) {
     let fs = [double, triple];
-    println(apply(fs[0], 3));
-    println(apply(fs[1], 3));
+    console.println(apply(fs[0], 3));
+    console.println(apply(fs[1], 3));
 }
 ```
 
@@ -2410,15 +2411,15 @@ fun main() {
 ```
 fun adder(k: i64): fun(i64): i64 = fun(x) = x + k;
 
-fun main() {
+fun main(console: Console) {
     let add10 = adder(10);
-    println(add10(3));
+    console.println(add10(3));
     let mut count = 0;
     let show = fun(): i64 = count + 1;
     count = 5;
-    println(show());
+    console.println(show());
     let twice = fun(f: fun(i64): i64, x: i64): i64 = f(f(x));
-    println(twice(fun(y) = y + 5, 10));
+    console.println(twice(fun(y) = y + 5, 10));
 }
 ```
 
@@ -2427,13 +2428,13 @@ fun main() {
 ```
 struct Person { name: string, age: i64 }
 
-fun main() {
+fun main(console: Console) {
     let people = [Person { name: "ann", age: 30 }, Person { name: "bo", age: 12 }, Person { name: "cy", age: 31 }];
     let adults = people.filter(fun(p) = p.age >= 18);
     let names = adults.map(fun(p) = p.name);
-    println(names.fold("", fun(acc, n) = if acc == "" { n } else { "{acc}, {n}" }));
-    println(adults.fold(0, fun(sum, p) = sum + p.age));
-    println(people.sort_by(fun(a, b) = a.age > b.age)[0].name);
+    console.println(names.fold("", fun(acc, n) = if acc == "" { n } else { "{acc}, {n}" }));
+    console.println(adults.fold(0, fun(sum, p) = sum + p.age));
+    console.println(people.sort_by(fun(a, b) = a.age > b.age)[0].name);
 }
 ```
 
@@ -2447,14 +2448,14 @@ fun quarter(n: i64): Result<i64, string> {
     half(h)
 }
 
-fun main() {
+fun main(console: Console) {
     match quarter(12) {
-        .Ok(q) => println(q),
-        .Err(e) => println(e),
+        .Ok(q) => console.println(q),
+        .Err(e) => console.println(e),
     }
     match quarter(6) {
-        .Ok(q) => println(q),
-        .Err(e) => println(e),
+        .Ok(q) => console.println(q),
+        .Err(e) => console.println(e),
     }
 }
 ```
@@ -2462,7 +2463,7 @@ fun main() {
 **Text helpers** (milestone 18). Prints `42` then `a-b-c` then `2` on three lines, exits with 0.
 
 ```
-fun main() {
+fun main(console: Console) {
     let text = "name, age\nann, 30\n\nbo, 12\n";
     let mut total = 0;
     for line of text.lines() {
@@ -2472,20 +2473,20 @@ fun main() {
         }
         total += parse_i64(parts[1]).unwrap_or(0);
     }
-    println(total);
-    println(["a", "b", "c"].join("-"));
-    println("  hi  ".trim().len);
+    console.println(total);
+    console.println(["a", "b", "c"].join("-"));
+    console.println("  hi  ".trim().len);
 }
 ```
 
 **Reading input** (milestone 19). Run with `5`, `7` and `x` on three lines of stdin. Prints `12` then `skipped 1` on two lines, exits with 0.
 
 ```
-fun main() {
+fun main(console: Console) {
     let mut total = 0;
     let mut skipped = 0;
     while true {
-        match read_line() {
+        match console.read_line() {
             .Some(line) => match parse_i64(line.trim()) {
                 .Some(n) => { total += n; }
                 .None => { skipped += 1; }
@@ -2493,8 +2494,8 @@ fun main() {
             .None => { break; }
         }
     }
-    println(total);
-    println("skipped {skipped}");
+    console.println(total);
+    console.println("skipped {skipped}");
 }
 ```
 
@@ -2531,14 +2532,14 @@ fun total(shapes: Shape[]): f64 {
     sum
 }
 
-fun main() {
+fun main(console: Console) {
     let c = Circle { r: 1.0 };
     let mut shapes: Shape[] = [c, Square { side: 2.0 }];
     shapes[0].grow(2.0);
-    println(total(shapes));
-    println(c.r);
+    console.println(total(shapes));
+    console.println(c.r);
     let first = shapes[0];
-    println(first.name());
+    console.println(first.name());
 }
 ```
 
@@ -2568,10 +2569,10 @@ fun describe(s: Shape): string = match s {
     _ => "some shape",
 };
 
-fun main() {
+fun main(console: Console) {
     let shapes: Shape[] = [Circle { r: 20.0 }, Circle { r: 1.5 }, Square { side: 2.0 }];
     for s of shapes {
-        println(describe(s));
+        console.println(describe(s));
     }
 }
 ```
@@ -2608,11 +2609,11 @@ fun read(s: string): Result<i64, Error> {
     Ok(m * 2)
 }
 
-fun main() {
+fun main(console: Console) {
     for s of ["21", "x", "500"] {
         match read(s) {
-            .Ok(n) => println(n),
-            .Err(e) => println(e.report()),
+            .Ok(n) => console.println(n),
+            .Err(e) => console.println(e.report()),
         }
     }
 }
@@ -2662,11 +2663,11 @@ fun collect<T, S: Source<T>>(src: S): T[] {
     out
 }
 
-fun main() {
-    println(collect(Count { n: 0, end: 3 }).len);
-    println(collect(Words { xs: ["a", "b"], at: 0 }).join("-"));
+fun main(console: Console) {
+    console.println(collect(Count { n: 0, end: 3 }).len);
+    console.println(collect(Words { xs: ["a", "b"], at: 0 }).join("-"));
     let mut s: Source<i64> = Count { n: 10, end: 12 };
-    println(s.next().unwrap_or(0));
+    console.println(s.next().unwrap_or(0));
 }
 ```
 
@@ -2708,13 +2709,13 @@ fun total(it: Iter<i64>): i64 {
     sum
 }
 
-fun main() {
+fun main(console: Console) {
     let c = Count { n: 0, end: 3 };
     for n of c {
-        println(n);
+        console.println(n);
     }
-    println(c.n);
-    println(total(Fib { a: 0, b: 1, left: 10 }));
+    console.println(c.n);
+    console.println(total(Fib { a: 0, b: 1, left: 10 }));
 }
 ```
 
@@ -2747,10 +2748,10 @@ fun largest<T: Ordered>(xs: T[]): T {
     best
 }
 
-fun main() {
-    println(largest([Money { cents: 250 }, Money { cents: 1999 }, Money { cents: 5 }]).cents);
+fun main(console: Console) {
+    console.println(largest([Money { cents: 250 }, Money { cents: 1999 }, Money { cents: 5 }]).cents);
     let v = largest([Version { major: 1, minor: 9 }, Version { major: 2, minor: 0 }, Version { major: 1, minor: 10 }]);
-    println("{v.major}.{v.minor}");
+    console.println("{v.major}.{v.minor}");
 }
 ```
 
@@ -2793,11 +2794,11 @@ fun greet(n: Named): string = match n {
     _ => "hello, {n.name()}",
 };
 
-fun main() {
+fun main(console: Console) {
     let pets: Pet[] = [Dog { called: "rex" }, Cat { called: "tom" }];
     for p of pets {
-        println(greet(p));
-        println(p.sound());
+        console.println(greet(p));
+        console.println(p.sound());
     }
 }
 ```
@@ -2805,32 +2806,32 @@ fun main() {
 **More numbers** (milestone 27). Prints `18446744073709551615` then `4000000001` then `0.1` then `true` then `4294967295` on five lines, exits with 0.
 
 ```
-fun main() {
+fun main(console: Console) {
     let big: u64 = 18446744073709551615;
-    println(big);
+    console.println(big);
     let n: u32 = 4000000000;
-    println(n + 1);
+    console.println(n + 1);
     let x: f32 = 0.1;
-    println(x);
-    println(x as f64 > 0.1);
-    println((-1).truncate<u32>());
+    console.println(x);
+    console.println(x as f64 > 0.1);
+    console.println((-1).truncate<u32>());
 }
 ```
 
 **Bits** (milestone 28). Prints `true`, `11`, `5`, `5`, `1024`, `-4`, `65280` on seven lines, exits with 0.
 
 ```
-fun main() {
+fun main(console: Console) {
     let flags: u32 = 0b1010;
-    println(flags & 0b0010 == 0b0010);
-    println(flags | 1);
-    println(flags ^ 0xf);
-    println(~flags & 0xf);
-    println(1 << 10);
-    println(-8 >> 1);
+    console.println(flags & 0b0010 == 0b0010);
+    console.println(flags | 1);
+    console.println(flags ^ 0xf);
+    console.println(~flags & 0xf);
+    console.println(1 << 10);
+    console.println(-8 >> 1);
     let mut m: u64 = 0xff;
     m <<= 8;
-    println(m);
+    console.println(m);
 }
 ```
 
@@ -2845,15 +2846,15 @@ fun hash(s: string): u64 {
     h
 }
 
-fun main() {
-    println(hash("a"));
-    println(hash(""));
+fun main(console: Console) {
+    console.println(hash("a"));
+    console.println(hash(""));
     let x: u32 = 0b1011000;
-    println(x.count_ones());
-    println(x.trailing_zeros());
-    println(x.leading_zeros());
+    console.println(x.count_ones());
+    console.println(x.trailing_zeros());
+    console.println(x.leading_zeros());
     let m: u8 = 255;
-    println(m.wrapping_add(1));
+    console.println(m.wrapping_add(1));
 }
 ```
 
@@ -2881,9 +2882,9 @@ public fun circle(r: f64): Circle = Circle { r: r };
 // main.la
 import geo.shapes;
 
-fun main() {
+fun main(console: Console) {
     let c = shapes.circle(2.0);
-    println(c.area());
+    console.println(c.area());
 }
 ```
 
@@ -2905,15 +2906,15 @@ fun kind(cmd: string): string = match cmd {
     _ => "run",
 };
 
-fun main() {
-    println(size(Shape.Square(1.5)));
-    println(size(Shape.Rect(1.0, 2.0)));
-    println(kind("quit"));
-    println(kind("ls"));
+fun main(console: Console) {
+    console.println(size(Shape.Square(1.5)));
+    console.println(size(Shape.Rect(1.0, 2.0)));
+    console.println(kind("quit"));
+    console.println(kind("ls"));
     match Some(41) {
         .Some(mut n) => {
             n += 1;
-            println(n);
+            console.println(n);
         }
         .None => {}
     }
@@ -2923,15 +2924,15 @@ fun main() {
 **Unwrapping** (milestone 32). Prints `9` then `5` on two lines, exits with 101 (the last `expect` panics with its message).
 
 ```
-fun main() {
+fun main(console: Console) {
     let n = parse_i64("42").unwrap();
     let m = parse_i64("7").expect("need a number");
     let mut x = n + m;
     x %= 10;
-    println(x);
+    console.println(x);
     let r: Result<i64, string> = Ok(5);
-    println(r.unwrap());
-    println(parse_i64("x").expect("not a number"));
+    console.println(r.unwrap());
+    console.println(parse_i64("x").expect("not a number"));
 }
 ```
 
@@ -2945,23 +2946,23 @@ fun double(s: string): i64 {
     n * 2
 }
 
-fun main() {
+fun main(console: Console) {
     let mut total = 0;
     for w of ["3", "x", "4"] {
         if let .Some(n) = parse_i64(w) {
             total += n;
         } else {
-            println("skipped {w}");
+            console.println("skipped {w}");
         }
     }
-    println(total);
+    console.println(total);
     let mut stack = [1, 2, 3];
     while let .Some(top) = stack.pop() {
-        print(top);
+        console.print(top);
     }
-    println("");
-    println(double("21"));
-    println(double("x"));
+    console.println("");
+    console.println(double("21"));
+    console.println(double("x"));
 }
 ```
 
@@ -2994,13 +2995,13 @@ impl Light {
     };
 }
 
-fun main() {
+fun main(console: Console) {
     let p = Point.unit().plus(Point { x: 2, y: 3 });
-    println(p.name());
-    println(p.describe());
+    console.println(p.name());
+    console.println(p.describe());
     match Light.Red.toggle() {
-        .Green => println("green"),
-        .Red => println("red"),
+        .Green => console.println("green"),
+        .Red => console.println("red"),
     }
 }
 ```
@@ -3008,18 +3009,18 @@ fun main() {
 **More integers** (milestone 35). Prints `32767`, `-1`, `32767`, `255`, `3`, `true`, `18446744073709551615` on seven lines, exits with 0.
 
 ```
-fun main() {
+fun main(console: Console) {
     let a: i16 = i16.MAX;
-    println(a);
-    println(a.checked_add(1).unwrap_or(-1));
-    println(a.saturating_add(100));
+    console.println(a);
+    console.println(a.checked_add(1).unwrap_or(-1));
+    console.println(a.saturating_add(100));
     let b: u8 = 200;
-    println(b.saturating_mul(2));
+    console.println(b.saturating_mul(2));
     let c: u16 = 0b1000000000000001;
-    println(c.rotate_left(1));
+    console.println(c.rotate_left(1));
     let d: i8 = i8.MIN;
-    println(d.checked_div(-1).is_none());
-    println(parse_u64("18446744073709551615").unwrap());
+    console.println(d.checked_div(-1).is_none());
+    console.println(parse_u64("18446744073709551615").unwrap());
 }
 ```
 
@@ -3028,26 +3029,26 @@ fun main() {
 ```
 fun even(n: i64): bool = n % 2 == 0;
 
-fun main() {
+fun main(console: Console) {
     let xs = [3, 1, 4, 1, 5, 9, 2, 6];
     let words = xs.iter().filter(even).map(fun(n) = "{n * n}").collect();
-    println(words.join(","));
-    println(range(1, 101).sum());
-    println(range(10, 1000000000).filter(fun(n) = n % 7 == 0).take(3).sum());
+    console.println(words.join(","));
+    console.println(range(1, 101).sum());
+    console.println(range(10, 1000000000).filter(fun(n) = n % 7 == 0).take(3).sum());
     for p of "hey".bytes().enumerate() {
-        print("{p.i}={p.value};");
+        console.print("{p.i}={p.value};");
     }
-    println("");
+    console.println("");
     let mut vowels = 0;
     for b of "banana" {
         if b == 97 {
             vowels += 1;
         }
     }
-    println(vowels);
-    println(xs.iter().any(fun(n) = n > 8));
-    println(xs.iter().find(fun(n) = n > 4).unwrap());
-    println(xs.iter().fold(0, fun(a, n) = a + n));
+    console.println(vowels);
+    console.println(xs.iter().any(fun(n) = n > 8));
+    console.println(xs.iter().find(fun(n) = n > 4).unwrap());
+    console.println(xs.iter().fold(0, fun(a, n) = a + n));
 }
 ```
 
@@ -3074,8 +3075,8 @@ public fun area(w: i64, h: i64): i64 = w * h;
 // main.la
 import geo.shapes;
 
-fun main() {
-    println(shapes.area(3, 4));
+fun main(console: Console) {
+    console.println(shapes.area(3, 4));
 }
 ```
 
@@ -3111,9 +3112,9 @@ public fun centre(a: Vec2, b: Vec2): Vec2 = add(a, b);
 // main.la
 import geo.shapes;
 
-fun main() {
+fun main(console: Console) {
     let c = shapes.centre(shapes.Vec2 { x: 1, y: 2 }, shapes.Vec2 { x: 3, y: 4 });
-    println(shapes.add(c, c).x);
+    console.println(shapes.add(c, c).x);
 }
 ```
 
@@ -3136,20 +3137,20 @@ struct Wallet { cash: Money }
 
 struct Stack<T> { items: T[] }
 
-fun dump<T>(x: T) {
-    println(x.debug());
+fun dump<T>(console: Console, x: T) {
+    console.println(x.debug());
 }
 
-fun main() {
-    println((Point { x: 1, y: 2 }).debug());
-    println(Shape.Circle(1.5).debug());
-    println([Some(1), None].debug());
-    println((Team { name: "red", members: ["ann", "bo"] }).debug());
+fun main(console: Console) {
+    console.println((Point { x: 1, y: 2 }).debug());
+    console.println(Shape.Circle(1.5).debug());
+    console.println([Some(1), None].debug());
+    console.println((Team { name: "red", members: ["ann", "bo"] }).debug());
     let m = Money { cents: 525 };
-    println(m);
+    console.println(m);
     // A debug form shows each part's debug form, never its `Display`.
-    println("wallet: {(Wallet { cash: m }).debug()}");
-    dump(Stack { items: [3] });
+    console.println("wallet: {(Wallet { cash: m }).debug()}");
+    dump(console, Stack { items: [3] });
 }
 ```
 
@@ -3167,15 +3168,15 @@ impl Display for Square { fun show(self): string = "square {self.side}"; }
 
 struct Bad { code: i64 }
 
-fun main() {
+fun main(console: Console) {
     let shapes: Shape[] = [Circle { r: 2.0 }, Square { side: 3 }];
     // An interface value's debug form is its value's.
     for s of shapes {
-        println(s.debug());
+        console.println(s.debug());
     }
-    println((fun(x: i64): i64 = x).debug());
+    console.println((fun(x: i64): i64 = x).debug());
     let r: Result<i64, Bad> = Err(Bad { code: 7 });
-    println(r.unwrap());
+    console.println(r.unwrap());
 }
 ```
 
@@ -3196,22 +3197,22 @@ impl Tree<T> {
 
 enum List { Cons(i64, Self), Nil }
 
-fun main() {
+fun main(console: Console) {
     let t = Tree { value: 1, kids: [Tree { value: 2, kids: [] }, Tree { value: 3, kids: [] }] };
-    println(t.size());
-    println((List.Cons(1, List.Cons(2, List.Nil))).debug());
+    console.println(t.size());
+    console.println((List.Cons(1, List.Cons(2, List.Nil))).debug());
 }
 ```
 
 **`for … of mut`** (milestone 42). Prints `[2, 4, 6]`, `a b`, `c d` on three lines, exits with 0.
 
 ```
-fun main() {
+fun main(console: Console) {
     let mut xs = [1, 2, 3];
     for x of mut xs {
         x *= 2;
     }
-    println(xs.debug());
+    console.println(xs.debug());
     let mut words = ["a", "b", "--", "c", "d"].iter();
     let mut first = "";
     for w of mut words {
@@ -3220,70 +3221,70 @@ fun main() {
         }
         first = first + w + " ";
     }
-    println(first.trim());
+    console.println(first.trim());
     let mut rest = "";
     for w of mut words {
         rest = rest + w + " ";
     }
-    println(rest.trim());
+    console.println(rest.trim());
 }
 ```
 
 **More iterator helpers** (milestone 43). Prints `[(1, "a"), (2, "b")]`, `[1, 2, 3, 4]`, `[1, 2]`, `[3, 1]`, `[0, 0, 1, 0, 1, 2]`, `Some(1)`, `Some(9)`, `Some(2)` on eight lines, exits with 0.
 
 ```
-fun main() {
+fun main(console: Console) {
     let xs = [1, 2, 3, 1, 9];
-    println((xs.iter().zip(["a", "b"].iter()).collect()).debug());
-    println(([1, 2].iter().chain([3, 4].iter()).collect()).debug());
-    println((xs.iter().take_while(fun(n) = n < 3).collect()).debug());
-    println((xs.iter().skip_while(fun(n) = n < 3).take(2).collect()).debug());
-    println((range(1, 4).flat_map(fun(n) = range(0, n)).collect()).debug());
-    println(xs.iter().min().debug());
-    println(xs.iter().max().debug());
-    println((xs.iter().position(fun(n) = n == 3)).debug());
+    console.println((xs.iter().zip(["a", "b"].iter()).collect()).debug());
+    console.println(([1, 2].iter().chain([3, 4].iter()).collect()).debug());
+    console.println((xs.iter().take_while(fun(n) = n < 3).collect()).debug());
+    console.println((xs.iter().skip_while(fun(n) = n < 3).take(2).collect()).debug());
+    console.println((range(1, 4).flat_map(fun(n) = range(0, n)).collect()).debug());
+    console.println(xs.iter().min().debug());
+    console.println(xs.iter().max().debug());
+    console.println((xs.iter().position(fun(n) = n == 3)).debug());
 }
 ```
 
 **Format specifiers** (milestone 44). Prints `3.14`, `|    42|`, `|42    |`, `-0042`, `0xff`, `***ann***`, `11111111` on seven lines, exits with 0.
 
 ```
-fun main() {
+fun main(console: Console) {
     let pi = 3.14159;
     let n = 42;
-    println("{pi:.2}");
-    println("|{n:6}|");
-    println("|{n:<6}|");
-    println("{-42:05}");
-    println("{255:#x}");
-    println("{"ann":*^9}");
-    println("{-1 as i8:b}");
+    console.println("{pi:.2}");
+    console.println("|{n:6}|");
+    console.println("|{n:<6}|");
+    console.println("{-42:05}");
+    console.println("{255:#x}");
+    console.println("{"ann":*^9}");
+    console.println("{-1 as i8:b}");
 }
 ```
 
 **Bytes and indexes** (milestone 45). Run in an empty folder. Prints `wrote 4`, `[104, 105, 0, 255]`, `6`, `Ok("héllo")`, `Err("invalid UTF-8 at byte 1")`, `195 169 104` on six lines, exits with 0.
 
 ```
-fun main() {
+fun main(console: Console) {
     let data: u8[] = [104, 105, 0, 255];
     match write_bytes("out.bin", data) {
-        .Ok(n) => println("wrote {n}"),
-        .Err(e) => println("error {e}"),
+        .Ok(n) => console.println("wrote {n}"),
+        .Err(e) => console.println("error {e}"),
     }
     match read_bytes("out.bin") {
-        .Ok(b) => println(b.debug()),
-        .Err(e) => println(e),
+        .Ok(b) => console.println(b.debug()),
+        .Err(e) => console.println(e),
     }
     let text = "héllo";
     let raw = text.to_bytes();
-    println(raw.len);
-    println(string_from_utf8(raw).debug());
+    console.println(raw.len);
+    console.println(string_from_utf8(raw).debug());
     let bad: u8[] = [104, 195, 40];
-    println(string_from_utf8(bad).debug());
+    console.println(string_from_utf8(bad).debug());
     let i: u8 = 1;
     let j: u32 = 2;
     let k: i32 = 0;
-    println("{raw[i]} {raw[j]} {raw[k]}");
+    console.println("{raw[i]} {raw[j]} {raw[k]}");
 }
 ```
 
@@ -3298,14 +3299,14 @@ fun shout(s: string): string {
     out
 }
 
-fun main() {
+fun main(console: Console) {
     let s = "naïve café";
-    println("{s.char_count()} chars, {s.len} bytes");
-    println(shout(s));
-    println(s.chars().filter(fun(c) = c.is_alphabetic()).count());
-    println(['é', 'a', '\n'].debug());
-    println('é' as u32);
-    println(char_from(55296).debug());
+    console.println("{s.char_count()} chars, {s.len} bytes");
+    console.println(shout(s));
+    console.println(s.chars().filter(fun(c) = c.is_alphabetic()).count());
+    console.println(['é', 'a', '\n'].debug());
+    console.println('é' as u32);
+    console.println(char_from(55296).debug());
 }
 ```
 
@@ -3314,31 +3315,31 @@ fun main() {
 ```
 fun divmod(a: i64, b: i64): (i64, i64) = (a / b, a % b);
 
-fun main() {
+fun main(console: Console) {
     let (q, r) = divmod(17, 5);
-    println("{q} {r}");
+    console.println("{q} {r}");
     let names = ["ann", "bo"];
     for (i, w) of range(0, 2).zip(names.iter()) {
-        println("{i}: {w}");
+        console.println("{i}: {w}");
     }
     let t = (1, "a", 2.5);
-    println(t.debug());
-    println(t.1);
+    console.println(t.debug());
+    console.println(t.1);
     let label = match (q > 2, r) {
         (true, 2) => "big two",
         (true, _) => "big",
         (false, _) => "small",
     };
-    println(label);
-    println((1, "b") < (1, "c"));
-    println(([(2, 1), (1, 9)].iter().min()).debug());
+    console.println(label);
+    console.println((1, "b") < (1, "c"));
+    console.println(([(2, 1), (1, 9)].iter().min()).debug());
     let mut p = (1, [2]);
     let copy = p;
     p.1[0] = 9;
-    println("{copy.debug()} {p.debug()}");
-    println((1, 2) == (1, 2));
+    console.println("{copy.debug()} {p.debug()}");
+    console.println((1, 2) == (1, 2));
     if let (.Some(a), b) = (Some(3), 4) {
-        println(a + b);
+        console.println(a + b);
     }
 }
 ```
@@ -3351,15 +3352,15 @@ struct Item { name: string, n: i64 }
 
 fun line(it: Item): string = format("{} has {:>4} items", it.name, it.n);
 
-fun main() {
+fun main(console: Console) {
     let items = [Item { name: "box", n: 12 }, Item { name: "crate", n: 340 }];
     for it of items {
-        println(line(it));
+        console.println(line(it));
     }
-    println(format("{:.2} | {:#x} | {:<6}|", 3.14159, 255, "left"));
-    println(format("{{literal}} and {}", (1, 'a').debug()));
+    console.println(format("{:.2} | {:#x} | {:<6}|", 3.14159, 255, "left"));
+    console.println(format("{{literal}} and {}", (1, 'a').debug()));
     let total = items.iter().map(fun(it: Item): i64 = it.n).sum();
-    println("total: {format("{:05}", total)}");
+    console.println("total: {format("{:05}", total)}");
 }
 ```
 
@@ -3398,20 +3399,20 @@ import shapes;
 import shapes.circle as c;
 import shapes.vec { Vec2 as V, add };
 
-fun main() {
+fun main(console: Console) {
     let a = shapes.vec.Vec2 { x: 1, y: 2 };
     let b: shapes.vec.Vec2 = shapes.vec.add(a, V { x: 10, y: 20 });
-    println("{b.x} {b.y}");
-    println(add(b, shapes.vec.Vec2.zero()).x);
-    println(c.area(2));
-    println(shapes.round.area(3));
+    console.println("{b.x} {b.y}");
+    console.println(add(b, shapes.vec.Vec2.zero()).x);
+    console.println(c.area(2));
+    console.println(shapes.round.area(3));
     let d = shapes.vec.Dir.Up;
     match d {
-        .Up => println("up"),
-        .Down => println("down"),
+        .Up => console.println("up"),
+        .Down => console.println("down"),
     }
     let f = shapes.vec.add;
-    println(f(a, a).debug());
+    console.println(f(a, a).debug());
 }
 ```
 
@@ -3440,16 +3441,16 @@ fun sum<T: Num>(xs: T[]): T {
     s
 }
 
-fun main() {
+fun main(console: Console) {
     let a = Vec2 { x: 1.0, y: 2.0 };
     let b = Vec2 { x: 3.0, y: 4.0 };
-    println((a + b).debug());
-    println((a * b).debug());
-    println(add(5, 10));
-    println(add("glow", "worm"));
-    println(add(a, b).debug());
-    println(sum([1, 2, 3]));
-    println(sum([0.5, 0.25]));
+    console.println((a + b).debug());
+    console.println((a * b).debug());
+    console.println(add(5, 10));
+    console.println(add("glow", "worm"));
+    console.println(add(a, b).debug());
+    console.println(sum([1, 2, 3]));
+    console.println(sum([0.5, 0.25]));
 }
 ```
 
@@ -3462,16 +3463,16 @@ import std.math;
 
 fun hypot<T: Float>(a: T, b: T): T = math.sqrt(a * a + b * b);
 
-fun main() {
-    println(math.sqrt(2.0));
-    println(hypot(3.0, 4.0));
-    println(math.max(2, 7));
-    println(math.abs(-3));
-    println(math.round(2.5));
-    println(math.pi());
-    println(math.pow(2.0, 10.0));
-    println(math.floor(-1.5));
-    println(math.clamp(15, 0, 10));
+fun main(console: Console) {
+    console.println(math.sqrt(2.0));
+    console.println(hypot(3.0, 4.0));
+    console.println(math.max(2, 7));
+    console.println(math.abs(-3));
+    console.println(math.round(2.5));
+    console.println(math.pi());
+    console.println(math.pow(2.0, 10.0));
+    console.println(math.floor(-1.5));
+    console.println(math.clamp(15, 0, 10));
 }
 ```
 
@@ -3482,16 +3483,16 @@ fun main() {
 // run and platform, which this program's expected output pins down.
 import std.random;
 
-fun main() {
+fun main(console: Console) {
     let mut rng = random.seeded(42);
-    println(rng.next_u64());
-    println(rng.uniform());
-    println(rng.below(6) + 1);
-    println(rng.between(10, 20));
-    println(rng.normal(0.0, 1.0));
-    println(rng.chance(0.5));
-    println(rng.choice(["red", "green", "blue"]).debug());
-    println(rng.shuffle([1, 2, 3, 4, 5]).debug());
+    console.println(rng.next_u64());
+    console.println(rng.uniform());
+    console.println(rng.below(6) + 1);
+    console.println(rng.between(10, 20));
+    console.println(rng.normal(0.0, 1.0));
+    console.println(rng.chance(0.5));
+    console.println(rng.choice(["red", "green", "blue"]).debug());
+    console.println(rng.shuffle([1, 2, 3, 4, 5]).debug());
 }
 ```
 
@@ -3508,23 +3509,23 @@ fun scaled(xs: f64[], k: f64): f64[] {
     ys
 }
 
-fun main() {
+fun main(console: Console) {
     let mut a = [1, 2, 3];
     let b = a;
     a[0] = 10;
-    println("{a.debug()} {b.debug()}");
+    console.println("{a.debug()} {b.debug()}");
 
     let mut grid = [[0; 2]; 2];
     let saved = grid;
     grid[1][0] = 7;
     grid.push([9]);
-    println("{grid.debug()} {saved.debug()}");
+    console.println("{grid.debug()} {saved.debug()}");
 
     let mut net = [Layer { weights: [0.5, 1.5] }];
     let w = net[0].weights;
     net[0].weights[1] += 1.0;
-    println("{net[0].weights.debug()} {w.debug()}");
-    println("{scaled(w, 2.0).debug()} {w.debug()}");
+    console.println("{net[0].weights.debug()} {w.debug()}");
+    console.println("{scaled(w, 2.0).debug()} {w.debug()}");
 }
 ```
 
@@ -3545,13 +3546,13 @@ impl Tape {
     fun mul(mut self, a: i64, b: i64): i64 = self.put(self.vals[a] * self.vals[b]);
 }
 
-fun main() {
+fun main(console: Console) {
     let mut t = Tape { vals: [] };
     let x = t.put(3.0);
     let y = t.mul(t.add(x, t.put(1.0)), t.add(x, x));
-    println(t.vals[y]);
-    println(t.vals.len);
-    println(t.vals.debug());
+    console.println(t.vals[y]);
+    console.println(t.vals.len);
+    console.println(t.vals.debug());
 }
 ```
 
@@ -3571,12 +3572,12 @@ fun mean<T: Num>(xs: T[]): T {
 fun scale<T: Num>(x: T): T = x * 3 - 2;
 fun half<T: Float>(x: T): T = x * 0.5;
 
-fun main() {
-    println(mean([1, 2, 6]));
-    println(mean([1.0, 2.0, 6.0]));
-    println(scale(5 as u8));
-    println(half(3.0 as f32));
-    println(mean([2.5, 3.5]).saturate<i64>());
+fun main(console: Console) {
+    console.println(mean([1, 2, 6]));
+    console.println(mean([1.0, 2.0, 6.0]));
+    console.println(scale(5 as u8));
+    console.println(half(3.0 as f32));
+    console.println(mean([2.5, 3.5]).saturate<i64>());
 }
 ```
 
@@ -3599,13 +3600,13 @@ impl Ord for Run {
         };
 }
 
-fun main() {
+fun main(console: Console) {
     let runs = [Run { loss: 2.24, name: "gpt" }, Run { loss: 2.46, name: "bigram" }, Run { loss: 2.40, name: "mlp" }];
     let best = runs.iter().min().unwrap();
-    println(best.name);
-    println(runs.sort().map(fun(r: Run): string = r.name).join(" "));
-    println(runs[0] < runs[1]);
-    println((runs[1], 0) < (runs[1], 1));
+    console.println(best.name);
+    console.println(runs.sort().map(fun(r: Run): string = r.name).join(" "));
+    console.println(runs[0] < runs[1]);
+    console.println((runs[1], 0) < (runs[1], 1));
 }
 ```
 
@@ -3616,11 +3617,11 @@ fun main() {
 // directory.
 import std.env;
 
-fun main() {
-    println(env.get("LUGHA_SURELY_UNSET").is_none());
+fun main(console: Console) {
+    console.println(env.get("LUGHA_SURELY_UNSET").is_none());
     let home = env.get("LUGHA_SURELY_UNSET").unwrap_or("default");
-    println(home);
-    println(env.current_dir().is_ok());
+    console.println(home);
+    console.println(env.current_dir().is_ok());
 }
 ```
 
@@ -3630,25 +3631,25 @@ fun main() {
 // std.fs (v15): folders and what exists, cleaned up afterwards.
 import std.fs;
 
-fun main() {
+fun main(console: Console, files: Fs) {
     let made = fs.make_dirs("runs/2026");
-    let a = write_file("runs/2026/b.log", "b");
-    let b = write_file("runs/2026/a.log", "a");
+    let a = files.cwd().write_file("runs/2026/b.log", "b");
+    let b = files.cwd().write_file("runs/2026/a.log", "a");
     match fs.list_dir("runs/2026") {
-        .Ok(names) => println(names.debug()),
-        .Err(e) => println(e),
+        .Ok(names) => console.println(names.debug()),
+        .Err(e) => console.println(e),
     }
-    println("{fs.is_dir("runs")} {fs.is_file("runs/2026/a.log")} {fs.exists("runs/x")}");
+    console.println("{fs.is_dir("runs")} {fs.is_file("runs/2026/a.log")} {fs.exists("runs/x")}");
     match fs.remove_dir("runs/2026") {
-        .Ok(_) => println("removed"),
-        .Err(e) => println(e),
+        .Ok(_) => console.println("removed"),
+        .Err(e) => console.println(e),
     }
     for name of fs.list_dir("runs/2026").unwrap_or([]) {
         let gone = fs.remove_file("runs/2026/{name}");
     }
     let x = fs.remove_dir("runs/2026");
     let y = fs.remove_dir("runs");
-    println(fs.exists("runs"));
+    console.println(fs.exists("runs"));
 }
 ```
 
@@ -3659,20 +3660,20 @@ fun main() {
 // wait, and read its exit code and output.
 import std.process;
 
-fun main() {
+fun main(console: Console) {
     match process.run("echo", ["hello", "; not a command"]) {
-        .Ok(out) => println("{out.code}: {out.stdout.trim()}"),
-        .Err(e) => println(e),
+        .Ok(out) => console.println("{out.code}: {out.stdout.trim()}"),
+        .Err(e) => console.println(e),
     }
     match process.run_with("sort", [], "pear\napple\n") {
-        .Ok(out) => println(out.stdout.split("\n").debug()),
-        .Err(e) => println(e),
+        .Ok(out) => console.println(out.stdout.split("\n").debug()),
+        .Err(e) => console.println(e),
     }
     match process.run("sh", ["-c", "exit 7"]) {
-        .Ok(out) => println(out.code),
-        .Err(e) => println(e),
+        .Ok(out) => console.println(out.code),
+        .Err(e) => console.println(e),
     }
-    println(process.run("surely-not-a-program", []).is_err());
+    console.println(process.run("surely-not-a-program", []).is_err());
 }
 ```
 
@@ -3683,25 +3684,25 @@ fun main() {
 // sees one box. Everything else is still a value.
 struct Node { value: i64, next: Option<Ref<Node>> }
 
-fun main() {
+fun main(console: Console) {
     let count = Ref.new(0);
     let tick = fun(): i64 {
         count.update(fun(n: i64): i64 = n + 1);
         count.get()
     };
     tick();
-    println(tick());
+    console.println(tick());
     let alias = count;
     alias.set(10);
-    println("{count.get()} {count.is(alias)}");
+    console.println("{count.get()} {count.is(alias)}");
     let mut copy = count.get();
     copy += 1;
-    println("{count.get()} {copy}");
+    console.println("{count.get()} {copy}");
     let a = Ref.new(Node { value: 1, next: None });
     let mut first = a.get();
     first.next = Some(a);
     a.set(first);
-    println(a.debug());
+    console.println(a.debug());
 }
 ```
 
@@ -3712,15 +3713,15 @@ fun main() {
 import std.env;
 import std.fs;
 
-fun main() {
+fun main(console: Console, files: Fs) {
     let start = env.current_dir().unwrap_or("?");
     let made = fs.make_dirs("inbox/2026");
     let moved = env.set_current_dir("inbox/2026");
-    println(moved.debug());
-    let wrote = write_file("note.txt", "hi");
+    console.println(moved.debug());
+    let wrote = files.cwd().write_file("note.txt", "hi");
     let back = env.set_current_dir(start);
-    println(fs.is_file("inbox/2026/note.txt"));
-    println(env.set_current_dir("missing").debug());
+    console.println(fs.is_file("inbox/2026/note.txt"));
+    console.println(env.set_current_dir("missing").debug());
     let a = fs.remove_file("inbox/2026/note.txt");
     let b = fs.remove_dir("inbox/2026");
     let c = fs.remove_dir("inbox");
@@ -3734,14 +3735,14 @@ fun main() {
    over several lines, and nested. */
 fun add(a: i64, /* the other */ b: i64): i64 = a + b;
 
-fun main() {
+fun main(console: Console) {
     let x = 1 /* inline */ + 2;
     /* commented out:
-    println("old");   /* a comment inside */
+    console.println("old");   /* a comment inside */
     */
-    println(x);
-    println(add(x, 4));
-    println("done");
+    console.println(x);
+    console.println(add(x, 4));
+    console.println("done");
 }
 ```
 
@@ -3760,20 +3761,20 @@ fun produce(out: Chan<i64>, count: i64) {
     out.close();
 }
 
-fun main() {
+fun main(console: Console) {
     let a = spawn square(3);
     let b = spawn square(4);
-    println(a.join() + b.join());
+    console.println(a.join() + b.join());
     let k = 2;
     let t = spawn fun(): string { "closure {k}" }();
-    println(t.join());
+    console.println(t.join());
     let c: Chan<i64> = Chan.buffered(2);
     spawn produce(c, 3);
     let mut sum = 0;
     while let .Some(v) = c.recv() {
         sum += v;
     }
-    println(sum);
+    console.println(sum);
 }
 ```
 
@@ -3789,26 +3790,26 @@ fun later(c: Chan<string>, ms: i64) {
     c.send("late");
 }
 
-fun main() {
+fun main(console: Console) {
     let quick: Chan<string> = Chan.new();
     let slow: Chan<string> = Chan.new();
     spawn later(quick, 5);
     spawn later(slow, 100);
     select {
-        m = quick.recv() => println("quick: {m.debug()}"),
-        m = slow.recv() => println("slow: {m.debug()}"),
+        m = quick.recv() => console.println("quick: {m.debug()}"),
+        m = slow.recv() => console.println("slow: {m.debug()}"),
     }
     select {
-        m = slow.recv() => println("slow: {m.debug()}"),
-        after(20) => println("timed out"),
+        m = slow.recv() => console.println("slow: {m.debug()}"),
+        after(20) => console.println("timed out"),
     }
     let empty: Chan<i64> = Chan.new();
     let got = select {
         m = empty.recv() => m,
         default => None,
     };
-    println(got.debug());
-    println("waiting");
+    console.println(got.debug());
+    console.println("waiting");
     empty.recv();
 }
 ```
@@ -3837,36 +3838,36 @@ fun customer(account: Account) {
     }
 }
 
-fun main() {
+fun main(console: Console) {
     let account = spawn Account { balance: 0 };
     let first = spawn customer(account);
     let second = spawn customer(account);
     first.join();
     second.join();
-    println(account.total());
+    console.println(account.total());
     account.withdraw(500);
-    println(account.join().is_some());
+    console.println(account.join().is_some());
     let other = spawn Account { balance: 7 };
     other.stop();
-    println(other.join().is_none());
+    console.println(other.join().is_none());
 }
 ```
 
 **Word count** (milestone 101). Prints `Map { "the": 3, "cat": 1, "and": 2, "hat": 1, "bat": 1 }`, `3`, `5`, `the: 3`, `and: 2` on five lines, exits with 0.
 
 ```
-fun main() {
+fun main(console: Console) {
     let text = "the cat and the hat and the bat";
     let mut counts: Map<string, i64> = Map {};
     for w of text.split(" ") {
         counts[w] = counts.get(w).unwrap_or(0) + 1;
     }
-    println(counts.debug());
-    println(counts["the"]);
-    println(counts.len);
+    console.println(counts.debug());
+    console.println(counts["the"]);
+    console.println(counts.len);
     for (w, n) of counts {
         if n > 1 {
-            println("{w}: {n}");
+            console.println("{w}: {n}");
         }
     }
 }
@@ -3875,7 +3876,7 @@ fun main() {
 **Dedupe** (milestone 101). Prints `[3, 1, 2]`, `Set { 3, 1, 2 }`, `true`, `Set { 1, 2, 3, 4 }`, `Set { 2, 3 }`, `Set { 1 }`, `true` on seven lines, exits with 0.
 
 ```
-fun main() {
+fun main(console: Console) {
     let mut seen: Set<i64> = Set {};
     let mut firsts: i64[] = [];
     for x of [3, 1, 3, 2, 1] {
@@ -3883,15 +3884,15 @@ fun main() {
             firsts.push(x);
         }
     }
-    println(firsts.debug());
-    println(seen.debug());
-    println(seen.has(2));
+    console.println(firsts.debug());
+    console.println(seen.debug());
+    console.println(seen.has(2));
     let a = Set { 1, 2, 3 };
     let b = Set { 2, 3, 4 };
-    println(a.union(b).debug());
-    println(a.intersect(b).debug());
-    println(a.minus(b).debug());
-    println(Set { 1, 2 } == Set { 2, 1 });
+    console.println(a.union(b).debug());
+    console.println(a.intersect(b).debug());
+    console.println(a.minus(b).debug());
+    console.println(Set { 1, 2 } == Set { 2, 1 });
 }
 ```
 
@@ -4079,6 +4080,7 @@ The spec is implemented in five milestones, each ending in a program that runs. 
 | 177 | Type arguments and lossless `as` (v18) | `max<i64>(a, b)`, `Chan<Job>.new()`, `Pair<u8> { … }`, `Option<i64>.None`; `as` only without loss; `try_into`, `truncate`, `saturate`, `round`, `floor`, `ceil`; E0469 | `tests/programs/generics/type_arguments`, `tests/programs/numbers/conversions` (done) |
 | 178 | Collection literals (v18) | `Map { "a": 1 }`, `Set { 1, 2 }`, `Map {}`; `FromEntries` and `FromItems`; `#{…}` removed; E0213, E0470 | `tests/programs/collections/literals` (done) |
 | 179 | `Error` and extending interfaces as values (v18) | `interface Error: Display`, `impl Error for string` and std's errors; an interface that extends others is a value type; E0464 retired | `tests/programs/interfaces/extending_values` (done) |
+| 180 | Capabilities, first step (v18) | `main` takes `string[]`, `Console`, `Fs`; `Console`, `Fs`, `Dir`; `print`, `println`, `eprint`, `eprintln`, `read_line`, `read_file`, `write_file`, `append_file`, `args`, `exit` removed (E0471) | `tests/programs/capabilities/console_fs` (done) |
 
 In milestones 1 and 2, every value can be treated as `i64`, so codegen can start before the type checker exists. Until milestone 4 provides `lugha_rt_panic`, integer `+`, `-` and `*` wrap, and `/` and `%` stop the program with a trap on a zero divisor or `MIN / -1`. Milestone 3 then replaces that assumption with real types. The process exit code is the low 8 bits of `main`'s result, so milestone tests use results below 256.
 

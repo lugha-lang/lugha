@@ -11,9 +11,9 @@ fun positive(n: i64): i64 {
 @caller_location
 fun checked(n: i64): i64 = positive(n);         // a marked call inside a marked one passes it on
 
-fun main() {
-    println(positive(3));                       // 3
+fun main(console: Console) {
+    console.println(positive(3));                       // 3
     let o: Option<i64> = None;
-    println(o.unwrap_or(7));                    // 7
-    println(checked(-1));                       // panic: -1 isn't positive at main.la:16:13
+    console.println(o.unwrap_or(7));                    // 7
+    console.println(checked(-1));                       // panic: -1 isn't positive at main.la:16:13
 }

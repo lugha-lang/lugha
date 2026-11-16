@@ -1,7 +1,7 @@
 error[E0403]: expected string, found i64
-  --> tests/programs/text/io/e0403.la:3:30
+  --> tests/programs/text/io/e0403.la:3:39
   |
-3 |     let written = write_file(path, "text");
-  |                              ^^^^ expected string
+3 |     let written = fs.cwd().write_file(path, "text");
+  |                                       ^^^^ expected string
 
 For more about E0403, run `lughac explain E0403`.

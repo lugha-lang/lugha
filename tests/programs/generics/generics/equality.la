@@ -18,18 +18,18 @@ fun largest<T: Ord>(xs: T[]): Option<T> {
 
 struct Pair<A, B> { a: A, b: B } with Eq
 
-fun main() {
+fun main(console: Console) {
     let ps = [Point { x: 1, y: 2 }, Point { x: 3, y: 4 }];
-    println(contains(ps, Point { x: 3, y: 4 }));
-    println(contains(ps, Point { x: 4, y: 3 }));
-    println(contains([[1], [2, 3]], [2, 3]));
-    println(Pair { a: 1, b: "x" } == Pair { a: 1, b: "x" });
+    console.println(contains(ps, Point { x: 3, y: 4 }));
+    console.println(contains(ps, Point { x: 4, y: 3 }));
+    console.println(contains([[1], [2, 3]], [2, 3]));
+    console.println(Pair { a: 1, b: "x" } == Pair { a: 1, b: "x" });
     match largest([3, 9, 4]) {
-        .Some(f) => println(f),
-        .None => println(0),
+        .Some(f) => console.println(f),
+        .None => console.println(0),
     }
     match largest(["pear", "apple", "plum"]) {
-        .Some(w) => println(w),
-        .None => println("none"),
+        .Some(w) => console.println(w),
+        .None => console.println("none"),
     }
 }

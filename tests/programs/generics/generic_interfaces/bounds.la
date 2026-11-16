@@ -80,13 +80,13 @@ impl Holder<Count> for Box {
 // `T` comes from `S`, which comes from `H`.
 fun unpack<T, S: Source<T>, H: Holder<S>>(h: H): T[] = collect(h.source());
 
-fun main() {
+fun main(console: Console) {
     let ns = collect(Count { n: 0, end: 3 });
-    println("{ns.len} {ns[0]} {ns[2]}");
-    println(collect(Words { xs: ["a", "b", "c"], at: 0 }).join("-"));
-    println(collect(Repeat { x: 1.5, left: 2 }).len);
-    println(after_one(Count { n: 0, end: 3 }).len);
-    println(after_one(Words { xs: ["a", "b", "c"], at: 0 }).join("-"));
-    println(after_one(Repeat { x: "r", left: 3 }).join(""));
-    println(unpack(Box { c: Count { n: 5, end: 7 } })[1]);
+    console.println("{ns.len} {ns[0]} {ns[2]}");
+    console.println(collect(Words { xs: ["a", "b", "c"], at: 0 }).join("-"));
+    console.println(collect(Repeat { x: 1.5, left: 2 }).len);
+    console.println(after_one(Count { n: 0, end: 3 }).len);
+    console.println(after_one(Words { xs: ["a", "b", "c"], at: 0 }).join("-"));
+    console.println(after_one(Repeat { x: "r", left: 3 }).join(""));
+    console.println(unpack(Box { c: Count { n: 5, end: 7 } })[1]);
 }

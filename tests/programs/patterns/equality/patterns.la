@@ -36,32 +36,32 @@ fun pair(p: Pair): i64 = match p {
     .P(false, _) => 3,
 };
 
-fun main() {
-    println(describe(Some(Shape.Circle(2.0))));
-    println(describe(Some(Shape.Rect(3.0, 3.0))));
-    println(describe(None));
-    println([1, 2] == [1, 2]);
-    println(Shape.Rect(1.0, 2.0) == Shape.Rect(1.0, 2.0));
-    println("apple" < "banana");
+fun main(console: Console) {
+    console.println(describe(Some(Shape.Circle(2.0))));
+    console.println(describe(Some(Shape.Rect(3.0, 3.0))));
+    console.println(describe(None));
+    console.println([1, 2] == [1, 2]);
+    console.println(Shape.Rect(1.0, 2.0) == Shape.Rect(1.0, 2.0));
+    console.println("apple" < "banana");
 
-    println(describe(Some(Shape.Circle(0.5))));
-    println(describe(Some(Shape.Rect(1.0, 2.0))));
-    println(describe(Some(Shape.Empty)));
+    console.println(describe(Some(Shape.Circle(0.5))));
+    console.println(describe(Some(Shape.Rect(1.0, 2.0))));
+    console.println(describe(Some(Shape.Empty)));
     let l = List.Cons(1, List.Cons(2, List.Cons(3, List.Nil)));
     match second(l) {
-        .Some(x) => println(x),
-        .None => println("none"),
+        .Some(x) => console.println(x),
+        .None => console.println("none"),
     }
     match second(List.Cons(1, List.Nil)) {
-        .Some(x) => println(x),
-        .None => println("none"),
+        .Some(x) => console.println(x),
+        .None => console.println("none"),
     }
-    println(classify(0));
-    println(classify(-3));
-    println(classify(4));
-    println(classify(7));
-    println(pair(Pair.P(true, 0)));
-    println(pair(Pair.P(true, 4)));
-    println(pair(Pair.P(false, -1)));
-    println(pair(Pair.P(false, 9)));
+    console.println(classify(0));
+    console.println(classify(-3));
+    console.println(classify(4));
+    console.println(classify(7));
+    console.println(pair(Pair.P(true, 0)));
+    console.println(pair(Pair.P(true, 4)));
+    console.println(pair(Pair.P(false, -1)));
+    console.println(pair(Pair.P(false, 9)));
 }

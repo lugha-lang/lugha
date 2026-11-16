@@ -6,8 +6,8 @@ impl Stuck {
     fun next(self): Option<i64> = Some(self.n);
 }
 
-fun main() {
+fun main(console: Console) {
     for n of (Stuck { n: 1 }) {
-        println(n);
+        console.println(n);
     }
 }

@@ -1,16 +1,16 @@
 // Every primitive prints in its standard form; `u8` prints as a number.
-fun main() {
+fun main(console: Console) {
     let a: i32 = -42;
     let b: i64 = -9223372036854775808;
     let c: u8 = 255;
-    println(a);
-    println(b);
-    println(c);
-    println(true);
-    println(false);
-    print(1);
-    print(2);
-    println(3);
-    println();
-    println("done");
+    console.println(a);
+    console.println(b);
+    console.println(c);
+    console.println(true);
+    console.println(false);
+    console.print(1);
+    console.print(2);
+    console.println(3);
+    console.println("");
+    console.println("done");
 }

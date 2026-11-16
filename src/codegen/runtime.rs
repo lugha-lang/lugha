@@ -269,16 +269,14 @@ mod tests {
     }
 
     #[test]
-    fn println_calls_the_typed_printer_then_a_newline() {
-        let ir = ir("fun main() { println(1); let b: u8 = 2; print(b); }");
-        let i64_call = ir
-            .find("call void @lugha_rt_print_i64(i64 1)")
-            .expect("print_i64");
+    fn the_real_console_prints_text_then_a_newline() {
+        // A `Console` prints a value's `Display` text through the runtime.
+        let ir = ir("fun main(console: Console) { console.println(1); }");
+        let text = ir.find("call void @lugha_rt_print_str").expect("print_str");
         let newline = ir
             .find("call void @lugha_rt_print_newline()")
             .expect("newline");
-        assert!(i64_call < newline, "{ir}");
-        assert!(ir.contains("zext i8"), "u8 widens to i32: {ir}");
+        assert!(text < newline, "{ir}");
     }
 
     #[test]

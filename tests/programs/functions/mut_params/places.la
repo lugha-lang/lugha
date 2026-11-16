@@ -12,17 +12,17 @@ fun fill(mut buf: string[], word: string, times: i64) {
 
 fun inc(mut n: i64) { n = n + 1; }
 
-fun main() {
+fun main(console: Console) {
     let mut c = Counter { n: 0 };
     bump(mut c, 2);
     bump(mut c, 3);
-    println(c.n);
+    console.println(c.n);
     let mut words: string[] = [];
     fill(mut words, "hi", 2);
-    println(words.debug());
+    console.println(words.debug());
     let mut k = 5;
     inc(mut k);
     inc(mut c.n);
-    println(k);
-    println(c.n);
+    console.println(k);
+    console.println(c.n);
 }

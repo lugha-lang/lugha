@@ -16,7 +16,7 @@ impl Convert<f64> for i64 {
 
 fun same<T: Convert>(x: T): T = x.convert();
 
-fun main() {
-    println(same(Celsius { c: 21.5 }).c);
-    println(Convert.convert(4) / 8.0);
+fun main(console: Console) {
+    console.println(same(Celsius { c: 21.5 }).c);
+    console.println(Convert.convert(4) / 8.0);
 }

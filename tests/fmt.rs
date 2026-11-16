@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-const MESSY: &str = "fun  main(){println(1+2);}\n";
-const TIDY: &str = "fun main() {\n    println(1 + 2);\n}\n";
+const MESSY: &str = "fun  main(console: Console){console.println(1+2);}\n";
+const TIDY: &str = "fun main(console: Console) {\n    console.println(1 + 2);\n}\n";
 
 /// An empty temporary folder, removed on drop.
 struct Temp(PathBuf);

@@ -15,6 +15,6 @@ impl Labels for f64 {
     fun label(self): string = "b";
 }
 
-fun main() {
-    println(2.0.label());
+fun main(console: Console) {
+    console.println(2.0.label());
 }

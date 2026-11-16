@@ -135,7 +135,7 @@ mod tests {
     #[test]
     fn if_let_tests_the_tag_and_branches_to_else() {
         let ir = ir(
-            "fun main() { let o = Some(2); if let .Some(n) = o { println(n); } else { println(0); } }",
+            "fun main(console: Console) { let o = Some(2); if let .Some(n) = o { console.println(n); } else { console.println(0); } }",
         );
         assert!(
             ir.contains("iflet.else") && ir.contains("icmp eq i32"),

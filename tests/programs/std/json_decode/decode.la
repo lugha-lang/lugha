@@ -15,84 +15,84 @@ fun load(text: string): Result<Person, json.DecodeError> {
     Ok(p)
 }
 
-fun main() {
-    println((round(Person { name: "ada", age: 36, email: Some("a@x"), tags: ["math"] })).debug());
-    println((round([Shape.Dot, Shape.Circle(1.5), Shape.Rect(2.0, 3.0)])).debug());
-    println((round(Tree.Node([Tree.Leaf(1), Tree.Node([])]))).debug());
-    println(round(Pair { a: "x", b: "y" }).debug());
+fun main(console: Console) {
+    console.println((round(Person { name: "ada", age: 36, email: Some("a@x"), tags: ["math"] })).debug());
+    console.println((round([Shape.Dot, Shape.Circle(1.5), Shape.Rect(2.0, 3.0)])).debug());
+    console.println((round(Tree.Node([Tree.Leaf(1), Tree.Node([])]))).debug());
+    console.println(round(Pair { a: "x", b: "y" }).debug());
     let n8: i8 = -8;
     let u16v: u16 = 65535;
     let i32v: i32 = -2147483648;
     let u32v: u32 = 4294967295;
-    println((round((n8, u16v, i32v, u32v))).debug());
+    console.println((round((n8, u16v, i32v, u32v))).debug());
     let small: u64 = 5;
     let big: u64 = 18446744073709551615;
-    println(round([small]).debug());
-    println(round([small, big]).debug());
+    console.println(round([small]).debug());
+    console.println(round([small, big]).debug());
     let f: f32 = 1.5;
-    println((round((f, 0.1, true, 'é'))).debug());
-    println((round(())).debug());
+    console.println((round((f, 0.1, true, 'é'))).debug());
+    console.println((round(())).debug());
     let m: Map<string, i64> = Map { "b": 2, "a": 1 };
-    println(round(m).debug());
+    console.println(round(m).debug());
     let mi: Map<i64, bool> = Map { 3: true, -1: false };
-    println(round(mi).debug());
+    console.println(round(mi).debug());
     let s: Set<string> = Set { "x", "y" };
-    println(round(s).debug());
+    console.println(round(s).debug());
     let o: Option<Option<i64>> = Some(None);
-    println(round(o).debug());
-    println((round(Some(Some(4)))).debug());
+    console.println(round(o).debug());
+    console.println((round(Some(Some(4)))).debug());
     let r: Result<i64, string> = Err("no");
-    println(round(r).debug());
-    println((round(Doc { meta: json.parse("[1, {{\"k\": null}}]").unwrap(), n: 255 })).debug());
-    println(load("{{\"name\": \"bob\", \"age\": 7, \"tags\": [], \"extra\": true}}").debug());
-    println(load("{{\"name\": \"cy\", \"age\": 1, \"email\": null, \"tags\": [\"t\"]}}").debug());
+    console.println(round(r).debug());
+    console.println((round(Doc { meta: json.parse("[1, {{\"k\": null}}]").unwrap(), n: 255 })).debug());
+    console.println(load("{{\"name\": \"bob\", \"age\": 7, \"tags\": [], \"extra\": true}}").debug());
+    console.println(load("{{\"name\": \"cy\", \"age\": 1, \"email\": null, \"tags\": [\"t\"]}}").debug());
     let deep: Result<Tree, json.DecodeError> = parse(repeat("{{\"Node\": [", 49) + "{{\"Leaf\": 9}}" + repeat("]}}", 49));
-    println(deep.is_ok());
+    console.println(deep.is_ok());
 
     let e1: Result<Person, json.DecodeError> = parse("{{\"name\": 1}}");
-    println(e1.debug());
+    console.println(e1.debug());
     let e2: Result<Person, json.DecodeError> = parse("{{\"name\": \"a\"}}");
-    println(e2.debug());
+    console.println(e2.debug());
     let e3: Result<u8[], json.DecodeError> = parse("[1, 300]");
-    println(e3.debug());
+    console.println(e3.debug());
     let e4: Result<i64, json.DecodeError> = parse("1.5");
-    println(e4.debug());
+    console.println(e4.debug());
     let e5: Result<char, json.DecodeError> = parse("\"ab\"");
-    println(e5.debug());
+    console.println(e5.debug());
     let e6: Result<(i64, i64), json.DecodeError> = parse("[1, 2, 3]");
-    println(e6.debug());
+    console.println(e6.debug());
     let e7: Result<Set<i64>, json.DecodeError> = parse("[1, 1]");
-    println(e7.debug());
+    console.println(e7.debug());
     let e8: Result<Map<i64, bool>, json.DecodeError> = parse("{{\"x\": true}}");
-    println(e8.debug());
+    console.println(e8.debug());
     let e9: Result<Map<u8, bool>, json.DecodeError> = parse("{{\"300\": true}}");
-    println(e9.debug());
+    console.println(e9.debug());
     let e10: Result<Shape, json.DecodeError> = parse("\"Square\"");
-    println(e10.debug());
+    console.println(e10.debug());
     let e11: Result<Shape, json.DecodeError> = parse("{{\"Circle\": 1, \"Dot\": 2}}");
-    println(e11.debug());
+    console.println(e11.debug());
     let e12: Result<Shape, json.DecodeError> = parse("{{\"Rect\": [1.0]}}");
-    println(e12.debug());
+    console.println(e12.debug());
     let e13: Result<Shape, json.DecodeError> = parse("{{\"Dot\": 1}}");
-    println(e13.debug());
+    console.println(e13.debug());
     let e14: Result<Shape, json.DecodeError> = parse("\"Circle\"");
-    println(e14.debug());
+    console.println(e14.debug());
     let e15: Result<i64, json.DecodeError> = parse("null");
-    println(e15.debug());
+    console.println(e15.debug());
     let e16: Result<Person[], json.DecodeError> = parse("[{{\"name\": \"a\", \"age\": 1, \"tags\": []}}, {{\"name\": \"b\", \"age\": \"x\", \"tags\": []}}]");
-    println(e16.debug());
+    console.println(e16.debug());
     let e17: Result<Map<string, i64>, json.DecodeError> = parse("{{\"ann\": true}}");
-    println(e17.debug());
+    console.println(e17.debug());
     let e18: Result<Shape, json.DecodeError> = parse("{{\"Circle\": \"x\"}}");
-    println(e18.debug());
+    console.println(e18.debug());
     let e19: Result<Shape, json.DecodeError> = parse("{{\"Rect\": [1.0, null]}}");
-    println(e19.debug());
+    console.println(e19.debug());
     let e20: Result<Person, json.DecodeError> = parse("[1]");
-    println(e20.debug());
+    console.println(e20.debug());
     let e21: Result<Person, json.DecodeError> = parse("{{\"name\": \"a\", \"age\": 1, \"email\": 5, \"tags\": []}}");
-    println(e21.debug());
+    console.println(e21.debug());
     match e21 {
-        .Err(e) => println("{e.path} | {e.detail} | {e.message()}"),
+        .Err(e) => console.println("{e.path} | {e.detail} | {e.message()}"),
         .Ok(_) => {}
     }
 }

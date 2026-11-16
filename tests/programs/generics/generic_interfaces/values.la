@@ -76,37 +76,37 @@ fun run(n: i64): Result<i64, Problem<i64>> {
     Ok(m + 1)
 }
 
-fun main() {
+fun main(console: Console) {
     let mut s: Source<i64> = Count { n: 10, end: 12 };
-    println(s.next().unwrap_or(0));
+    console.println(s.next().unwrap_or(0));
     let mut other = s;
     other.next();
-    println(s.next().unwrap_or(0));
+    console.println(s.next().unwrap_or(0));
 
     let all: Source<i64>[] = [Count { n: 0, end: 3 }, Repeat { x: 7, left: 2 }];
     for a of all {
-        println("{describe(a)}: {count(a)}");
+        console.println("{describe(a)}: {count(a)}");
     }
 
     let w: Source<string> = Words { xs: ["x", "y"], at: 0 };
-    println(count(w));
+    console.println(count(w));
     let mut rest = w;
     rest.skip();
-    println(rest.next().unwrap_or("-"));
+    console.println(rest.next().unwrap_or("-"));
 
     let p = Pipe { from: Count { n: 0, end: 5 }, label: "p" };
-    println("{p.label} {count(p.from)}");
+    console.println("{p.label} {count(p.from)}");
     let o: Option<Source<i64>> = Some(Count { n: 1, end: 2 });
     match o {
-        .Some(x) => println(count(x)),
-        .None => println("none"),
+        .Some(x) => console.println(count(x)),
+        .None => console.println("none"),
     }
 
-    println(count(Count { n: 0, end: 4 }));
+    console.println(count(Count { n: 0, end: 4 }));
     for n of [3, 50] {
         match run(n) {
-            .Ok(v) => println(v),
-            .Err(e) => println(e.detail()),
+            .Ok(v) => console.println(v),
+            .Err(e) => console.println(e.detail()),
         }
     }
 }

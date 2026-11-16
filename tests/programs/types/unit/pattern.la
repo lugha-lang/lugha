@@ -1,21 +1,21 @@
 // `()` as a pattern.
-fun log(s: string) {
-    println(s);
+fun log(console: Console, s: string) {
+    console.println(s);
 }
 
-fun main() {
-    let () = log("bound");
-    match log("matched") {
-        () => println("unit"),
+fun main(console: Console) {
+    let () = log(console, "bound");
+    match log(console, "matched") {
+        () => console.println("unit"),
     }
     let found: Option<()> = Some(());
     match found {
-        .Some(()) => println("some"),
-        .None => println("none"),
+        .Some(()) => console.println("some"),
+        .None => console.println("none"),
     }
     if let .Some(()) = found {
-        println("again");
+        console.println("again");
     }
     let ((), n) = ((), 7);
-    println(n);
+    console.println(n);
 }

@@ -1,6 +1,6 @@
 // An array copied inside a loop that a labelled `continue` goes round
 // again is still a copy: `xs` is read on the next round.
-fun main() {
+fun main(console: Console) {
     let xs = [1, 2];
     let mut n = 0;
     let mut last = [0];
@@ -16,5 +16,5 @@ fun main() {
             break outer;
         }
     }
-    println("{xs.debug()} {last.debug()}");
+    console.println("{xs.debug()} {last.debug()}");
 }

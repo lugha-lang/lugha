@@ -56,19 +56,19 @@ fn rename_replaces_and_set_mode_sets_bits() {
     let out = t.run(
         "import std.fs;
 
-fun main() {
-    write_file(\"old\", \"old contents\").unwrap();
-    write_file(\"new.tmp\", \"new contents\").unwrap();
-    println(fs.rename(\"new.tmp\", \"old\").debug());
-    println(read_file(\"old\").debug());
-    println(fs.exists(\"new.tmp\"));
-    println(fs.rename(\"missing\", \"x\").debug());
-    println((fs.rename(string_from_utf8([97, 0, 98]).unwrap(), \"x\")).debug());
-    write_file(\"key\", \"secret\").unwrap();
-    println(fs.set_mode(\"key\", 0o600).debug());
-    println(fs.set_mode(\"key\", -1).debug());
-    println(fs.set_mode(\"key\", 4096).debug());
-    println(fs.set_mode(\"nope\", 0b110_000_000).debug());
+fun main(console: Console, files: Fs) {
+    files.cwd().write_file(\"old\", \"old contents\").unwrap();
+    files.cwd().write_file(\"new.tmp\", \"new contents\").unwrap();
+    console.println(fs.rename(\"new.tmp\", \"old\").debug());
+    console.println(files.cwd().read_file(\"old\").debug());
+    console.println(fs.exists(\"new.tmp\"));
+    console.println(fs.rename(\"missing\", \"x\").debug());
+    console.println((fs.rename(string_from_utf8([97, 0, 98]).unwrap(), \"x\")).debug());
+    files.cwd().write_file(\"key\", \"secret\").unwrap();
+    console.println(fs.set_mode(\"key\", 0o600).debug());
+    console.println(fs.set_mode(\"key\", -1).debug());
+    console.println(fs.set_mode(\"key\", 4096).debug());
+    console.println(fs.set_mode(\"nope\", 0b110_000_000).debug());
 }
 ",
     );
@@ -99,7 +99,7 @@ fn a_rename_across_devices_is_an_error() {
     let source = shm.join(format!("lugha-fst-{}", std::process::id()));
     std::fs::write(&source, "x").unwrap();
     let out = t.run(&format!(
-        "import std.fs;\n\nfun main() {{\n    println(fs.rename(\"{}\", \"here\").debug());\n}}\n",
+        "import std.fs;\n\nfun main(console: Console) {{\n    console.println(fs.rename(\"{}\", \"here\").debug());\n}}\n",
         source.display()
     ));
     // Best effort: the file is ours, in shared memory.
@@ -112,7 +112,7 @@ fn flush_shows_output_before_the_program_ends() {
     let t = Temp::new();
     let mut child = t
         .command(
-            "import std.task;\n\nfun main() {\n    print(\"ready\");\n    flush();\n    task.sleep(30000);\n}\n",
+            "import std.task;\n\nfun main(console: Console) {\n    console.print(\"ready\");\n    flush();\n    task.sleep(30000);\n}\n",
         )
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -141,12 +141,12 @@ fn the_clocks_tell_the_time() {
         "import std.task;
 import std.time;
 
-fun main() {
-    println(time.now_ms());
+fun main(console: Console) {
+    console.println(time.now_ms());
     let a = time.monotonic_ms();
     task.sleep(20);
     let b = time.monotonic_ms();
-    println(b - a >= 20);
+    console.println(b - a >= 20);
 }
 ",
     );
@@ -184,15 +184,15 @@ fn sync_writes_files_and_folders_out() {
     let out = t.run(
         "import std.fs;
 
-fun main() {
-    write_file(\"state\", \"old\").unwrap();
-    write_file(\"state.tmp\", \"new\").unwrap();
-    println(fs.sync(\"state.tmp\").debug());
-    println(fs.rename(\"state.tmp\", \"state\").debug());
-    println(fs.sync(\".\").debug());
-    println(read_file(\"state\").debug());
-    println(fs.sync(\"missing\").debug());
-    println((fs.sync(string_from_utf8([97, 0, 98]).unwrap())).debug());
+fun main(console: Console, files: Fs) {
+    files.cwd().write_file(\"state\", \"old\").unwrap();
+    files.cwd().write_file(\"state.tmp\", \"new\").unwrap();
+    console.println(fs.sync(\"state.tmp\").debug());
+    console.println(fs.rename(\"state.tmp\", \"state\").debug());
+    console.println(fs.sync(\".\").debug());
+    console.println(files.cwd().read_file(\"state\").debug());
+    console.println(fs.sync(\"missing\").debug());
+    console.println((fs.sync(string_from_utf8([97, 0, 98]).unwrap())).debug());
 }
 ",
     );

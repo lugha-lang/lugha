@@ -47,33 +47,33 @@ fun bigger(s: Shape): f64 = match s {
     _ => 0.0,
 };
 
-fun main() {
-    println("{warm(Color.Red)} {warm(Color.Blue)}");
-    println("{small(Some(1))} {small(Some(-4))} {small(Some(9))} {small(None)}");
-    println(kind(Circle { r: 1.0 }));
+fun main(console: Console) {
+    console.println("{warm(Color.Red)} {warm(Color.Blue)}");
+    console.println("{small(Some(1))} {small(Some(-4))} {small(Some(9))} {small(None)}");
+    console.println(kind(Circle { r: 1.0 }));
     let c: Shape = Circle { r: 1.0 };
-    println("{bigger(c)} {c.area()}");
+    console.println("{bigger(c)} {c.area()}");
 
     // a `mut` binding of an array is the arm's own copy
     let o = Some([1, 2, 3]);
     match o {
         .Some(mut xs) => {
             xs.push(4);
-            println(xs.len);
+            console.println(xs.len);
         }
         .None => {}
     }
     match o {
-        .Some(xs) => println(xs.len),
+        .Some(xs) => console.println(xs.len),
         .None => {}
     }
     match 5 {
         mut n => {
             n += 1;
-            println(n);
+            console.println(n);
         }
     }
     match true {
-        true | false => println("both"),
+        true | false => console.println("both"),
     }
 }

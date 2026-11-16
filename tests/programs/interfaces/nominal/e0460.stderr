@@ -1,8 +1,8 @@
 error[E0460]: `area` on `C` is an item of both `Plot` and `Shape`
-   --> tests/programs/interfaces/nominal/e0460.la:11:26
+   --> tests/programs/interfaces/nominal/e0460.la:11:34
    |
-11 |     println(C { r: 1.0 }.area());
-   |                          ^^^^
+11 |     console.println(C { r: 1.0 }.area());
+   |                                  ^^^^
    |
    = help: say which one you mean: `Plot.area(C { … })` or `Shape.area(C { … })`
 

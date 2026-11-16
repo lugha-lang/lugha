@@ -1,8 +1,8 @@
 error[E0439]: `count` is a field of actor `Counter`: only its methods can reach it
-  --> tests/programs/concurrency/actors/e0439_field.la:7:15
+  --> tests/programs/concurrency/actors/e0439_field.la:7:23
   |
-7 |     println(c.count);
-  |               ^^^^^
+7 |     console.println(c.count);
+  |                       ^^^^^
   |
   = help: an actor is started with `spawn` and reached only through its methods; what crosses its boundary is copied and may hold no `Ref`
 

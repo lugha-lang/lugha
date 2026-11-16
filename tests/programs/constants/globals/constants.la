@@ -32,31 +32,31 @@ fun total(xs: i64[]): i64 {
     sum
 }
 
-fun main() {
-    println(DOUBLE);
-    println(LIMIT);
-    println("{GREETING}, {MAX_PLAYERS} players");
+fun main(console: Console) {
+    console.println(DOUBLE);
+    console.println(LIMIT);
+    console.println("{GREETING}, {MAX_PLAYERS} players");
     let mut ps = PRIMES;
     ps.push(11);
-    println(ps.debug());
-    println(PRIMES.debug());
-    println(total(PRIMES));
+    console.println(ps.debug());
+    console.println(PRIMES.debug());
+    console.println(total(PRIMES));
     for p of PRIMES {
-        print(p);
+        console.print(p);
     }
-    println();
-    println(ZEROS.debug());
-    println(ORIGIN.debug());
-    println(ORIGIN.x);
-    println(PAIR.debug());
-    println(PICK.debug());
-    println(NONE.debug());
-    println(RED.debug());
-    println(FIRST);
-    println(RATIO);
-    println(DONE.debug());
+    console.println("");
+    console.println(ZEROS.debug());
+    console.println(ORIGIN.debug());
+    console.println(ORIGIN.x);
+    console.println(PAIR.debug());
+    console.println(PICK.debug());
+    console.println(NONE.debug());
+    console.println(RED.debug());
+    console.println(FIRST);
+    console.println(RATIO);
+    console.println(DONE.debug());
     let f = fun(): i64 = MAX_PLAYERS + 1;
-    println(f());
+    console.println(f());
     let MAX_PLAYERS = 3;
-    println(MAX_PLAYERS);
+    console.println(MAX_PLAYERS);
 }

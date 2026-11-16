@@ -32,32 +32,32 @@ fun shape(): Shape = Square { side: 2.0 };
 
 fun double(n: i64): i64 = n * 2;
 
-fun main() {
-    println(1.5.debug());
-    println('\n'.debug());
-    println("tab\there \"q\"".debug());
+fun main(console: Console) {
+    console.println(1.5.debug());
+    console.println('\n'.debug());
+    console.println("tab\there \"q\"".debug());
     let none: Option<i64> = None;
     let empty: i64[] = [];
-    println("{none.debug()} {empty.debug()} {().debug()} {true.debug()}");
+    console.println("{none.debug()} {empty.debug()} {().debug()} {true.debug()}");
     let m: Map<string, i64[]> = Map { "a": [1], "b": [] };
     let s: Set<char> = Set { 'x' };
-    println("{m.debug()} {s.debug()}");
+    console.println("{m.debug()} {s.debug()}");
     let r: Result<i64, string> = Err("no");
-    println(r.debug());
-    println(Pair { a: "x", b: (1, 'c') }.debug());
-    println(Tree.Node(Tree.Leaf, 1, Tree.Node(Tree.Leaf, 2, Tree.Leaf)).debug());
+    console.println(r.debug());
+    console.println(Pair { a: "x", b: (1, 'c') }.debug());
+    console.println(Tree.Node(Tree.Leaf, 1, Tree.Node(Tree.Leaf, 2, Tree.Leaf)).debug());
     let f = fun(x: i64): i64 = x;
-    println(f.debug());
-    println(Ref.new([1, 2]).debug());
-    println(shape().debug());
-    println([shape()].debug());
+    console.println(f.debug());
+    console.println(Ref.new([1, 2]).debug());
+    console.println(shape().debug());
+    console.println([shape()].debug());
     let k = Secret { key: "hunter2" };
-    println("{k.debug()} {[k, k].debug()} {Some(k).debug()}");
+    console.println("{k.debug()} {[k, k].debug()} {Some(k).debug()}");
     // A `Display` type's debug form is still its structure.
     let l = Label { text: "hi" };
-    println("{l} {l.debug()} {to_string(l)}");
+    console.println("{l} {l.debug()} {to_string(l)}");
     let t = spawn double(2);
     let c: Chan<i64> = Chan.new();
-    println("{t.debug()} {c.debug()}");
-    println(t.join());
+    console.println("{t.debug()} {c.debug()}");
+    console.println(t.join());
 }

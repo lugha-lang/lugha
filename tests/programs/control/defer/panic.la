@@ -1,6 +1,6 @@
 // A panic ends the program without running defers.
-fun main() {
-    defer println("not printed");
-    println("before");
+fun main(console: Console) {
+    defer console.println("not printed");
+    console.println("before");
     panic("stop");
 }

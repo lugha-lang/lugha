@@ -8,7 +8,7 @@ fun pick(xs: i64[], i: i64): i64 {
 
 const X: i64 = pick([1, 2], 5);
 
-fun main() {
-    println("never");
-    println(X);
+fun main(console: Console) {
+    console.println("never");
+    console.println(X);
 }

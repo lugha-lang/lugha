@@ -1,0 +1,65 @@
+error[E0471]: `println` needs a `Console`
+  --> tests/programs/capabilities/console_fs/e0471.la:2:5
+  |
+2 |     println("x");
+  |     ^^^^^^^
+  |
+  = help: take `console: Console` in `main` (and pass it on), then call `console.println(…)`
+
+error[E0471]: `print` needs a `Console`
+  --> tests/programs/capabilities/console_fs/e0471.la:3:5
+  |
+3 |     print(1);
+  |     ^^^^^
+  |
+  = help: take `console: Console` in `main` (and pass it on), then call `console.print(…)`
+
+error[E0471]: `eprintln` needs a `Console`
+  --> tests/programs/capabilities/console_fs/e0471.la:4:5
+  |
+4 |     eprintln("e");
+  |     ^^^^^^^^
+  |
+  = help: take `console: Console` in `main` (and pass it on), then call `console.eprintln(…)`
+
+error[E0471]: `read_line` needs a `Console`
+  --> tests/programs/capabilities/console_fs/e0471.la:5:13
+  |
+5 |     let l = read_line();
+  |             ^^^^^^^^^
+  |
+  = help: take `console: Console` in `main` (and pass it on), then call `console.read_line()`
+
+error[E0471]: `read_file` needs an `Fs`
+  --> tests/programs/capabilities/console_fs/e0471.la:6:13
+  |
+6 |     let t = read_file("f");
+  |             ^^^^^^^^^
+  |
+  = help: take `fs: Fs` in `main` (and pass it on), then call `fs.cwd().read_file(…)`
+
+error[E0471]: `write_file` needs an `Fs`
+  --> tests/programs/capabilities/console_fs/e0471.la:7:13
+  |
+7 |     let w = write_file("f", "t");
+  |             ^^^^^^^^^^
+  |
+  = help: take `fs: Fs` in `main` (and pass it on), then call `fs.cwd().write_file(…)`
+
+error[E0471]: `args()` is gone: `main` takes the arguments as a parameter
+  --> tests/programs/capabilities/console_fs/e0471.la:8:13
+  |
+8 |     let a = args();
+  |             ^^^^
+  |
+  = help: an `args: string[]` parameter of `main`
+
+error[E0471]: `exit` is gone: a program ends by returning from `main`
+  --> tests/programs/capabilities/console_fs/e0471.la:9:5
+  |
+9 |     exit(2);
+  |     ^^^^
+  |
+  = help: return an `i32` from `main`
+
+For more about E0471, run `lughac explain E0471`.

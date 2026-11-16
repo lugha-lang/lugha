@@ -30,9 +30,9 @@ fun total_area<T: Shape>(shapes: T[]): f64 {
 
 fun describe<T: Shape>(s: T): string = s.name() + " of unit " + to_string(T.unit());
 
-fun main() {
-    println(total_area([Circle { r: 1.0 }, Circle { r: 2.0 }]));
-    println(total_area([Square { side: 3.0 }]));
-    println(describe(Square { side: 1.0 }));
-    println(describe(Circle { r: 5.0 }));
+fun main(console: Console) {
+    console.println(total_area([Circle { r: 1.0 }, Circle { r: 2.0 }]));
+    console.println(total_area([Square { side: 3.0 }]));
+    console.println(describe(Square { side: 1.0 }));
+    console.println(describe(Circle { r: 5.0 }));
 }

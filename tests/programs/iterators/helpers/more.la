@@ -10,54 +10,54 @@ impl Naturals {
     }
 }
 
-struct Loud { n: i64 }
+struct Loud { n: i64, console: Console }
 
 impl Loud {
     fun next(mut self): Option<i64> {
         self.n += 1;
-        print("<{self.n}>");
+        self.console.print("<{self.n}>");
         Some(self.n)
     }
 }
 
 fun firsts<I: Iter<i64>>(it: I): i64[] = it.take(2).collect();
 
-fun main() {
+fun main(console: Console) {
     let xs = [5, 3, 8, 1];
-    println(xs.iter().count());
-    println(xs.iter().map(fun(n) = n * 10).sum());
-    println(xs.iter().filter(fun(n) = n > 2).count());
-    println(xs.iter().skip(1).take(2).collect().len);
-    println(xs.iter().map(fun(n) = "{n}").collect().join("-"));
-    println(xs.iter().fold(1, fun(a, n) = a * n));
-    println(xs.iter().all(fun(n) = n > 0));
-    println(xs.iter().any(fun(n) = n > 9));
-    println(xs.iter().find(fun(n) = n > 9).is_none());
-    println(xs.iter().skip(10).count());
-    println(xs.iter().take(-1).count());
-    println(xs.iter().skip(-3).count());
+    console.println(xs.iter().count());
+    console.println(xs.iter().map(fun(n) = n * 10).sum());
+    console.println(xs.iter().filter(fun(n) = n > 2).count());
+    console.println(xs.iter().skip(1).take(2).collect().len);
+    console.println(xs.iter().map(fun(n) = "{n}").collect().join("-"));
+    console.println(xs.iter().fold(1, fun(a, n) = a * n));
+    console.println(xs.iter().all(fun(n) = n > 0));
+    console.println(xs.iter().any(fun(n) = n > 9));
+    console.println(xs.iter().find(fun(n) = n > 9).is_none());
+    console.println(xs.iter().skip(10).count());
+    console.println(xs.iter().take(-1).count());
+    console.println(xs.iter().skip(-3).count());
 
     // Only the values pulled are produced.
-    let loud = Loud { n: 0 };
-    println(loud.map(fun(n) = n * n).take(3).sum());
+    let loud = Loud { n: 0, console: console };
+    console.println(loud.map(fun(n) = n * n).take(3).sum());
     let evens = Naturals { n: 0 }.filter(fun(n) = n % 2 == 0);
     let it: Iter<i64> = evens.take(3);
     let got = it.map(fun(n) = n + 1).collect();
-    println(got[2]);
+    console.println(got[2]);
     for p of (Naturals { n: 41 }).enumerate().take(2) {
-        print("{p.i}:{p.value};");
+        console.print("{p.i}:{p.value};");
     }
-    println("");
+    console.println("");
 
     let fs = [1.5, 2.25];
-    println(fs.iter().sum());
+    console.println(fs.iter().sum());
     let bs: u8[] = [200, 50];
-    println(bs.iter().sum());
-    println("abc".bytes().map(fun(b) = b as i64).sum());
-    println(range(5, 5).count());
-    println(range(3, 1).count());
-    println(firsts(Naturals { n: 0 })[1]);
+    console.println(bs.iter().sum());
+    console.println("abc".bytes().map(fun(b) = b as i64).sum());
+    console.println(range(5, 5).count());
+    console.println(range(3, 1).count());
+    console.println(firsts(Naturals { n: 0 })[1]);
     let words = ["a", "bb", "ccc"];
-    println(words.iter().map(fun(w) = w.len).sum());
-    println(words.iter().filter(fun(w) = w.len > 1).collect().join("+"));
+    console.println(words.iter().map(fun(w) = w.len).sum());
+    console.println(words.iter().filter(fun(w) = w.len > 1).collect().join("+"));
 }

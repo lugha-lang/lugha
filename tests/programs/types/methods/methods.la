@@ -45,36 +45,36 @@ impl Shape {
     }
 }
 
-fun main() {
+fun main(console: Console) {
     let mut v = Vec2.new(3.0, 4.0);
-    println(v.len_sq());
+    console.println(v.len_sq());
     v.scale(2.0);
-    println(v.x);
+    console.println(v.x);
     v.reset();
-    println(v.len_sq());
+    console.println(v.len_sq());
 
-    println(Vec2.new(1.0, 1.0).len_sq());
+    console.println(Vec2.new(1.0, 1.0).len_sq());
     let d = Vec2.new(1.0, 2.0).doubled();
-    println(d.y);
+    console.println(d.y);
 
     let mut r = Rect { min: Vec2.new(0.0, 0.0), max: Vec2.new(4.0, 2.0) };
-    println(r.area());
+    console.println(r.area());
     r.min.shift(1.0);
-    println(r.area());
+    console.println(r.area());
 
     let mut ps = [Vec2.new(1.0, 1.0), Vec2.new(2.0, 2.0)];
     ps[1].scale(3.0);
-    println(ps[1].x);
+    console.println(ps[1].x);
 
     let original = Vec2.new(5.0, 5.0);
     let mut copy = original.me();
     copy.scale(10.0);
-    println(original.x);
-    println(copy.x);
+    console.println(original.x);
+    console.println(copy.x);
 
     let mut s = Shape.unit();
     s.grow();
-    println(s.area());
+    console.println(s.area());
     let c = Shape.Circle(1.0);
-    println(c.area());
+    console.println(c.area());
 }

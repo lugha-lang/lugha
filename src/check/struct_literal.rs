@@ -206,11 +206,11 @@ mod tests {
         use crate::check::test_util::ok;
         ok(&format!(
             "{POINT}fun origin(): P = P {{ x: 0.0, y: 0.0 }};\n\
-             fun main() {{ let p = P {{ x: 1.0, ..origin() }}; let q = P {{ ..p }}; println(q.y); }}"
+             fun main(console: Console) {{ let p = P {{ x: 1.0, ..origin() }}; let q = P {{ ..p }}; console.println(q.y); }}"
         ));
         // Generic: the base fixes the type arguments.
         ok("struct Pair<A, B> { a: A, b: B }\n\
-            fun main() { let p = Pair { a: 1, b: \"s\" }; let q = Pair { a: 2, ..p }; println(q.b); }");
+            fun main(console: Console) { let p = Pair { a: 1, b: \"s\" }; let q = Pair { a: 2, ..p }; console.println(q.b); }");
     }
 
     #[test]
@@ -244,7 +244,7 @@ mod tests {
     fn a_base_that_copies_nothing_is_w0104() {
         use crate::check::test_util::warnings;
         let src = format!(
-            "{POINT}fun main() {{ let p = P {{ x: 0.0, y: 0.0 }}; let q = P {{ x: 1.0, y: 2.0, ..p }}; println(q.x); }}"
+            "{POINT}fun main(console: Console) {{ let p = P {{ x: 0.0, y: 0.0 }}; let q = P {{ x: 1.0, y: 2.0, ..p }}; console.println(q.x); }}"
         );
         let w = warnings(&src);
         assert_eq!(w, [("W0104", "p")]);
@@ -287,19 +287,19 @@ mod tests {
              struct Node {{ n: i64 }}\n\
              impl Node {{ fun all(self, xs: Shape[]): i64 = xs[0].area(); }}\n\
              fun g(b: Sq): Shape = Sq {{ side: 2, ..b }};\n\
-             fun main() {{\n\
-               println(f(Sq {{ side: 3, ..Sq.base() }}));\n\
+             fun main(console: Console) {{\n\
+               console.println(f(Sq {{ side: 3, ..Sq.base() }}));\n\
                let xs: Shape[] = [Sq {{ side: 4, ..Sq.base() }}];\n\
                let node = Node {{ n: 0 }};\n\
-               println(node.all([Sq {{ side: 5, ..Sq.base() }}]));\n\
-               println(g(Sq.base()).area() + xs[0].area());\n\
+               console.println(node.all([Sq {{ side: 5, ..Sq.base() }}]));\n\
+               console.println(g(Sq.base()).area() + xs[0].area());\n\
              }}"
         ));
         // Generic: the base fixes the type arguments, then the value converts.
         ok("interface Named { fun name(self): string; }\n\
             struct W<T> { v: T, n: string }\n\
             impl Named for W<T> { fun name(self): string = self.n; }\n\
-            fun main() { let w = W { v: 1, n: \"a\" }; let s: Named = W { n: \"b\", ..w }; println(s.name()); }");
+            fun main(console: Console) { let w = W { v: 1, n: \"a\" }; let s: Named = W { n: \"b\", ..w }; console.println(s.name()); }");
     }
 
     #[test]

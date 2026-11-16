@@ -2,7 +2,7 @@
 // copied before the loop, so the loop's first write must still copy it.
 struct Grid { cells: f64[][] }
 
-fun mul(a: f64[][], b: f64[][]): f64[][] {
+fun mul(console: Console, a: f64[][], b: f64[][]): f64[][] {
     let n = a.len;
     let mut out = [[0.0; n]; n];
     let before = out;
@@ -14,11 +14,11 @@ fun mul(a: f64[][], b: f64[][]): f64[][] {
             }
         }
     }
-    println("{before.debug()}");
+    console.println("{before.debug()}");
     out
 }
 
-fun main() {
+fun main(console: Console) {
     // A histogram over a copied array.
     let mut counts = [0; 4];
     let saved = counts;
@@ -28,11 +28,11 @@ fun main() {
             counts[text[i]] += 1;
         }
     }
-    println("{counts.debug()} {saved.debug()}");
+    console.println("{counts.debug()} {saved.debug()}");
 
     // A matrix product whose result starts as a shared copy.
     let m = [[1.0, 2.0], [3.0, 4.0]];
-    println("{mul(m, m).debug()} {m.debug()}");
+    console.println("{mul(console, m, m).debug()} {m.debug()}");
 
     // Fields, `while`, `push` and `for … of mut`.
     let mut g = Grid { cells: [[0.0; 2]; 2] };
@@ -46,7 +46,7 @@ fun main() {
     for row of mut g.cells {
         row[0] += 5.0;
     }
-    println("{g.cells.debug()} {old.cells.debug()}");
+    console.println("{g.cells.debug()} {old.cells.debug()}");
 
     // `while let` and an index fixed across the inner loop.
     let mut rows = [[1, 1], [2, 2]];
@@ -58,5 +58,5 @@ fun main() {
         }
         next = None;
     }
-    println("{rows.debug()} {copy.debug()}");
+    console.println("{rows.debug()} {copy.debug()}");
 }

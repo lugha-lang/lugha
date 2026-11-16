@@ -85,6 +85,17 @@ pub fn is_operator(key: &str) -> bool {
 /// The prelude's error interface, `Error: Display`.
 pub(super) const ERROR: &str = "$prelude.Error";
 
+/// The capabilities the prelude declares: met only by `impl`, so a fake is a
+/// type that says it implements one.
+pub(super) const CONSOLE: &str = "$prelude.Console";
+pub(super) const FS: &str = "$prelude.Fs";
+pub(super) const DIR: &str = "$prelude.Dir";
+
+/// True for a capability interface: `Console`, `Fs`, `Dir`.
+pub(super) fn is_capability(key: &str) -> bool {
+    [CONSOLE, FS, DIR].contains(&key)
+}
+
 /// The module part of an item's key: `geo` for `geo.Circle`, `""` for an
 /// item of the main file.
 fn module_of(key: &str) -> &str {
@@ -94,6 +105,11 @@ fn module_of(key: &str) -> &str {
 impl Checker {
     /// E0422: `ty` has no `impl` of `interface`, at `span`.
     pub(super) fn report_not_implemented(&mut self, ty: &Type, interface: &str, span: Span) {
+        // A value printed through a `Console`: the debug form is the usual fix.
+        if interface == "Display" || interface == super::derive::DISPLAY {
+            self.report(errors::not_display(ty, span));
+            return;
+        }
         let declared = match ty {
             Type::Struct(k, a) | Type::Enum(k, a) if !a.is_empty() => {
                 Some(with_args(ty, params(&self.generics_of(k))))
@@ -134,6 +150,9 @@ impl Checker {
                 super::collections::FROM_ENTRIES,
                 super::collections::FROM_ITEMS,
                 ERROR,
+                CONSOLE,
+                FS,
+                DIR,
             ]
             .contains(&key)
             || is_operator(key)
@@ -155,6 +174,9 @@ impl Checker {
             super::collections::FROM_ENTRIES,
             super::collections::FROM_ITEMS,
             ERROR,
+            CONSOLE,
+            FS,
+            DIR,
         ];
         (module_of(key) != "$prelude" || prelude_nominal.contains(&key) || is_operator(key))
             && !self.derives.derivable(key)

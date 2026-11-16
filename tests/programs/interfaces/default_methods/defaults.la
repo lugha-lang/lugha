@@ -35,13 +35,13 @@ struct Seven { n: i64 }
 
 impl Named for Seven {}
 
-fun main() {
+fun main(console: Console) {
     let shapes: Shape[] = [Circle { r: 1.0 }, Sq { side: 2.0 }, Many { items: [1, 2, 3] }];
     for s of shapes {
-        println(s.describe());
+        console.println(s.describe());
     }
-    println(tell(Sq { side: 3.0 }));
-    println(tell(Circle { r: 2.0 }));
+    console.println(tell(Sq { side: 3.0 }));
+    console.println(tell(Circle { r: 2.0 }));
     let n: Named = Seven { n: 7 };
-    println(n.label());
+    console.println(n.label());
 }

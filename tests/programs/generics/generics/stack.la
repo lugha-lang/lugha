@@ -7,23 +7,23 @@ impl Stack<T> {
     fun size(self): i64 = self.items.len;
 }
 
-fun main() {
+fun main(console: Console) {
     let mut ints: Stack<i64> = Stack.new();
     ints.push(1);
     ints.push(2);
     let mut words: Stack<string> = Stack.new();
     words.push("x");
-    println(ints.size() + words.size());
+    console.println(ints.size() + words.size());
     match ints.pop() {
-        .Some(n) => println(n),
-        .None => println(0),
+        .Some(n) => console.println(n),
+        .None => console.println(0),
     }
     match words.pop() {
-        .Some(w) => println(w),
-        .None => println("empty"),
+        .Some(w) => console.println(w),
+        .None => console.println("empty"),
     }
     match words.pop() {
-        .Some(w) => println(w),
-        .None => println("empty"),
+        .Some(w) => console.println(w),
+        .None => console.println("empty"),
     }
 }

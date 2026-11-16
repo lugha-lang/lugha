@@ -8,13 +8,13 @@ fun hash(s: string): u64 {
     h
 }
 
-fun main() {
-    println(hash("a"));
-    println(hash(""));
+fun main(console: Console) {
+    console.println(hash("a"));
+    console.println(hash(""));
     let x: u32 = 0b1011000;
-    println(x.count_ones());
-    println(x.trailing_zeros());
-    println(x.leading_zeros());
+    console.println(x.count_ones());
+    console.println(x.trailing_zeros());
+    console.println(x.leading_zeros());
     let m: u8 = 255;
-    println(m.wrapping_add(1));
+    console.println(m.wrapping_add(1));
 }

@@ -215,7 +215,7 @@ mod tests {
         );
         // A bare parameter shows its debug form; it prints with `T: Display`.
         ok(
-            "fun f<T>(a: T) { println(a.debug()); }\nfun g<T: Display>(a: T) { println(a); }\nfun main() {}",
+            "fun f<T>(console: Console, a: T) { console.println(a.debug()); }\nfun g<T: Display>(a: T) { debug(a); }\nfun main() {}",
         );
         ok(
             "fun same<T: Eq>(a: T, b: T): bool = a == b;\nfun less<T: Ord>(a: T, b: T): bool = a < b;\nfun main() {}",

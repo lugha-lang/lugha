@@ -459,7 +459,7 @@ mod tests {
         // arguments, which may change it.
         let ir = ir("struct V { x: i64 }
             impl V { fun get(mut self): i64 { self.x += 1; self.x } fun add(mut self, k: i64) { self.x += k; } }
-            fun main() { let mut vs = [V { x: 1 }]; let keep = vs; vs[0].add(vs[0].get()); println(keep[0].x); }");
+            fun main(console: Console) { let mut vs = [V { x: 1 }]; let keep = vs; vs[0].add(vs[0].get()); console.println(keep[0].x); }");
         let main = &ir[ir.find("define void @lugha_fn_main").unwrap()..];
         let inner = main.find("@lugha_fn_V.get(").expect("the inner call");
         // The last test is the outer receiver's (LLVM numbers the labels).

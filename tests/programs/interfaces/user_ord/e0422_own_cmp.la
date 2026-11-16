@@ -5,7 +5,7 @@ impl P {
     fun cmp(self, o: P): i64 = self.x - o.x;
 }
 
-fun main() {
+fun main(console: Console) {
     let a = P { x: 1 };
-    println(a < a);
+    console.println(a < a);
 }

@@ -1,5 +1,5 @@
-fun main() {
+fun main(console: Console) {
     let mut xs = [1, 2];
     spawn xs.push(3);
-    println(xs.debug());
+    console.println(xs.debug());
 }

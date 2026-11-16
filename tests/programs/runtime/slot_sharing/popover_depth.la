@@ -285,7 +285,7 @@ fun depth(t: T): i64 = match t {
     .Pair(a, _, _) => depth(a) + 1,
     _ => 0,
 };
-fun main() {
+fun main(console: Console) {
     let t = build(600);
-    println(depth(walk(t, Some(t))));
+    console.println(depth(walk(t, Some(t))));
 }

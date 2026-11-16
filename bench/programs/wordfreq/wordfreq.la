@@ -28,8 +28,8 @@ fun vocabulary(rng: Lcg): (string[], Lcg) {
     (words, rng)
 }
 
-fun main() {
-    let n = parse_i64(args()[1]).unwrap();
+fun main(args: string[], console: Console) {
+    let n = parse_i64(args[1]).unwrap();
     let (vocab, mut rng) = vocabulary(Lcg { state: 42 });
     let mut picked: string[] = [];
     for _ in 0..n {
@@ -47,8 +47,8 @@ fun main() {
         entries.push((w, c));
     }
     let top = entries.sort_by(fun(a, b) = a.1 > b.1 || a.1 == b.1 && a.0 < b.0);
-    println(counts.len);
+    console.println(counts.len);
     for i in 0..10 {
-        println("{top[i].0} {top[i].1}");
+        console.println("{top[i].0} {top[i].1}");
     }
 }

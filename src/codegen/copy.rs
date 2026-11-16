@@ -260,7 +260,7 @@ mod tests {
         // The later reads keep `xs` and `g` alive, so these are copies, not
         // moves: copy-on-write marks them shared instead of copying.
         let ir = ir(
-            "fun main() { let xs = [1, 2]; let ys = xs; let g = [[1]]; let mut h = g; h[0][0] = 2; println(xs[0] + g[0][0]); }",
+            "fun main(console: Console) { let xs = [1, 2]; let ys = xs; let g = [[1]]; let mut h = g; h[0][0] = 2; console.println(xs[0] + g[0][0]); }",
         );
         let main = body(&ir, "main");
         assert!(main.contains("or i64 %cap"), "copies mark: {ir}");
@@ -291,7 +291,7 @@ mod tests {
     #[test]
     fn structs_holding_arrays_copy_through_helpers() {
         let src = "struct Wrap { data: i64[] }\nstruct P { x: i64 }\n\
-                   fun main() { let w = Wrap { data: [1] }; let w2 = w; let p = P { x: 1 }; let q = p; println(w.data[0]); }";
+                   fun main(console: Console) { let w = Wrap { data: [1] }; let w2 = w; let p = P { x: 1 }; let q = p; console.println(w.data[0]); }";
         let ir = ir(src);
         assert!(
             ir.contains("define internal void @lugha_copy_4Wrap(ptr sret(%Wrap) %result, ptr"),
@@ -326,7 +326,9 @@ mod tests {
     fn a_dead_source_moves_and_a_live_one_shares() {
         let dead = ir("fun f() { let xs = [1, 2]; let ys = xs; }\nfun main() {}");
         assert!(!body(&dead, "f").contains("or i64 %cap"), "{dead}");
-        let live = ir("fun f() { let xs = [1, 2]; let ys = xs; println(xs[0]); }\nfun main() {}");
+        let live = ir(
+            "fun f(console: Console) { let xs = [1, 2]; let ys = xs; console.println(xs[0]); }\nfun main() {}",
+        );
         assert!(body(&live, "f").contains("or i64 %cap"), "{live}");
     }
 }

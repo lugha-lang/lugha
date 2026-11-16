@@ -85,6 +85,11 @@ impl Checker {
             return ty;
         };
         match &ty {
+            // `console.println(nothing())`: `()` has no text.
+            Type::Unit if interface.key == super::derive::DISPLAY => {
+                self.report(errors::not_display(&ty, expr.span));
+                Type::Error
+            }
             // Already reported, never produced, already converted, or E0407 to come.
             Type::Error | Type::Never | Type::Unit => ty,
             Type::Interface(..) if ty.fits(wanted) => ty,
@@ -194,7 +199,13 @@ mod tests {
         let checked = ok(&format!(
             "{SHAPES}fun main() {{ let c = Circle {{ r: 1.0 }}; let s: Shape = c; }}"
         ));
-        let converted: Vec<_> = checked.conversions.iter().collect();
+        // The prelude makes its own conversions (its real capabilities).
+        let shape = Type::Interface("Shape".into(), Vec::new());
+        let converted: Vec<_> = checked
+            .conversions
+            .iter()
+            .filter(|(_, t)| **t == shape)
+            .collect();
         assert_eq!(converted.len(), 1);
         let (id, to) = converted[0];
         assert_eq!(*to, Type::Interface("Shape".into(), Vec::new()));
@@ -205,7 +216,7 @@ mod tests {
         let plain = ok(&format!(
             "{SHAPES}fun main() {{ let c = Circle {{ r: 1.0 }}; }}"
         ));
-        assert!(plain.conversions.is_empty());
+        assert!(!plain.conversions.values().any(|t| *t == shape));
     }
 
     #[test]

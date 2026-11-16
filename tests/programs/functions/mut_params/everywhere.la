@@ -21,25 +21,25 @@ fun swap_ends<T>(mut xs: T[]) {
 }
 fun feed<S: Sink>(s: S, mut out: string[]) { s.put(mut out, 1); s.twice(mut out, 2); }
 fun via(s: Sink, mut out: string[]) { s.put(mut out, 3); s.twice(mut out, 4); }
-fun main() {
+fun main(console: Console) {
     let mut out: string[] = [];
     feed(Shout {}, mut out);
     via(Shout {}, mut out);
     Sink.put(Shout {}, mut out, 5);
-    println(out.debug());
+    console.println(out.debug());
     let mut b = Box { items: [1, 2] };
     let mut t = 10;
     b.add_to(mut t);
     let mut src = [7, 8];
     b.grab(mut src);
-    println(t);
-    println(b.items.debug());
-    println(src.debug());
+    console.println(t);
+    console.println(b.items.debug());
+    console.println(src.debug());
     let mut names = ["a", "b", "c"];
     swap_ends(mut names);
-    println(names.debug());
+    console.println(names.debug());
     let copy = names;
     swap_ends(mut names);
-    println(copy.debug());
-    println(names.debug());
+    console.println(copy.debug());
+    console.println(names.debug());
 }

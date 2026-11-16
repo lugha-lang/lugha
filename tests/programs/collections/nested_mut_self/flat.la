@@ -45,7 +45,7 @@ impl Model {
     }
 }
 
-fun main() {
+fun main(console: Console) {
     let mut g = G { vals: [] };
     let p1 = g.put(1.0);
     let p2 = g.put(2.0);
@@ -53,11 +53,11 @@ fun main() {
     let p8 = g.put(8.0);
     let h = g.half(p8);
     let y = g.mul(s, h);
-    println("{y} {g.vals.debug()}");
+    console.println("{y} {g.vals.debug()}");
 
     let mut m = Model { g: G { vals: [3.0] }, gain: 2.0 };
     let z = m.layer(0);
-    println("{z} {m.g.vals.debug()}");
+    console.println("{z} {m.g.vals.debug()}");
 
     let mut t: Tape = G { vals: [] };
     let t1 = t.put(1.0);
@@ -66,7 +66,7 @@ fun main() {
     let o = t.put(1.0);
     let s2 = t.sum(a, o);
     let b = t.twice(s2);
-    println("{a} {b}");
+    console.println("{a} {b}");
 
     let mut gs = [G { vals: [1.0] }, G { vals: [2.0] }];
     let keep = gs;
@@ -75,5 +75,5 @@ fun main() {
     let r = gs[i].put(4.0);
     let hr = gs[i].half(r);
     let c = gs[i].sum(q, hr);
-    println("{c} {gs[0].vals.debug()} {gs[1].vals.debug()} {keep[1].vals.debug()}");
+    console.println("{c} {gs[0].vals.debug()} {gs[1].vals.debug()} {keep[1].vals.debug()}");
 }

@@ -188,8 +188,9 @@ mod tests {
 
     #[test]
     fn a_byte_becomes_a_char() {
-        let ir = ir("fun main() { let n: u8 = 65; let c = n as char; println(c); }");
+        let ir = ir(
+            "fun main(console: Console) { let n: u8 = 65; let c = n as char; console.println(c); }",
+        );
         assert!(ir.contains("zext i8"), "{ir}");
-        assert!(ir.contains("@lugha_rt_print_char"), "{ir}");
     }
 }

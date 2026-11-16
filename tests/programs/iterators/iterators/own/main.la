@@ -22,12 +22,12 @@ impl Iter for Count {
 
 fun size_of<T: Iter>(x: T): i64 = x.size();
 
-fun main() {
+fun main(console: Console) {
     let c = Count { n: 0, end: 3 };
-    println(size_of(c));
+    console.println(size_of(c));
     let mut total = 0;
     for n of c {
         total += n;
     }
-    println(total);
+    console.println(total);
 }

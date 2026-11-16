@@ -16,15 +16,15 @@ fun area(s: Shape): f64 = match s {
     .Circle(r) => 3.0 * r * r,
 };
 
-fun main() {
+fun main(console: Console) {
     let o: Option<Shape> = None;
     match o {
-        .Some(.Dot) => println(\"dot\"),
+        .Some(.Dot) => console.println(\"dot\"),
         .None => {}
     }
     let n = 3;
     match n { 1 => {} }
-    println(area(Shape.Dot));
+    console.println(area(Shape.Dot));
 }
 ";
 
@@ -196,7 +196,7 @@ fn an_integer_match_gets_only_the_wildcard_fix() {
 
 #[test]
 fn no_actions_without_an_e0417_or_with_a_syntax_error() {
-    let fine = "fun main() { println(1); }\n";
+    let fine = "fun main(console: Console) { console.println(1); }\n";
     let t = Temp::with(&[("main.la", fine)]);
     assert_eq!(actions(&t, fine).1, Vec::<Value>::new());
     let broken = MAIN.replace("let n = 3;", "let n = 3");
@@ -249,7 +249,7 @@ fn titles(text: &str, code: &str) -> Vec<String> {
 }
 
 const MUT: &str = "struct P { x: i64 }
-fun main() {
+fun main(console: Console) {
     let total = 0;
     total = 5;
     let p = P { x: 1 };
@@ -258,7 +258,7 @@ fun main() {
     xs[0] = 3;
     let ys = [4];
     for y of mut ys { y += 1; }
-    println(total + p.x + xs[0] + ys[0]);
+    console.println(total + p.x + xs[0] + ys[0]);
 }
 ";
 
@@ -288,7 +288,7 @@ fun main() {
 }
 
 const VARIANT: &str = "enum Shape { Circle(f64), Dot, Empty }
-fun main() {
+fun main(console: Console) {
     let o: Option<Shape> = None;
     let n = match o {
         .Some(Emtpy) => 0,
@@ -296,7 +296,7 @@ fun main() {
         .Some(.Circle(_)) => 2,
         .None => 3,
     };
-    println(n);
+    console.println(n);
 }
 ";
 
@@ -318,14 +318,14 @@ fn a_misspelled_variant_is_corrected_and_the_result_checks() {
 #[test]
 fn a_binding_far_from_every_variant_or_tied_gets_no_fix() {
     let text = "enum E { Aa, Bb, Zebra }
-fun main() {
+fun main(console: Console) {
     let e: Option<E> = None;
     match e {
-        .Some(value) => println(1),
+        .Some(value) => console.println(1),
         .None => {}
     }
     match e {
-        .Some(.Ab) => println(2),
+        .Some(.Ab) => console.println(2),
         .None => {}
     }
 }
@@ -335,12 +335,12 @@ fun main() {
 
 #[test]
 fn a_std_module_is_imported_after_the_last_import_or_first() {
-    let alone = "fun main() {\n    println(math.sqrt(4.0));\n}\n";
+    let alone = "fun main(console: Console) {\n    console.println(math.sqrt(4.0));\n}\n";
     let text = fixed(alone, "Add `import std.math;`");
     assert_eq!(text, format!("import std.math;\n\n{alone}"));
     let t = Temp::with(&[]);
     assert_eq!(checked_codes(&t, &text), Vec::<String>::new(), "{text}");
-    let with = "import std.env;\n\nfun main() {\n    println(env.current_dir());\n    println(math.pi());\n}\n";
+    let with = "import std.env;\n\nfun main(console: Console) {\n    console.println(env.current_dir());\n    console.println(math.pi());\n}\n";
     let text = fixed(with, "Add `import std.math;`");
     assert!(
         text.starts_with("import std.env;\nimport std.math;\n\nfun main"),
@@ -350,6 +350,7 @@ fn a_std_module_is_imported_after_the_last_import_or_first() {
 
 #[test]
 fn an_unknown_module_or_a_bare_name_gets_no_import() {
-    let text = "fun main() {\n    println(nope.x());\n    let m = math;\n}\n";
+    let text =
+        "fun main(console: Console) {\n    console.println(nope.x());\n    let m = math;\n}\n";
     assert_eq!(titles(text, "E0301"), Vec::<String>::new());
 }

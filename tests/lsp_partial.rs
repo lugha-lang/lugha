@@ -17,11 +17,11 @@ const BROKEN: &str = "import geo;
 struct Point { x: f64 }
 impl Point { fun scale(self, k: f64): Point = Point { x: self.x * k }; }
 fun sum(n: i64): i64 = n;
-fun main() {
+fun main(console: Console) {
     let p = Point { x: 1.0 };
-    println(p.scale(2.0).x);
+    console.println(p.scale(2.0).x);
     let total = sum(1)
-    println(total);
+    console.println(total);
 }
 ";
 
@@ -105,7 +105,7 @@ fn hover_and_definitions_work_around_the_broken_statement() {
 
 #[test]
 fn completion_works_in_a_file_that_never_parsed() {
-    let text = BROKEN.replace("    println(p.scale(2.0).x);\n", "    p.\n");
+    let text = BROKEN.replace("    console.println(p.scale(2.0).x);\n", "    p.\n");
     let t = files(&text);
     let (mut s, uri, _) = opened(&t, &text);
     let (line, col) = pos(&text, "    p.\n", "\n");
@@ -121,7 +121,7 @@ fn completion_works_in_a_file_that_never_parsed() {
 
 #[test]
 fn signature_help_works_in_a_file_that_never_parsed() {
-    let text = BROKEN.replace("    println(total);\n", "    sum(\n");
+    let text = BROKEN.replace("    console.println(total);\n", "    sum(\n");
     let t = files(&text);
     let (mut s, uri, _) = opened(&t, &text);
     let (line, col) = pos(&text, "    sum(\n", "\n");
@@ -132,7 +132,7 @@ fn signature_help_works_in_a_file_that_never_parsed() {
 
 #[test]
 fn a_module_with_a_syntax_error_still_serves_its_other_functions() {
-    let text = "import geo;\nfun main() { println(geo.double(2)); }\n";
+    let text = "import geo;\nfun main(console: Console) { console.println(geo.double(2)); }\n";
     let t = files(text);
     let (mut s, uri, codes) = opened(&t, text);
     assert!(codes.is_empty(), "main.la's own diagnostics: {codes:?}");

@@ -4,13 +4,13 @@ struct Point { x: i64, y: i64 }
 
 impl Display for Point {
     fun show(self): string {
-        println("showing a point");
+        debug("showing a point");
         "({self.x}, {self.y})"
     }
 }
 
 const LABEL: string = "origin is {Point { x: 0, y: 0 }}";
 
-fun main() {
-    println(LABEL);
+fun main(console: Console) {
+    console.println(LABEL);
 }

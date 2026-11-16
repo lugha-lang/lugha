@@ -3,9 +3,9 @@ actor Parser {
     fun parse(self, text: string): i64 = parse_i64(text).unwrap();
 }
 
-fun main() {
+fun main(console: Console) {
     let p = spawn Parser {};
-    println(p.parse("42"));
-    println(p.parse("forty-two"));
-    println("never printed");
+    console.println(p.parse("42"));
+    console.println(p.parse("forty-two"));
+    console.println("never printed");
 }

@@ -7,13 +7,13 @@ fun count<T>(l: List<T>): i64 = match l {
 
 fun prepend<T>(x: T, l: List<T>): List<T> = List.Cons(x, l);
 
-fun main() {
+fun main(console: Console) {
     let nums: List<i64> = prepend(1, prepend(2, prepend(3, List.Nil)));
     let flags: List<bool> = prepend(true, List.Nil);
-    println(count(nums));
-    println(count(flags));
+    console.println(count(nums));
+    console.println(count(flags));
     match nums {
-        .Cons(first, _) => println(first),
-        .Nil => println(-1),
+        .Cons(first, _) => console.println(first),
+        .Nil => console.println(-1),
     }
 }

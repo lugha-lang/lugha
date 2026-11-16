@@ -1,11 +1,11 @@
 enum Color { Red, Green }
 
-fun main() {
+fun main(console: Console) {
     let c = Color.Green;
     match c {
-        .Red => println("red"),
-        other => println(other.debug()),
+        .Red => console.println("red"),
+        other => console.println(other.debug()),
     }
     let Red = 1;
-    println(Red);
+    console.println(Red);
 }

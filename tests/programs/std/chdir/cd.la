@@ -9,22 +9,22 @@ fun show(r: Result<i64, string>): string = match r {
     .Err(e) => "err {e}",
 };
 
-fun main() {
+fun main(console: Console, files: Fs) {
     let start = env.current_dir().unwrap_or("?");
     let made = fs.make_dir("sub");
-    let wrote = write_file("sub/note.txt", "hello");
-    println(show(env.set_current_dir("sub")));
+    let wrote = files.cwd().write_file("sub/note.txt", "hello");
+    console.println(show(env.set_current_dir("sub")));
     let here = env.current_dir().unwrap_or("?");
-    println("{here.ends_with("/sub")} {here == start + "/sub"}");
-    println(read_file("note.txt").debug());
-    println(fs.list_dir(".").debug());
+    console.println("{here.ends_with("/sub")} {here == start + "/sub"}");
+    console.println(files.cwd().read_file("note.txt").debug());
+    console.println(fs.list_dir(".").debug());
     match process.run("ls", []) {
-        .Ok(out) => println(out.stdout.trim()),
-        .Err(e) => println(e),
+        .Ok(out) => console.println(out.stdout.trim()),
+        .Err(e) => console.println(e),
     }
-    println(show(env.set_current_dir("..")));
-    println(env.current_dir().unwrap_or("?") == start);
-    println(show(env.set_current_dir("nope")));
-    println(show(env.set_current_dir("sub/note.txt")));
-    println(show(env.set_current_dir("a\0b")));
+    console.println(show(env.set_current_dir("..")));
+    console.println(env.current_dir().unwrap_or("?") == start);
+    console.println(show(env.set_current_dir("nope")));
+    console.println(show(env.set_current_dir("sub/note.txt")));
+    console.println(show(env.set_current_dir("a\0b")));
 }

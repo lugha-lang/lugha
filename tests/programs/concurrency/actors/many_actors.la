@@ -4,7 +4,7 @@ actor Cell {
     fun double(self): i64 = self.value * 2;
 }
 
-fun main() {
+fun main(console: Console) {
     let mut cells: Cell[] = [];
     for i in 0..1000 {
         cells.push(spawn Cell { value: i });
@@ -13,5 +13,5 @@ fun main() {
     for c of cells {
         sum += c.double();
     }
-    println(sum);
+    console.println(sum);
 }

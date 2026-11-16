@@ -1,6 +1,6 @@
-fun main() {
-    match read_line() {
-        .Some(line) => println("got " + line),
-        .None => println("no input"),
+fun main(console: Console) {
+    match console.read_line() {
+        .Some(line) => console.println("got " + line),
+        .None => console.println("no input"),
     }
 }

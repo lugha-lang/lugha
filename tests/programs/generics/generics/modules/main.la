@@ -2,9 +2,9 @@ import util.box;
 
 struct Point { x: i64 }
 
-fun main() {
+fun main(console: Console) {
     let b = box.wrap(Point { x: 7 });
-    println(box.unwrap(b).x);
+    console.println(box.unwrap(b).x);
     let s = box.wrap("hi");
-    println(box.unwrap(s));
+    console.println(box.unwrap(s));
 }

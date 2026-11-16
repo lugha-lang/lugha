@@ -15,12 +15,12 @@ fun show(s: Shape): f64 = s.area();
 fun max<T: Ord>(a: T, b: T): T { if a > b { a } else { b } }
 fun total(xs: i64[]): i64 { let mut sum = 0; for x of xs { sum += x; } return sum; }
 // A comment.
-fun main() {
+fun main(console: Console) {
     let c = Circle { r: 1.0 };
-    println(total([1, 2]));
-    println(c.area());
-    println(max('a', 'b'));
-    println(show(c));
+    console.println(total([1, 2]));
+    console.println(c.area());
+    console.println(max('a', 'b'));
+    console.println(show(c));
 }
 ";
 
@@ -143,7 +143,7 @@ fn expressions_show_their_types_and_notes() {
     // The call itself, between its name and its arguments.
     assert_eq!(
         hover_at(&mut s, &uri, at("max('a'", "(")),
-        code("char", &["instance: max<char>"])
+        code("char", &["instance: max<char>", "converted to Display"])
     );
     assert_eq!(
         hover_at(&mut s, &uri, at("max('a'", "'a'")),
@@ -181,7 +181,7 @@ fn nothing_under_the_cursor_is_null() {
 
 #[test]
 fn hover_works_while_the_program_has_errors() {
-    let text = "fun main() {\n    let fine = 2.5;\n    let bad = nope;\n    println(fine);\n}\n";
+    let text = "fun main(console: Console) {\n    let fine = 2.5;\n    let bad = nope;\n    console.println(fine);\n}\n";
     let t = Temp::with(&[("main.la", text)]);
     let uri = t.uri("main.la");
     let mut s = Server::start(&t, json!({}));
@@ -193,7 +193,7 @@ fn hover_works_while_the_program_has_errors() {
     );
     assert_eq!(
         hover_at(&mut s, &uri, pos(text, "println(fine)", "fine")),
-        code("f64", &[])
+        code("f64", &["converted to Display"])
     );
     assert_eq!(hover_at(&mut s, &uri, pos(text, "= nope", "nope")), None);
     assert_eq!(s.finish(), Some(0));
@@ -221,7 +221,7 @@ fn a_hover_right_after_typing_sees_the_new_text() {
 
 #[test]
 fn a_module_hovers_through_a_main_already_seen() {
-    let main = "import geo;\nfun main() { println(geo.double(2)); }\n";
+    let main = "import geo;\nfun main(console: Console) { console.println(geo.double(2)); }\n";
     let geo = "fun double(n: i64): i64 = n * 2;\n";
     let t = Temp::with(&[("main.la", main), ("geo.la", geo)]);
     let (main_uri, geo_uri) = (t.uri("main.la"), t.uri("geo.la"));
@@ -243,7 +243,7 @@ fn a_module_hovers_through_a_main_already_seen() {
 
 #[test]
 fn positions_count_utf16_units() {
-    let text = "fun main() { let s = \"é👋\"; let n = 3; println(s); println(n); }\n";
+    let text = "fun main(console: Console) { let s = \"é👋\"; let n = 3; console.println(s); console.println(n); }\n";
     let t = Temp::with(&[("main.la", text)]);
     let uri = t.uri("main.la");
     let mut s = Server::start(&t, json!({}));
@@ -258,7 +258,7 @@ fn positions_count_utf16_units() {
 
 #[test]
 fn handles_show_their_extern_type() {
-    const HANDLES: &str = "extern type Win;\nextern fun open_win(): Win;\nfun keep(w: Win): Win = w;\nfun main() { let w = keep(open_win()); println(w.debug()); }\n";
+    const HANDLES: &str = "extern type Win;\nextern fun open_win(): Win;\nfun keep(w: Win): Win = w;\nfun main(console: Console) { let w = keep(open_win()); console.println(w.debug()); }\n";
     let t = Temp::with(&[("main.la", HANDLES)]);
     let uri = t.uri("main.la");
     let mut s = Server::start(&t, json!({}));
@@ -301,7 +301,7 @@ fn a_receiver_typed_by_its_calls_expected_type_hovers_with_it() {
 
 #[test]
 fn prelude_types_show_as_written() {
-    let main = "fun main() {\n    let m = Map { \"a\": 1 };\n    let it = [1].iter();\n    println(m.len);\n}\n";
+    let main = "fun main(console: Console) {\n    let m = Map { \"a\": 1 };\n    let it = [1].iter();\n    console.println(m.len);\n}\n";
     let t = Temp::with(&[("main.la", main)]);
     let uri = t.uri("main.la");
     let mut s = Server::start(&t, json!({}));
@@ -316,8 +316,7 @@ fn prelude_types_show_as_written() {
 
 #[test]
 fn a_unit_binding_shows_its_type() {
-    let program =
-        "fun log() {}\n\nfun main() {\n    let done: () = log();\n    println(done.debug());\n}\n";
+    let program = "fun log() {}\n\nfun main(console: Console) {\n    let done: () = log();\n    console.println(done.debug());\n}\n";
     let t = Temp::with(&[("main.la", program)]);
     let uri = t.uri("main.la");
     let mut s = Server::start(&t, json!({}));
@@ -332,7 +331,8 @@ fn a_unit_binding_shows_its_type() {
 
 #[test]
 fn a_constant_shows_its_declaration() {
-    let program = "const LIMIT: i64 = 8;\n\nfun main() {\n    println(LIMIT);\n}\n";
+    let program =
+        "const LIMIT: i64 = 8;\n\nfun main(console: Console) {\n    console.println(LIMIT);\n}\n";
     let t = Temp::with(&[("main.la", program)]);
     let uri = t.uri("main.la");
     let mut s = Server::start(&t, json!({}));
@@ -347,14 +347,14 @@ fn a_constant_shows_its_declaration() {
         hover_at(&mut s, &uri, pos(program, "const LIMIT", "LIMIT")),
         want
     );
-    let found = s.definition(&uri, 3, 13);
+    let found = s.definition(&uri, 3, 21);
     assert_eq!(found["range"]["start"]["line"], 0, "{found}");
     assert_eq!(s.finish(), Some(0));
 }
 
 #[test]
 fn an_included_file_shows_its_size() {
-    let program = "const LOGO: u8[] = include_bytes(\"art/logo.svg\");\n\nfun main() {\n    println(LOGO.len);\n}\n";
+    let program = "const LOGO: u8[] = include_bytes(\"art/logo.svg\");\n\nfun main(console: Console) {\n    console.println(LOGO.len);\n}\n";
     let t = Temp::with(&[("main.la", program), ("art/logo.svg", "<svg/>")]);
     let uri = t.uri("main.la");
     let mut s = Server::start(&t, json!({}));
@@ -377,7 +377,7 @@ fn a_derive_blocks_items_show_their_signatures() {
     let program = "interface Show { fun show(self): string; }\n\
         derive Show for i64 { fun show(self): string = \"{self}\"; }\n\
         fun show_it<T: Show>(x: T): string = x.show();\n\
-        fun main() { println(show_it(1)); }\n";
+        fun main(console: Console) { console.println(show_it(1)); }\n";
     let t = Temp::with(&[("main.la", program)]);
     let uri = t.uri("main.la");
     let mut s = Server::start(&t, json!({}));

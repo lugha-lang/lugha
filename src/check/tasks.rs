@@ -132,12 +132,12 @@ mod tests {
         let src = format!("{WORK}fun main() {{ let t = spawn work(3); let n = t.join(); }}");
         assert_eq!(let_type(&src, "t"), Type::Task(Box::new(Type::I64)));
         assert_eq!(let_type(&src, "n"), Type::I64);
-        let void = "fun log(s: string) { println(s); }\nfun main() { let t = spawn log(\"x\"); t.join(); }";
+        let void = "fun log(console: Console, s: string) { console.println(s); }\nfun main(console: Console) { let t = spawn log(console, \"x\"); t.join(); }";
         assert_eq!(let_type(void, "t"), Type::Task(Box::new(Type::Unit)));
         ok(
             "fun main() { let k = 2; let t = spawn fun(): i64 { k * 10 }(); let n: i64 = t.join(); }",
         );
-        ok("fun main() { let t: Task = spawn println(\"hi\"); t.join(); }");
+        ok("fun main(console: Console) { let t: Task = spawn console.println(\"hi\"); t.join(); }");
         ok(&format!(
             "{WORK}fun main() {{ let t: Task<i64> = spawn work(1); }}"
         ));
@@ -169,7 +169,7 @@ mod tests {
     fn joining_a_plain_task_gives_unit() {
         assert_eq!(
             crate::check::test_util::warnings(
-                "fun main() { let t = spawn println(1); let x = t.join(); }"
+                "fun main(console: Console) { let t = spawn console.println(1); let x = t.join(); }"
             ),
             [("W0106", "x")]
         );

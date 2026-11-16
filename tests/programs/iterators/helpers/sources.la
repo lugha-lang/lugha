@@ -9,16 +9,16 @@ fun total<I: Iter<i64>>(it: I): i64 {
     t
 }
 
-fun main() {
+fun main(console: Console) {
     let mut r = range(0, 3);
-    println(r.next().unwrap());
+    console.println(r.next().unwrap());
     for x of r {
-        print(x);
+        console.print(x);
     }
-    println("");
-    println(total(range(1, 4)));
+    console.println("");
+    console.println(total(range(1, 4)));
     let mut b = "hi".bytes();
-    println(b.next().unwrap());
+    console.println(b.next().unwrap());
     let it: Iter<u8> = b;
-    println(it.count());
+    console.println(it.count());
 }

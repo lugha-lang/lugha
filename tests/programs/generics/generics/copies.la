@@ -6,15 +6,15 @@ fun grow<T>(b: Bag<T>, x: T): Bag<T> {
     c
 }
 
-fun main() {
+fun main(console: Console) {
     let a = Bag { items: [1, 2], label: "a" };
     let b = grow(a, 3);
     let mut c = b;
     c.items[0] = 9;
-    println(a.items.len);
-    println(b.items.len);
-    println(b.items[0]);
-    println(c.items[0]);
+    console.println(a.items.len);
+    console.println(b.items.len);
+    console.println(b.items[0]);
+    console.println(c.items[0]);
     let w = grow(Bag { items: ["p"], label: "w" }, "q");
-    println(w.items[1]);
+    console.println(w.items[1]);
 }

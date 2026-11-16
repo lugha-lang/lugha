@@ -12,24 +12,24 @@ fun sign(x: i64): string {
     classify(x)
 }
 
-fun main() {
+fun main(console: Console) {
     let from10 = make_counter_from(10);
     let next = from10(5);
-    println(next());
-    println(sign(-3));
-    println(sign(0));
-    println(sign(8));
+    console.println(next());
+    console.println(sign(-3));
+    console.println(sign(0));
+    console.println(sign(8));
     let mut fs: (fun(): i64)[] = [];
     for i in 0..3 {
         fs.push(fun(): i64 = i * 10);
     }
     for f of fs {
-        println(f());
+        console.println(f());
     }
     let outer = 7;
     let deep = fun(): i64 {
         let inner = fun(): i64 = outer * 2;
         inner() + 1
     };
-    println(deep());
+    console.println(deep());
 }

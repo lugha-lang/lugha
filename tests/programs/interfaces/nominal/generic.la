@@ -28,15 +28,15 @@ fun drain<T, S: Source<T>>(src: S): T[] {
 fun count<T: Sized>(x: T): i64 = x.size();
 fun make<T: From<string>>(s: string): T = T.from(s);
 
-fun main() {
+fun main(console: Console) {
     let mut st = Stack { items: [1, 2, 3] };
-    println(drain(st).debug());
-    println(st.first());
-    println(count(Stack { items: ["a"] }));
+    console.println(drain(st).debug());
+    console.println(st.first());
+    console.println(count(Stack { items: ["a"] }));
     let src: Source<i64> = Stack { items: [7] };
     let mut s2 = src;
-    println(s2.next().debug());
+    console.println(s2.next().debug());
     let p: Path = make("x");
-    println(p.s);
-    println(Sized.size(st));
+    console.println(p.s);
+    console.println(Sized.size(st));
 }

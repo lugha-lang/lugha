@@ -2,7 +2,7 @@
 // naming the instance.
 fun big<T: Num>(x: T): T = x + 300;
 
-fun main() {
-    println(big(1));
-    println(big(1 as u8));
+fun main(console: Console) {
+    console.println(big(1));
+    console.println(big(1 as u8));
 }

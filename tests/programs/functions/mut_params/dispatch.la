@@ -2,10 +2,10 @@
 interface Counts { fun count(self, mut n: i64); }
 struct One {}
 impl Counts for One { fun count(self, mut n: i64) { n += 1; } }
-fun main() {
+fun main(console: Console) {
     let c: Counts = One {};
     let mut n = 0;
     c.count(mut n);
     c.count(mut n);
-    println(n);
+    console.println(n);
 }

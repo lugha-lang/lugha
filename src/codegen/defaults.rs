@@ -50,7 +50,7 @@ mod tests {
         let ir = ir(
             "interface Error { fun message(self): string; fun report(self): string = \"e: {self.message()}\"; }\n\
             struct P { t: string }\nimpl Error for P { fun message(self): string = self.t; }\n\
-            fun main() { let e: Error = P { t: \"x\" }; println(e.report()); }",
+            fun main(console: Console) { let e: Error = P { t: \"x\" }; console.println(e.report()); }",
         );
         let table = ir
             .lines()

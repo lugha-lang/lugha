@@ -1,8 +1,8 @@
 error[E0313]: `lo` is private to module `range`
-  --> tests/programs/modules/modules/e0313_field/main.la:5:15
+  --> tests/programs/modules/modules/e0313_field/main.la:5:23
   |
-5 |     println(r.lo);
-  |               ^^
+5 |     console.println(r.lo);
+  |                       ^^
   |
   = help: only its own module can use it; remove `private` to share it
 

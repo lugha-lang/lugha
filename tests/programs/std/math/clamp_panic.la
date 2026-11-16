@@ -1,6 +1,6 @@
 import std.math;
 
-fun main() {
-    println(math.clamp(5, 0, 10));
-    println(math.clamp(5, 10, 0));
+fun main(console: Console) {
+    console.println(math.clamp(5, 0, 10));
+    console.println(math.clamp(5, 10, 0));
 }

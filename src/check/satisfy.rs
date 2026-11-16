@@ -97,6 +97,11 @@ impl Checker {
             return true;
         }
         let shown = interface.to_string();
+        // A value printed through a `Console`: the bound or the debug form.
+        if interface.key == super::derive::DISPLAY && matches!(arg, Type::Param(_)) {
+            self.report(errors::not_display(arg, span));
+            return false;
+        }
         // A block that exists but gives another type says so.
         let gives_other = self.impl_for(arg, interface).is_some();
         if self.nominal(&interface.key)

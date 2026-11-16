@@ -41,14 +41,14 @@ fun first(o: Option<Sized>): string = match o {
     .None => "none",
 };
 
-fun main() {
+fun main(console: Console) {
     let things: Sized[] = [Box { n: 3 }, Box { n: 10 }, Stack { items: [1, 2] }, Stack { items: ["a"] }, geo.Crate { held: 4 }];
     for t of things {
-        println(name(t));
+        console.println(name(t));
     }
-    println(first(Some(Box { n: 7 })));
-    println(first(Some(Stack { items: [1] })));
-    println(first(None));
+    console.println(first(Some(Box { n: 7 })));
+    console.println(first(Some(Stack { items: [1] })));
+    console.println(first(None));
     // The bound value is a copy: changing it leaves the interface value alone.
     let mut s: Sized = Box { n: 1 };
     let copy = match s {
@@ -59,7 +59,7 @@ fun main() {
     let mut c = copy;
     c.grow();
     c.grow();
-    println(s.size());
-    println(copy.n);
-    println(c.n);
+    console.println(s.size());
+    console.println(copy.n);
+    console.println(c.n);
 }

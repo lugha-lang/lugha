@@ -40,14 +40,14 @@ mod tests {
             fun h(): () { return; }\n\
             fun k(): () { return (); }\n\
             struct Box { u: (), n: i64 }\n\
-            fun main() {\n\
+            fun main(console: Console) {\n\
                 let u: () = log(\"a\");\n\
                 let us: ()[] = [(), u, id(())];\n\
                 let o: Option<()> = Some(());\n\
                 let b = Box { u: (), n: 1 };\n\
-                println(u == ());\n\
-                println(us.debug());\n\
-                println(\"{u.debug()} {o.debug()}\");\n\
+                console.println(u == ());\n\
+                console.println(us.debug());\n\
+                console.println(\"{u.debug()} {o.debug()}\");\n\
                 let c: Chan<()> = Chan.new();\n\
                 let t: Task<()> = spawn log(\"t\");\n\
                 let r: () = t.join();\n\
@@ -81,21 +81,23 @@ mod tests {
     #[test]
     fn unit_is_a_pattern() {
         ok("fun log() {}\n\
-            fun main() {\n\
+            fun main(console: Console) {\n\
                 let () = log();\n\
-                match log() { () => println(1) }\n\
+                match log() { () => console.println(1) }\n\
                 let o: Option<()> = Some(());\n\
-                match o { .Some(()) => println(2), .None => println(3) }\n\
-                if let .Some(()) = o { println(4); }\n\
+                match o { .Some(()) => console.println(2), .None => console.println(3) }\n\
+                if let .Some(()) = o { console.println(4); }\n\
                 let t = ((), 5);\n\
                 let ((), n) = t;\n\
             }");
         assert_eq!(
-            errors("fun main() { match 1 { () => println(1), _ => println(2) } }"),
+            errors(
+                "fun main(console: Console) { match 1 { () => console.println(1), _ => console.println(2) } }"
+            ),
             [("E0403", "()")]
         );
         assert_eq!(
-            errors("fun main() { let o: Option<()> = None; match o { .Some(()) => println(1) } }")
+            errors("fun main(console: Console) { let o: Option<()> = None; match o { .Some(()) => console.println(1) } }")
                 [0]
             .0,
             "E0417"

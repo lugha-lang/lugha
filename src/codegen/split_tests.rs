@@ -44,7 +44,7 @@ const P: &str = "struct P { x: i64, y: i64 } with Eq\n";
 fn fields_are_read_built_and_copied_without_struct_values() {
     let ir = ir(&format!(
         "{P}fun make(n: i64): P = P {{ x: n, y: n + 1 }};\n\
-         fun main() {{ let p = make(1); let q = p; println(q.x + q.y); }}"
+         fun main(console: Console) {{ let p = make(1); let q = p; console.println(q.x + q.y); }}"
     ));
     assert_eq!(
         struct_ops(body(&ir, "void @lugha_fn_main")),
@@ -62,7 +62,7 @@ fn fields_are_read_built_and_copied_without_struct_values() {
 fn an_if_producing_a_struct_joins_each_field() {
     let ir = ir(&format!(
         "{P}fun pick(c: bool): P = if c {{ P {{ x: 1, y: 2 }} }} else {{ P {{ x: 3, y: 4 }} }};\n\
-         fun main() {{ println(pick(true).x); }}"
+         fun main(console: Console) {{ console.println(pick(true).x); }}"
     ));
     let pick = body(&ir, "void @lugha_fn_pick");
     assert_eq!(struct_ops(pick), Vec::<&str>::new(), "{pick}");
@@ -73,8 +73,8 @@ fn enum_payloads_and_options_are_fields_too() {
     let ir = ir("enum E { A(i64), B(i64, i64), C }\n\
          fun e(n: i64): E = if n > 0 { E.B(n, n) } else { E.C };\n\
          fun o(n: i64): Option<i64> = if n > 0 { Some(n) } else { None };\n\
-         fun main() { let s = match e(2) { .B(a, b) => a + b, .A(a) => a, .C => 0 }; \
-         let t = match o(1) { .Some(v) => v, .None => 0 }; println(s + t); }");
+         fun main(console: Console) { let s = match e(2) { .B(a, b) => a + b, .A(a) => a, .C => 0 }; \
+         let t = match o(1) { .Some(v) => v, .None => 0 }; console.println(s + t); }");
     for f in [
         "void @lugha_fn_e",
         "void @lugha_fn_o",
@@ -90,7 +90,7 @@ fn a_struct_parameter_becomes_its_fields() {
     // Function values are `{ ptr, ptr }`: a function taking one takes two pointers.
     let ir = ir(&format!(
         "{P}fun apply(f: fun(i64): i64, n: i64): i64 = f(n);\n\
-         fun main() {{ println(apply(fun(x: i64): i64 = x + 1, 2)); println(P {{ x: 1, y: 2 }} == P {{ x: 1, y: 2 }}); }}"
+         fun main(console: Console) {{ console.println(apply(fun(x: i64): i64 = x + 1, 2)); console.println(P {{ x: 1, y: 2 }} == P {{ x: 1, y: 2 }}); }}"
     ));
     let apply = ir
         .lines()
@@ -116,7 +116,7 @@ fn a_struct_parameter_becomes_its_fields() {
 #[test]
 fn rewritten_functions_leave_no_old_declarations() {
     let ir = ir(&format!(
-        "{P}fun make(): P = P {{ x: 1, y: 2 }};\nfun main() {{ println(make().x); }}"
+        "{P}fun make(): P = P {{ x: 1, y: 2 }};\nfun main() {{ debug(make().x); }}"
     ));
     assert!(!ir.contains("lugha_old_"), "{ir}");
 }
@@ -135,7 +135,7 @@ fn big(n: usize) -> (String, String) {
 fn a_big_struct_is_copied_and_read_through_memory() {
     let (decl, lit) = big(70);
     let ir = ir(&format!(
-        "{decl}fun main() {{ let a = {lit}; let b = a; let c = b; println(c.v3 + b.v69); }}"
+        "{decl}fun main(console: Console) {{ let a = {lit}; let b = a; let c = b; console.println(c.v3 + b.v69); }}"
     ));
     let main = body(&ir, "void @lugha_fn_main");
     assert!(
@@ -147,7 +147,7 @@ fn a_big_struct_is_copied_and_read_through_memory() {
 
 #[test]
 fn bool_results_are_zero_extended() {
-    let ir = ir("fun pos(n: i64): bool = n > 0;\nfun main() { println(pos(1)); }");
+    let ir = ir("fun pos(n: i64): bool = n > 0;\nfun main() { debug(pos(1)); }");
     let def = ir
         .lines()
         .find(|l| l.starts_with("define") && l.contains("@lugha_fn_pos("))

@@ -3,9 +3,9 @@ fun boom() {
     panic("boom");
 }
 
-fun main() {
+fun main(console: Console) {
     let t = spawn boom();
-    println("before");
+    console.println("before");
     t.join();
-    println("never printed");
+    console.println("never printed");
 }

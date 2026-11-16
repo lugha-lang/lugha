@@ -1,28 +1,28 @@
 fun show(xs: string[]): string = "[" + xs.map(fun(x) = "<{x}>").join(",") + "]";
 
-fun main() {
-    println(show("a\nb\n".lines()));
-    println(show("a\r\nb\r\n".lines()));
-    println(show("a\n\nb".lines()));
-    println(show("".lines()));
-    println(show("only".lines()));
-    println(show("a,,b".split(",")));
-    println(show("abc".split(",")));
-    println(show("a::b::c".split("::")));
-    println(show(",x,".split(",")));
-    println("<" + "  \t padded \r\n".trim() + ">");
-    println("<" + "   ".trim() + ">");
+fun main(console: Console) {
+    console.println(show("a\nb\n".lines()));
+    console.println(show("a\r\nb\r\n".lines()));
+    console.println(show("a\n\nb".lines()));
+    console.println(show("".lines()));
+    console.println(show("only".lines()));
+    console.println(show("a,,b".split(",")));
+    console.println(show("abc".split(",")));
+    console.println(show("a::b::c".split("::")));
+    console.println(show(",x,".split(",")));
+    console.println("<" + "  \t padded \r\n".trim() + ">");
+    console.println("<" + "   ".trim() + ">");
     let s = "hello world";
-    println(s.contains("lo w"));
-    println(s.contains(""));
-    println(s.contains("xyz"));
-    println(s.starts_with("hell"));
-    println(s.starts_with(""));
-    println(s.ends_with("world"));
-    println(s.ends_with("hello world!"));
-    println(s.slice(6, 11));
-    println(s.slice(0, 0).len);
+    console.println(s.contains("lo w"));
+    console.println(s.contains(""));
+    console.println(s.contains("xyz"));
+    console.println(s.starts_with("hell"));
+    console.println(s.starts_with(""));
+    console.println(s.ends_with("world"));
+    console.println(s.ends_with("hello world!"));
+    console.println(s.slice(6, 11));
+    console.println(s.slice(0, 0).len);
     let empty: string[] = [];
-    println("<" + empty.join("-") + ">");
-    println(["one"].join("-"));
+    console.println("<" + empty.join("-") + ">");
+    console.println(["one"].join("-"));
 }

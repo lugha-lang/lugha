@@ -1,5 +1,5 @@
-fun main() {
+fun main(console: Console) {
     let x: i64 = -9223372036854775808;
     let y = -x;
-    println(y);
+    console.println(y);
 }

@@ -12,7 +12,7 @@ impl Source<i64> for Count {
 
 fun words(s: Source<string>): i64 = 0;
 
-fun main() {
+fun main(console: Console) {
     let s: Source<i64> = Count { n: 1 };
-    println(words(s));
+    console.println(words(s));
 }

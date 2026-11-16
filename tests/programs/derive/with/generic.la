@@ -8,8 +8,8 @@ enum Light { Red, Green }
 
 impl json.Json for Light = derive;
 
-fun main() {
-    println(json.stringify(json.encode(Pair { a: 1, b: 2 })).unwrap());
-    println(json.stringify(json.encode(Pair { a: Light.Red, b: Light.Green })).unwrap());
-    println(json.stringify(json.encode([(Light.Red, "stop")])).unwrap());
+fun main(console: Console) {
+    console.println(json.stringify(json.encode(Pair { a: 1, b: 2 })).unwrap());
+    console.println(json.stringify(json.encode(Pair { a: Light.Red, b: Light.Green })).unwrap());
+    console.println(json.stringify(json.encode([(Light.Red, "stop")])).unwrap());
 }

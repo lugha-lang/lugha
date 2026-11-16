@@ -320,7 +320,7 @@ mod tests {
 
     #[test]
     fn a_string_loop_reads_bytes_past_the_string_header() {
-        let ir = ir("fun main() { for b of \"ab\" { print(b); } }");
+        let ir = ir("fun main(console: Console) { for b of \"ab\" { console.print(b); } }");
         assert!(ir.contains("%offset = add i64 %scaled, 8"), "{ir}");
         assert!(ir.contains("load i8"), "{ir}");
     }

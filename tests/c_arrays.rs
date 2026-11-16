@@ -101,27 +101,27 @@ extern fun thing_a(): Thing;
 extern fun thing_b(): Thing;
 extern fun count_a(xs: Thing[], n: u64): i32;
 
-fun main() {
+fun main(console: Console) {
     let bytes: u8[] = [1, 2, 3, 250];
-    println(sum_bytes(bytes, bytes.len.truncate<u64>()));
+    console.println(sum_bytes(bytes, bytes.len.truncate<u64>()));
     let empty: i64[] = [];
-    println(sum_i64(empty, 0));
+    console.println(sum_i64(empty, 0));
     let nums = [5, -7, 100];
-    println(sum_i64(nums, 3));
+    console.println(sum_i64(nums, 3));
     let args = [Val { kind: 1, value: ValUnion { int64: 20 } }, Val { kind: 1, value: ValUnion { int64: 21 } }];
     let mut results = [Val { kind: 0, value: ValUnion { int64: 0 } }; 2];
     let before = results;
     call(args, 2, mut results, 2);
-    println(results[0].value.int64 + results[1].value.int64);
-    println(before[0].value.int64);
+    console.println(results[0].value.int64 + results[1].value.int64);
+    console.println(before[0].value.int64);
     let u = ValUnion { int64: 9 };
-    println(read_union(ptr u));
+    console.println(read_union(ptr u));
     let mut w = ValUnion { int32: 0 };
     set_f64(mut w);
-    println(w.float64);
-    println(w.debug());
+    console.println(w.float64);
+    console.println(w.debug());
     let things = [thing_a(), thing_b(), thing_a()];
-    println(count_a(things, 3));
+    console.println(count_a(things, 3));
 }
 "#;
 
@@ -135,16 +135,16 @@ fn what_cant_cross_is_rejected() {
     let main = "extern union U { a: i32, b: f64 }\n\
                 extern fun by_value(u: U): i32;\n\
                 extern fun names(xs: string[], n: u64);\n\
-                fun main() { let u = U { a: 1, b: 2.0 }; let v = U { a: 1 }; println(v == v); }\n";
+                fun main(console: Console) { let u = U { a: 1, b: 2.0 }; let v = U { a: 1 }; console.println(v == v); }\n";
     Case::new(main, SIDE).rejects(&["E0409", "E0409", "E0444", "E0451"]);
 }
 
 #[test]
 fn a_union_cant_make_a_pointer() {
     let main = "extern union Forge { n: u64, p: CPtr }\n\
-        fun main() {\n\
+        fun main(console: Console) {\n\
             let f = Forge { n: 4096 };\n\
-            println(c_read(f.p, 0, 8).len);\n\
+            console.println(c_read(f.p, 0, 8).len);\n\
         }\n";
     Case::new(main, SIDE).rejects(&["E0437"]);
 }

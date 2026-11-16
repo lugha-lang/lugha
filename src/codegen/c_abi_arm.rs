@@ -168,9 +168,9 @@ extern fun big(b: Big): i64;
 extern fun make(): Big;
 extern fun tint(c: Rgba): Rgba;
 fun main() {
-    println(len(V2 { x: 1.0, y: 2.0 }));
-    println(big(make()));
-    println(tint(Rgba { r: 1, g: 2, b: 3, a: 4 }).a);
+    debug(len(V2 { x: 1.0, y: 2.0 }));
+    debug(big(make()));
+    debug(tint(Rgba { r: 1, g: 2, b: 3, a: 4 }).a);
 }
 ";
 

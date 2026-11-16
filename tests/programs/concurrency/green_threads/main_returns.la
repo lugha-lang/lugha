@@ -7,8 +7,8 @@ fun forever() {
     }
 }
 
-fun main() {
+fun main(console: Console) {
     spawn forever();
     task.yield_now();
-    println("main done");
+    console.println("main done");
 }

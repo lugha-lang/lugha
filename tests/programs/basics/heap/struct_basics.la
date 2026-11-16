@@ -9,18 +9,18 @@ struct Vec2 { x: f64, y: f64 }
 struct Mixed { flag: bool, byte: u8, small: i32, big: i64, name: string }
 struct Wrap { data: i64[] }
 
-fun main() {
+fun main(console: Console) {
     let m = Mixed { name: "lin", big: 9000000000, small: -7, byte: 255, flag: true };
-    println(m.flag);
-    println(m.byte);
-    println(m.small);
-    println(m.big);
-    println(m.name);
+    console.println(m.flag);
+    console.println(m.byte);
+    console.println(m.small);
+    console.println(m.big);
+    console.println(m.name);
 
     let mut r = make(3.0, 2.0);
-    println(area(r));
+    console.println(area(r));
     r.max.x = 5.0;
-    println(area(r));
+    console.println(area(r));
 
     let mut pts = [Vec2 { x: 1.0, y: 2.0 }, Vec2 { x: 3.0, y: 4.0 }];
     pts[1].x += 1.0;
@@ -28,9 +28,9 @@ fun main() {
     for p of pts {
         sum += p.x + p.y;
     }
-    println(sum);
+    console.println(sum);
 
     let mut w = Wrap { data: [1, 2, 3] };
     w.data[0] = 5;
-    println(w.data[0] + w.data.len);
+    console.println(w.data[0] + w.data.len);
 }

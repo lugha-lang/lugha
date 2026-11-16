@@ -138,8 +138,8 @@ mod tests {
         assert_eq!(ty("let r: (u8, i64) = (1, 2);"), "(u8, i64)");
         ok("fun divmod(a: i64, b: i64): (i64, i64) = (a / b, a % b);\n\
             fun max<T: Ord>(a: T, b: T): T = if a < b { b } else { a };\n\
-            fun main() { let (q, r) = divmod(7, 2); let m = max((1, 2), (1, 3)); \
-            let mut t = (1, 2); t.0 = 5; for (i, w) of [(1, \"a\")] { println(w); } }");
+            fun main(console: Console) { let (q, r) = divmod(7, 2); let m = max((1, 2), (1, 3)); \
+            let mut t = (1, 2); t.0 = 5; for (i, w) of [(1, \"a\")] { console.println(w); } }");
     }
 
     #[test]

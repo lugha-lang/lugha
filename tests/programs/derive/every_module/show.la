@@ -74,15 +74,15 @@ struct Pair<A, B> { first: A, second: B } with Show
 
 enum List { Nil, Cons(i64, List) } with Show
 
-fun main() {
+fun main(console: Console) {
     let e = Event { title: "launch", on: Date { y: 2026, m: 10, d: 31 }, shapes: [Shape.Dot, Shape.Circle(2), Shape.Rect(1, 2)] };
-    println(show(e));
-    println(show(Pair { first: [1, 2], second: (3, "x") }));
-    println(show(List.Cons(1, List.Cons(2, List.Nil))));
+    console.println(show(e));
+    console.println(show(Pair { first: [1, 2], second: (3, "x") }));
+    console.println(show(List.Cons(1, List.Cons(2, List.Nil))));
     let text = json.stringify(json.encode(e)).unwrap();
-    println(text);
+    console.println(text);
     let back: Result<Event, json.DecodeError> = json.decode(json.parse(text).unwrap());
-    println(show(back.unwrap()));
+    console.println(show(back.unwrap()));
     let bad: Result<Event, json.DecodeError> = json.decode(json.parse("{{\"title\": \"x\", \"on\": 5, \"shapes\": []}}").unwrap());
-    println(bad.debug());
+    console.println(bad.debug());
 }

@@ -10,8 +10,8 @@ impl Mul<Meters> for Meters {
 
 fun square<T: Mul>(x: T): T = x * x;
 
-fun main() {
+fun main(console: Console) {
     let a = Meters { m: 3.0 } * Meters { m: 2.0 };
-    println(a.a);
+    console.println(a.a);
     let b = square(Meters { m: 1.0 });
 }

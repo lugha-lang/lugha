@@ -1,10 +1,10 @@
 // Sizes in bytes, in powers of 1024: each keeps its receiver's type,
 // and too big a size overflows as `*` does.
-fun main() {
-    println(8.kb());                     // 8192
-    println(64.mb());                    // 67108864
-    println(1.gb());                     // 1073741824
+fun main(console: Console) {
+    console.println(8.kb());                     // 8192
+    console.println(64.mb());                    // 67108864
+    console.println(1.gb());                     // 1073741824
     let pages: u32 = 3;
-    println((pages * 4).kb());           // 12288, a u32
+    console.println((pages * 4).kb());           // 12288, a u32
     let huge = 9_000_000_000.gb();       // panic: integer overflow, as `*` would
 }

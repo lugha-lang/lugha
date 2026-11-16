@@ -211,20 +211,20 @@ fn the_client_reads_every_framing_and_reports_failures() {
     let case = Case::new(&format!(
         "import std.http;
 
-fun main() {{
+fun main(console: Console) {{
     let a = http.get(\"http://127.0.0.1:{port}/x\").unwrap();
-    println(\"{{a.status}} {{a.text().unwrap()}}\");
+    console.println(\"{{a.status}} {{a.text().unwrap()}}\");
     let b = http.post(\"http://127.0.0.1:{port}/\", \"text/plain\", \"hi\".to_bytes()).unwrap();
-    println(\"{{b.status}} {{b.text().unwrap()}} {{b.header(\"x-thing\").debug()}}\");
+    console.println(\"{{b.status}} {{b.text().unwrap()}} {{b.header(\"x-thing\").debug()}}\");
     let mut small = http.limits();
     small.body = 10;
-    println(http.request_with(\"GET\", \"http://127.0.0.1:{port}/\", Map {{}}, [], small).is_err());
-    println(http.get(\"https://127.0.0.1:{refused}/\").is_err());
-    println(http.get(\"ftp://x\").debug());
-    println(http.get(\"http:///\").debug());
+    console.println(http.request_with(\"GET\", \"http://127.0.0.1:{port}/\", Map {{}}, [], small).is_err());
+    console.println(http.get(\"https://127.0.0.1:{refused}/\").is_err());
+    console.println(http.get(\"ftp://x\").debug());
+    console.println(http.get(\"http:///\").debug());
     match http.get(\"http://127.0.0.1:{refused}/\") {{
-        .Ok(_) => println(\"ok?\"),
-        .Err(e) => println(e),
+        .Ok(_) => console.println(\"ok?\"),
+        .Err(e) => console.println(e),
     }}
 }}
 "
@@ -255,10 +255,10 @@ fn an_address_is_connected_to_with_the_url_host() {
         "import std.http;
 import std.tls;
 
-fun main() {{
+fun main(console: Console) {{
     let opts = tls.Options {{ address: \"127.0.0.1\", ..tls.options() }};
     let res = http.request_tls_with(\"GET\", \"http://wrong.example:{port}/x\", Map {{}}, [], http.limits(), opts).unwrap();
-    println(\"{{res.status}} {{res.text().unwrap()}}\");
+    console.println(\"{{res.status}} {{res.text().unwrap()}}\");
 }}
 "
     ));
@@ -355,15 +355,15 @@ fn the_client_posts_and_reads_json() {
         "import std.http;
 import std.json;
 
-fun main() {{
+fun main(console: Console) {{
     let body = json.Value.Object(Map {{ \"n\": json.Value.Array([json.Value.Integer(1), json.Value.Null]) }});
     let r = http.post_json(\"http://127.0.0.1:{port}/api\", body).unwrap();
-    println(r.json().debug());
+    console.println(r.json().debug());
     match http.get(\"http://127.0.0.1:{port}/\").unwrap().json() {{
-        .Err(e) => println(e.message()),
-        .Ok(_) => println(\"?\"),
+        .Err(e) => console.println(e.message()),
+        .Ok(_) => console.println(\"?\"),
     }}
-    println(http.post_json(\"http://127.0.0.1:{port}/\", json.Value.Float(f64.from_bits(9218868437227405312))).debug());
+    console.println(http.post_json(\"http://127.0.0.1:{port}/\", json.Value.Float(f64.from_bits(9218868437227405312))).debug());
 }}
 "
     ));
@@ -402,12 +402,12 @@ fn lughac(main: &str, args: &[&str]) -> std::process::Output {
 #[test]
 fn json_takes_a_value_and_costs_nothing_unused() {
     let text = lughac(
-        "import std.http;\nfun main() { println(http.json(200, \"{{}}\").status); }\n",
+        "import std.http;\nfun main(console: Console) { console.println(http.json(200, \"{{}}\").status); }\n",
         &["check"],
     );
     assert_eq!(text.status.code(), Some(1));
     let ir = lughac(
-        "import std.http;\nfun main() { println(http.text(200, \"hi\").status); }\n",
+        "import std.http;\nfun main(console: Console) { console.println(http.text(200, \"hi\").status); }\n",
         &["build", "--emit=ir"],
     );
     assert!(

@@ -32,24 +32,24 @@ impl Named for Dog {
     fun name(self): string = "dog";
 }
 
-fun dump<T>(x: T) {
-    println(x.debug());
+fun dump<T>(console: Console, x: T) {
+    console.println(x.debug());
 }
 
-fun main() {
-    println((Line { from: geo.Pt { x: 0.5, y: 2.0 }, to: geo.Pt { x: 1.0, y: -1.0 }, tag: Some("a\"b\\c\nd") }).debug());
-    println((Tree.Node(Tree.Leaf, 1, Tree.Node(Tree.Leaf, 2, Tree.Leaf))).debug());
+fun main(console: Console) {
+    console.println((Line { from: geo.Pt { x: 0.5, y: 2.0 }, to: geo.Pt { x: 1.0, y: -1.0 }, tag: Some("a\"b\\c\nd") }).debug());
+    console.println((Tree.Node(Tree.Leaf, 1, Tree.Node(Tree.Leaf, 2, Tree.Leaf))).debug());
     let empty: i64[] = [];
-    println((Empty {}).debug());
-    println(empty.debug());
-    println([Light.Red, Light.Green].debug());
-    println((Odd { n: 3 }).debug());
+    console.println((Empty {}).debug());
+    console.println(empty.debug());
+    console.println([Light.Red, Light.Green].debug());
+    console.println((Odd { n: 3 }).debug());
     let r: Result<i64, string> = Err("no");
-    println(r.debug());
+    console.println(r.debug());
     let s = to_string([[1, 2], [3]].debug());
-    println(s.len);
-    eprintln(Some(true).debug());
+    console.println(s.len);
+    console.eprintln(Some(true).debug());
     let pet: Named = Dog { age: 4 };
-    dump(pet);
-    dump([pet, pet]);
+    dump(console, pet);
+    dump(console, [pet, pet]);
 }

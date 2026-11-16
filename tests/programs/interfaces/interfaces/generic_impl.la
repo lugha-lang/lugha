@@ -16,7 +16,7 @@ fun total<T: Sized>(xs: T[]): i64 {
     n
 }
 
-fun main() {
-    println(total([Stack { items: [1, 2] }, Stack { items: [3] }]));
-    println(total([Stack { items: ["a"] }]));
+fun main(console: Console) {
+    console.println(total([Stack { items: [1, 2] }, Stack { items: [3] }]));
+    console.println(total([Stack { items: ["a"] }]));
 }

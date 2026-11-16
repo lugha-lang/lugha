@@ -1,6 +1,6 @@
 // `round` panics when the result doesn't fit; `saturate` clamps instead.
-fun main() {
-    println(1.0e300.saturate<i64>());
+fun main(console: Console) {
+    console.println(1.0e300.saturate<i64>());
     let huge = 1.0e300.round<i64>();
-    println(huge);
+    console.println(huge);
 }

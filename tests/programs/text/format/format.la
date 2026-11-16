@@ -3,13 +3,13 @@ struct Item { name: string, n: i64 }
 
 fun line(it: Item): string = format("{} has {:>4} items", it.name, it.n);
 
-fun main() {
+fun main(console: Console) {
     let items = [Item { name: "box", n: 12 }, Item { name: "crate", n: 340 }];
     for it of items {
-        println(line(it));
+        console.println(line(it));
     }
-    println(format("{:.2} | {:#x} | {:<6}|", 3.14159, 255, "left"));
-    println(format("{{literal}} and {}", (1, 'a').debug()));
+    console.println(format("{:.2} | {:#x} | {:<6}|", 3.14159, 255, "left"));
+    console.println(format("{{literal}} and {}", (1, 'a').debug()));
     let total = items.iter().map(fun(it: Item): i64 = it.n).sum();
-    println("total: {format("{:05}", total)}");
+    console.println("total: {format("{:05}", total)}");
 }

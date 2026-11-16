@@ -4,15 +4,15 @@ import shapes;
 
 fun all<T: shapes.Show>(x: T): string = x.label();
 
-fun main() {
+fun main(console: Console) {
     let ps = [geo.Point { x: 1.0, y: 2.0 }, geo.Point { x: 3.0, y: 4.0 }];
-    println(ps.label());
-    println(all(ps));
+    console.println(ps.label());
+    console.println(all(ps));
     let o: Option<geo.Point> = None;
-    println(shapes.Show.label(o));
-    println(Some(ps[1]).label());
+    console.println(shapes.Show.label(o));
+    console.println(Some(ps[1]).label());
     let items: shapes.Show[] = [ps, 2.5];
     for i of items {
-        println(i.label());
+        console.println(i.label());
     }
 }

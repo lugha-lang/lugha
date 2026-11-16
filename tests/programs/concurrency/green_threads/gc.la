@@ -17,7 +17,7 @@ fun build(seed: i64): i64 {
     sum
 }
 
-fun main() {
+fun main(console: Console) {
     let mut tasks: Task<i64>[] = [];
     for s in 0..50 {
         tasks.push(spawn build(s));
@@ -26,5 +26,5 @@ fun main() {
     for t of tasks {
         total += t.join();
     }
-    println(total);
+    console.println(total);
 }

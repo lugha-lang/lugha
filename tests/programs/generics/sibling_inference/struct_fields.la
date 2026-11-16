@@ -38,12 +38,12 @@ fun a(): i64 = run(App { init: (0, Cmd.none()), update: step });
 
 fun b(): i64 = run(App { update: step, init: (0, Cmd.none()) });
 
-fun main() {
-    println(a());
-    println(b());
-    println(run(App { init: (41, Cmd.send(Ev.Go)), update: step }));
+fun main(console: Console) {
+    console.println(a());
+    console.println(b());
+    console.println(run(App { init: (41, Cmd.send(Ev.Go)), update: step }));
     let app = App { init: (5, Cmd.none()), update: step };
-    println(run(app));
+    console.println(run(app));
     let shell = Shell { name: "nested", app: App { init: (7, Cmd.none()), update: step } };
-    println(run(shell.app));
+    console.println(run(shell.app));
 }

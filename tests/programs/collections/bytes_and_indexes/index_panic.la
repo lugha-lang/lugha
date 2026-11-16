@@ -1,5 +1,5 @@
-fun main() {
+fun main(console: Console) {
     let xs = [1, 2, 3];
     let i: i32 = -1;
-    println(xs[i]);
+    console.println(xs[i]);
 }

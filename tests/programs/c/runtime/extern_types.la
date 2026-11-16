@@ -5,10 +5,10 @@ extern fun llabs(x: i64): i64;
 extern fun toupper(c: i32): i32;
 extern fun strlen(s: string): i64;
 
-fun main() {
+fun main(console: Console) {
     let a: i32 = -5;
-    println(abs(a));
-    println(llabs(-9000000000));
-    println(toupper(97));
-    println(strlen("hello"));
+    console.println(abs(a));
+    console.println(llabs(-9000000000));
+    console.println(toupper(97));
+    console.println(strlen("hello"));
 }

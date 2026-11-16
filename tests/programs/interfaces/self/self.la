@@ -26,8 +26,8 @@ fun largest<T: Ordered>(xs: T[]): T {
     best
 }
 
-fun main() {
-    println(largest([Money { cents: 250 }, Money { cents: 1999 }, Money { cents: 5 }]).cents);
+fun main(console: Console) {
+    console.println(largest([Money { cents: 250 }, Money { cents: 1999 }, Money { cents: 5 }]).cents);
     let v = largest([Version { major: 1, minor: 9 }, Version { major: 2, minor: 0 }, Version { major: 1, minor: 10 }]);
-    println("{v.major}.{v.minor}");
+    console.println("{v.major}.{v.minor}");
 }

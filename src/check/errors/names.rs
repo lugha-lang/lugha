@@ -37,9 +37,10 @@ pub(in crate::check) fn missing_main() -> Diagnostic {
 pub(in crate::check) fn bad_main(span: Span) -> Diagnostic {
     Diagnostic::error(
         "E0304",
-        "`main` must be `fun main()` or `fun main(): i32`",
+        "`main` takes only `string[]`, `Console` and `Fs`, each at most once, and returns `()` or `i32`",
         span,
     )
+    .with_help("for example `fun main(args: string[], console: Console): i32`")
 }
 
 pub(in crate::check) fn unknown_type(name: &str, span: Span) -> Diagnostic {

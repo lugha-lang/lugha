@@ -9,12 +9,12 @@ fun describe(r: Result<i64, string>): string = match r {
     .Err(e) => "error: {e}",
 };
 
-fun main() {
-    println(describe(check_age(30)));
-    println(describe(check_age(-2)));
+fun main(console: Console) {
+    console.println(describe(check_age(30)));
+    console.println(describe(check_age(-2)));
     let a: Result<i64, string> = Ok(1);
-    println(a == Ok(1));
-    println(a == Err("x"));
+    console.println(a == Ok(1));
+    console.println(a == Err("x"));
     let rs = [check_age(1), check_age(-1), check_age(3)];
     let mut good = 0;
     for r of rs {
@@ -23,18 +23,18 @@ fun main() {
             .Err(_) => {}
         }
     }
-    println(good);
+    console.println(good);
     let r = Reading { label: "temp", value: Err("sensor offline") };
     match r.value {
-        .Ok(v) => println("{r.label} = {v}"),
-        .Err(e) => println("{r.label}: {e}"),
+        .Ok(v) => console.println("{r.label} = {v}"),
+        .Err(e) => console.println("{r.label}: {e}"),
     }
     match pick(true, "word") {
-        .Ok(w) => println(w),
-        .Err(e) => println(e),
+        .Ok(w) => console.println(w),
+        .Err(e) => console.println(e),
     }
     match pick(false, 2.5) {
-        .Ok(x) => println(x),
-        .Err(e) => println(e),
+        .Ok(x) => console.println(x),
+        .Err(e) => console.println(e),
     }
 }

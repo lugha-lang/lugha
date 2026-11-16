@@ -31,7 +31,7 @@ impl Project {
         );
         p.write(
             "main.la",
-            "extern fun shim_times(x: i64): i64;\nfun main() { println(shim_times(21)); }\n",
+            "extern fun shim_times(x: i64): i64;\nfun main(console: Console) { console.println(shim_times(21)); }\n",
         );
         let real = Command::new("sh")
             .args(["-c", "command -v cc"])
@@ -210,7 +210,7 @@ fn a_tls_program_has_its_own_runtime_entry_and_e0332_still_shows() {
     p.run();
     p.write(
         "tls.la",
-        "import std.tls;\nfun main() { println(tls.options().timeout_ms >= 0); }\n",
+        "import std.tls;\nfun main(console: Console) { console.println(tls.options().timeout_ms >= 0); }\n",
     );
     let cache = p.0.join("cache");
     let (out, compiles) = p.run_with("tls.la", &cache, &[]);

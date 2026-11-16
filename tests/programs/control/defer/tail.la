@@ -14,7 +14,7 @@ fun count(): i64 {
     return n;
 }
 
-fun main() {
+fun main(console: Console) {
     let total = {
         let mut t = 5;
         defer {
@@ -22,7 +22,7 @@ fun main() {
         }
         t * 2
     };
-    println(last().debug());
-    println(count());
-    println(total);
+    console.println(last().debug());
+    console.println(count());
+    console.println(total);
 }

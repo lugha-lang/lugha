@@ -1,7 +1,7 @@
 error[E0468]: a variant in a pattern takes a leading dot: `Empty` is a variant of `Shape`
   --> tests/programs/patterns/dot_variants/e0468.la:6:15
   |
-6 |         .Some(Empty) => println("empty"),
+6 |         .Some(Empty) => console.println("empty"),
   |               ^^^^^
   |
   = help: write `.Empty`; a bare name in a pattern is always a new binding
@@ -9,7 +9,7 @@ error[E0468]: a variant in a pattern takes a leading dot: `Empty` is a variant o
 error[E0468]: a variant in a pattern takes a leading dot: `None` is a variant of `Option<Shape>`
   --> tests/programs/patterns/dot_variants/e0468.la:7:9
   |
-7 |         None => println("none"),
+7 |         None => console.println("none"),
   |         ^^^^
   |
   = help: write `.None`; a bare name in a pattern is always a new binding

@@ -3,7 +3,7 @@
 
 fun fib(n: i64): i64 = if n < 2 { n } else { fib(n - 1) + fib(n - 2) };
 
-fun main() {
-    let n = parse_i64(args()[1]).unwrap();
-    println(fib(n));
+fun main(args: string[], console: Console) {
+    let n = parse_i64(args[1]).unwrap();
+    console.println(fib(n));
 }

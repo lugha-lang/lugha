@@ -10,7 +10,7 @@ fun next_id(taken: Set<i64>): i64 {
     }
 }
 
-fun main() {
+fun main(console: Console) {
     let grid = [[1, 2], [3, 4]];
     let found = search: loop {
         for row of grid {
@@ -22,16 +22,16 @@ fun main() {
         }
         break 0;
     };
-    println(found);
-    println(next_id(Set { 1, 2 }));
+    console.println(found);
+    console.println(next_id(Set { 1, 2 }));
 
     outer: for i in 0..3 {
         for j in 0..3 {
             if j > i {
                 continue outer;
             }
-            print("{i}{j} ");
+            console.print("{i}{j} ");
         }
     }
-    println("");
+    console.println("");
 }

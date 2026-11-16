@@ -173,7 +173,7 @@ fn entries_come_from_initialization_options_and_configuration() {
         ),
         (
             "src/other.la",
-            "import geo;\nfun main() { println(geo.f() + true); }\n",
+            "import geo;\nfun main(console: Console) { console.println(geo.f() + true); }\n",
         ),
         ("src/geo.la", "fun f(): i32 { return 1; }\n"),
     ]);
@@ -195,7 +195,7 @@ fn entries_come_from_initialization_options_and_configuration() {
 
 #[test]
 fn checks_are_offline_and_write_nothing() {
-    let text = "import geo;\nfun main() { println(geo.name()); }\n";
+    let text = "import geo;\nfun main(console: Console) { console.println(geo.name()); }\n";
     let t = Temp::with(&[
         ("main.la", text),
         (

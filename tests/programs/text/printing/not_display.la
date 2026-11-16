@@ -4,10 +4,10 @@ struct P { x: i64 }
 
 fun nothing() {}
 
-fun main() {
-    println([1, 2]);
+fun main(console: Console) {
+    console.println([1, 2]);
     let o: Option<i64> = None;
     let t = "found {o}";
     let s = to_string(P { x: 1 });
-    eprintln(nothing());
+    console.eprintln(nothing());
 }

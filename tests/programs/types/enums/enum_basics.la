@@ -40,7 +40,7 @@ fun next(l: Light): Light = match l {
     .Amber => Light.Red,
 };
 
-fun main() {
+fun main(console: Console) {
     let values = [
         Value.Int(-4),
         Value.Small(200, -7),
@@ -51,19 +51,19 @@ fun main() {
         Value.Nothing,
     ];
     for v of values {
-        println(describe(v));
+        console.println(describe(v));
     }
 
     match find([5, 7, 9], 9) {
-        .Some(i) => println(i),
-        .None => println("missing"),
+        .Some(i) => console.println(i),
+        .None => console.println("missing"),
     }
     let missing = find([5, 7, 9], 4);
     let shown = match missing {
         .Some(_) => "found",
         .None => "not found",
     };
-    println(shown);
+    console.println(shown);
 
     let code = 404;
     let text = match code {
@@ -71,23 +71,23 @@ fun main() {
         404 => "not found",
         _ => "other",
     };
-    println(text);
+    console.println(text);
 
     let word = "two";
     match word {
-        "one" => println(1),
-        "two" => println(2),
-        _ => println(0),
+        "one" => console.println(1),
+        "two" => console.println(2),
+        _ => console.println(0),
     }
 
     let ok = 3 > 2;
-    println(match ok { true => "yes", false => "no" });
+    console.println(match ok { true => "yes", false => "no" });
 
     let mut car = Car { name: "c", light: Light.Red };
     car.light = next(car.light);
     car.light = next(car.light);
     match car.light {
-        .Amber => println(car.name + " amber"),
-        _ => println("?"),
+        .Amber => console.println(car.name + " amber"),
+        _ => console.println("?"),
     }
 }

@@ -32,13 +32,13 @@ fun first<M>(xs: Node<M>[]): Node<M> = xs[0];
 
 fun pair(t: (string, Node<Msg>)): Node<Msg> = t.1;
 
-fun main() {
-    println(depth(a()));
-    println(depth(b()));
-    println(depth(chain()));
+fun main(console: Console) {
+    console.println(depth(a()));
+    console.println(depth(b()));
+    console.println(depth(chain()));
     let listed: Node<Msg> = first([leaf("y").pad(4), leaf("z")]);
-    println(depth(listed));
-    println(depth(pair(("p", leaf("q").pad(5).pad(5)))));
+    console.println(depth(listed));
+    console.println(depth(pair(("p", leaf("q").pad(5).pad(5)))));
     let expected: Node<Msg> = leaf("x").pad(8);
-    println(leaf("x").pad(8) == expected);
+    console.println(leaf("x").pad(8) == expected);
 }

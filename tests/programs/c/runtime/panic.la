@@ -3,7 +3,7 @@ fun fail(): i32 {
     panic("boom");
 }
 
-fun main(): i32 {
-    println("before");
+fun main(console: Console): i32 {
+    console.println("before");
     fail()
 }

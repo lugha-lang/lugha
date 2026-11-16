@@ -1,8 +1,8 @@
 error[E0422]: `Circle` doesn't implement `Shape`
-   --> tests/programs/interfaces/nominal/e0422.la:14:13
+   --> tests/programs/interfaces/nominal/e0422.la:14:21
    |
-14 |     println(total([Circle { r: 1.0 }]));
-   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+14 |     console.println(total([Circle { r: 1.0 }]));
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
    = help: add `impl Shape for Circle { … }`
 
@@ -15,10 +15,10 @@ error[E0422]: `Circle` doesn't implement `Shape`
    = help: add `impl Shape for Circle { … }`
 
 error[E0422]: `Circle` doesn't implement `Shape`
-   --> tests/programs/interfaces/nominal/e0422.la:16:24
+   --> tests/programs/interfaces/nominal/e0422.la:16:32
    |
-16 |     println(Shape.area(Circle { r: 1.0 }));
-   |                        ^^^^^^^^^^^^^^^^^
+16 |     console.println(Shape.area(Circle { r: 1.0 }));
+   |                                ^^^^^^^^^^^^^^^^^
    |
    = help: add `impl Shape for Circle { … }`
 

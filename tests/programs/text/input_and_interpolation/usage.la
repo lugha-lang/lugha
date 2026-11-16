@@ -1,11 +1,11 @@
-fun main() {
-    let a = args();
+fun main(args: string[], console: Console) {
+    let a = args;
     if a.len < 2 {
-        println("usage: prog <n>");
+        console.println("usage: prog <n>");
         return;
     }
     match parse_i64(a[1]) {
-        .Some(n) => println("{n} doubled is {n * 2}"),
-        .None => println("usage: prog <n>"),
+        .Some(n) => console.println("{n} doubled is {n * 2}"),
+        .None => console.println("usage: prog <n>"),
     }
 }

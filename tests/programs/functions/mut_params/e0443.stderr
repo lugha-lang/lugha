@@ -7,10 +7,10 @@ error[E0443]: this parameter is `mut`: the call changes the place you pass
   = help: write `mut x` for it, with `x` a `let mut` variable or a part of one
 
 error[E0443]: this parameter isn't `out`, `ptr` or `mut`
-  --> tests/programs/functions/mut_params/e0443.la:9:10
+  --> tests/programs/functions/mut_params/e0443.la:9:18
   |
-9 |     show(mut x);
-  |          ^^^^^
+9 |     let _ = show(mut x);
+  |                  ^^^^^
   |
   = help: `out` and `ptr` are only for an extern's parameters of that mode, `mut` for a `mut` parameter: pass the value itself
 

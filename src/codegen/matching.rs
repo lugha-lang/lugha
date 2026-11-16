@@ -249,7 +249,7 @@ mod tests {
 
     #[test]
     fn enum_values_share_payloads_and_constructions_copy_places() {
-        let src = "enum J { B(i64[]), I }\nfun main() { let xs = [1]; let a = J.B(xs); let b = a; println(xs[0]); }";
+        let src = "enum J { B(i64[]), I }\nfun main() { let xs = [1]; let a = J.B(xs); let b = a; debug(xs[0]); }";
         let ir = ir(src);
         // `xs` is used later, so building the variant shares it (marks it
         // rather than copying it); `let b = a` copies nothing more.

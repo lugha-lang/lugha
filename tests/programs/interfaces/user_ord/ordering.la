@@ -61,20 +61,20 @@ fun largest<T: Ord>(xs: T[]): T {
 
 fun names(xs: Score[]): string = xs.map(fun(s: Score): string = s.name).join(" ");
 
-fun main() {
+fun main(console: Console) {
     let a = Score { loss: 2.0, name: "a" };
     let b = Score { loss: 1.0, name: "b" };
     let c = Score { loss: 2.0, name: "c" };
-    println("{a < b} {a <= c} {a > b} {a >= c} {b < a} {a < c}");
-    println("{Level.Low < Level.High} {Level.High <= Level.Mid} {Level.Mid > Level.Low} {Level.Mid >= Level.Mid}");
-    println("{math.min(a, b).name} {math.max(a, b).name} {math.clamp(Level.High, Level.Low, Level.Mid).rank()}");
+    console.println("{a < b} {a <= c} {a > b} {a >= c} {b < a} {a < c}");
+    console.println("{Level.Low < Level.High} {Level.High <= Level.Mid} {Level.Mid > Level.Low} {Level.Mid >= Level.Mid}");
+    console.println("{math.min(a, b).name} {math.max(a, b).name} {math.clamp(Level.High, Level.Low, Level.Mid).rank()}");
     let scores = [a, b, c, Score { loss: 0.5, name: "d" }];
-    println("{scores.iter().min().unwrap().name} {scores.iter().max().unwrap().name}");
-    println(names(scores.sort()));
-    println("{(a, 2) < (c, 1)} {(c, 1) < (a, 2)}");
-    println(largest(scores).name);
+    console.println("{scores.iter().min().unwrap().name} {scores.iter().max().unwrap().name}");
+    console.println(names(scores.sort()));
+    console.println("{(a, 2) < (c, 1)} {(c, 1) < (a, 2)}");
+    console.println(largest(scores).name);
     let up = Box { v: 1 } < Box { v: 2 };
     let top = largest([Box { v: "x" }, Box { v: "z" }, Box { v: "y" }]);
-    println("{up} {top.v}");
-    println(a == c);
+    console.println("{up} {top.v}");
+    console.println(a == c);
 }

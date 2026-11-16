@@ -29,23 +29,23 @@ impl Model {
     fun layer(mut self, x: i64): i64 = self.g.sum(self.norm(x), self.g.half(self.norm(x)));
 }
 
-fun main() {
+fun main(console: Console) {
     let mut g = G { vals: [] };
     let y = g.mul(g.sum(g.put(1.0), g.put(2.0)), g.half(g.put(8.0)));
-    println("{y} {g.vals.debug()}");
+    console.println("{y} {g.vals.debug()}");
 
     let mut m = Model { g: G { vals: [3.0] }, gain: 2.0 };
     let z = m.layer(0);
-    println("{z} {m.g.vals.debug()}");
+    console.println("{z} {m.g.vals.debug()}");
 
     let mut t: Tape = G { vals: [] };
     let a = t.sum(t.put(1.0), t.put(5.0));
     let b = t.twice(t.sum(a, t.put(1.0)));
-    println("{a} {b}");
+    console.println("{a} {b}");
 
     let mut gs = [G { vals: [1.0] }, G { vals: [2.0] }];
     let keep = gs;
     let i = 1;
     let c = gs[i].sum(gs[i].put(10.0), gs[i].half(gs[i].put(4.0)));
-    println("{c} {gs[0].vals.debug()} {gs[1].vals.debug()} {keep[1].vals.debug()}");
+    console.println("{c} {gs[0].vals.debug()} {gs[1].vals.debug()} {keep[1].vals.debug()}");
 }

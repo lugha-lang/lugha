@@ -13,15 +13,15 @@ fun kind(cmd: string): string = match cmd {
     _ => "run",
 };
 
-fun main() {
-    println(size(Shape.Square(1.5)));
-    println(size(Shape.Rect(1.0, 2.0)));
-    println(kind("quit"));
-    println(kind("ls"));
+fun main(console: Console) {
+    console.println(size(Shape.Square(1.5)));
+    console.println(size(Shape.Rect(1.0, 2.0)));
+    console.println(kind("quit"));
+    console.println(kind("ls"));
     match Some(41) {
         .Some(mut n) => {
             n += 1;
-            println(n);
+            console.println(n);
         }
         .None => {}
     }

@@ -2,27 +2,27 @@
 // starts a new one until the work is done.
 actor Worker {
     attempt: i64,
-    fun run(self) {
+    fun run(self, console: Console) {
         if self.attempt < 3 {
             panic("attempt {self.attempt} failed");
         }
-        println("attempt {self.attempt} succeeded");
+        console.println("attempt {self.attempt} succeeded");
     }
 }
 
-fun main() {
+fun main(console: Console) {
     let mut attempt = 1;
     while true {
         let w = spawn Worker { attempt: attempt };
-        w.run();
+        w.run(console);
         w.stop();
         match w.join() {
             .None => {
                 break;
             }
-            .Some(why) => println("restarting after: {why}"),
+            .Some(why) => console.println("restarting after: {why}"),
         }
         attempt += 1;
     }
-    println("done after {attempt} attempts");
+    console.println("done after {attempt} attempts");
 }

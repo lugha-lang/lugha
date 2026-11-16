@@ -3,6 +3,6 @@ const A: i64 = next();
 
 fun next(): i64 = A + 1;
 
-fun main() {
-    println(A);
+fun main(console: Console) {
+    console.println(A);
 }

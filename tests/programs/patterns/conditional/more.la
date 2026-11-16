@@ -25,15 +25,15 @@ fun sum_positive(xs: i64[]): i64 {
     total
 }
 
-fun main() {
-    println(describe(Token.Num(4)));
-    println(describe(Token.Word("hi")));
-    println(describe(Token.Space));
-    println(describe(Token.End));
+fun main(console: Console) {
+    console.println(describe(Token.Num(4)));
+    console.println(describe(Token.Word("hi")));
+    console.println(describe(Token.Space));
+    console.println(describe(Token.End));
 
     // `if let` as a value
     let n = if let .Some(v) = parse_i64("12") { v } else { 0 };
-    println(n * 2);
+    console.println(n * 2);
 
     // while let with break and continue
     let mut stack = [1, 2, 3, 4, 5, 6];
@@ -47,24 +47,24 @@ fun main() {
         }
         seen += top;
     }
-    println("{seen} {stack.len}");
+    console.println("{seen} {stack.len}");
 
     // mut in while let
     let mut pairs = [Some(1), None, Some(3)];
     while let .Some(slot) = pairs.pop() {
         if let .Some(mut v) = slot {
             v *= 10;
-            print("{v} ");
+            console.print("{v} ");
         } else {
-            print("_ ");
+            console.print("_ ");
         }
     }
-    println("");
+    console.println("");
 
-    println(sum_positive([1, 2, 3, 4]));
+    console.println(sum_positive([1, 2, 3, 4]));
     let .End = Token.End else {
-        println("not the end");
+        console.println("not the end");
         return;
     };
-    println("end");
+    console.println("end");
 }

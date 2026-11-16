@@ -15,12 +15,12 @@ actor Worker {
     }
 }
 
-fun main() {
+fun main(console: Console) {
     let log = spawn Logger { lines: [] };
     let w = spawn Worker { log: log, done: 0 };
-    println(w.work("a"));
-    println(w.work("b"));
+    console.println(w.work("a"));
+    console.println(w.work("b"));
     for line of log.dump() {
-        println(line);
+        console.println(line);
     }
 }

@@ -24,13 +24,13 @@ fun total<T: Shape>(xs: T[]): f64 {
     sum
 }
 
-fun main() {
+fun main(console: Console) {
     let c = Circle { r: 2.0 };
     let shapes: Shape[] = [c];
-    println(c.area());
-    println(Shape.area(c));
-    println(c.describe());
-    println(total([c, c]));
-    println(shapes[0].area());
-    println(shapes[0].describe());
+    console.println(c.area());
+    console.println(Shape.area(c));
+    console.println(c.describe());
+    console.println(total([c, c]));
+    console.println(shapes[0].area());
+    console.println(shapes[0].describe());
 }

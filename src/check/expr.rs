@@ -43,7 +43,14 @@ pub(super) fn is_literal(expr: &Expr) -> bool {
 impl Checker {
     /// Checks `expr`, records its type and returns it.
     pub(super) fn expr(&mut self, expr: &Expr, expect: Option<&Expect>) -> Type {
-        let ty = self.expr_kind(expr, expect);
+        // An operator's operands never become the interface the result is
+        // converted to: `console.println("a" + s)` adds two strings.
+        let operator = matches!(expr.kind, ExprKind::Binary(..) | ExprKind::Unary(..));
+        let inner = match expect {
+            Some(e) if operator && matches!(e.ty, Type::Interface(..)) => None,
+            _ => expect,
+        };
+        let ty = self.expr_kind(expr, inner);
         self.untaken_type_args(expr, &ty);
         // An actor's state is made only inside the actor or for `spawn`.
         self.state_outside(expr, &ty);

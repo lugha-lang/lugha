@@ -1,5 +1,5 @@
-fun main() {
+fun main(console: Console) {
     let word = "hello";
-    println(word.slice(1, 3));
-    println(word.slice(3, 1));
+    console.println(word.slice(1, 3));
+    console.println(word.slice(3, 1));
 }

@@ -9,6 +9,6 @@ impl Point {
 
 public fun make(): Point = Point { x: 21 };
 
-fun main() {
-    println(make().twice());
+fun main(console: Console) {
+    console.println(make().twice());
 }

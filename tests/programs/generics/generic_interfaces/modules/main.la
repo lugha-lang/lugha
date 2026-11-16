@@ -31,8 +31,8 @@ fun size<T, S: geo.Source<T>>(src: S): i64 {
     s.count()
 }
 
-fun main() {
-    println(sum(Down { n: 4 }));
-    println(size(Down { n: 4 }));
-    println(size(geo.Letters { s: "hello", at: 0 }));
+fun main(console: Console) {
+    console.println(sum(Down { n: 4 }));
+    console.println(size(Down { n: 4 }));
+    console.println(size(geo.Letters { s: "hello", at: 0 }));
 }

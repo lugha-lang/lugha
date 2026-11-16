@@ -9,34 +9,34 @@ fun both<T: Add>(a: T, b: T): T = a + b;
 // A program's own `concat` is unaffected.
 fun concat(a: i64, b: i64): i64 = a * 10 + b;
 
-fun main() {
+fun main(console: Console) {
     let xs = [1, 2];
     let ys = [3];
     let zs = xs + ys;
-    println("{zs.debug()} {xs.debug()} {ys.debug()}");
-    println("{(xs + []).debug()} {([] + ys).debug()} {([0] + xs + ys + [4, 5]).debug()}");
+    console.println("{zs.debug()} {xs.debug()} {ys.debug()}");
+    console.println("{(xs + []).debug()} {([] + ys).debug()} {([0] + xs + ys + [4, 5]).debug()}");
     let small: u8[] = [1] + [255];
-    println(small.debug());
+    console.println(small.debug());
     let mut log: string[] = [];
     for i in 0..3 {
         log += ["step {i}"];
     }
-    println(log.debug());
+    console.println(log.debug());
     let mut twice = xs;
     twice += twice;
-    println("{twice.debug()} {xs.debug()}");
+    console.println("{twice.debug()} {xs.debug()}");
     // Joined elements are copies: changing one side's inner array later changes nothing joined.
     let mut grid = [[1], [2]];
     let joined = grid + [[3]];
     grid[0].push(9);
-    println("{joined.debug()} {grid.debug()}");
+    console.println("{joined.debug()} {grid.debug()}");
     let mut people = [P { name: "a", tags: ["x"] }];
     let more = people + [P { name: "b", tags: [] }];
     people[0].tags += ["y"];
-    println("{more[0].tags.debug()} {people[0].tags.debug()} {more.len}");
+    console.println("{more[0].tags.debug()} {people[0].tags.debug()} {more.len}");
     let mut s = "lu";
     s += "gha";
-    println(s);
+    console.println(s);
     let ab = both("a", "b");
-    println("{both([1], [2, 3]).debug()} {ab} {both(1, 2)} {concat(4, 2)}");
+    console.println("{both([1], [2, 3]).debug()} {ab} {both(1, 2)} {concat(4, 2)}");
 }

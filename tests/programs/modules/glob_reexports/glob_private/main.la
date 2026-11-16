@@ -1,6 +1,6 @@
 // `hidden` is package-level in raw: `{ * }` leaves it behind.
 import gtk;
 
-fun main() {
-    println(gtk.hidden());
+fun main(console: Console) {
+    console.println(gtk.hidden());
 }

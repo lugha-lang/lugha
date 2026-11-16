@@ -54,6 +54,18 @@ impl Checker {
         // A function called by name is not a value here; `void` marks it.
         self.record(callee, Type::Unit);
         let mut key = self.key(name);
+        // `println(x)` in a program: printing needs a `Console`.
+        if super::entry::AMBIENT.contains(&name.as_str())
+            && !self.bundled_module()
+            && !self.functions.contains_key(&key)
+        {
+            self.ambient_call(name, callee.span);
+            self.unchecked_args(args);
+            return match name.as_str() {
+                "exit" => Type::Never,
+                _ => Type::Error,
+            };
+        }
         // `range(a, b)` is the prelude's unless a module declares one.
         let prelude = qualify(&[crate::modules::PRELUDE_PATH.to_string()], name);
         // `char_from`, `assert_key_laws` and the assertions are the
@@ -253,19 +265,24 @@ mod tests {
     #[test]
     fn intrinsics_check_arity_and_argument_types() {
         crate::check::test_util::ok(
-            "fun main() { print(1); println(); println(2.5); println(\"s\"); let t = to_string(true); println(t); }",
+            "fun main(console: Console) { console.print(1); console.println(\"\"); console.println(2.5); console.println(\"s\"); let t = to_string(true); console.println(t); }",
         );
-        assert_eq!(errors("fun main() { print(); }"), [("E0405", "print()")]);
         assert_eq!(
-            errors("fun main() { println(1, 2); }"),
-            [("E0405", "println(1, 2)")]
+            errors("fun main(console: Console) { console.print(); }"),
+            [("E0405", "console.print()")]
+        );
+        assert_eq!(
+            errors("fun main(console: Console) { console.println(1, 2); }"),
+            [("E0405", "console.println(1, 2)")]
         );
         assert_eq!(
             errors("fun f() {}\nfun main() { let s = to_string(f()); }"),
             [("E0422", "f()")]
         );
         assert_eq!(errors("fun main() { panic(1); }"), [("E0403", "1")]);
-        crate::check::test_util::ok("fun noop() {}\nfun main() { println(noop().debug()); }");
+        crate::check::test_util::ok(
+            "fun noop() {}\nfun main(console: Console) { console.println(noop().debug()); }",
+        );
         assert_eq!(
             errors("fun main() { let p = println; }"),
             [("E0406", "println")]

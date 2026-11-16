@@ -64,17 +64,17 @@ impl Dog {
     fun intro(self): string = self.shout();
 }
 
-fun main() {
+fun main(console: Console) {
     let empty: Stack<i64> = Stack.new();
     let s = empty.with(1).with(2);
-    println(s.size());
-    println(s.pair().len);
-    println(Shape.Circle(1.5).grow(2.0).side());
+    console.println(s.size());
+    console.println(s.pair().len);
+    console.println(Shape.Circle(1.5).grow(2.0).side());
     let all = Shape.all();
-    println(all[0].side() + all[1].side());
+    console.println(all[0].side() + all[1].side());
     let mut c = Count { n: 9 };
-    println(c.first());
+    console.println(c.first());
     let d = Dog { called: "rex" };
-    println(d.greet());
-    println(d.intro());
+    console.println(d.greet());
+    console.println(d.intro());
 }

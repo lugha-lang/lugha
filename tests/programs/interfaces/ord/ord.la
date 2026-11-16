@@ -29,35 +29,35 @@ struct Route { stops: (string, (i64, char)), level: Level } with Ord
 
 fun top<T: Ord>(xs: T[]): T = xs.sort()[xs.len - 1];
 
-fun main() {
-    println(Version { major: 1, minor: 2 } < Version { major: 1, minor: 10 });
-    println(Version { major: 2, minor: 0 } >= Version { major: 1, minor: 99 });
-    println(Level.High > Level.Low);
-    println([Score { name: "a", points: 3 }, Score { name: "b", points: 1 }].sort()[0].name);
-    println(([(2, "b"), (1, "z"), (2, "a")].sort()).debug());
-    println(1.5 < 2.5);
-    println(([2.5, -0.0, 1.0].sort_by(f64.total_order)).debug());
+fun main(console: Console) {
+    console.println(Version { major: 1, minor: 2 } < Version { major: 1, minor: 10 });
+    console.println(Version { major: 2, minor: 0 } >= Version { major: 1, minor: 99 });
+    console.println(Level.High > Level.Low);
+    console.println([Score { name: "a", points: 3 }, Score { name: "b", points: 1 }].sort()[0].name);
+    console.println(([(2, "b"), (1, "z"), (2, "a")].sort()).debug());
+    console.println(1.5 < 2.5);
+    console.println(([2.5, -0.0, 1.0].sort_by(f64.total_order)).debug());
 
     // A generic struct, an enum with payloads, tuples inside a struct.
-    println(Pair { a: "x", b: 2 } < Pair { a: "x", b: 3 });
-    println(([Shape.Rect(1, 2), Shape.Dot, Shape.Circle(9), Shape.Rect(1, 1)].sort()).debug());
+    console.println(Pair { a: "x", b: 2 } < Pair { a: "x", b: 3 });
+    console.println(([Shape.Rect(1, 2), Shape.Dot, Shape.Circle(9), Shape.Rect(1, 1)].sort()).debug());
     let r1 = Route { stops: ("a", (1, 'b')), level: Level.High };
     let r2 = Route { stops: ("a", (1, 'c')), level: Level.Low };
-    println("{r1 < r2} {r1 == r1}");
+    console.println("{r1 < r2} {r1 == r1}");
 
     // `min`, `max` and `sort` on derived types.
     let vs = [Version { major: 1, minor: 5 }, Version { major: 0, minor: 9 }, Version { major: 1, minor: 0 }];
-    println("{vs.iter().min().unwrap().minor} {vs.iter().max().unwrap().minor} {top(vs).minor}");
-    println(top([Level.Mid, Level.High, Level.Low]) == Level.High);
+    console.println("{vs.iter().min().unwrap().minor} {vs.iter().max().unwrap().minor} {top(vs).minor}");
+    console.println(top([Level.Mid, Level.High, Level.Low]) == Level.High);
 
     // IEEE 754's total order, as a value and called.
     let nan = 0.0 / 0.0;
     let inf = 1.0 / 0.0;
-    println(([nan, 1.0, -inf, -0.0, 0.0, -2.0].sort_by(f64.total_order)).debug());
-    println("{f64.total_order(-0.0, 0.0)} {f64.total_order(0.0, -0.0)} {f64.total_order(1.0, nan)} {f64.total_order(nan, nan)}");
+    console.println(([nan, 1.0, -inf, -0.0, 0.0, -2.0].sort_by(f64.total_order)).debug());
+    console.println("{f64.total_order(-0.0, 0.0)} {f64.total_order(0.0, -0.0)} {f64.total_order(1.0, nan)} {f64.total_order(nan, nan)}");
     let fs: f32[] = [3.0, -1.0, 2.0];
-    println(fs.sort_by(f32.total_order).debug());
+    console.println(fs.sort_by(f32.total_order).debug());
     let x: f32 = -0.0;
     let y: f32 = 0.0;
-    println(f32.total_order(x, y));
+    console.println(f32.total_order(x, y));
 }

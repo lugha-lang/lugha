@@ -104,22 +104,23 @@ fun table(m: Map<string, toml.Value>): string {
     "{{" + parts.join(", ") + "}}"
 }
 
-fun main() {
-    let path = args()[1];
+fun main(args: string[], console: Console): i32 {
+    let path = args[1];
     let text = match string_from_utf8(read_bytes(path).unwrap()) {
         .Ok(t) => t,
         .Err(_) => {
-            println("ERROR Utf8 not UTF-8");
-            exit(1);
+            console.println("ERROR Utf8 not UTF-8");
+            return 1;
         }
     };
     match toml.parse(text) {
-        .Ok(doc) => println(table(doc)),
+        .Ok(doc) => console.println(table(doc)),
         .Err(e) => {
-            println("ERROR {e.kind.debug()} {e.message()}");
-            exit(1);
+            console.println("ERROR {e.kind.debug()} {e.message()}");
+            return 1;
         }
     }
+    0
 }
 "#;
 
@@ -302,10 +303,10 @@ fun repeat(s: string, n: i64): string {
     string_from_utf8(out).unwrap()
 }
 
-fun show(r: Result<Map<string, toml.Value>, toml.TomlError>) {
+fun show(console: Console, r: Result<Map<string, toml.Value>, toml.TomlError>) {
     match r {
-        .Ok(_) => println("ok"),
-        .Err(e) => println("{e.kind.debug()}: {e.message()}"),
+        .Ok(_) => console.println("ok"),
+        .Err(e) => console.println("{e.kind.debug()}: {e.message()}"),
     }
 }
 "#;
@@ -314,25 +315,25 @@ fun show(r: Result<Map<string, toml.Value>, toml.TomlError>) {
 fn limits_hold_against_hostile_input() {
     let out = run(&format!(
         "{HELPERS}
-fun main() {{
-    show(toml.parse(\"# \" + repeat(\"x\", 1048575)));
-    show(toml.parse(\"# \" + repeat(\"x\", 1048574)));
-    show(toml.parse(\"a = \" + repeat(\"[\", 100) + repeat(\"]\", 100)));
-    show(toml.parse(\"a = \" + repeat(\"[\", 101) + repeat(\"]\", 101)));
-    show(toml.parse(\"a = \" + repeat(\"{{{{b = \", 101) + \"1\" + repeat(\"}}}}\", 101)));
-    show(toml.parse(repeat(\"k.\", 99) + \"k = 1\"));
-    show(toml.parse(repeat(\"k.\", 100) + \"k = 1\"));
-    show(toml.parse(\"a = \" + repeat(\"[\", 100000)));
+fun main(console: Console) {{
+    show(console, toml.parse(\"# \" + repeat(\"x\", 1048575)));
+    show(console, toml.parse(\"# \" + repeat(\"x\", 1048574)));
+    show(console, toml.parse(\"a = \" + repeat(\"[\", 100) + repeat(\"]\", 100)));
+    show(console, toml.parse(\"a = \" + repeat(\"[\", 101) + repeat(\"]\", 101)));
+    show(console, toml.parse(\"a = \" + repeat(\"{{{{b = \", 101) + \"1\" + repeat(\"}}}}\", 101)));
+    show(console, toml.parse(repeat(\"k.\", 99) + \"k = 1\"));
+    show(console, toml.parse(repeat(\"k.\", 100) + \"k = 1\"));
+    show(console, toml.parse(\"a = \" + repeat(\"[\", 100000)));
     let mut small = toml.limits();
     small.values = 5;
-    show(toml.parse_with(\"a = 1\\nb = 2\\nc = 3\\nd = 4\\ne = 5\\nf = 6\", small));
-    show(toml.parse(\"n = 9223372036854775808\"));
-    show(toml.parse(\"n = -9223372036854775809\"));
-    show(toml.parse(\"n = 0x8000000000000000\"));
-    println(toml.parse(\"n = -9223372036854775808\").unwrap().debug());
-    println(toml.parse(\"n = 0x7fffffffffffffff\").unwrap().debug());
+    show(console, toml.parse_with(\"a = 1\\nb = 2\\nc = 3\\nd = 4\\ne = 5\\nf = 6\", small));
+    show(console, toml.parse(\"n = 9223372036854775808\"));
+    show(console, toml.parse(\"n = -9223372036854775809\"));
+    show(console, toml.parse(\"n = 0x8000000000000000\"));
+    console.println(toml.parse(\"n = -9223372036854775808\").unwrap().debug());
+    console.println(toml.parse(\"n = 0x7fffffffffffffff\").unwrap().debug());
     let big = toml.parse(\"s = \\\"\" + repeat(\"x\", 1048000) + \"\\\"\").unwrap();
-    println(toml.as_text(big[\"s\"]).unwrap().len);
+    console.println(toml.as_text(big[\"s\"]).unwrap().len);
 }}
 "
     ));
@@ -356,15 +357,15 @@ fn big_documents_parse_in_linear_time() {
     let start = std::time::Instant::now();
     let out = run(&format!(
         "{HELPERS}
-fun main() {{
+fun main(console: Console) {{
     let mut keys: string[] = [];
     for i in 0..70000 {{
         keys.push(\"k{{i}} = {{i}}\");
     }}
     let doc = toml.parse(keys.join(\"\\n\")).unwrap();
-    println(doc.len);
+    console.println(doc.len);
     let tables = toml.parse(repeat(\"[[a]]\\nx = 1\\n\", 80000)).unwrap();
-    println(toml.as_array(tables[\"a\"]).unwrap().len);
+    console.println(toml.as_array(tables[\"a\"]).unwrap().len);
 }}
 "
     ));
@@ -376,16 +377,16 @@ fun main() {{
 fn errors_name_the_problem_and_where() {
     let out = run(&format!(
         "{HELPERS}
-fun main() {{
-    show(toml.parse(\"[app]\\nname = 1\\n\\n\\n\\n\\nname = 2\"));
-    show(toml.parse(\"[a]\\nx = 1\\n[a]\"));
-    show(toml.parse(\"a = {{{{b = 1}}}}\\na.c = 2\"));
-    show(toml.parse(\"a = []\\n[[a]]\"));
-    show(toml.parse(\"a = \\\"\\\\q\\\"\"));
-    show(toml.parse(\"d = 2023-02-30\"));
-    show(toml.parse(\"a 1\"));
-    show(toml.parse(\"a = 1\\r\\nb = 2\\r\\na = 3\"));
-    show(toml.parse(\"k = \\\"é\\\" x\"));
+fun main(console: Console) {{
+    show(console, toml.parse(\"[app]\\nname = 1\\n\\n\\n\\n\\nname = 2\"));
+    show(console, toml.parse(\"[a]\\nx = 1\\n[a]\"));
+    show(console, toml.parse(\"a = {{{{b = 1}}}}\\na.c = 2\"));
+    show(console, toml.parse(\"a = []\\n[[a]]\"));
+    show(console, toml.parse(\"a = \\\"\\\\q\\\"\"));
+    show(console, toml.parse(\"d = 2023-02-30\"));
+    show(console, toml.parse(\"a 1\"));
+    show(console, toml.parse(\"a = 1\\r\\nb = 2\\r\\na = 3\"));
+    show(console, toml.parse(\"k = \\\"é\\\" x\"));
 }}
 "
     ));
@@ -407,20 +408,20 @@ fun main() {{
 fn helpers_reach_into_documents() {
     let out = run("fun name(doc: Map<string, toml.Value>): Option<string> = toml.as_text(toml.get(doc, \"app.name\")?);
 
-fun main() {
+fun main(console: Console) {
     let doc = toml.parse(\"[app]\\nname = \\\"koi\\\"\\nport = 8080\\nratio = 0.5\\ndebug = true\\ntags = [\\\"a\\\"]\\nwhen = 1979-05-27T07:32:00Z\\n[app.inner]\\nx = 1\").unwrap();
-    println(name(doc).debug());
-    println(toml.get(doc, \"app.missing\").is_none());
-    println(toml.get(doc, \"app.name.deeper\").is_none());
+    console.println(name(doc).debug());
+    console.println(toml.get(doc, \"app.missing\").is_none());
+    console.println(toml.get(doc, \"app.name.deeper\").is_none());
     let app = toml.as_table(toml.get(doc, \"app\").unwrap()).unwrap();
-    println(\"{toml.as_i64(app[\"port\"]).debug()} {toml.as_f64(app[\"port\"]).debug()} {toml.as_f64(app[\"ratio\"]).debug()} {toml.as_bool(app[\"debug\"]).debug()}\");
-    println(\"{toml.as_array(app[\"tags\"]).unwrap().len} {toml.as_table(app[\"inner\"]).unwrap().len}\");
-    println(\"{toml.as_text(app[\"port\"]).debug()} {toml.as_i64(app[\"name\"]).debug()} {toml.as_bool(app[\"ratio\"]).debug()} {toml.as_array(app[\"name\"]).debug()} {toml.as_table(app[\"tags\"]).debug()}\");
+    console.println(\"{toml.as_i64(app[\"port\"]).debug()} {toml.as_f64(app[\"port\"]).debug()} {toml.as_f64(app[\"ratio\"]).debug()} {toml.as_bool(app[\"debug\"]).debug()}\");
+    console.println(\"{toml.as_array(app[\"tags\"]).unwrap().len} {toml.as_table(app[\"inner\"]).unwrap().len}\");
+    console.println(\"{toml.as_text(app[\"port\"]).debug()} {toml.as_i64(app[\"name\"]).debug()} {toml.as_bool(app[\"ratio\"]).debug()} {toml.as_array(app[\"name\"]).debug()} {toml.as_table(app[\"tags\"]).debug()}\");
     match toml.as_date_time(app[\"when\"]) {
-        .Some((.Some(d), .Some(t), .Some(o))) => println(\"{d.year}-{d.month}-{d.day} {t.hour}:{t.minute} {o}\"),
-        _ => println(\"?\"),
+        .Some((.Some(d), .Some(t), .Some(o))) => console.println(\"{d.year}-{d.month}-{d.day} {t.hour}:{t.minute} {o}\"),
+        _ => console.println(\"?\"),
     }
-    println(toml.as_date_time(app[\"port\"]).is_none());
+    console.println(toml.as_date_time(app[\"port\"]).is_none());
 }
 ");
     assert_eq!(

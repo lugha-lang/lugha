@@ -1,0 +1,76 @@
+// Capabilities: what a program needs to touch the world outside it. `main`
+// takes the ones it uses as parameters, and passes them on; each is an
+// interface, so a fake for a test is a type that implements it. The real
+// ones reach the runtime through the intrinsics only the prelude may call.
+
+/**
+ * Standard input, output and error: `console.println("hello")`.
+ * `main` takes one as a parameter, `fun main(console: Console)`.
+ */
+interface Console {
+    /** Writes `x`'s text to standard output, with no newline. */
+    fun print(self, x: Display);
+    /** Writes `x`'s text and a newline to standard output. */
+    fun println(self, x: Display);
+    /** Writes `x`'s text to standard error, after flushing standard output. */
+    fun eprint(self, x: Display);
+    /** Writes `x`'s text and a newline to standard error, after flushing standard output. */
+    fun eprintln(self, x: Display);
+    /** The next line of standard input without its line ending; `None` at the end. */
+    fun read_line(self): Option<string>;
+}
+
+/**
+ * Files and folders: `fs.cwd()` is the folder the program started in.
+ * `main` takes one as a parameter, `fun main(fs: Fs)`.
+ */
+interface Fs {
+    /** The folder the program started in. */
+    fun cwd(self): Dir;
+}
+
+/**
+ * A folder, through which files are read and written: paths are relative
+ * to it.
+ */
+interface Dir {
+    /** The whole file, or `Err` with the system's message. */
+    fun read_file(self, path: string): Result<string, string>;
+    /** Replaces the file's contents: `Ok` with the bytes written. */
+    fun write_file(self, path: string, text: string): Result<i64, string>;
+    /** Adds to the end of the file, creating it if needed: `Ok` with the bytes written. */
+    fun append_file(self, path: string, text: string): Result<i64, string>;
+}
+
+/** The real console: the process's standard streams. */
+struct $Console {}
+
+impl Console for $Console {
+    fun print(self, x: Display) { print(x.show()); }
+    fun println(self, x: Display) { println(x.show()); }
+    fun eprint(self, x: Display) { eprint(x.show()); }
+    fun eprintln(self, x: Display) { eprintln(x.show()); }
+    fun read_line(self): Option<string> = read_line();
+}
+
+/** The real file system. */
+struct $Fs {}
+
+impl Fs for $Fs {
+    fun cwd(self): Dir = $Dir {};
+}
+
+/** The folder the program started in; paths resolve as the system resolves them. */
+struct $Dir {}
+
+impl Dir for $Dir {
+    fun read_file(self, path: string): Result<string, string> = read_file(path);
+    fun write_file(self, path: string, text: string): Result<i64, string> = write_file(path, text);
+    fun append_file(self, path: string, text: string): Result<i64, string> = append_file(path, text);
+}
+
+/** The console `main` and tests are given. */
+fun $console(): Console = $Console {};
+
+/** The file system `main` and tests are given. */
+fun $fs(): Fs = $Fs {};

@@ -1,10 +1,10 @@
 enum Shape { Circle(f64), Empty }
 
-fun main() {
+fun main(console: Console) {
     let o: Option<Shape> = None;
     match o {
-        .Some(Empty) => println("empty"),
-        None => println("none"),
+        .Some(Empty) => console.println("empty"),
+        None => console.println("none"),
         .Some(_) => {}
     }
     let Empty = Shape.Empty else { return; };

@@ -35,14 +35,14 @@ fun total(shapes: Shape[]): f64 {
     sum
 }
 
-fun main() {
+fun main(console: Console) {
     let c = Circle { r: 1.0 };
     let mut shapes: Shape[] = [c, Square { side: 2.0 }];
     shapes[0].grow(2.0);
-    println(total(shapes));
-    println(c.r);
+    console.println(total(shapes));
+    console.println(c.r);
     let first = shapes[0];
-    println(first.name());
+    console.println(first.name());
 }
 ";
 
@@ -55,7 +55,7 @@ struct Bad { t: string }
 impl Error for Bad { fun message(self): string = self.t; }
 fun get(): Result<i64, Bad> = Err(Bad { t: \"no\" });
 fun read(): Result<i64, Error> { let n = get()?; Ok(n) }
-fun main() { match read() { .Ok(n) => println(n), .Err(e) => println(e.message()), } }
+fun main(console: Console) { match read() { .Ok(n) => console.println(n), .Err(e) => console.println(e.message()), } }
 ";
 
 impl Dir {

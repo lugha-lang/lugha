@@ -28,12 +28,12 @@ fun total(shapes: Shape[]): f64 {
     sum
 }
 
-fun main() {
+fun main(console: Console) {
     let c = Circle { r: 1.0 };
     let mut shapes: Shape[] = [c, Square { side: 2.0 }];
     shapes[0].grow(2.0);
-    println(total(shapes));
-    println(c.r);
+    console.println(total(shapes));
+    console.println(c.r);
     let first = shapes[0];
-    println(first.name());
+    console.println(first.name());
 }

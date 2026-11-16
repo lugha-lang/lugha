@@ -35,16 +35,16 @@ fun total_area<T: Shape>(xs: T[]): f64 {
 
 fun boxed<T: Shape>(x: T): Shape = x;
 
-fun main() {
+fun main(console: Console) {
     let mut st = Stack { items: [1, 2] };
     st.push(3);
     let z: Sized = st;
-    println(z.size());
+    console.println(z.size());
     // `Stack<string>.size` is reached only through the conversion.
     let w: Sized = Stack { items: ["a"] };
-    println(w.size());
+    console.println(w.size());
     let shapes: Shape[] = [Sq { s: 2.0 }, boxed(Sq { s: 3.0 })];
-    println(total_area(shapes));
+    console.println(total_area(shapes));
     let c: geo.Named = geo.Cat { called: "tom" };
-    println(c.name());
+    console.println(c.name());
 }

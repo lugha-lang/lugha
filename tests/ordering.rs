@@ -9,11 +9,11 @@ const SRC: &str = "struct S { x: i64 } with Eq
 impl Ord for S {
     fun cmp(self, o: S): Ordering = if self.x < o.x { Ordering.Less } else { Ordering.Equal };
 }
-fun main() {
+fun main(console: Console) {
     let a = S { x: 1 };
     let b = a < S { x: 2 };
     let c = (a, 1) >= (a, 2);
-    println(\"{b} {c}\");
+    console.println(\"{b} {c}\");
 }
 ";
 

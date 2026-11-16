@@ -245,13 +245,13 @@ mod tests {
     const SRC: &str = "struct P { x: f64 }\n\
         impl P { fun len(self): f64 = self.x; }\n\
         fun max<T: Ord>(a: T, b: T): T { if a > b { a } else { b } }\n\
-        fun main() {\n\
+        fun main(console: Console) {\n\
             let p = P { x: 1.0 };\n\
             let mut n = 0;\n\
             for w of [1, 2] { n += w; }\n\
-            match Some(3) { .Some(k) => println(k), .None => {} }\n\
-            println(p.len());\n\
-            println(max(15, 25));\n\
+            match Some(3) { .Some(k) => console.println(k), .None => {} }\n\
+            console.println(p.len());\n\
+            console.println(max(15, 25));\n\
         }\n";
 
     #[test]
@@ -317,7 +317,7 @@ mod tests {
 
     #[test]
     fn a_program_with_errors_still_has_its_other_types() {
-        let src = "fun main() { let bad: i64 = \"x\"; let fine = 2.5; println(fine); }";
+        let src = "fun main(console: Console) { let bad: i64 = \"x\"; let fine = 2.5; console.println(fine); }";
         let partial = test_util::partial(src);
         let codes: Vec<&str> = partial.diagnostics.iter().map(|d| d.code).collect();
         assert_eq!(
@@ -350,16 +350,16 @@ interface Area { fun area(self): f64; }
 impl P { fun len(self): f64 = self.x; }
 fun twice(n: i64): i64 = n * 2;
 fun measure(a: Area): f64 = a.area();
-fun main() {
+fun main(console: Console) {
     let p = P { x: 1.0 };
     let mut total = 0;
     total += twice(3);
     let f = twice;
-    println(p.x + p.len());
+    console.println(p.x + p.len());
     let s = Shape.Circle(2.0);
-    match s { .Circle(r) => println(r), .Dot => {} }
-    println(total);
-    println(f(1));
+    match s { .Circle(r) => console.println(r), .Dot => {} }
+    console.println(total);
+    console.println(f(1));
 }
 ";
 
@@ -462,9 +462,9 @@ fun main() {
     #[test]
     fn missing_arms_are_recorded_in_full() {
         let src = "enum Shape { Circle(f64), Rect(f64, f64), Dot, Tri(f64), Hex }
-fun main() {
+fun main(console: Console) {
     let s = Shape.Dot;
-    match s { .Circle(r) => println(r) }
+    match s { .Circle(r) => console.println(r) }
     let o: Option<Shape> = None;
     match o { .Some(.Circle(_)) => {}, .None => {} }
     let n = 3;

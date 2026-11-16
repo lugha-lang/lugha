@@ -3,7 +3,7 @@
 // `read_line` giving the read-ahead first, an empty file, a long line.
 import std.fs;
 
-fun run(): Result<(), string> {
+fun run(console: Console): Result<(), string> {
     let out = fs.create("big.txt")?;
     let mut total = 0;
     for i in 0..200000 {
@@ -28,7 +28,7 @@ fun run(): Result<(), string> {
         }
     }
     f.close();
-    println("{count} lines, last {last}");
+    console.println("{count} lines, last {last}");
 
     let g = fs.open("big.txt")?;
     let mut bytes = 0;
@@ -40,20 +40,20 @@ fun run(): Result<(), string> {
         bytes += got.len;
     }
     g.close();
-    println("{bytes} bytes of {total}");
+    console.println("{bytes} bytes of {total}");
 
     let h = fs.open("big.txt")?;
-    println(h.read_line().debug());
+    console.println(h.read_line().debug());
     let next = h.read(7)?;
-    println(string_from_utf8(next).debug());
-    println(h.read_line().debug());
+    console.println(string_from_utf8(next).debug());
+    console.println(h.read_line().debug());
     h.close();
 
     let empty = fs.create("empty.txt")?;
     empty.close();
     let e = fs.open("empty.txt")?;
-    println(e.read_line().debug());
-    println(e.read(1).debug());
+    console.println(e.read_line().debug());
+    console.println(e.read(1).debug());
     e.close();
 
     let long = fs.create("long.txt")?;
@@ -65,15 +65,15 @@ fun run(): Result<(), string> {
     long.close();
     let l = fs.open("long.txt")?;
     match l.read_line()? {
-        .Some(line) => println("{line.len} {line == text}"),
-        .None => println("none"),
+        .Some(line) => console.println("{line.len} {line == text}"),
+        .None => console.println("none"),
     }
-    println(l.read_line().debug());
-    println(l.read_line().debug());
+    console.println(l.read_line().debug());
+    console.println(l.read_line().debug());
     l.close();
     Ok(())
 }
 
-fun main() {
-    println(run().debug());
+fun main(console: Console) {
+    console.println(run(console).debug());
 }

@@ -196,6 +196,9 @@ impl Checker {
     /// containing them.
     fn may_share(&self, ty: &Type, seen: &mut HashSet<Type>) -> bool {
         match ty {
+            // A capability is a handle to the world outside, meant to be
+            // passed to whatever does the work, an actor included.
+            Type::Interface(key, _) if super::impls::is_capability(key) => false,
             Type::Ref(_) | Type::Fun(..) | Type::Interface(..) | Type::Param(_) => true,
             Type::Array(inner) | Type::Option(inner) | Type::Task(inner) | Type::Chan(inner) => {
                 // A channel or task carries copies; what it carries is checked

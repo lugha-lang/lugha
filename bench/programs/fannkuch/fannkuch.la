@@ -1,8 +1,8 @@
 // fannkuch-redux: flips prefixes of every permutation of 1..n.
 // Stresses array indexing and bounds checks.
 
-fun main() {
-    let n = parse_i64(args()[1]).unwrap();
+fun main(args: string[], console: Console) {
+    let n = parse_i64(args[1]).unwrap();
     let mut perm1 = [0; n];
     let mut perm = [0; n];
     let mut count = [0; n];
@@ -68,5 +68,5 @@ fun main() {
         }
         perm_count += 1;
     }
-    println("{checksum} {max_flips}");
+    console.println("{checksum} {max_flips}");
 }

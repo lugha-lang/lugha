@@ -1,7 +1,9 @@
-error[E0304]: `main` must be `fun main()` or `fun main(): i32`
+error[E0304]: `main` takes only `string[]`, `Console` and `Fs`, each at most once, and returns `()` or `i32`
   --> tests/programs/basics/checker/e0304.la:1:5
   |
 1 | fun main(argc: i32): i32 {
   |     ^^^^
+  |
+  = help: for example `fun main(args: string[], console: Console): i32`
 
 For more about E0304, run `lughac explain E0304`.

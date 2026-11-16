@@ -43,6 +43,7 @@ mod derive_meets;
 #[cfg(test)]
 mod derive_tests;
 mod derive_with;
+mod entry;
 mod enums;
 mod env;
 mod errors;
@@ -141,6 +142,7 @@ pub use conversions::{CONVERSIONS, int_bits};
 pub use defaults::SELF;
 pub use derive::{Block as DeriveBlock, Covers, DEBUG, DISPLAY, Derives, EQ, ORD};
 pub use derive_intrinsics::{DERIVE_OPS, derive_op};
+pub use entry::ENTRY_CAPABILITIES;
 pub use float_bits::{bits_of, from_bits, total_order};
 pub use float_ops::{float_op, os_op, os_signature, string_op};
 pub use hashing::hash_op;
@@ -168,13 +170,16 @@ use crate::ast::{ExprId, Program};
 use crate::diagnostic::Diagnostic;
 use crate::span::Span;
 
-/// Every intrinsic's name (`println`, `read_line`, …): names a program may
+/// Every intrinsic's name (`panic`, `parse_i64`, …): names a program may
 /// call that no source declares, for the language server's completion.
 pub fn intrinsics() -> impl Iterator<Item = &'static str> {
     env::INTRINSICS
         .into_iter()
         .chain(input::INPUT)
         .chain(includes::INCLUDES)
+        // Those only the prelude may call: a program reaches them through a
+        // capability.
+        .filter(|name| !entry::AMBIENT.contains(name))
 }
 
 /// Type-checks `program`, a program of one file, returning the type table

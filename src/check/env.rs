@@ -180,8 +180,15 @@ impl Checker {
             None => self.report(errors::missing_main()),
             Some(f) => {
                 let bad_return = f.ret.as_ref().is_some_and(|ty| ty.kind != TypeKind::I32);
+                let key = self.key("main");
+                let params = self
+                    .functions
+                    .get(&key)
+                    .map(|s| s.params.clone())
+                    .unwrap_or_default();
+                let supplied = self.entry_params(&key, &params, f.name.span);
                 // A generic `main` has no one instance to call.
-                if !f.params.is_empty() || !f.type_params.is_empty() || bad_return {
+                if !supplied || !f.type_params.is_empty() || bad_return {
                     self.report(errors::bad_main(f.name.span));
                 }
             }
@@ -332,7 +339,7 @@ mod tests {
         );
         // C's text comes back as a copy.
         ok(
-            "extern fun getenv(k: string): Option<string>;\nfun main() { println(getenv(\"HOME\").debug()); }",
+            "extern fun getenv(k: string): Option<string>;\nfun main() { debug(getenv(\"HOME\").debug()); }",
         );
         assert_eq!(
             errors("extern fun f(): i64[];\nfun main() {}"),

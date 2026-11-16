@@ -1,6 +1,6 @@
 ## FEATURE: Capabilities, first step: `main` takes `args`, `Console` and `Fs` as parameters; the ambient intrinsics `print`, `println`, `eprint`, `eprintln`, `read_line`, `read_file`, `write_file`, `append_file`, `args` and `exit` are removed; milestone 180, in v18's Phase 2.
 
-**Status:** proposed 2026-11-16.
+**Status:** proposed 2026-11-16. Approved 2026-11-16.
 
 ## OBJECTIVE
 ```lugha
@@ -80,13 +80,22 @@ fun main(args: string[], console: Console, fs: Fs): i32 {
 - A user-facing migration command.
 
 ## TESTS
-- [ ] `tests/programs/capabilities/console_fs/`: the OBJECTIVE minus its error (runs, with stdin), `main` in every parameter order, a fake `Console` passed to a helper, E0471 for each removed intrinsic, E0304 for a wrong or repeated parameter.
-- [ ] A `@test` taking `Console` and `Fs`.
-- [ ] Checker unit tests for `main`'s parameters and E0471.
-- [ ] `python3 bench/run.py --check` to see printing through `Console` costs nothing measurable.
-- [ ] The full `cargo test`.
+- [x] `tests/programs/capabilities/console_fs/`: the OBJECTIVE minus its error (runs, with stdin), `main` in every parameter order, a fake `Console` passed to a helper, E0471 for each removed intrinsic, E0304 for a wrong or repeated parameter.
+- [x] A `@test` taking `Console` and `Fs`.
+- [x] Checker unit tests for `main`'s parameters and E0471.
+- [x] `python3 bench/run.py --check` to see printing through `Console` costs nothing measurable.
+- [x] The full `cargo test`.
 
 ## ACCEPTANCE
-- [ ] The OBJECTIVE gives E0471 at `println("old")` only, and once that line goes runs as its comments say.
-- [ ] The full `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
-- [ ] Spec, CHANGELOG and the error pages updated.
+- [x] The OBJECTIVE gives E0471 at `println("old")` only, and once that line goes runs as its comments say.
+- [x] The full `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
+- [x] Spec, CHANGELOG and the error pages updated.
+
+## CHANGES DURING THE BUILD
+- **Expected interfaces stop at operators and generic results:** `console.println("a" + s)` and `console.println(xs.iter().fold(…))` failed, because the expected `Display` typed the `+`'s operands and bound `fold`'s `A`. An expected interface now converts the finished value only: it doesn't reach an operator's operands or bind a type parameter that is the whole result.
+- **Printing what has no text** keeps its `.debug()` help through `Console`: `console.println([1])` and `console.println(nothing())` are E0422 with the debug-form help, as `println` was.
+- **Capabilities may be sent to actors** (E0439 no longer applies to `Console`, `Fs`, `Dir`), as the draft makes them sendable [CAP-14].
+- **E0471's wording:** "`read_file` needs an `Fs`", "`args()` is gone: `main` takes the arguments as a parameter", "`exit` is gone: a program ends by returning from `main`".
+- **`codegen/mod.rs` stays at 500 lines:** the entry's argument building lives in `codegen/lower.rs` beside the C `main`.
+- **Still ambient** (std's step, next): `read_bytes`, `write_bytes`, `append_bytes`, `read_stdin_bytes` and `flush`, beside `std.fs` and the other std modules; the draft's list named only the ten removed here.
+- **Migration:** the compiler's E0471 spans drove `main`'s rewrite; a script threaded `console: Console` / `fs: Fs` through helper functions and their callers, in programs, the spec and error pages and Rust tests' programs; programs that import `std.fs` name the capability `files`; the purity tests use `debug` as their impure call; printing iterators and interface items hold their `Console` in a field. The VS Code snippets and a grammar fixture changed (version bumped).

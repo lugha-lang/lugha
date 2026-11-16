@@ -40,7 +40,7 @@ fun parse_all(r: Rows): Result<Rows, string> {
 
 fun check(x: i64): Result<i64, string> = if x < 0 { Err("negative") } else { Ok(x + 1) };
 
-fun main() {
+fun main(console: Console) {
     let mut r = Rows { rows: [[1, 2, 3], [9]] };
     for x of mut r[0] {
         x *= 10;
@@ -48,24 +48,24 @@ fun main() {
             break;
         }
     }
-    println(r.rows.debug());
+    console.println(r.rows.debug());
 
     let mut spare = [7];
     swap(r[1], spare);
-    println((r.rows, spare).debug());
+    console.println((r.rows, spare).debug());
     swap(r[0], r[1]);
-    println(r.rows.debug());
+    console.println(r.rows.debug());
 
     let (r2, found) = first_over(Rows { rows: [[1, 5, 9]] }, 0, 6);
-    println((r2.rows, found).debug());
+    console.println((r2.rows, found).debug());
 
     match parse_all(Rows { rows: [[1, 2]] }) {
-        .Ok(p) => println(p.rows.debug()),
-        .Err(e) => println(e),
+        .Ok(p) => console.println(p.rows.debug()),
+        .Err(e) => console.println(e),
     }
     match parse_all(Rows { rows: [[1, -2, 3]] }) {
-        .Ok(p) => println(p.rows.debug()),
-        .Err(e) => println(e),
+        .Ok(p) => console.println(p.rows.debug()),
+        .Err(e) => console.println(e),
     }
 
     let mut g = Grid { rows: [Rows { rows: [[1, 1], [2]] }] };
@@ -75,5 +75,5 @@ fun main() {
             continue outer;
         }
     }
-    println(g.rows[0].rows.debug());
+    console.println(g.rows[0].rows.debug());
 }

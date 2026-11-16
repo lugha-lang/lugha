@@ -117,13 +117,13 @@ fun advance(bs: Body[], dt: f64): Body[] {
     bs
 }
 
-fun main() {
-    let steps = parse_i64(args()[1]).unwrap();
+fun main(args: string[], console: Console) {
+    let steps = parse_i64(args[1]).unwrap();
     // Each call takes the array on its last use, so nothing is copied.
     let mut bs = offset_momentum(bodies());
-    println("{energy(bs):.9}");
+    console.println("{energy(bs):.9}");
     for _ in 0..steps {
         bs = advance(bs, 0.01);
     }
-    println("{energy(bs):.9}");
+    console.println("{energy(bs):.9}");
 }

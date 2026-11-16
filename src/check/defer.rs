@@ -60,15 +60,17 @@ mod tests {
     use crate::check::test_util::{errors, ok};
 
     fn main(body: &str) -> String {
-        format!("fun f(): Result<i64, string> = Ok(1);\nfun main() {{ {body} }}")
+        format!("fun f(): Result<i64, string> = Ok(1);\nfun main(console: Console) {{ {body} }}")
     }
 
     #[test]
     fn a_unit_statement_or_block_is_accepted() {
-        ok(&main("let x = 1; defer println(x); defer { println(2); }"));
+        ok(&main(
+            "let x = 1; defer console.println(x); defer { console.println(2); }",
+        ));
         ok(&main("defer { let r = f(); }"));
         ok(&main("defer { let _ = f(); }"));
-        ok(&main("defer if true { println(1); }"));
+        ok(&main("defer if true { console.println(1); }"));
         ok(&main("defer panic(\"no\");"));
     }
 
@@ -99,9 +101,9 @@ mod tests {
         ok(&main("defer { while true { break; } }"));
         ok(&main("defer { for i in 0..3 { continue; } }"));
         ok(&main(
-            "defer { let g = fun(): i64 { return 1; }; println(g()); }",
+            "defer { let g = fun(): i64 { return 1; }; console.println(g()); }",
         ));
-        ok(&main("defer { defer println(1); }"));
+        ok(&main("defer { defer console.println(1); }"));
     }
 
     #[test]

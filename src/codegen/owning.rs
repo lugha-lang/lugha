@@ -163,7 +163,7 @@ mod tests {
     #[test]
     fn a_keeping_function_has_an_owning_instance_and_direct_calls_use_it() {
         let ir = ir(&format!(
-            "{BAG}fun main() {{ let mut bag = Bag {{ items: [] }}; bag = insert(bag, 1); let more = insert(bag, 2); println(total(bag) + total(more)); }}"
+            "{BAG}fun main(console: Console) {{ let mut bag = Bag {{ items: [] }}; bag = insert(bag, 1); let more = insert(bag, 2); console.println(total(bag) + total(more)); }}"
         ));
         assert!(ir.contains("define void @lugha_fn_insert("), "{ir}");
         assert!(
@@ -188,7 +188,7 @@ mod tests {
     #[test]
     fn a_function_value_calls_the_ordinary_instance() {
         let ir = ir(&format!(
-            "{BAG}fun main() {{ let f = insert; let b = f(Bag {{ items: [] }}, 1); println(total(b)); }}"
+            "{BAG}fun main(console: Console) {{ let f = insert; let b = f(Bag {{ items: [] }}, 1); console.println(total(b)); }}"
         ));
         let wrapper = body(&ir, "lugha_ref_insert");
         assert!(wrapper.contains("call void @lugha_fn_insert("), "{wrapper}");

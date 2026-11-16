@@ -10,13 +10,13 @@ fun update(m: Model, msg: Msg): Model = match msg {
     .Clear => Model { items: [], count: 0, ..m },
 };
 
-fun noisy(label: string, v: i64): i64 {
-    println(label);
+fun noisy(console: Console, label: string, v: i64): i64 {
+    console.println(label);
     v
 }
 
-fun base(): Model {
-    println("base");
+fun base(console: Console): Model {
+    console.println("base");
     Model { count: 0, name: "b", items: [] }
 }
 
@@ -25,30 +25,30 @@ struct Pair<A, B> { a: A, b: B }
 struct Inner { x: i64, y: i64 }
 struct Outer { inner: Inner, tag: string }
 
-fun main() {
+fun main(console: Console) {
     let m = Model { count: 0, name: "", items: ["a", "b"] };
     let m = update(m, Msg.Add);
     let m = update(m, Msg.Named("ada"));
-    println("{m.count} {m.name} {m.items.debug()}");
+    console.println("{m.count} {m.name} {m.items.debug()}");
     let cleared = update(m, Msg.Clear);
-    println("{cleared.count} {cleared.name} {cleared.items.debug()} / {m.items.debug()}");
+    console.println("{cleared.count} {cleared.name} {cleared.items.debug()} / {m.items.debug()}");
 
     // Written fields first, then the base, once.
-    let o = Model { count: noisy("count", 5), ..base() };
-    println(o.count);
+    let o = Model { count: noisy(console, "count", 5), ..base(console) };
+    console.println(o.count);
 
     // Copies: changing the copy's array leaves the base's alone.
     let mut copy = Model { count: 9, ..m };
     copy.items.push("c");
-    println("{copy.items.debug()} {m.items.debug()}");
+    console.println("{copy.items.debug()} {m.items.debug()}");
 
     // Generic: the base fixes the type arguments.
     let p = Pair { a: 1, b: "one" };
     let q = Pair { a: 2, ..p };
-    println("{q.a} {q.b}");
+    console.println("{q.a} {q.b}");
 
     // Nested.
     let out = Outer { inner: Inner { x: 1, y: 2 }, tag: "t" };
     let moved = Outer { inner: Inner { x: 10, ..out.inner }, ..out };
-    println("{moved.inner.x} {moved.inner.y} {moved.tag}");
+    console.println("{moved.inner.x} {moved.inner.y} {moved.tag}");
 }

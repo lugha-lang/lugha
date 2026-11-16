@@ -1,8 +1,8 @@
 error[E0422]: `i64[]` doesn't implement `Display`
-  --> tests/programs/text/printing/not_display.la:8:13
+  --> tests/programs/text/printing/not_display.la:8:21
   |
-8 |     println([1, 2]);
-  |             ^^^^^^
+8 |     console.println([1, 2]);
+  |                     ^^^^^^
   |
   = help: it has no text of its own: show its debug form with `.debug()`
 
@@ -23,10 +23,10 @@ error[E0422]: `P` doesn't implement `Display`
    = help: write `impl Display for P { fun show(self): string = … }`, or show its debug form with `.debug()`
 
 error[E0422]: `()` doesn't implement `Display`
-   --> tests/programs/text/printing/not_display.la:12:14
+   --> tests/programs/text/printing/not_display.la:12:22
    |
-12 |     eprintln(nothing());
-   |              ^^^^^^^^^
+12 |     console.eprintln(nothing());
+   |                      ^^^^^^^^^
    |
    = help: it has no text of its own: show its debug form with `.debug()`
 

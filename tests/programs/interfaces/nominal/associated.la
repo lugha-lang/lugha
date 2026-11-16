@@ -14,7 +14,7 @@ impl Maker for Widget {
 
 fun build<T: Maker>(sample: T): string = T.make().name();
 
-fun main() {
-    println(Widget.make().name());
-    println(build(Widget { id: 2 }));
+fun main(console: Console) {
+    console.println(Widget.make().name());
+    console.println(build(Widget { id: 2 }));
 }

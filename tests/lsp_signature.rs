@@ -15,12 +15,12 @@ impl Point { fun scale(self, k: f64): Point = Point { x: self.x * k }; }
 enum Shape { Circle(f64), Dot }
 fun twice(n: i64): i64 = n * 2;
 fun max<T: Ord>(a: T, b: T): T { if a > b { a } else { b } }
-fun main() {
+fun main(console: Console) {
     let p = Point { x: 1.0 };
     let xs = [1, 2];
-    println(max('a', 'b'));
-    println(p.x);
-    println(xs.len);
+    console.println(max('a', 'b'));
+    console.println(p.x);
+    console.println(xs.len);
 }
 ";
 
@@ -41,7 +41,7 @@ fn edited(cut: &str, typed: &str) -> (String, (u32, u32)) {
 
 /// `typed` on a new line before `println(p.x);`.
 fn new_line(typed: &str) -> (String, (u32, u32)) {
-    edited("    println(p.x);", &format!("    {typed}"))
+    edited("    console.println(p.x);", &format!("    {typed}"))
 }
 
 /// The signature help at `at` after `MAIN` was checked and changed to `text`.
@@ -127,10 +127,10 @@ fn methods_modules_variants_and_built_ins_have_signatures() {
 
 #[test]
 fn intrinsics_show_the_specs_call_form() {
-    let (text, at) = new_line("read_file(");
-    assert_eq!(help(&text, at), shown("read_file(path)", 0, "path"));
-    let (text, at) = new_line("println(");
-    assert_eq!(help(&text, at), shown("println(x)", 0, "x"));
+    let (text, at) = new_line("read_bytes(");
+    assert_eq!(help(&text, at), shown("read_bytes(path)", 0, "path"));
+    let (text, at) = new_line("parse_i64(");
+    assert_eq!(help(&text, at), shown("parse_i64(s)", 0, "s"));
 }
 
 #[test]

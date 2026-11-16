@@ -3,7 +3,7 @@
 // element, and an OS-seeded generator (its values checked only for range).
 import std.random;
 
-fun main() {
+fun main(console: Console) {
     let mut rng = random.seeded(7);
     let mut lo = 100;
     let mut hi = -100;
@@ -14,30 +14,30 @@ fun main() {
         if n > hi { hi = n; }
         hits[rng.below(4)] += 1;
     }
-    println("between(-3, 4) over 10000 draws: min {lo}, max {hi}");
+    console.println("between(-3, 4) over 10000 draws: min {lo}, max {hi}");
     let even = hits.iter().all(fun(h: i64): bool = h > 2300 && h < 2700);
-    println("below(4) roughly even: {even}");
+    console.println("below(4) roughly even: {even}");
 
     let mut sum = 0.0;
     for i in 0..10000 {
         sum += rng.normal(5.0, 2.0);
     }
     let mean = sum / 10000.0;
-    println("normal(5, 2) mean near 5: {mean > 4.9 && mean < 5.1}");
+    console.println("normal(5, 2) mean near 5: {mean > 4.9 && mean < 5.1}");
     let x: f32 = rng.normal(0.0, 1.0);
-    println("an f32 normal: {x < 10.0}");
+    console.println("an f32 normal: {x < 10.0}");
 
-    println("chance(0.0): {rng.chance(0.0)}, chance(1.0): {rng.chance(1.0)}");
+    console.println("chance(0.0): {rng.chance(0.0)}, chance(1.0): {rng.chance(1.0)}");
     let none: i64[] = [];
-    println("choice([]): {rng.choice(none).debug()}");
+    console.println("choice([]): {rng.choice(none).debug()}");
 
     let xs = [5, 3, 9, 1, 7, 2];
     let shuffled = rng.shuffle(xs);
-    println("shuffle keeps every element: {shuffled.sort_by(fun(a: i64, b: i64): bool = a < b) == xs.sort_by(fun(a: i64, b: i64): bool = a < b)}");
-    println("shuffle leaves the original: {xs.debug()}");
+    console.println("shuffle keeps every element: {shuffled.sort_by(fun(a: i64, b: i64): bool = a < b) == xs.sort_by(fun(a: i64, b: i64): bool = a < b)}");
+    console.println("shuffle leaves the original: {xs.debug()}");
 
     let mut os = random.from_os();
     let u = os.uniform();
     let d = os.below(6);
-    println("from_os in range: {u >= 0.0 && u < 1.0 && d >= 0 && d < 6}");
+    console.println("from_os in range: {u >= 0.0 && u < 1.0 && d >= 0 && d < 6}");
 }

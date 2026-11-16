@@ -51,8 +51,8 @@ fn blocks_indent_four_spaces_and_nest() {
 #[test]
 fn if_else_chains_keep_else_on_the_closing_line() {
     check(
-        "fun f(x:i64):i64{if x<0{print(1);1}else if x==0{2}else{3}}",
-        "fun f(x: i64): i64 {\n    if x < 0 {\n        print(1);\n        1\n    } else if x == 0 {\n        2\n    } else {\n        3\n    }\n}\n",
+        "fun f(console: Console, x:i64):i64{if x<0{console.print(1);1}else if x==0{2}else{3}}",
+        "fun f(console: Console, x: i64): i64 {\n    if x < 0 {\n        console.print(1);\n        1\n    } else if x == 0 {\n        2\n    } else {\n        3\n    }\n}\n",
     );
 }
 
@@ -147,8 +147,8 @@ fn literals_and_names_are_kept_as_written() {
         "fun f() {\n    let a = 0xFF;\n    let b = 1_000;\n    let c = \"a\\n{b}\";\n    let d = '\\u{1F600}';\n    let e = 1.5e3;\n}\n",
     );
     check(
-        "fun f(){print(format(\"{:>4}\",x));}",
-        "fun f() {\n    print(format(\"{:>4}\", x));\n}\n",
+        "fun f(console: Console){console.print(format(\"{:>4}\",x));}",
+        "fun f(console: Console) {\n    console.print(format(\"{:>4}\", x));\n}\n",
     );
 }
 
@@ -389,8 +389,8 @@ fn a_header_stays_whole_while_its_body_can_break() {
 #[test]
 fn defer_keeps_its_statement_or_block() {
     check(
-        "fun f(){defer  println(1);defer{g();};defer if c {g();}}",
-        "fun f() {\n    defer println(1);\n    defer {\n        g();\n    }\n    defer if c {\n        g();\n    }\n}\n",
+        "fun f(console: Console){defer  console.println(1);defer{g();};defer if c {g();}}",
+        "fun f(console: Console) {\n    defer console.println(1);\n    defer {\n        g();\n    }\n    defer if c {\n        g();\n    }\n}\n",
     );
 }
 

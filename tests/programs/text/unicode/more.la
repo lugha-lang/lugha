@@ -4,17 +4,17 @@
 
 struct Glyph { c: char, n: i64 }
 
-fun main() {
-    match read_line() {
-        .Some(line) => println(line.chars().collect().debug()),
-        .None => println("none"),
+fun main(console: Console) {
+    match console.read_line() {
+        .Some(line) => console.println(line.chars().collect().debug()),
+        .None => console.println("none"),
     }
-    println((-1).try_into<char>().unwrap_or('\u{FFFD}'));
-    println(1114111.try_into<char>().unwrap_or('\u{FFFD}') as u32);
-    println(1114112.try_into<char>().unwrap_or('\u{FFFD}') as u32);
-    println(57343.try_into<char>().unwrap_or('\u{FFFD}') as u32);
-    println(char_from(57344).is_some());
-    println([
+    console.println((-1).try_into<char>().unwrap_or('\u{FFFD}'));
+    console.println(1114111.try_into<char>().unwrap_or('\u{FFFD}') as u32);
+    console.println(1114112.try_into<char>().unwrap_or('\u{FFFD}') as u32);
+    console.println(57343.try_into<char>().unwrap_or('\u{FFFD}') as u32);
+    console.println(char_from(57344).is_some());
+    console.println([
         'ß'.is_lower(),
         'ß'.to_upper() == 'ß',
         'ÿ'.to_upper() == 'ÿ',
@@ -23,10 +23,10 @@ fun main() {
         'Ä'.to_lower() == 'ä',
         '×'.is_alphabetic(),
     ].debug());
-    println("[{'x':<3}][{'é':^5}]");
-    println((Glyph { c: 'x', n: 1 }).debug());
+    console.println("[{'x':<3}][{'é':^5}]");
+    console.println((Glyph { c: 'x', n: 1 }).debug());
     let c = 'q';
     if c == 'q' {
-        println("quit");
+        console.println("quit");
     }
 }

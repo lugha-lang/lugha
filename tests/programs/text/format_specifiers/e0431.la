@@ -1,7 +1,7 @@
-fun main() {
+fun main(console: Console) {
     let n = 1;
     let f = 2.5;
-    println("{n:.2}");
-    println("{f:x}");
-    println("{"s":05}");
+    console.println("{n:.2}");
+    console.println("{f:x}");
+    console.println("{"s":05}");
 }

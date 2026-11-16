@@ -24,12 +24,12 @@ impl Light {
     };
 }
 
-fun main() {
+fun main(console: Console) {
     let p = Point.unit().plus(Point { x: 2, y: 3 });
-    println(p.name());
-    println(p.describe());
+    console.println(p.name());
+    console.println(p.describe());
     match Light.Red.toggle() {
-        .Green => println("green"),
-        .Red => println("red"),
+        .Green => console.println("green"),
+        .Red => console.println("red"),
     }
 }

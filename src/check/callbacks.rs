@@ -260,10 +260,10 @@ mod tests {
     fn callers_write_neither_data_nor_release() {
         ok(&with(
             "fun by(a: i64, b: i64): i32 = if a < b { -1 } else { 1 };\n\
-             fun main() {\n\
+             fun main(console: Console) {\n\
                  let count = Ref.new(0);\n\
                  connect(make(), fun(w: W) { count.update(fun(n) = n + 1); }, 0);\n\
-                 connect(make(), fun(w) { println(w.debug()); }, 1);\n\
+                 connect(make(), fun(w) { console.println(w.debug()); }, 1);\n\
                  sort(3, by);\n\
                  sort(3, fun(a, b) = 0);\n\
              }",
@@ -364,7 +364,7 @@ mod tests {
             "extern fun lines(f: fun(string, Option<string>, data), u: data);\n\
             extern fun title(): string;\nextern fun find(k: string): Option<string>;\n\
             extern fun label(s: Option<string>);\n\
-            fun main() { lines(fun(a, b) { println(a); }); println(title()); label(find(\"k\")); }",
+            fun main(console: Console) { lines(fun(a, b) { console.println(a); }); console.println(title()); label(find(\"k\")); }",
         );
         assert_eq!(
             errors("extern fun f(cb: fun(i64): string);\nfun main() {}"),

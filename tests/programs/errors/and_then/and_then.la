@@ -8,19 +8,19 @@ fun number(s: string): Result<i64, string> = match parse_i64(s.trim()) {
     .None => Err("not a number: {s}"),
 };
 
-fun main() {
-    println(Some(12).and_then(half).and_then(half).debug());
-    println(Some(6).and_then(half).and_then(half).debug());
+fun main(console: Console) {
+    console.println(Some(12).and_then(half).and_then(half).debug());
+    console.println(Some(6).and_then(half).and_then(half).debug());
     let none: Option<i64> = None;
-    println(none.and_then(half).debug());
-    println((Some(3).and_then(fun(n) = Some(n * 10))).debug());
+    console.println(none.and_then(half).debug());
+    console.println((Some(3).and_then(fun(n) = Some(n * 10))).debug());
     let good: Result<string, string> = Ok(" 42 ");
     let bad: Result<string, string> = Ok("x");
     let failed: Result<string, string> = Err("no file");
-    println(good.and_then(number).debug());
-    println(bad.and_then(number).debug());
-    println(failed.and_then(number).debug());
+    console.println(good.and_then(number).debug());
+    console.println(bad.and_then(number).debug());
+    console.println(failed.and_then(number).debug());
     let doc = toml.parse("[app]\nname = \"koi\"\nport = 80").unwrap();
-    println(toml.get(doc, "app.name").and_then(toml.as_text).debug());
-    println(toml.get(doc, "app.port").and_then(toml.as_text).debug());
+    console.println(toml.get(doc, "app.name").and_then(toml.as_text).debug());
+    console.println(toml.get(doc, "app.port").and_then(toml.as_text).debug());
 }

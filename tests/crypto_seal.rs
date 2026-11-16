@@ -102,10 +102,10 @@ fun flipped(bytes: u8[], at: i64): u8[] {
 fn chacha20poly1305_matches_rfc_8439_both_ways() {
     let out = run(&format!(
         "{RFC_8439}
-fun main() {{
-    println(hex(crypto.chacha20poly1305_seal(key(), nonce(), plain(), aad()).unwrap()) == hex(sealed()));
+fun main(console: Console) {{
+    console.println(hex(crypto.chacha20poly1305_seal(key(), nonce(), plain(), aad()).unwrap()) == hex(sealed()));
     let opened = crypto.chacha20poly1305_open(key(), nonce(), sealed(), aad()).unwrap();
-    println(opened == plain());
+    console.println(opened == plain());
 }}"
     ));
     assert_eq!(out, "true\ntrue\n");
@@ -115,17 +115,17 @@ fun main() {{
 fn any_changed_byte_or_wrong_key_is_not_authentic() {
     let out = run(&format!(
         "{RFC_8439}
-fun main() {{
+fun main(console: Console) {{
     let n = sealed().len;
-    println(show(crypto.chacha20poly1305_open(key(), nonce(), flipped(sealed(), 0), aad())));
-    println(show(crypto.chacha20poly1305_open(key(), nonce(), flipped(sealed(), n - 1), aad())));
-    println(show(crypto.chacha20poly1305_open(key(), nonce(), sealed(), flipped(aad(), 3))));
-    println(show(crypto.chacha20poly1305_open(key(), flipped(nonce(), 11), sealed(), aad())));
-    println(show(crypto.chacha20poly1305_open(flipped(key(), 5), nonce(), sealed(), aad())));
-    println(show(crypto.chacha20poly1305_open(key(), nonce(), sealed(), [])));
+    console.println(show(crypto.chacha20poly1305_open(key(), nonce(), flipped(sealed(), 0), aad())));
+    console.println(show(crypto.chacha20poly1305_open(key(), nonce(), flipped(sealed(), n - 1), aad())));
+    console.println(show(crypto.chacha20poly1305_open(key(), nonce(), sealed(), flipped(aad(), 3))));
+    console.println(show(crypto.chacha20poly1305_open(key(), flipped(nonce(), 11), sealed(), aad())));
+    console.println(show(crypto.chacha20poly1305_open(flipped(key(), 5), nonce(), sealed(), aad())));
+    console.println(show(crypto.chacha20poly1305_open(key(), nonce(), sealed(), [])));
     match crypto.chacha20poly1305_open(key(), nonce(), flipped(sealed(), 7), aad()) {{
-        .Err(.NotAuthentic) => println(\"refused\"),
-        _ => println(\"accepted\"),
+        .Err(.NotAuthentic) => console.println(\"refused\"),
+        _ => console.println(\"accepted\"),
     }}
 }}"
     ));
@@ -137,15 +137,15 @@ fun main() {{
 fn empty_plaintext_and_aad_and_every_bad_length() {
     let out = run(&format!(
         "{RFC_8439}
-fun main() {{
+fun main(console: Console) {{
     let tag_only = crypto.chacha20poly1305_seal(key(), nonce(), [], []).unwrap();
-    println(tag_only.len);
-    println(crypto.chacha20poly1305_open(key(), nonce(), tag_only, []).unwrap().len);
+    console.println(tag_only.len);
+    console.println(crypto.chacha20poly1305_open(key(), nonce(), tag_only, []).unwrap().len);
     let short_key = first(key(), 31);
-    println(show(crypto.chacha20poly1305_seal(short_key, nonce(), plain(), [])));
-    println(show(crypto.chacha20poly1305_open(short_key, nonce(), sealed(), [])));
-    println(show(crypto.chacha20poly1305_seal(key(), first(nonce(), 11), plain(), [])));
-    println(show(crypto.chacha20poly1305_open(key(), nonce(), first(sealed(), 15), [])));
+    console.println(show(crypto.chacha20poly1305_seal(short_key, nonce(), plain(), [])));
+    console.println(show(crypto.chacha20poly1305_open(short_key, nonce(), sealed(), [])));
+    console.println(show(crypto.chacha20poly1305_seal(key(), first(nonce(), 11), plain(), [])));
+    console.println(show(crypto.chacha20poly1305_open(key(), nonce(), first(sealed(), 15), [])));
 }}"
     ));
     assert_eq!(
@@ -160,12 +160,12 @@ fun main() {{
 
 #[test]
 fn x25519_matches_rfc_7748() {
-    let out = run("fun main() {
+    let out = run("fun main(console: Console) {
     // RFC 7748's scalar and u-coordinate vectors.
-    println(show(crypto.x25519_shared(
+    console.println(show(crypto.x25519_shared(
         unhex(\"a546e36bf0527c9d3b16154b82465edd62144c0ac1fc5a18506a2244ba449ac4\"),
         unhex(\"e6db6867583030db3594c1a424b15f7c726624ec26b3353b10a903a6d0ab1c4c\"))));
-    println(show(crypto.x25519_shared(
+    console.println(show(crypto.x25519_shared(
         unhex(\"4b66e9d4d1b4673c5ad22691957d6af5c11b6421e0ea01d42ca4169e7918ba0d\"),
         unhex(\"e5210f12786811d3f4b7959d0538ae2c31dbe7106fc03c3efc4cd549c715a493\"))));
     // RFC 7748's Alice and Bob.
@@ -173,10 +173,10 @@ fn x25519_matches_rfc_7748() {
     let bob = unhex(\"5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb\");
     let alice_public = crypto.x25519_public(alice).unwrap();
     let bob_public = crypto.x25519_public(bob).unwrap();
-    println(hex(alice_public));
-    println(hex(bob_public));
-    println(show(crypto.x25519_shared(alice, bob_public)));
-    println(show(crypto.x25519_shared(bob, alice_public)));
+    console.println(hex(alice_public));
+    console.println(hex(bob_public));
+    console.println(show(crypto.x25519_shared(alice, bob_public)));
+    console.println(show(crypto.x25519_shared(bob, alice_public)));
 }");
     assert_eq!(
         out,
@@ -191,22 +191,22 @@ fn x25519_matches_rfc_7748() {
 
 #[test]
 fn x25519_keypairs_agree_and_bad_keys_are_refused() {
-    let out = run("fun main() {
+    let out = run("fun main(console: Console) {
     let (a, a_public) = crypto.x25519_keypair().unwrap();
     let (b, b_public) = crypto.x25519_keypair().unwrap();
-    println(a.len == 32 && a_public.len == 32 && a != b);
-    println(crypto.x25519_public(a).unwrap() == a_public);
-    println(crypto.x25519_shared(a, b_public).unwrap() == crypto.x25519_shared(b, a_public).unwrap());
+    console.println(a.len == 32 && a_public.len == 32 && a != b);
+    console.println(crypto.x25519_public(a).unwrap() == a_public);
+    console.println(crypto.x25519_shared(a, b_public).unwrap() == crypto.x25519_shared(b, a_public).unwrap());
     // Low-order points: zero, and RFC 7748's point of order 8.
-    println(show(crypto.x25519_shared(a, [0 as u8; 32])));
+    console.println(show(crypto.x25519_shared(a, [0 as u8; 32])));
     let order_8 = unhex(\"e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800\");
     match crypto.x25519_shared(a, order_8) {
-        .Err(.BadKey(why)) => println(\"refused: {why}\"),
-        _ => println(\"accepted\"),
+        .Err(.BadKey(why)) => console.println(\"refused: {why}\"),
+        _ => console.println(\"accepted\"),
     }
-    println(show(crypto.x25519_public(first(a, 31))));
-    println(show(crypto.x25519_shared(first(a, 31), b_public)));
-    println(show(crypto.x25519_shared(a, [1 as u8; 33])));
+    console.println(show(crypto.x25519_public(first(a, 31))));
+    console.println(show(crypto.x25519_shared(first(a, 31), b_public)));
+    console.println(show(crypto.x25519_shared(a, [1 as u8; 33])));
 }");
     assert_eq!(
         out,
@@ -257,18 +257,18 @@ fun flipped(bytes: u8[], at: i64): u8[] {
 fn hpke_opens_rfc_9180_and_round_trips() {
     let out = run(&format!(
         "{RFC_9180}
-fun main() {{
-    println(crypto.hpke_open(sk_r(), info(), sealed(), aad()).unwrap() == plain());
+fun main(console: Console) {{
+    console.println(crypto.hpke_open(sk_r(), info(), sealed(), aad()).unwrap() == plain());
     let (secret, key) = crypto.x25519_keypair().unwrap();
     let once = crypto.hpke_seal(key, info(), plain(), aad()).unwrap();
     let twice = crypto.hpke_seal(key, info(), plain(), aad()).unwrap();
-    println(once.len);
-    println(once != twice);
-    println(crypto.hpke_open(secret, info(), once, aad()).unwrap() == plain());
+    console.println(once.len);
+    console.println(once != twice);
+    console.println(crypto.hpke_open(secret, info(), once, aad()).unwrap() == plain());
     let bare = crypto.hpke_seal(key, [], [7 as u8], []).unwrap();
-    println(bare.len);
-    println(crypto.hpke_open(secret, [], bare, []).unwrap() == [7 as u8]);
-    println(show(crypto.hpke_seal(key, [], [], [])));
+    console.println(bare.len);
+    console.println(crypto.hpke_open(secret, [], bare, []).unwrap() == [7 as u8]);
+    console.println(show(crypto.hpke_seal(key, [], [], [])));
 }}"
     ));
     assert_eq!(
@@ -281,28 +281,28 @@ fun main() {{
 fn hpke_refuses_tampering_bad_keys_and_bad_lengths() {
     let out = run(&format!(
         "{RFC_9180}
-fun main() {{
+fun main(console: Console) {{
     let n = sealed().len;
     // The encapsulated key, the ciphertext, the tag, info, aad, another secret.
-    println(show(crypto.hpke_open(sk_r(), info(), flipped(sealed(), 0), aad())));
-    println(show(crypto.hpke_open(sk_r(), info(), flipped(sealed(), 40), aad())));
-    println(show(crypto.hpke_open(sk_r(), info(), flipped(sealed(), n - 1), aad())));
-    println(show(crypto.hpke_open(sk_r(), flipped(info(), 0), sealed(), aad())));
-    println(show(crypto.hpke_open(sk_r(), info(), sealed(), flipped(aad(), 0))));
+    console.println(show(crypto.hpke_open(sk_r(), info(), flipped(sealed(), 0), aad())));
+    console.println(show(crypto.hpke_open(sk_r(), info(), flipped(sealed(), 40), aad())));
+    console.println(show(crypto.hpke_open(sk_r(), info(), flipped(sealed(), n - 1), aad())));
+    console.println(show(crypto.hpke_open(sk_r(), flipped(info(), 0), sealed(), aad())));
+    console.println(show(crypto.hpke_open(sk_r(), info(), sealed(), flipped(aad(), 0))));
     let (other, _) = crypto.x25519_keypair().unwrap();
-    println(show(crypto.hpke_open(other, info(), sealed(), aad())));
+    console.println(show(crypto.hpke_open(other, info(), sealed(), aad())));
     // Low-order keys.
-    println(show(crypto.hpke_seal([0 as u8; 32], info(), plain(), aad())));
+    console.println(show(crypto.hpke_seal([0 as u8; 32], info(), plain(), aad())));
     let mut zero_enc = sealed();
     for i in 0..32 {{
         zero_enc[i] = 0;
     }}
-    println(show(crypto.hpke_open(sk_r(), info(), zero_enc, aad())));
+    console.println(show(crypto.hpke_open(sk_r(), info(), zero_enc, aad())));
     // Lengths.
-    println(show(crypto.hpke_seal([1 as u8; 31], info(), plain(), aad())));
-    println(show(crypto.hpke_open([1 as u8; 33], info(), sealed(), aad())));
-    println(show(crypto.hpke_open(sk_r(), info(), first(sealed(), 47), aad())));
-    println(show(crypto.hpke_seal(crypto.x25519_public(sk_r()).unwrap(), [0 as u8; 1025], plain(), aad())));
+    console.println(show(crypto.hpke_seal([1 as u8; 31], info(), plain(), aad())));
+    console.println(show(crypto.hpke_open([1 as u8; 33], info(), sealed(), aad())));
+    console.println(show(crypto.hpke_open(sk_r(), info(), first(sealed(), 47), aad())));
+    console.println(show(crypto.hpke_seal(crypto.x25519_public(sk_r()).unwrap(), [0 as u8; 1025], plain(), aad())));
 }}"
     ));
     let refused = "the sealed bytes don't match their key, nonce and associated data\n";

@@ -50,7 +50,7 @@ fn std_defined(name: &str, src: &str) -> Vec<String> {
 fn only_what_a_program_reaches_is_compiled() {
     let defined = std_defined(
         "random",
-        "import std.random;\nfun main() { let mut r = random.seeded(1); println(r.below(6)); }\n",
+        "import std.random;\nfun main(console: Console) { let mut r = random.seeded(1); console.println(r.below(6)); }\n",
     );
     for used in ["random/seeded", "random/Rng.below", "random/Rng.next_u64"] {
         assert!(defined.iter().any(|d| d == used), "{used}: {defined:?}");
@@ -70,7 +70,7 @@ fn only_what_a_program_reaches_is_compiled() {
     }
     let math = std_defined(
         "math",
-        "import std.math;\nfun main() { println(math.sqrt(2.0)); }\n",
+        "import std.math;\nfun main(console: Console) { console.println(math.sqrt(2.0)); }\n",
     );
     assert!(math.iter().all(|d| d.starts_with("math/sqrt")), "{math:?}");
 }
@@ -91,13 +91,13 @@ fun first<B: Bits>(b: B): u64 {
     c.next_u64()
 }
 
-fun main() {
+fun main(console: Console) {
     let f = math.pi;
-    println(f());
+    console.println(f());
     let mut d: Draw = random.seeded(2);
-    println(d.uniform());
-    println(first(random.seeded(3)));
-    println(math.clamp(5, 0, 3));
+    console.println(d.uniform());
+    console.println(first(random.seeded(3)));
+    console.println(math.clamp(5, 0, 3));
 }
 ";
     let defined = std_defined("reach", src);
@@ -123,7 +123,7 @@ fun main() {
 #[test]
 fn every_sum_is_one_generic_helper() {
     let dir = Dir::new("sum");
-    let src = "fun main() { let a: f64[] = [1.0]; println(a.iter().sum()); println([1, 2].iter().sum()); }\n";
+    let src = "fun main(console: Console) { let a: f64[] = [1.0]; console.println(a.iter().sum()); console.println([1, 2].iter().sum()); }\n";
     std::fs::write(dir.0.join("main.la"), src).expect("temp dir is writable");
     let out = Command::new(env!("CARGO_BIN_EXE_lughac"))
         .args(["build", "--emit=ir", "main.la"])

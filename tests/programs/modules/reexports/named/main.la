@@ -15,9 +15,9 @@ fun name(d: Dir): string = match d {
     .Down => "down",
 };
 
-fun main() {
+fun main(console: Console) {
     let v: Vec2 = add(Vec2 { x: 1, y: 2 }, all.Vec2 { x: 10, y: 20 });
-    println(v.x + v.y);
-    println(name(Dir.Down));
-    println(big(Box { n: 3 }));
+    console.println(v.x + v.y);
+    console.println(name(Dir.Down));
+    console.println(big(Box { n: 3 }));
 }

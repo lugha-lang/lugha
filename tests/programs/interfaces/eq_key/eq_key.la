@@ -16,12 +16,12 @@ impl Key for Email {
 
 struct Note { text: string }
 
-fun main() {
+fun main(console: Console) {
     let seen = Map { Point { x: 1, y: 2 }: "a" };
-    println(seen[Point { x: 1, y: 2 }]);
-    println(Reading { at: 1, value: 0.5 } == Reading { at: 1, value: 0.5 });
+    console.println(seen[Point { x: 1, y: 2 }]);
+    console.println(Reading { at: 1, value: 0.5 } == Reading { at: 1, value: 0.5 });
     let users = Map { Email { address: "Ann@x.com" }: 1 };
-    println(users.has(Email { address: " Ann@x.com " }));
-    println(1.5 == 1.5);
+    console.println(users.has(Email { address: " Ann@x.com " }));
+    console.println(1.5 == 1.5);
     assert_key_laws(Email { address: "Ann@x.com" }, Email { address: " Ann@x.com" });
 }

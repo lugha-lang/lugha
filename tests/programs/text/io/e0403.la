@@ -1,4 +1,4 @@
-fun main() {
+fun main(fs: Fs) {
     let path = 7;
-    let written = write_file(path, "text");
+    let written = fs.cwd().write_file(path, "text");
 }

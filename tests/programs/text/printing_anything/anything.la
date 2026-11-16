@@ -11,12 +11,12 @@ impl Display for Square {
 
 struct Bad { code: i64 }
 
-fun main() {
+fun main(console: Console) {
     let shapes: Shape[] = [Circle { r: 2.0 }, Square { side: 3 }];
     for s of shapes {
-        println(s.debug());
+        console.println(s.debug());
     }
-    println((fun(x: i64): i64 = x).debug());
+    console.println((fun(x: i64): i64 = x).debug());
     let r: Result<i64, Bad> = Err(Bad { code: 7 });
-    println(r.unwrap());
+    console.println(r.unwrap());
 }

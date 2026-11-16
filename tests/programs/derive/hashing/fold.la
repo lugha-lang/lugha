@@ -39,10 +39,10 @@ fun count<T: Count>(x: T): i64 = x.count();
 struct P { a: i64, b: string, c: (i64, i64) } with Count
 enum Shape { Dot, Line(i64, i64), Named(string, i64) } with Count
 
-fun main() {
-    println(count(P { a: 1, b: "x", c: (2, 3) }));
-    println(count(Shape.Dot));
-    println(count(Shape.Line(4, 5)));
-    println(count(Shape.Named("n", 6)));
-    println(count(c_malloc(8)));
+fun main(console: Console) {
+    console.println(count(P { a: 1, b: "x", c: (2, 3) }));
+    console.println(count(Shape.Dot));
+    console.println(count(Shape.Line(4, 5)));
+    console.println(count(Shape.Named("n", 6)));
+    console.println(count(c_malloc(8)));
 }

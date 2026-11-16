@@ -1,4 +1,4 @@
-fun main() {
+fun main(console: Console) {
     let big = [9223372036854775807, 1];
-    println(big.iter().sum());
+    console.println(big.iter().sum());
 }

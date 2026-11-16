@@ -15,13 +15,13 @@ struct Point { x: f64 }
 enum Shape { Round(f64), Dot }
 const LIMIT: i64 = 10;
 fun same<T>(v: T): T = v;
-fun main() {
+fun main(console: Console) {
     let mut p = Point { x: 1.0 };
     p.x = 2.0;
     let s = Shape.Round(p.x);
-    match s { .Round(r) => println(r), .Dot => {} }
-    println(\"n = {geo.double(LIMIT)}\");
-    println(same(3));
+    match s { .Round(r) => console.println(r), .Dot => {} }
+    console.println(\"n = {geo.double(LIMIT)}\");
+    console.println(same(3));
 }
 ";
 
@@ -191,24 +191,24 @@ fn names_are_classified_by_what_they_resolve_to() {
     check("p.x = 2.0", "p", "variable", &["mutable"]);
     check("let s", "s", "variable", &["declaration"]);
     check("geo.double", "double", "function", &[]);
-    check("println(same", "println", "function", &["defaultLibrary"]);
+    check("println(same", "println", "method", &["defaultLibrary"]);
     check("println(same", "same", "function", &[]);
     assert_eq!(s.finish(), Some(0));
 }
 
 #[test]
 fn an_unresolved_name_has_no_token() {
-    let text = "fun main() {\n    println(nope);\n}\n";
+    let text = "fun main(console: Console) {\n    console.println(nope);\n}\n";
     let t = Temp::with(&[("main.la", text)]);
     let uri = t.uri("main.la");
     let mut s = Server::start(&t, json!({}));
     s.open(&uri, text);
     s.expect(&uri, &["E0301"]);
     let all = tokens(&mut s, &uri);
-    assert!(!all.iter().any(|t| t.line == 1 && t.col == 12), "{all:?}");
+    assert!(!all.iter().any(|t| t.line == 1 && t.col == 20), "{all:?}");
     assert!(
         all.iter()
-            .any(|t| t.line == 1 && t.col == 4 && t.kind == "function")
+            .any(|t| t.line == 1 && t.col == 12 && t.kind == "method")
     );
     assert_eq!(s.finish(), Some(0));
 }

@@ -21,38 +21,38 @@ enum Tree { Leaf(i64), Node(Tree, Tree), Empty } with Eq
 
 fun same<T: Eq>(a: T, b: T): bool = a == b;
 
-fun main() {
+fun main(console: Console) {
     let a = User { id: 7, name: "ada", seen: 1 };
     let b = User { id: 7, name: "Ada", seen: 9 };
-    println(a == b);
-    println(a != User { id: 8, name: "ada", seen: 1 });
+    console.println(a == b);
+    console.println(a != User { id: 8, name: "ada", seen: 1 });
     let mut names: Map<User, string> = Map {};
     names.insert(a, "first");
     names.insert(b, "second");
     let other = User { id: 7, name: "x", seen: 0 };
-    println("{names.len} {names.get(other).debug()}");
+    console.println("{names.len} {names.get(other).debug()}");
     // As a field, the own `eq` is used too.
-    println(Team { lead: a, size: 3 } == Team { lead: b, size: 3 });
-    println(same(a, b));
+    console.println(Team { lead: a, size: 3 } == Team { lead: b, size: 3 });
+    console.println(same(a, b));
 
-    println(Point { x: 1, y: 2 } == Point { x: 1, y: 2 });
-    println([Some(1), None] != [Some(1), Some(2)]);
-    println((1, "a", 'c') == (1, "a", 'c'));
-    println(Tree.Node(Tree.Leaf(1), Tree.Empty) == Tree.Node(Tree.Leaf(1), Tree.Empty));
-    println(Tree.Node(Tree.Leaf(1), Tree.Empty) == Tree.Node(Tree.Empty, Tree.Leaf(1)));
+    console.println(Point { x: 1, y: 2 } == Point { x: 1, y: 2 });
+    console.println([Some(1), None] != [Some(1), Some(2)]);
+    console.println((1, "a", 'c') == (1, "a", 'c'));
+    console.println(Tree.Node(Tree.Leaf(1), Tree.Empty) == Tree.Node(Tree.Leaf(1), Tree.Empty));
+    console.println(Tree.Node(Tree.Leaf(1), Tree.Empty) == Tree.Node(Tree.Empty, Tree.Leaf(1)));
     let m1: Map<string, i64> = Map { "a": 1, "b": 2 };
     let m2: Map<string, i64> = Map { "b": 2, "a": 1 };
     let s1: Set<i64> = Set { 1, 2, 3 };
     let s2: Set<i64> = Set { 3, 2, 1 };
     let m3: Map<string, i64> = Map { "a": 1 };
-    println("{m1 == m2} {s1 == s2} {m1 != m3}");
+    console.println("{m1 == m2} {s1 == s2} {m1 != m3}");
     let p = c_malloc(8);
-    println("{p == p} {p == c_malloc(8)}");
+    console.println("{p == p} {p == c_malloc(8)}");
     let nan = 0.0 / 0.0;
-    println("{nan == nan} {[1.5] == [1.5]}");
+    console.println("{nan == nan} {[1.5] == [1.5]}");
     // Any `Key` value can be hashed; equal values hash equal.
     let pair = (1, "x");
-    println("{hashed(a) == hashed(b)} {hashed(pair) == hashed((1, "x"))} {hashed([1, 2]) == hashed([2, 1])}");
+    console.println("{hashed(a) == hashed(b)} {hashed(pair) == hashed((1, "x"))} {hashed([1, 2]) == hashed([2, 1])}");
 }
 
 fun hashed<T: Key>(x: T): u64 {

@@ -120,7 +120,7 @@ fun weight(s: Shape): i64 = match s {
     .Named(n, w) => n.len + w.g0,
 };
 
-fun main() {
+fun main(console: Console) {
     let first = grow(shape(1));
     let mut total = 0;
     let mut i = 0;
@@ -140,6 +140,6 @@ fun main() {
         i += 1;
     }
     let last = grow(shape(2));
-    println(total);
-    println("{weight(first)} {weight(last)}");
+    console.println(total);
+    console.println("{weight(first)} {weight(last)}");
 }

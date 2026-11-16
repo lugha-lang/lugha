@@ -8,32 +8,32 @@ enum Shape { Line((f64, f64), (f64, f64)), Dot }
 
 fun swap_pair<A, B>(p: (A, B)): (B, A) = (p.1, p.0);
 
-fun main() {
+fun main(console: Console) {
     let segs = [Seg { ends: (1, 5), name: "a" }, Seg { ends: (2, 3), name: "b" }];
     for s of segs {
         let (from, to) = s.ends;
-        println("{s.name}: {to - from}");
+        console.println("{s.name}: {to - from}");
     }
     let o: Option<(i64, string)> = Some((7, "seven"));
     match o {
-        .Some((n, w)) if n > 5 => println("{w} is big"),
-        .Some((n, _)) => println(n),
-        .None => println("none"),
+        .Some((n, w)) if n > 5 => console.println("{w} is big"),
+        .Some((n, _)) => console.println(n),
+        .None => console.println("none"),
     }
     let sh = Shape.Line((0.0, 0.0), (3.0, 4.0));
     match sh {
-        .Line((x1, y1), (x2, y2)) => println((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)),
-        .Dot => println(0),
+        .Line((x1, y1), (x2, y2)) => console.println((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)),
+        .Dot => console.println(0),
     }
-    println((swap_pair((1, "x"))).debug());
+    console.println((swap_pair((1, "x"))).debug());
     let nested = ((1, 2), (3, (4, 5)));
-    println(nested.1.1.0);
-    println(("b", 1) > ("a", 9));
+    console.println(nested.1.1.0);
+    console.println(("b", 1) > ("a", 9));
     for p of ["x", "y"].iter().zip([10, 20].iter()).enumerate() {
-        println("{p.i} {p.value.0} {p.value.1}");
+        console.println("{p.i} {p.value.0} {p.value.1}");
     }
     let mut t = (0, 0);
     t.0 += 5;
     t.1 = t.0 * 2;
-    println(t.debug());
+    console.println(t.debug());
 }

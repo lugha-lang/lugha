@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
-use inkwell::values::{BasicValueEnum, FunctionValue, ValueKind};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, ValueKind};
 
 use super::control::Loop;
 use super::function::Signature;
@@ -318,9 +318,9 @@ pub(super) fn lower<'ctx>(
             let user_main = lowerer
                 .functions
                 .get("main")
-                .expect("checked: E0303 requires `main`")
-                .function;
-            lowerer.c_main(user_main);
+                .expect("checked: E0303 requires `main`");
+            let (function, params) = (user_main.function, user_main.params.clone());
+            lowerer.c_main(function, &params);
         }
     }
     // Struct results through a hidden pointer.
@@ -340,7 +340,7 @@ pub(super) fn lower<'ctx>(
 impl<'ctx> Lowerer<'ctx> {
     /// Emits the C entry point: returns `lugha_fn_main`'s `i32`, or 0 for a
     /// void `main`.
-    fn c_main(&mut self, user_main: FunctionValue<'ctx>) {
+    fn c_main(&mut self, user_main: FunctionValue<'ctx>, params: &[Type]) {
         let i32_type = self.context.i32_type();
         // `main(int argc, char **argv)`: the runtime keeps both for `args()`.
         let ptr = self.context.ptr_type(Default::default());
@@ -356,9 +356,11 @@ impl<'ctx> Lowerer<'ctx> {
             .build_call(init, &init_args, "")
             .expect(POSITIONED);
         self.call_const_init();
+        // What `main`'s parameters ask for, made once the runtime is up.
+        let args = self.entry_arguments(params);
         let call = self
             .builder
-            .build_call(user_main, &[], "result")
+            .build_call(user_main, &args, "result")
             .expect(POSITIONED);
         let code = match call.try_as_basic_value() {
             ValueKind::Basic(value) => value.into_int_value(),
@@ -375,6 +377,43 @@ impl Lowerer<'_> {
         if let Some(init) = self.const_init {
             self.builder.build_call(init, &[], "").expect(POSITIONED);
         }
+    }
+}
+
+impl<'ctx> Lowerer<'ctx> {
+    /// One value per parameter in `params`, in order: the arguments array
+    /// for `string[]`, the prelude's real capability for each interface.
+    pub(super) fn entry_arguments(&mut self, params: &[Type]) -> Vec<BasicMetadataValueEnum<'ctx>> {
+        let mut values = Vec::with_capacity(params.len());
+        for param in params {
+            let value = match param {
+                Type::Array(_) => self.call_runtime_value("lugha_rt_args", &[], &[]),
+                Type::Interface(key, _) => {
+                    let (_, make) = crate::check::ENTRY_CAPABILITIES
+                        .iter()
+                        .find(|(capability, _)| capability == key)
+                        .expect("checked: `main` takes only capabilities it can be given");
+                    let function = self
+                        .monos
+                        .get(*make)
+                        .or_else(|| self.methods.get(*make))
+                        .unwrap_or_else(|| panic!("checked: `{make}` is listed"))
+                        .signature
+                        .function;
+                    let site = self
+                        .builder
+                        .build_call(function, &[], "capability")
+                        .expect(POSITIONED);
+                    match site.try_as_basic_value() {
+                        ValueKind::Basic(value) => value,
+                        ValueKind::Instruction(_) => unreachable!("it returns the capability"),
+                    }
+                }
+                _ => unreachable!("checked: `main` takes only what the runtime supplies"),
+            };
+            values.push(value.into());
+        }
+        values
     }
 }
 

@@ -33,19 +33,19 @@ impl Shape {
 
 fun greet(n: Named): string = "hello, {n.name()}";
 
-fun main() {
+fun main(console: Console) {
     let mut p = P { name: "Ada", area: fun(x) = x * 2, count: 0 };
-    println(p.name);
-    println(p.name());
-    println(p.area(5));
-    println((p.area)(6));
+    console.println(p.name);
+    console.println(p.name());
+    console.println(p.area(5));
+    console.println((p.area)(6));
     p.count();
     p.count();
-    println(p.count);
-    println(greet(p));
+    console.println(p.count);
+    console.println(greet(p));
     let s = Shape.Circle(1.0);
     let q = Shape.Square(2.0);
-    println("{s.Circle()} {q.Circle()}");
+    console.println("{s.Circle()} {q.Circle()}");
     let make = Shape.Circle;
-    println(make(3.0).debug());
+    console.println(make(3.0).debug());
 }

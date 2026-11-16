@@ -1,6 +1,6 @@
 // `<` on a struct that didn't ask for `Ord`.
 struct Note { text: string } with Eq
 
-fun main() {
-    println(Note { text: "a" } < Note { text: "b" });
+fun main(console: Console) {
+    console.println(Note { text: "a" } < Note { text: "b" });
 }

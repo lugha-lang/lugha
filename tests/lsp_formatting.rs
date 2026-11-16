@@ -9,8 +9,9 @@ mod lsp_client;
 
 use lsp_client::{Server, Temp};
 
-const MESSY: &str = "fun  main(){println(\"é😀\");let x=1+2;}";
-const TIDY: &str = "fun main() {\n    println(\"é😀\");\n    let x = 1 + 2;\n}\n";
+const MESSY: &str = "fun  main(console: Console){console.println(\"é😀\");let x=1+2;}";
+const TIDY: &str =
+    "fun main(console: Console) {\n    console.println(\"é😀\");\n    let x = 1 + 2;\n}\n";
 
 /// The reply to formatting `uri`, and whether a `window/showMessage` came
 /// before it.

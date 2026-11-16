@@ -251,15 +251,15 @@ mod tests {
     #[test]
     fn a_counting_loop_owns_its_array_once() {
         hoists(
-            "fun main() { let mut counts = [0; 4]; let keep = counts; let t = [1, 2, 1];
-             for i in 0..t.len { counts[t[i]] += 1; } println(counts[1] + keep[1]); }",
+            "fun main(console: Console) { let mut counts = [0; 4]; let keep = counts; let t = [1, 2, 1];
+             for i in 0..t.len { counts[t[i]] += 1; } console.println(counts[1] + keep[1]); }",
         );
     }
 
     #[test]
     fn nested_loops_own_each_fixed_path() {
-        let src = "fun main() { let n = 2; let mut out = [[0; 2]; 2]; let keep = out;
-             for i in 0..n { for j in 0..n { out[i][j] += i * j; } } println(out[1][1] + keep[0][0]); }";
+        let src = "fun main(console: Console) { let n = 2; let mut out = [[0; 2]; 2]; let keep = out;
+             for i in 0..n { for j in 0..n { out[i][j] += i * j; } } console.println(out[1][1] + keep[0][0]); }";
         hoists(src);
         // The `i` loop owns `out`; the `j` loop owns `out` and `out[i]`.
         let labels = main(src);
@@ -276,7 +276,9 @@ mod tests {
             "fun main() { let mut xs = [0; 3]; let mut k = 0; while k < 3 { xs[0] += k; k += 1; } }",
         );
         hoists("fun main() { let mut xs = [0; 3]; for x of [1, 2] { xs[1] = x; } }");
-        hoists("fun main() { let mut xs = [0; 3]; for x of mut xs { x += 1; } println(xs[0]); }");
+        hoists(
+            "fun main(console: Console) { let mut xs = [0; 3]; for x of mut xs { x += 1; } console.println(xs[0]); }",
+        );
         hoists(
             "fun main() { let mut xs = [0; 3]; let mut o = Some(1);
              while let .Some(n) = o { xs[2] = n; o = None; } }",

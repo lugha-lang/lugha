@@ -2,39 +2,39 @@
 
 struct Pixel { r: u32, big: u64, gain: f32 }
 
-fun main() {
+fun main(console: Console) {
     let a: u32 = 4294967295;
-    println(a - 1);
-    println(a / 2);
+    console.println(a - 1);
+    console.println(a / 2);
     let b: u64 = 18446744073709551615;
-    println(b / 3);
-    println(b % 10);
+    console.println(b / 3);
+    console.println(b % 10);
     let half: u64 = 9223372036854775808;
-    println(half > 9223372036854775807);
+    console.println(half > 9223372036854775807);
 
     // casts: saturation, NaN, truncation, signedness
-    println((1.0e20).saturate<u32>());
-    println((-5.5).saturate<u64>());
+    console.println((1.0e20).saturate<u32>());
+    console.println((-5.5).saturate<u64>());
     let nan: f64 = 0.0 / 0.0;
-    println(nan.saturate<u32>());
-    println((300 as u32).truncate<u8>());
-    println(b.truncate<i64>());
-    println(a.round<f32>());
-    println(a as u64 + 1);
+    console.println(nan.saturate<u32>());
+    console.println((300 as u32).truncate<u8>());
+    console.println(b.truncate<i64>());
+    console.println(a.round<f32>());
+    console.println(a as u64 + 1);
 
     // f32 prints its own shortest form
     let third: f32 = 1.0 / 3.0;
-    println(third);
+    console.println(third);
     let large: f32 = 1.0e30;
-    println(large);
+    console.println(large);
     let z: f32 = -0.0;
-    println(z);
-    println(third as f64);
-    println(third * 3.0 == 1.0);
+    console.println(z);
+    console.println(third as f64);
+    console.println(third * 3.0 == 1.0);
 
     // storage and text
     let p = Pixel { r: 7, big: 8, gain: 0.5 };
     let xs: u64[] = [1, 2, 3];
     let fs: f32[] = [0.25, 1.5];
-    println("{p.r} {p.big} {p.gain} {xs[2]} {fs[1]} {to_string(a)}");
+    console.println("{p.r} {p.big} {p.gain} {xs[2]} {fs[1]} {to_string(a)}");
 }

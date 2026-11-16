@@ -1,5 +1,5 @@
-fun main() {
+fun main(console: Console) {
     let a: i8 = 100;
-    println(a);
-    println(a + a);
+    console.println(a);
+    console.println(a + a);
 }

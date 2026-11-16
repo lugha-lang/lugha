@@ -1,5 +1,5 @@
-fun main() {
+fun main(console: Console) {
     let mut b: u8 = 250;
     b += 10;
-    println(b);
+    console.println(b);
 }

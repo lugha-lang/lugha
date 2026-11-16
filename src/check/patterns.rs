@@ -252,6 +252,6 @@ mod tests {
             [("E0468", "Empty")]
         );
         // Named like another type's variant: an ordinary binding.
-        ok(&main("match p { .P(Circle, _) => println(Circle), }"));
+        ok(&main("match p { .P(Circle, _) => debug(Circle), }"));
     }
 }

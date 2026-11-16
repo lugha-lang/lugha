@@ -194,7 +194,7 @@ mod tests {
     #[test]
     fn a_loop_calls_next_on_its_own_copy() {
         let ir = ir(&format!(
-            "{COUNT}fun main() {{ let c = Count {{ n: 1 }}; for n of c {{ println(n); }} }}"
+            "{COUNT}fun main(console: Console) {{ let c = Count {{ n: 1 }}; for n of c {{ console.println(n); }} }}"
         ));
         let main = body(&ir, "main");
         assert!(
@@ -208,7 +208,7 @@ mod tests {
     #[test]
     fn a_loop_over_an_interface_value_calls_through_its_table() {
         let ir = ir(&format!(
-            "{COUNT}fun main() {{ let s: Source<i64> = Count {{ n: 1 }}; for n of s {{ println(n); }} }}"
+            "{COUNT}fun main(console: Console) {{ let s: Source<i64> = Count {{ n: 1 }}; for n of s {{ console.println(n); }} }}"
         ));
         let main = body(&ir, "main");
         assert!(

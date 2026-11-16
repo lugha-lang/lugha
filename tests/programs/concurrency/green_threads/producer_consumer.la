@@ -1,18 +1,18 @@
 // A buffered channel: the producer runs ahead by up to two values, then
 // closes the channel; the consumer drains it.
-fun produce(out: Chan<string>, count: i64) {
+fun produce(console: Console, out: Chan<string>, count: i64) {
     for i in 0..count {
         out.send("item {i}");
-        println("sent {i}");
+        console.println("sent {i}");
     }
     out.close();
 }
 
-fun main() {
+fun main(console: Console) {
     let c: Chan<string> = Chan.buffered(2);
-    spawn produce(c, 5);
+    spawn produce(console, c, 5);
     while let .Some(item) = c.recv() {
-        println("got {item}");
+        console.println("got {item}");
     }
-    println("closed: {c.recv().debug()}");
+    console.println("closed: {c.recv().debug()}");
 }

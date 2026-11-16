@@ -27,10 +27,10 @@ fun close<T: Close>(a: T, b: T): bool = a.close(b);
 struct Reading { at: string, value: f64 } with Close
 enum Shape { Dot, Circle(f64), Box(f64, f64) } with Close
 
-fun main() {
-    println(close(Reading { at: "a", value: 1.0 }, Reading { at: "a", value: 1.001 }));
-    println(close(Reading { at: "a", value: 1.0 }, Reading { at: "b", value: 1.0 }));
-    println(close(Shape.Circle(2.0), Shape.Circle(2.004)));
-    println(close(Shape.Circle(2.0), Shape.Box(2.0, 2.0)));
-    println(close(Shape.Dot, Shape.Dot));
+fun main(console: Console) {
+    console.println(close(Reading { at: "a", value: 1.0 }, Reading { at: "a", value: 1.001 }));
+    console.println(close(Reading { at: "a", value: 1.0 }, Reading { at: "b", value: 1.0 }));
+    console.println(close(Shape.Circle(2.0), Shape.Circle(2.004)));
+    console.println(close(Shape.Circle(2.0), Shape.Box(2.0, 2.0)));
+    console.println(close(Shape.Dot, Shape.Dot));
 }

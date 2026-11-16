@@ -67,7 +67,7 @@ fn a_symlink_leading_out_of_the_package_is_e0447() {
         ("secret.txt", "no"),
         (
             "app/main.la",
-            "fun main() { print(include_str(\"link.txt\")); }\n",
+            "fun main(console: Console) { console.print(include_str(\"link.txt\")); }\n",
         ),
     ]);
     std::os::unix::fs::symlink(t.path("secret.txt"), t.path("app/link.txt")).unwrap();
@@ -82,7 +82,7 @@ fn a_symlink_inside_the_package_is_followed() {
         ("app/data/real.txt", "inside\n"),
         (
             "app/main.la",
-            "fun main() { print(include_str(\"link.txt\")); }\n",
+            "fun main(console: Console) { console.print(include_str(\"link.txt\")); }\n",
         ),
     ]);
     std::os::unix::fs::symlink(t.path("app/data/real.txt"), t.path("app/link.txt")).unwrap();
@@ -103,7 +103,7 @@ fn the_manifest_folder_is_the_boundary() {
         ("pkg/assets/a.txt", "asset\n"),
         (
             "pkg/examples/show.la",
-            "fun main() { print(include_str(\"../assets/a.txt\")); }\n",
+            "fun main(console: Console) { console.print(include_str(\"../assets/a.txt\")); }\n",
         ),
     ]);
     let out = lughac(&t.path("pkg"), &["run", "examples/show.la"]);
@@ -126,7 +126,7 @@ fn a_package_includes_from_its_own_folder() {
         ("app/word.txt", "from app"),
         (
             "app/main.la",
-            "import lib.words;\nfun main() { println(words.word()); }\n",
+            "import lib.words;\nfun main(console: Console) { console.println(words.word()); }\n",
         ),
     ]);
     assert_eq!(
@@ -150,7 +150,7 @@ fn a_package_cant_reach_the_program_using_it() {
         ("app/secret.txt", "secret"),
         (
             "app/main.la",
-            "import lib.words;\nfun main() { println(words.word()); }\n",
+            "import lib.words;\nfun main(console: Console) { console.println(words.word()); }\n",
         ),
     ]);
     let err = rejected(&lughac(&t.path("app"), &["check", "main.la"]));
@@ -162,7 +162,7 @@ fn a_package_cant_reach_the_program_using_it() {
 fn a_file_over_16_mib_is_e0447() {
     let t = Temp::with(&[(
         "main.la",
-        "fun main() { println(include_bytes(\"big.bin\").len); }\n",
+        "fun main(console: Console) { console.println(include_bytes(\"big.bin\").len); }\n",
     )]);
     // A sparse file: nothing is written but its length.
     let big = std::fs::File::create(t.path("big.bin")).unwrap();
@@ -178,7 +178,10 @@ fn a_file_over_16_mib_is_e0447() {
 #[test]
 fn a_changed_file_is_read_again() {
     let t = Temp::with(&[
-        ("main.la", "fun main() { print(include_str(\"v.txt\")); }\n"),
+        (
+            "main.la",
+            "fun main(console: Console) { console.print(include_str(\"v.txt\")); }\n",
+        ),
         ("v.txt", "one\n"),
     ]);
     assert_eq!(ran(&lughac(&t.0, &["run", "main.la"])), "one\n");
@@ -190,7 +193,7 @@ fn a_changed_file_is_read_again() {
 fn check_reports_a_missing_file() {
     let t = Temp::with(&[(
         "main.la",
-        "fun main() { print(include_str(\"gone.txt\")); }\n",
+        "fun main(console: Console) { console.print(include_str(\"gone.txt\")); }\n",
     )]);
     let err = rejected(&lughac(&t.0, &["check", "main.la"]));
     assert!(
@@ -204,7 +207,7 @@ fn the_bytes_are_a_read_only_global_marked_shared() {
     let t = Temp::with(&[
         (
             "main.la",
-            "const B: u8[] = include_bytes(\"b.bin\");\nfun main() { println(B.len); }\n",
+            "const B: u8[] = include_bytes(\"b.bin\");\nfun main(console: Console) { console.println(B.len); }\n",
         ),
         ("b.bin", "abc"),
     ]);

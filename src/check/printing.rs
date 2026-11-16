@@ -226,34 +226,36 @@ mod tests {
         ok(&format!(
             "{TYPES}fun dump<T: Display>(x: T): string = to_string(x);\n\
              fun peek<T>(x: T): string = x.debug();\n\
-             fun main() {{\n\
+             fun main(console: Console) {{\n\
              let p = P {{ x: 1, s: \"a\" }};\n\
-             println(p.debug()); print(E.B.debug()); println([1].debug()); println(Some(2).debug());\n\
-             let r: Result<i64, string> = Ok(1); eprintln(r.debug());\n\
+             console.println(p.debug()); console.print(E.B.debug()); console.println([1].debug()); console.println(Some(2).debug());\n\
+             let r: Result<i64, string> = Ok(1); console.eprintln(r.debug());\n\
              let t = \"{{Stack {{ items: [1] }}}} {{[E.A(1.0)].debug()}}\"; let u = to_string(\"s\");\n\
              let v = dump(Stack {{ items: [p] }}); let w = peek(p); let n = debug(1) + 1;\n\
-             let f = fun(x: i64): i64 = x; println(f.debug());\n}}"
+             let f = fun(x: i64): i64 = x; console.println(f.debug());\n}}"
         ));
         let e = |body: &str| {
-            errors(&format!("{TYPES}fun main() {{ {body} }}"))
+            errors(&format!("{TYPES}fun main(console: Console) {{ {body} }}"))
                 .into_iter()
                 .map(|(c, _)| c)
                 .collect::<Vec<_>>()
         };
         for body in [
-            "println(P { x: 1, s: \"a\" });",
+            "console.println(P { x: 1, s: \"a\" });",
             "let t = \"{[1]}\";",
             "let t = to_string(Some(1));",
-            "println(nothing());",
-            "println(E.B);",
+            "console.println(nothing());",
+            "console.println(E.B);",
         ] {
             assert_eq!(e(body), ["E0422"], "{body}");
         }
-        let d = diagnostics(&format!("{TYPES}fun main() {{ println([1]); }}"));
+        let d = diagnostics(&format!(
+            "{TYPES}fun main(console: Console) {{ console.println([1]); }}"
+        ));
         assert_eq!(d[0].message, "`i64[]` doesn't implement `Display`");
         assert!(d[0].help.as_deref().unwrap().contains(".debug()"), "{d:?}");
         let d = diagnostics(&format!(
-            "{TYPES}fun f<T>(x: T) {{ println(x); }}\nfun main() {{}}"
+            "{TYPES}fun f<T>(console: Console, x: T) {{ console.println(x); }}\nfun main() {{}}"
         ));
         assert!(
             d[0].help.as_deref().unwrap().contains("T: Display"),
@@ -263,7 +265,7 @@ mod tests {
 
     #[test]
     fn a_printed_generic_type_lists_its_show_and_debug() {
-        let direct = monos("fun main() { println(Stack { items: [1] }); }");
+        let direct = monos("fun main(console: Console) { console.println(Stack { items: [1] }); }");
         assert!(
             direct
                 .iter()
@@ -271,7 +273,7 @@ mod tests {
             "{direct:?}"
         );
         let generic = monos(
-            "fun dump<T: Display>(x: T) { println(x); }\nfun main() { dump(Stack { items: [true] }); }",
+            "fun dump<T: Display>(console: Console, x: T) { console.println(x); }\nfun main(console: Console) { dump(console, Stack { items: [true] }); }",
         );
         assert!(
             generic

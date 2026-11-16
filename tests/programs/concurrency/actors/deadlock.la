@@ -11,9 +11,9 @@ actor B {
     fun ask(self): i64 = 1;
 }
 
-fun main() {
+fun main(console: Console) {
     let c: Chan<B> = Chan.new();
     let a = spawn A { other: c };
-    println("asking");
-    println(a.ask());
+    console.println("asking");
+    console.println(a.ask());
 }

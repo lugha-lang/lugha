@@ -77,24 +77,24 @@ extern fun memory_sum(): u64;
 extern fun nothing(): CPtr;
 extern fun call_host(f: fun(data, Val[], Ref<Val[]>), d: data): i64;
 
-fun main() {
+fun main(console: Console) {
     let mut msg = ByteVec { size: 0, data: CPtr.null };
     message(out msg);
     let bytes = c_read(msg.data, 0, msg.size);
-    println(string_from_utf8(bytes).unwrap());
+    console.println(string_from_utf8(bytes).unwrap());
     byte_vec_delete(mut msg);
-    println(msg.data == CPtr.null);
+    console.println(msg.data == CPtr.null);
     let mem = memory_data();
     c_write(mem, 4, [1, 2, 3]);
-    println(memory_sum());
-    println(c_read(mem, 3, 3).debug());
+    console.println(memory_sum());
+    console.println(c_read(mem, 3, 3).debug());
     let base = 100;
     let total = call_host(fun(args: Val[], results: Ref<Val[]>) {
         let mut out = results.get();
         out[0] = Val { kind: 1, value: ValUnion { int64: args[0].value.int64 + args[1].value.int64 + base } };
         results.set(out);
     });
-    println(total);
+    console.println(total);
     c_read(nothing(), 0, 1);
 }
 "#;

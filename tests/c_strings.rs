@@ -99,16 +99,16 @@ fn c_text_is_copied_into_lugha_strings() {
     Case::new(
         &[
             EXTERNS,
-            "fun main() {\n\
+            "fun main(console: Console) {\n\
                  let g = greeting();\n\
                  scribble();\n\
-                 println(g);\n\
-                 println(maybe_name(0).debug());\n\
-                 println(maybe_name(1).debug());\n\
-                 println(text_len(None));\n\
-                 println(text_len(Some(\"four\")));\n\
-                 println(getenv(\"LUGHA_SURELY_UNSET_89\").debug());\n\
-                 println(getenv(\"HOME\") != None);\n\
+                 console.println(g);\n\
+                 console.println(maybe_name(0).debug());\n\
+                 console.println(maybe_name(1).debug());\n\
+                 console.println(text_len(None));\n\
+                 console.println(text_len(Some(\"four\")));\n\
+                 console.println(getenv(\"LUGHA_SURELY_UNSET_89\").debug());\n\
+                 console.println(getenv(\"HOME\") != None);\n\
              }\n",
         ]
         .concat(),
@@ -122,11 +122,11 @@ fn invalid_utf8_from_c_becomes_replacement_characters() {
     Case::new(
         &[
             EXTERNS,
-            "fun main() {\n\
+            "fun main(console: Console) {\n\
                  let r = raw_bytes();\n\
-                 println(r);\n\
-                 println(r.len);\n\
-                 println(r.char_count());\n\
+                 console.println(r);\n\
+                 console.println(r.len);\n\
+                 console.println(r.char_count());\n\
              }\n",
         ]
         .concat(),
@@ -140,11 +140,11 @@ fn callbacks_receive_strings() {
     Case::new(
         &[
             EXTERNS,
-            "fun main() {\n\
+            "fun main(console: Console) {\n\
                  let total = Ref.new(0);\n\
-                 each_word(fun(w: string) { total.update(fun(n) = n + w.len); println(w); });\n\
-                 println(total.get());\n\
-                 maybe_word(fun(w: Option<string>) { println(w.debug()); });\n\
+                 each_word(fun(w: string) { total.update(fun(n) = n + w.len); console.println(w); });\n\
+                 console.println(total.get());\n\
+                 maybe_word(fun(w: Option<string>) { console.println(w.debug()); });\n\
              }\n",
         ]
         .concat(),
@@ -156,7 +156,11 @@ fn callbacks_receive_strings() {
 #[test]
 fn null_for_a_plain_string_panics_with_advice() {
     let case = Case::new(
-        &[EXTERNS, "fun main() { println(null_text()); }\n"].concat(),
+        &[
+            EXTERNS,
+            "fun main(console: Console) { console.println(null_text()); }\n",
+        ]
+        .concat(),
         SIDE,
     );
     let out = case.lughac(&["run", "main.la"]);
@@ -185,7 +189,7 @@ fn replacement_follows_the_preludes_decoding_rules() {
     // truncated `F0 9F`, and a valid four-byte `F0 9F 98 80` (U+1F600).
     Case::new(
         "extern fun tricky(): string;\n\
-         fun main() { let t = tricky(); println(t); for c of t.chars() { print(\"{c as u32} \"); } println(); }\n",
+         fun main(console: Console) { let t = tricky(); console.println(t); for c of t.chars() { console.print(\"{c as u32} \"); } console.println(\"\"); }\n",
         "const char *tricky(void) { return \"\\xC0\\x80|\\xED\\xA0\\x80|\\xF4\\x90\\x80\\x80|\\xF0\\x9F\\x98\\x80|\\xF0\\x9F\"; }\n",
     )
     .runs(

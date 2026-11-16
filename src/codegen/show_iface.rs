@@ -61,7 +61,7 @@ mod tests {
     fn values_show_through_their_blocks_and_impls() {
         let ir = ir("struct Point { x: i64, s: string }\n\
             struct M { c: i64 }\nimpl Display for M { fun show(self): string = \"m\"; }\n\
-            fun main() { println(Point { x: 1, s: \"a\" }.debug()); println(M { c: 1 }); }");
+            fun main(console: Console) { console.println(Point { x: 1, s: \"a\" }.debug()); console.println(M { c: 1 }); }");
         for needle in [
             "@lugha_debug_5Point(",
             "@\"lugha_fn_$prelude/Debug@struct.debug<Point>\"",
@@ -76,8 +76,8 @@ mod tests {
     fn interface_values_show_by_identity() {
         let ir = ir("interface Named { fun name(self): string; }\n\
             struct Dog { age: i64 }\nimpl Named for Dog { fun name(self): string = \"d\"; }\n\
-            fun dump<T>(x: T) { println(x.debug()); }\n\
-            fun main() { let n: Named = Dog { age: 1 }; dump(n); }");
+            fun dump<T>(console: Console, x: T) { console.println(x.debug()); }\n\
+            fun main(console: Console) { let n: Named = Dog { age: 1 }; dump(console, n); }");
         let f = &ir[ir.find("define internal ptr @lugha_debug_5Named").unwrap()..];
         assert!(
             f.contains("@lugha_type_Dog") && f.contains("@lugha_debug_3Dog"),
@@ -87,7 +87,9 @@ mod tests {
 
     #[test]
     fn plain_values_print_as_before() {
-        let ir = ir("fun main() { println(1); println(\"s\"); let t = \"{2.5}\"; }");
+        let ir = ir(
+            "fun main(console: Console) { console.println(1); console.println(\"s\"); let t = \"{2.5}\"; }",
+        );
         assert!(!ir.contains("lugha_debug_"), "{ir}");
     }
 }

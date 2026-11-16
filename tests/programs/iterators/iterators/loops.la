@@ -50,7 +50,7 @@ fun sum<T, I: Iter<T>>(it: I, zero: T, add: fun(T, T): T): T {
     total
 }
 
-fun main() {
+fun main(console: Console) {
     // break and continue
     for n of (Count { n: 0, end: 10 }) {
         if n % 2 == 0 {
@@ -59,40 +59,40 @@ fun main() {
         if n > 7 {
             break;
         }
-        print("{n} ");
+        console.print("{n} ");
     }
-    println("");
+    console.println("");
 
     // nested loops over two iterators
     for a of (Count { n: 0, end: 2 }) {
         for b of (Repeat { x: "*", left: a }) {
-            print(b);
+            console.print(b);
         }
-        println("|");
+        console.println("|");
     }
 
     // generic iterators and type parameters
-    println(join_all(Repeat { x: "ab", left: 3 }));
-    println(sum(Count { n: 0, end: 4 }, 0, fun(a, b) { a + b }));
+    console.println(join_all(Repeat { x: "ab", left: 3 }));
+    console.println(sum(Count { n: 0, end: 4 }, 0, fun(a, b) { a + b }));
 
     // a program's own interface value, and an iterator in an array
     let src: Source<i64> = Count { n: 5, end: 7 };
     for n of src {
-        print("{n} ");
+        console.print("{n} ");
     }
-    println("");
+    console.println("");
     let its: Iter<i64>[] = [Count { n: 0, end: 2 }, Repeat { x: 9, left: 2 }];
     for it of its {
         for n of it {
-            print("{n} ");
+            console.print("{n} ");
         }
     }
-    println("");
+    console.println("");
 
     // the iterator is unchanged by the loop
     let mut c = Count { n: 0, end: 2 };
     for n of c {
         c.end = 100;
     }
-    println("{c.n} {c.end}");
+    console.println("{c.n} {c.end}");
 }

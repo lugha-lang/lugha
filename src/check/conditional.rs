@@ -95,11 +95,15 @@ mod tests {
 
     #[test]
     fn bindings_live_where_they_should() {
-        ok("fun main() { let o = Some(1); if let .Some(n) = o { println(n); } }");
-        ok("fun main() { let mut xs = [1]; while let .Some(x) = xs.pop() { println(x); } }");
+        ok(
+            "fun main(console: Console) { let o = Some(1); if let .Some(n) = o { console.println(n); } }",
+        );
+        ok(
+            "fun main(console: Console) { let mut xs = [1]; while let .Some(x) = xs.pop() { console.println(x); } }",
+        );
         ok("fun f(o: Option<i64>): i64 { let .Some(n) = o else { return 0; }; n }\nfun main() {}");
         assert_eq!(
-            codes("let o = Some(1); if let .Some(n) = o { } else { println(n); }"),
+            codes("let o = Some(1); if let .Some(n) = o { } else { debug(n); }"),
             ["E0301"]
         );
     }
@@ -119,7 +123,7 @@ mod tests {
     #[test]
     fn a_let_else_block_must_leave() {
         assert_eq!(
-            codes("let o = Some(1); let .Some(n) = o else { println(1); };"),
+            codes("let o = Some(1); let .Some(n) = o else { debug(1); };"),
             ["E0429"]
         );
         ok(

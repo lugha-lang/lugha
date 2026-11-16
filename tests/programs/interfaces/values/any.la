@@ -16,8 +16,8 @@ impl Any for Q {}
 
 fun count(xs: Any[]): i64 = xs.len;
 
-fun main() {
+fun main(console: Console) {
     let xs: Any[] = [Coin.Heads, Q {}, P { x: 3 }, Coin.Tails];
     let ys = xs;
-    println(count(ys) + count(xs));
+    console.println(count(ys) + count(xs));
 }

@@ -1,7 +1,7 @@
 // Shifting by the width or more panics, like overflow.
 
-fun main() {
+fun main(console: Console) {
     let n: u64 = 64;
     let one: u64 = 1;
-    println(one << n);
+    console.println(one << n);
 }

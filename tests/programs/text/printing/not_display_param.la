@@ -1,7 +1,7 @@
 // A bare `T` prints only with the bound `T: Display`.
-fun show_all<T>(xs: T[]) {
+fun show_all<T>(console: Console, xs: T[]) {
     for x of xs {
-        println("{x}");
+        console.println("{x}");
     }
 }
 

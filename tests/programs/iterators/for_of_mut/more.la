@@ -12,19 +12,19 @@ impl P {
 
 struct Holder { it: Range, seen: i64 }
 
-fun main() {
+fun main(console: Console) {
     let mut ps = [P { n: 1 }, P { n: 2 }];
     for p of mut ps {
         p.n += 1;
         p.bump();
     }
-    println(ps.debug());
+    console.println(ps.debug());
 
     let mut flags = [true, false, true];
     for f of mut flags {
         f = !f;
     }
-    println(flags.debug());
+    console.println(flags.debug());
 
     let mut xs = [1, 2, 3, 4, 5];
     for x of mut xs {
@@ -36,7 +36,7 @@ fun main() {
             break;
         }
     }
-    println(xs.debug());
+    console.println(xs.debug());
 
     let mut grid = [[1, 2], [3]];
     for row of mut grid {
@@ -44,7 +44,7 @@ fun main() {
             c = -c;
         }
     }
-    println(grid.debug());
+    console.println(grid.debug());
 
     let mut h = Holder { it: range(0, 10), seen: 0 };
     for n of mut h.it {
@@ -53,8 +53,8 @@ fun main() {
             break;
         }
     }
-    println(h.seen);
-    println(h.it.next().debug());
+    console.println(h.seen);
+    console.println(h.it.next().debug());
 
     let mut it: Iter<i64> = range(1, 6);
     for n of mut it {
@@ -62,5 +62,5 @@ fun main() {
             break;
         }
     }
-    println(it.collect().debug());
+    console.println(it.collect().debug());
 }

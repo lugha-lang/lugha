@@ -1,31 +1,31 @@
 // An empty file, appends, a missing file, every kind of invalid UTF-8
 // (each after one valid byte), a valid four-byte character, and a u16
 // index into a string.
-fun main() {
+fun main(console: Console) {
     let empty: u8[] = [];
     match write_bytes("e.bin", empty) {
-        .Ok(n) => println(n),
-        .Err(e) => println(e),
+        .Ok(n) => console.println(n),
+        .Err(e) => console.println(e),
     }
     match read_bytes("e.bin") {
-        .Ok(b) => println(b.len),
-        .Err(e) => println(e),
+        .Ok(b) => console.println(b.len),
+        .Err(e) => console.println(e),
     }
     match append_bytes("e.bin", [1, 2]) {
-        .Ok(n) => println(n),
-        .Err(e) => println(e),
+        .Ok(n) => console.println(n),
+        .Err(e) => console.println(e),
     }
     match append_bytes("e.bin", [3]) {
-        .Ok(n) => println(n),
-        .Err(e) => println(e),
+        .Ok(n) => console.println(n),
+        .Err(e) => console.println(e),
     }
     match read_bytes("e.bin") {
-        .Ok(b) => println(b.debug()),
-        .Err(e) => println(e),
+        .Ok(b) => console.println(b.debug()),
+        .Err(e) => console.println(e),
     }
     match read_bytes("missing.bin") {
-        .Ok(b) => println(b.debug()),
-        .Err(e) => println("missing: {e}"),
+        .Ok(b) => console.println(b.debug()),
+        .Err(e) => console.println("missing: {e}"),
     }
     let cases: u8[][] = [
         [65, 192, 128],
@@ -38,9 +38,9 @@ fun main() {
         [240, 159, 152, 128],
     ];
     for c of cases {
-        println(string_from_utf8(c).debug());
+        console.println(string_from_utf8(c).debug());
     }
     let s = "abc";
     let at: u16 = 2;
-    println(s[at]);
+    console.println(s[at]);
 }

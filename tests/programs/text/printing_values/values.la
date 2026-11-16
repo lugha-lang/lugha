@@ -14,17 +14,17 @@ struct Wallet { cash: Money }
 
 struct Stack<T> { items: T[] }
 
-fun dump<T>(x: T) {
-    println(x.debug());
+fun dump<T>(console: Console, x: T) {
+    console.println(x.debug());
 }
 
-fun main() {
-    println((Point { x: 1, y: 2 }).debug());
-    println(Shape.Circle(1.5).debug());
-    println([Some(1), None].debug());
-    println((Team { name: "red", members: ["ann", "bo"] }).debug());
+fun main(console: Console) {
+    console.println((Point { x: 1, y: 2 }).debug());
+    console.println(Shape.Circle(1.5).debug());
+    console.println([Some(1), None].debug());
+    console.println((Team { name: "red", members: ["ann", "bo"] }).debug());
     let m = Money { cents: 525 };
-    println(m);
-    println("wallet: {(Wallet { cash: m }).debug()}");
-    dump(Stack { items: [3] });
+    console.println(m);
+    console.println("wallet: {(Wallet { cash: m }).debug()}");
+    dump(console, Stack { items: [3] });
 }

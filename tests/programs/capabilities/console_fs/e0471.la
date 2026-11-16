@@ -1,0 +1,10 @@
+fun main(): i32 {
+    println("x");
+    print(1);
+    eprintln("e");
+    let l = read_line();
+    let t = read_file("f");
+    let w = write_file("f", "t");
+    let a = args();
+    exit(2);
+}

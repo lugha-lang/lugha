@@ -25,10 +25,10 @@ fun first_equal<T: Counter + Eq>(xs: T[], x: T): i64 {
     -1
 }
 
-fun main() {
+fun main(console: Console) {
     let ts = [Tally { n: 1 }, Tally { n: 2 }];
     let bumped = bump_all(ts);
-    println(ts[0].value());
-    println(bumped[1].value());
-    println(first_equal(bumped, Tally { n: 12 }));
+    console.println(ts[0].value());
+    console.println(bumped[1].value());
+    console.println(first_equal(bumped, Tally { n: 12 }));
 }

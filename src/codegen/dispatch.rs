@@ -172,7 +172,7 @@ mod tests {
     #[test]
     fn copies_go_through_the_tables_copy_slot() {
         let ir = ir(&format!(
-            "{SHAPES}fun main() {{ let a: Shape = Circle {{ r: 1.0 }}; let b = a; println(a.area() + b.area()); }}"
+            "{SHAPES}fun main(console: Console) {{ let a: Shape = Circle {{ r: 1.0 }}; let b = a; console.println(a.area() + b.area()); }}"
         ));
         assert!(body(&ir, "main").contains("@lugha_copy_5Shape("), "{ir}");
         let copy = body(&ir, "main");

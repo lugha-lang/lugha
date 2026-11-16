@@ -7,24 +7,24 @@ fun first(j: Job): i64 = match j {
     .Idle => -1,
 };
 
-fun main() {
+fun main(console: Console) {
     let mut xs = [1, 2, 3];
     let a = Job.Batch(xs);
     xs[0] = 9;
-    println(first(a));
+    console.println(first(a));
 
     match a {
         .Batch(v) => {
             let mut w = v;
             w[0] = 7;
-            println(w[0]);
+            console.println(w[0]);
         }
         .Idle => {}
     }
-    println(first(a));
+    console.println(first(a));
 
     let b = a;
-    println(first(b));
-    println(first(a));
-    println(first(Job.Idle));
+    console.println(first(b));
+    console.println(first(a));
+    console.println(first(Job.Idle));
 }

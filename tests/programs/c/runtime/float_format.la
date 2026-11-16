@@ -1,15 +1,15 @@
 // Float formatting: shortest round-trip, always a `.`, exponent at
 // magnitude >= 1e16 or below 1e-5.
-fun main() {
-    println(2.0);
-    println(0.1);
-    println(-0.0);
-    println(100.0);
-    println(1.5e-7);
-    println(1.0e16);
-    println(123456789012345.6);
-    println(1.4142135623730951);
-    println(1.0 / 0.0);
-    println(-1.0 / 0.0);
-    println(0.0 / 0.0);
+fun main(console: Console) {
+    console.println(2.0);
+    console.println(0.1);
+    console.println(-0.0);
+    console.println(100.0);
+    console.println(1.5e-7);
+    console.println(1.0e16);
+    console.println(123456789012345.6);
+    console.println(1.4142135623730951);
+    console.println(1.0 / 0.0);
+    console.println(-1.0 / 0.0);
+    console.println(0.0 / 0.0);
 }

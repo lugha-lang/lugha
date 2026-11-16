@@ -90,8 +90,7 @@ fn text(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()
 }
 
-const ADD: &str =
-    "extern fun fixture_add(a: i64, b: i64): i64;\nfun main() { println(fixture_add(2, 3)); }\n";
+const ADD: &str = "extern fun fixture_add(a: i64, b: i64): i64;\nfun main(console: Console) { console.println(fixture_add(2, 3)); }\n";
 
 /// Asserts `out` is a success that printed `stdout`.
 fn ran(out: &Output, stdout: &str) {
@@ -134,7 +133,7 @@ fn a_packages_table_reaches_the_programs_link() {
     let t = Temp::with(&[
         (
             "game/main.la",
-            "import fix.math;\nfun main() { println(math.add(4, 5)); }\n",
+            "import fix.math;\nfun main(console: Console) { console.println(math.add(4, 5)); }\n",
         ),
         ("game/lugha.toml", "[packages]\nfix = \"../fix\"\n"),
         (
@@ -155,7 +154,7 @@ fn c_files_compile_with_their_packages_headers() {
     let t = Temp::with(&[
         (
             "main.la",
-            "extern fun shim_twice(x: i64): i64;\nfun main() { println(shim_twice(21)); }\n",
+            "extern fun shim_twice(x: i64): i64;\nfun main(console: Console) { console.println(shim_twice(21)); }\n",
         ),
         (
             "lugha.toml",
@@ -196,7 +195,7 @@ fn c_files_build_with_gtks_sse_cflags() {
     let t = Temp::with(&[
         (
             "main.la",
-            "extern fun shim_twice(x: i64): i64;\nfun main() { println(shim_twice(21)); }\n",
+            "extern fun shim_twice(x: i64): i64;\nfun main(console: Console) { console.println(shim_twice(21)); }\n",
         ),
         (
             "lugha.toml",
@@ -347,7 +346,7 @@ fn a_packages_own_example_links_its_c_files_once() {
         ),
         (
             "shimlib/examples/demo.la",
-            "import shimlib.api;\nfun main() { println(api.twice(21)); }\n",
+            "import shimlib.api;\nfun main(console: Console) { console.println(api.twice(21)); }\n",
         ),
     ]);
     ran(

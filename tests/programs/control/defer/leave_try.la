@@ -7,6 +7,6 @@ fun run(): Result<i64, string> {
     Ok(1)
 }
 
-fun main() {
-    println(run().debug());
+fun main(console: Console) {
+    console.println(run().debug());
 }

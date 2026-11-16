@@ -1,4 +1,4 @@
 // A tuple holding a float isn't ordered.
-fun main() {
-    println((1.5, 2) < (2.5, 1));
+fun main(console: Console) {
+    console.println((1.5, 2) < (2.5, 1));
 }

@@ -1,10 +1,10 @@
 // A `mut` parameter needs `mut` at the call, and only a `mut` parameter
 // takes one.
 fun bump(mut n: i64) { n += 1; }
-fun show(n: i64) { println(n); }
+fun show(n: i64): i64 = n;
 
 fun main() {
     let mut x = 1;
     bump(x);
-    show(mut x);
+    let _ = show(mut x);
 }

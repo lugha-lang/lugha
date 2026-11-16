@@ -2,14 +2,14 @@
 // run and platform, which this program's expected output pins down.
 import std.random;
 
-fun main() {
+fun main(console: Console) {
     let mut rng = random.seeded(42);
-    println(rng.next_u64());
-    println(rng.uniform());
-    println(rng.below(6) + 1);
-    println(rng.between(10, 20));
-    println(rng.normal(0.0, 1.0));
-    println(rng.chance(0.5));
-    println(rng.choice(["red", "green", "blue"]).debug());
-    println(rng.shuffle([1, 2, 3, 4, 5]).debug());
+    console.println(rng.next_u64());
+    console.println(rng.uniform());
+    console.println(rng.below(6) + 1);
+    console.println(rng.between(10, 20));
+    console.println(rng.normal(0.0, 1.0));
+    console.println(rng.chance(0.5));
+    console.println(rng.choice(["red", "green", "blue"]).debug());
+    console.println(rng.shuffle([1, 2, 3, 4, 5]).debug());
 }

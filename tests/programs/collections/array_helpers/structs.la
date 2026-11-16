@@ -2,14 +2,14 @@ struct Person { name: string, age: i64 }
 
 fun older_than(people: Person[], limit: i64): string[] = people.filter(fun(p) = p.age > limit).map(fun(p) = p.name);
 
-fun main() {
+fun main(console: Console) {
     let people = [Person { name: "Ann", age: 41 }, Person { name: "Bo", age: 17 }, Person { name: "Cy", age: 25 }];
     let names = older_than(people, 20);
-    println("{names.len}: {names[0]}, {names[1]}");
+    console.println("{names.len}: {names[0]}, {names[1]}");
     let total = people.fold(0, fun(sum, p) = sum + p.age);
-    println("average {total / people.len}");
+    console.println("average {total / people.len}");
     let youngest = people.sort_by(fun(a, b) = a.age < b.age)[0];
-    println("youngest {youngest.name}");
+    console.println("youngest {youngest.name}");
     let groups = [[1, 2], [3], []];
-    println(groups.map(fun(g) = g.len).fold(0, fun(a, b) = a + b));
+    console.println(groups.map(fun(g) = g.len).fold(0, fun(a, b) = a + b));
 }

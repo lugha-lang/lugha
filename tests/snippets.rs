@@ -145,7 +145,10 @@ fn every_snippet_expands_to_code_that_checks() {
             format!("{code}\nfun main() {{ }}\n")
         } else {
             let indented: Vec<String> = code.lines().map(|l| format!("    {l}")).collect();
-            format!("fun main() {{\n{LOCALS}{}\n}}\n", indented.join("\n"))
+            format!(
+                "fun main(console: Console) {{\n{LOCALS}{}\n}}\n",
+                indented.join("\n")
+            )
         };
         let (status, stderr) = check(&program);
         if status != Some(0) {

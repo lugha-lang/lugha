@@ -286,15 +286,7 @@ mod tests {
     #[test]
     fn each_effect_is_e0445_with_its_reason() {
         for (body, reason) in [
-            ("println(\"hi\"); 1", "`f` calls `println`, which prints"),
-            (
-                "match read_file(\"x\") { .Ok(s) => s.len, .Err(_) => 0 }",
-                "`f` calls `read_file`, which reads files",
-            ),
-            (
-                "args().len",
-                "`f` calls `args`, which reads the command line",
-            ),
+            ("debug(\"hi\"); 1", "`f` calls `debug`, which prints"),
             (
                 "let t = spawn g(); t.join()",
                 "`f` calls `spawn`, which starts a task",
@@ -312,17 +304,13 @@ mod tests {
             assert!(help(&src).starts_with(reason), "{body}: {}", help(&src));
         }
         // An effect in the value itself, and one two calls deep.
-        let src = "const A: i64 = match read_file(\"x\") { .Ok(s) => s.len, .Err(_) => 0 };\nfun main() {}";
+        let src = "const A: i64 = debug(1);\nfun main() {}";
         assert_eq!(one_file_errors(src)[0].0, "E0445");
-        assert!(
-            help(src).starts_with("`read_file` reads files"),
-            "{}",
-            help(src)
-        );
-        let src = "fun a(): i64 = b();\nfun b(): i64 { print(1); 1 }\nconst A: i64 = a() + 1;\nfun main() {}";
+        assert!(help(src).starts_with("`debug` prints"), "{}", help(src));
+        let src = "fun a(): i64 = b();\nfun b(): i64 { debug(1); 1 }\nconst A: i64 = a() + 1;\nfun main() {}";
         assert_eq!(one_file_errors(src), [("E0445", "a()")]);
         assert!(
-            help(src).starts_with("`a` calls `b`, which calls `print`, which prints"),
+            help(src).starts_with("`a` calls `b`, which calls `debug`, which prints"),
             "{}",
             help(src)
         );
@@ -331,14 +319,14 @@ mod tests {
     #[test]
     fn effects_are_found_through_values_and_interfaces() {
         // A function passed as a value.
-        let src = "fun loud(x: i64): i64 { println(x); x }\n\
+        let src = "fun loud(x: i64): i64 { debug(x); x }\n\
                    fun apply(f: fun(i64): i64): i64 = f(1);\n\
                    const A: i64 = apply(loud);\nfun main() {}";
         assert_eq!(one_file_errors(src)[0].0, "E0445");
         assert!(help(src).contains("`loud`"), "{}", help(src));
         // An interface value whose type's method prints.
         let src = "interface Size { fun size(self): i64; }\n\
-                   struct Loud {}\nimpl Size for Loud { fun size(self): i64 { println(1); 1 } }\n\
+                   struct Loud {}\nimpl Size for Loud { fun size(self): i64 { debug(1); 1 } }\n\
                    fun measure(s: Size): i64 = s.size();\n\
                    const A: i64 = measure(Loud {});\nfun main() {}";
         assert_eq!(one_file_errors(src)[0].0, "E0445");
@@ -348,7 +336,7 @@ mod tests {
     fn generics_are_judged_at_their_real_types() {
         let lib = "interface Measure { fun size(self): i64; }\n\
                    struct Quiet {}\nimpl Measure for Quiet { fun size(self): i64 = 1; }\n\
-                   struct Loud {}\nimpl Measure for Loud { fun size(self): i64 { println(2); 2 } }\n\
+                   struct Loud {}\nimpl Measure for Loud { fun size(self): i64 { debug(2); 2 } }\n\
                    fun total<T: Measure>(x: T): i64 = x.size() + 1;\n";
         ok(&[(
             "main.la",
@@ -357,8 +345,7 @@ mod tests {
         let src = format!("{lib}const B: i64 = total(Loud {{}});\nfun main() {{}}");
         assert_eq!(one_file_errors(&src)[0].0, "E0445");
         assert!(
-            help(&src)
-                .starts_with("`total` calls `Loud.size`, which calls `println`, which prints"),
+            help(&src).starts_with("`total` calls `Loud.size`, which calls `debug`, which prints"),
             "{}",
             help(&src)
         );
@@ -368,14 +355,14 @@ mod tests {
     fn a_types_own_show_and_eq_are_followed() {
         // Interpolation calls `show` without naming it.
         let src = "struct P { x: i64 }\n\
-                   impl Display for P { fun show(self): string { println(1); \"p\" } }\n\
+                   impl Display for P { fun show(self): string { debug(1); \"p\" } }\n\
                    const L: string = \"at {P { x: 0 }}\";\nfun main() {}";
         assert_eq!(one_file_errors(src)[0].0, "E0445");
         assert!(help(src).contains("`P.show`"), "{}", help(src));
         // `==` calls `eq` without naming it (with the prelude's `Eq`).
         let eq = "struct P { x: i64 }\n\
                   impl Eq for P {\n\
-                      fun eq(self, other: P): bool { println(1); self.x == other.x }\n\
+                      fun eq(self, other: P): bool { debug(1); self.x == other.x }\n\
                   }\n";
         let codes = prelude_codes(&[(
             "main.la",

@@ -446,7 +446,9 @@ mod tests {
     fn tests_are_found_by_tokens() {
         assert!(has_tests("@test fun t() {}"));
         assert!(!has_tests("// @test\nfun t() {}"));
-        assert!(!has_tests("fun main() { println(\"@test\"); }"));
+        assert!(!has_tests(
+            "fun main(console: Console) { console.println(\"@test\"); }"
+        ));
         // Doesn't lex, mentions it: built, so the error is reported.
         assert!(has_tests("@test fun t() { ` }"));
     }

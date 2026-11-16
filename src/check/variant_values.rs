@@ -227,7 +227,9 @@ mod tests {
 
     #[test]
     fn locals_and_functions_named_like_variants_win() {
-        ok("fun main() { let Some_ = 1; let f = fun(x: i64): i64 = x; println(f(Some_)); }");
+        ok(
+            "fun main(console: Console) { let Some_ = 1; let f = fun(x: i64): i64 = x; console.println(f(Some_)); }",
+        );
         ok(&format!(
             "{MSG}fun main() {{ let named = Msg.Named(\"a\"); let add = Msg.Add; }}"
         ));

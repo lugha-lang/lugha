@@ -127,7 +127,7 @@ mod tests {
     #[test]
     fn a_wrong_count_or_an_unused_list_is_e0418() {
         assert_eq!(e("let n = two<u8>(1, 2);"), [("E0418", "<u8>".to_string())]);
-        assert_eq!(e("let n = println<i64>(1);")[0].0, "E0418");
+        assert_eq!(e("let n = to_string<i64>(1);")[0].0, "E0418");
         assert_eq!(
             e("let s = \"ab\"; let n = s.len<i64>;"),
             [("E0418", "<i64>".to_string())]

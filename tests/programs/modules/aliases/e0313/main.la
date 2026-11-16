@@ -1,5 +1,5 @@
 import shapes;
 
-fun main() {
-    println(shapes.vec.hidden());
+fun main(console: Console) {
+    console.println(shapes.vec.hidden());
 }

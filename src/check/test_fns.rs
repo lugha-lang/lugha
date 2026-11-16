@@ -30,9 +30,17 @@ impl Checker {
         for item in &program.items {
             if let Item::Fun(f) = item
                 && f.test.is_some()
-                && (!f.params.is_empty() || !f.type_params.is_empty() || f.ret.is_some())
             {
-                self.report(errors::bad_test(f.name.span));
+                let key = self.key(&f.name.name);
+                let params = self
+                    .functions
+                    .get(&key)
+                    .map(|s| s.params.clone())
+                    .unwrap_or_default();
+                let supplied = self.entry_params(&key, &params, f.name.span);
+                if !supplied || !f.type_params.is_empty() || f.ret.is_some() {
+                    self.report(errors::bad_test(f.name.span));
+                }
             }
         }
     }

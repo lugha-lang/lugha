@@ -4,51 +4,51 @@ struct Wrap<T> {
     n: i64,
 } with Eq
 
-fun log(s: string) {
-    println(s);
+fun log(console: Console, s: string) {
+    console.println(s);
 }
 
 fun pick<T>(a: T, b: T, first: bool): T = if first { a } else { b };
 
-fun main() {
+fun main(console: Console) {
     let m: Map<(), i64> = Map { (): 7 };
-    println(m[()]);
+    console.println(m[()]);
     let s: Set<()> = Set { (), () };
-    println(s.debug());
+    console.println(s.debug());
     let mut us: ()[] = [(), (), ()];
     us.push(());
     let popped = us.pop();
-    println("{us.len} {popped.debug()}");
-    let f = fun(): () = log("closure");
+    console.println("{us.len} {popped.debug()}");
+    let f = fun(): () = log(console, "closure");
     let r: () = f();
-    println(r.debug());
+    console.println(r.debug());
     let units = [1, 2].map(fun(x: i64) {
-        println(x);
+        console.println(x);
     });
-    println(units.debug());
+    console.println(units.debug());
     let b = Ref.new(());
     b.set(());
-    println(b.get().debug());
+    console.println(b.get().debug());
     let t = ((), 1);
-    println(t.debug());
+    console.println(t.debug());
     let (u, n) = t;
-    println("{u.debug()} {n}");
+    console.println("{u.debug()} {n}");
     let w = Wrap { v: (), n: 2 };
-    println(w == Wrap { v: (), n: 2 });
-    println((pick((), (), true)).debug());
+    console.println(w == Wrap { v: (), n: 2 });
+    console.println((pick((), (), true)).debug());
     let o: Option<()> = None;
     match o {
-        .Some(_) => println("some"),
-        .None => println("none"),
+        .Some(_) => console.println("some"),
+        .None => console.println("none"),
     }
-    println(() < ());
-    println(() <= ());
-    more();
+    console.println(() < ());
+    console.println(() <= ());
+    more(console);
 }
 
-fun more() {
+fun more(console: Console) {
     let mut xs = [(), ()];
     xs = xs.sort();
-    println(xs.debug());
-    println(((), 2) < ((), 3));
+    console.println(xs.debug());
+    console.println(((), 2) < ((), 3));
 }

@@ -6,6 +6,6 @@ fun name(s: Option<Shape>): string = match s {
     .None => "none",
 };
 
-fun main() {
-    println(name(None));
+fun main(console: Console) {
+    console.println(name(None));
 }

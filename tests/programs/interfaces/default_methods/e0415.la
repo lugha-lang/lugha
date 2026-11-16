@@ -9,7 +9,7 @@ impl Sq {
     fun area(self): i64 = 4;
 }
 
-fun main() {
+fun main(console: Console) {
     let q = Sq { side: 2.0 };
-    println(q.describe());
+    console.println(q.describe());
 }

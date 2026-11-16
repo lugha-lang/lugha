@@ -15,7 +15,7 @@ impl Grid {
 
 struct P { x: i64 }
 
-fun main() {
+fun main(console: Console) {
     let mut counts: Map<string, i64> = Map {};
     for w of ["a", "b", "a"] {
         if !counts.has(w) {
@@ -23,20 +23,20 @@ fun main() {
         }
         counts[w] += 1;
     }
-    println(counts["a"]);
+    console.println(counts["a"]);
 
     let mut groups: Map<string, i64[]> = Map { "odd": [], "even": [] };
     for n in 0..6 {
         groups[if n % 2 == 0 { "even" } else { "odd" }].push(n);
     }
-    println(groups["even"].debug());
+    console.println(groups["even"].debug());
 
     let mut g = Grid { w: 2, cells: [0.0; 4] };
     g[1, 1] += 2.5;
-    println(g[1, 1]);
+    console.println(g[1, 1]);
 
     let mut ps: Map<i64, P> = Map { 1: P { x: 1 } };
     ps[1].x = 7;
-    println(ps[1].x);
+    console.println(ps[1].x);
     counts["z"] += 1;
 }

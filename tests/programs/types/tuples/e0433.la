@@ -1,7 +1,7 @@
-fun main() {
+fun main(console: Console) {
     let o = Some(1);
     let .Some(n) = o;
     for (1, x) of [(1, 2)] {
-        println(x);
+        console.println(x);
     }
 }

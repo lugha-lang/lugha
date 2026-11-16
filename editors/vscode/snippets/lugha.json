@@ -11,7 +11,7 @@
   "Main": {
     "prefix": "main",
     "body": [
-      "fun main() {",
+      "fun main(console: Console) {",
       "\t$0",
       "}"
     ],
@@ -199,8 +199,8 @@
     "prefix": "select",
     "body": [
       "select {",
-      "\t${1:m} = ${2:c}.recv() => ${3:println(m.debug())},",
-      "\tafter(${4:100}) => ${5:println(\"timed out\")},",
+      "\t${1:m} = ${2:c}.recv() => ${3:console.println(m.debug())},",
+      "\tafter(${4:100}) => ${5:console.println(\"timed out\")},",
       "}"
     ],
     "description": "Wait on channels, with a timeout (v17)"

@@ -4,7 +4,7 @@ import handles { Handle, Plain, make_handle };
 
 fun keep(h: Handle): Option<Handle> = Some(h);
 
-fun main() {
+fun main(console: Console) {
     let p = Plain { n: 1 };
-    println(p.n);
+    console.println(p.n);
 }

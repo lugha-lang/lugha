@@ -6,11 +6,11 @@ fun total(xs: shapes.Shape[]): f64 {
     for x of xs { t += x.area(); }
     t
 }
-fun main() {
+fun main(console: Console) {
     let sq = geo.Square { s: 2.0 };
     let c = geo.Circle { r: 1.0 };
-    println(total([sq, c]));
-    println(sq.name());
-    println(c.name());
-    println(shapes.Shape.area(sq));
+    console.println(total([sq, c]));
+    console.println(sq.name());
+    console.println(c.name());
+    console.println(shapes.Shape.area(sq));
 }

@@ -114,34 +114,34 @@ struct Pair {
     b: i64,
 }
 
-fun main() {
+fun main(console: Console) {
     let mut fuel: u64 = 99;
     let err = get_fuel(out fuel);
-    println(fuel);
-    println(last_seen());
-    println(err.is_none());
+    console.println(fuel);
+    console.println(last_seen());
+    console.println(err.is_none());
     let mut code: u8 = 0;
-    println(trap_code(1, out code));
-    println(code);
+    console.println(trap_code(1, out code));
+    console.println(code);
     let mut ready = false;
     is_ready(out ready);
-    println(ready);
+    console.println(ready);
     let mut module = any_module();
     let mut maybe: Option<Module> = None;
     module_new(0, out module, out maybe);
-    println(is_b(module));
-    println(maybe.is_some());
+    console.println(is_b(module));
+    console.println(maybe.is_some());
     module_new(1, out module, out maybe);
-    println(maybe.is_none());
+    console.println(maybe.is_none());
     let mut inst = Instance { store_id: 0, hidden: 0 };
     instantiate(out inst);
-    println(inst.store_id + inst.hidden);
+    console.println(inst.store_id + inst.hidden);
     let mut xs = [0, 0];
     two(out xs[1], out xs[0]);
-    println(xs.debug());
+    console.println(xs.debug());
     let mut p = Pair { a: 0, b: 0 };
     two(out p.b, out p.a);
-    println(p.a * 10 + p.b);
+    console.println(p.a * 10 + p.b);
 }
 "#;
 
@@ -178,19 +178,19 @@ extern fun flip(mut b: bool);
 extern fun grow(mut i: Instance);
 extern fun peek(ptr n: u64): u64;
 
-fun main() {
+fun main(console: Console) {
     let inst = Instance { store_id: 4, hidden: 2 };
-    println(read_instance(ptr inst));
+    console.println(read_instance(ptr inst));
     let mut n: u64 = 41;
     bump(mut n);
-    println(n);
+    console.println(n);
     let mut b = true;
     flip(mut b);
-    println(b);
+    console.println(b);
     let mut all = [Instance { store_id: 1, hidden: 0 }];
     grow(mut all[0]);
-    println(all[0].store_id);
-    println(peek(ptr 7));
+    console.println(all[0].store_id);
+    console.println(peek(ptr 7));
 }
 "#;
     Case::new(main, PTR_SIDE).runs("42\n42\nfalse\n101\n7\n");
@@ -215,10 +215,10 @@ impl Cells {
     fun set_index(mut self, i: i64, v: i64) { self.xs[i] = v; }
 }
 
-fun main() {
+fun main(console: Console) {
     let mut c = Cells { xs: [0, 0, 0] };
     two(out c[2], out c[0]);
-    println(c.xs.debug());
+    console.println(c.xs.debug());
 }
 "#;
     Case::new(main, SIDE).runs("[2, 0, 1]\n");

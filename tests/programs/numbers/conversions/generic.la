@@ -3,16 +3,16 @@ fun to_f64<T: Float>(x: T): f64 = x as f64;
 fun clamp_to<T: Num, U: Num>(x: T): U = x.saturate<U>();
 fun exact<T: Num, U: Num>(x: T): Option<U> = x.try_into<U>();
 
-fun main() {
-    println(to_f64(1.5 as f32));
+fun main(console: Console) {
+    console.println(to_f64(1.5 as f32));
     let a: u8 = clamp_to(-5);
     let b: i16 = clamp_to(1.0e9);
     let c: f32 = clamp_to(7 as u16);
-    println("{a} {b} {c}");
+    console.println("{a} {b} {c}");
     let d: Option<u8> = exact(255);
     let e: Option<u8> = exact(256);
     let f: Option<i64> = exact(2.5);
-    println("{d.debug()} {e.debug()} {f.debug()}");
+    console.println("{d.debug()} {e.debug()} {f.debug()}");
     let inferred: u8 = 300.truncate();
-    println(inferred);
+    console.println(inferred);
 }

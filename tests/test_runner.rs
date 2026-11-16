@@ -56,8 +56,8 @@ fun area_of_unit() {
 }
 
 @test
-fun doubles() {
-    println(\"doubling 2\");
+fun doubles(console: Console) {
+    console.println(\"doubling 2\");
     assert_eq(double(2), 5);
 }
 ";
@@ -91,7 +91,7 @@ fn each_failure_stays_in_its_test_and_an_endless_loop_times_out() {
     let src = "@test fun overflows() { let x: i64 = 9223372036854775807; let y = x + 1; }
 @test fun recurses() { recurse(1); }
 fun recurse(n: i64): i64 = recurse(n + 1) + 1;
-@test fun out_of_bounds() { let xs = [1]; let i = 3; println(xs[i]); }
+@test fun out_of_bounds(console: Console) { let xs = [1]; let i = 3; console.println(xs[i]); }
 @test fun fine() { assert_ne(\"a\", \"b\"); }
 ";
     // Only the endless loop gets a short limit: a loaded machine may be slow.
@@ -164,7 +164,7 @@ fn a_file_that_does_not_compile_is_reported_and_the_rest_still_run() {
 fn no_tests_is_success_and_build_leaves_tests_out() {
     let t = Temp::with(&[(
         "main.la",
-        "fun main() { println(1); }\n@test fun t() { assert(false); }\n",
+        "fun main(console: Console) { console.println(1); }\n@test fun t() { assert(false); }\n",
     )]);
     let run = lughac(&t.0, &["run", "main.la"]);
     assert_eq!(
@@ -269,6 +269,9 @@ fn exact_filters_match_whole_names_and_filters_repeat() {
 
 const SKIPS: &str = "import std.env;
 
+// A test that stops the process itself, through C: 77 is still a failure.
+extern fun _exit(code: i32);
+
 @test
 fun needs_a_screen() {
     if env.get(\"LUGHA_NO_SUCH_SCREEN\") == None {
@@ -290,7 +293,7 @@ fun fails_before_skipping() {
 
 @test
 fun exits_77_without_skipping() {
-    exit(77);
+    _exit(77);
 }
 ";
 
@@ -419,4 +422,21 @@ fn cpu_reaches_the_test_build() {
     );
     let bad = lughac(&t.0, &["test", "--cpu=pentium"]);
     assert_eq!(bad.status.code(), Some(2));
+}
+
+#[test]
+fn a_test_takes_capabilities_like_main() {
+    let src = "@test\n\
+               fun writes_a_file(console: Console, fs: Fs) {\n\
+                   assert(fs.cwd().write_file(\"t.txt\", \"x\").is_ok());\n\
+                   console.println(\"written\");\n\
+               }\n\
+               fun main() {}\n";
+    let t = Temp::with(&[("caps.la", src)]);
+    let out = lughac(&t.0, &["test"]);
+    assert_eq!(out.status.code(), Some(0), "{}", text(&out.stdout));
+    assert!(
+        t.0.join("t.txt").exists(),
+        "the test wrote through its `Fs`"
+    );
 }

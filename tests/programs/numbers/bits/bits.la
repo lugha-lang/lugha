@@ -1,14 +1,14 @@
 // The bits example program.
 
-fun main() {
+fun main(console: Console) {
     let flags: u32 = 0b1010;
-    println(flags & 0b0010 == 0b0010);
-    println(flags | 1);
-    println(flags ^ 0xf);
-    println(~flags & 0xf);
-    println(1 << 10);
-    println(-8 >> 1);
+    console.println(flags & 0b0010 == 0b0010);
+    console.println(flags | 1);
+    console.println(flags ^ 0xf);
+    console.println(~flags & 0xf);
+    console.println(1 << 10);
+    console.println(-8 >> 1);
     let mut m: u64 = 0xff;
     m <<= 8;
-    println(m);
+    console.println(m);
 }

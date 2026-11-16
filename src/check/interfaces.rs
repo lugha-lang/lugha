@@ -323,20 +323,16 @@ mod tests {
     const SHAPE: &str = "interface Shape { fun area(self): f64; fun name(self): string; }\n";
 
     #[test]
-    fn the_drafts_interfaces_program_checks() {
-        let draft = include_str!("../../docs/specs/Language v2 Draft.md");
-        let start = draft
+    fn the_specs_interfaces_program_checks() {
+        let spec = crate::SPEC;
+        let start = spec
             .find("**Interfaces** (milestone 12). Prints")
-            .expect("the draft has the interfaces program");
-        let code = draft[start..]
+            .expect("the spec has the interfaces program");
+        let code = spec[start..]
             .split("```\n")
             .nth(1)
             .expect("a fenced block follows");
-        // The draft's types met `Shape` by their methods; now they say so.
-        let code = code
-            .replace("impl Circle {", "impl Shape for Circle {")
-            .replace("impl Square {", "impl Shape for Square {");
-        ok(&code);
+        ok(code);
     }
 
     #[test]

@@ -1,5 +1,5 @@
 // Labels on every kind of loop: `break` and `continue` reach the one named.
-fun main() {
+fun main(console: Console) {
     let mut found = 0;
     rows: for r in 0..5 {
         let mut c = 0;
@@ -14,7 +14,7 @@ fun main() {
             }
         }
     }
-    println(found);
+    console.println(found);
 
     let mut it = [5, 6, 7, 8].iter();
     let mut seen = 0;
@@ -26,7 +26,7 @@ fun main() {
             }
         }
     }
-    println(seen);
+    console.println(seen);
 
     let mut count = 0;
     outer: loop {
@@ -41,5 +41,5 @@ fun main() {
             break outer;
         }
     }
-    println(count);
+    console.println(count);
 }

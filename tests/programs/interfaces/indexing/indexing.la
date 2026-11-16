@@ -68,34 +68,34 @@ fun fill(t: Table): Table {
     u
 }
 
-fun main() {
+fun main(console: Console) {
     let mut g = Grid { w: 3, cells: [0.0; 9] };
     g[1, 2] = 5.0;
-    println(g[1, 2]);
+    console.println(g[1, 2]);
     g[(0, 0)] = g[1, 2] + 1.0;
-    println(g[0, 0]);
+    console.println(g[0, 0]);
 
     // Writes in a loop, and a copy that keeps its own cells.
     let before = g;
     for i in 0..3 {
         g[i, i] = 9.0;
     }
-    println(g.cells.debug());
-    println(before.cells.debug());
+    console.println(g.cells.debug());
+    console.println(before.cells.debug());
 
     let b = Bytes { xs: [10, 20, 30, 40] };
-    println(b[3]);
-    println(Sign.Minus[4]);
+    console.println(b[3]);
+    console.println(Sign.Minus[4]);
 
     let mut p = Pairs { keys: [], values: [] };
     p["a"] = 1;
-    println(first(p));
+    console.println(first(p));
     let t: Table = fill(p);
-    println(t["b"]);
-    println(p["b"]);
+    console.println(t["b"]);
+    console.println(p["b"]);
 
     // Maps with tuple keys take the comma too.
     let mut d: Map<(i64, i64), string> = Map {};
     d[0, 0] = "origin";
-    println(d[0, 0]);
+    console.println(d[0, 0]);
 }

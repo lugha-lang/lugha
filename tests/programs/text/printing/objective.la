@@ -6,15 +6,15 @@ impl Display for Point {
 
 enum Shape { Dot, Circle(f64) }
 
-fun main() {
+fun main(console: Console) {
     let p = Point { x: 1, y: 2 };
-    println(p);                                  // (1, 2)
-    println("at {p}");                           // at (1, 2)
-    println(p.debug());                          // Point { x: 1, y: 2 }
-    println([p, p].debug());                     // [Point { x: 1, y: 2 }, Point { x: 1, y: 2 }]
-    println(Some("ada").debug());                // Some("ada")
-    println(Shape.Circle(1.5).debug());          // Circle(1.5)
-    println("ada".debug());                      // "ada"
+    console.println(p);                                  // (1, 2)
+    console.println("at {p}");                           // at (1, 2)
+    console.println(p.debug());                          // Point { x: 1, y: 2 }
+    console.println([p, p].debug());                     // [Point { x: 1, y: 2 }, Point { x: 1, y: 2 }]
+    console.println(Some("ada").debug());                // Some("ada")
+    console.println(Shape.Circle(1.5).debug());          // Circle(1.5)
+    console.println("ada".debug());                      // "ada"
     let q = debug(p.x + 1);                      // stderr: [main.la:16] p.x + 1 = 2
-    println(q);                                  // 2
+    console.println(q);                                  // 2
 }

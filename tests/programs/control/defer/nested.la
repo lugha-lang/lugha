@@ -1,22 +1,22 @@
 // A `defer` inside a deferred block runs at that block's end; a closure's
 // and a spawned call's defers run when they return.
-fun work(n: i64): i64 {
-    defer println("task {n} done");
+fun work(console: Console, n: i64): i64 {
+    defer console.println("task {n} done");
     n * 2
 }
 
-fun main() {
+fun main(console: Console) {
     defer {
-        defer println("outer last");
-        println("outer first");
+        defer console.println("outer last");
+        console.println("outer first");
     }
     let f = fun(x: i64): i64 {
-        defer println("closure done");
+        defer console.println("closure done");
         x + 1
     };
-    println(f(1));
-    let t = spawn work(21);
-    println(t.join());
+    console.println(f(1));
+    let t = spawn work(console, 21);
+    console.println(t.join());
     defer {
         let mut i = 0;
         while true {
@@ -25,6 +25,6 @@ fun main() {
                 break;
             }
         }
-        println("looped {i}");
+        console.println("looped {i}");
     }
 }

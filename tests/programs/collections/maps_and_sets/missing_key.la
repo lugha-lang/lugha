@@ -1,4 +1,4 @@
-fun main() {
+fun main(console: Console) {
     let m = Map { "a": 1 };
-    println(m["z"]);
+    console.println(m["z"]);
 }

@@ -1,8 +1,8 @@
 // mandelbrot: counts the points of an n×n grid that stay in the set
 // after 50 iterations. Stresses tight float loops.
 
-fun main() {
-    let n = parse_i64(args()[1]).unwrap();
+fun main(args: string[], console: Console) {
+    let n = parse_i64(args[1]).unwrap();
     let size = n.round<f64>();
     let mut inside = 0;
     for y in 0..n {
@@ -26,5 +26,5 @@ fun main() {
             }
         }
     }
-    println(inside);
+    console.println(inside);
 }

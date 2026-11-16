@@ -1,6 +1,6 @@
-fun main() {
+fun main(console: Console) {
     let s = "hello";
     let i: i64 = -1;
     let b = s[i];
-    println(b);
+    console.println(b);
 }

@@ -86,7 +86,10 @@ fn visit_program(program: &crate::ast::Program, f: &mut dyn FnMut(&crate::ast::E
 #[test]
 fn a_dead_local_moves_and_a_live_one_copies() {
     assert_eq!(moved("fun main() { let xs = [1]; let ys = xs; }"), ["xs"]);
-    assert!(moved("fun main() { let xs = [1]; let ys = xs; println(xs[0]); }").is_empty());
+    assert!(
+        moved("fun main(console: Console) { let xs = [1]; let ys = xs; console.println(xs[0]); }")
+            .is_empty()
+    );
     assert!(moved("fun main() { let mut xs = [1]; let ys = xs; xs[0] = 2; }").is_empty());
 }
 
@@ -102,7 +105,9 @@ fn loops_only_move_locals_declared_inside_them() {
 #[test]
 fn shadowed_names_are_different_bindings() {
     assert_eq!(
-        moved("fun main() { let a = [1]; let b = a; let a = [2]; println(a[0]); }"),
+        moved(
+            "fun main(console: Console) { let a = [1]; let b = a; let a = [2]; console.println(a[0]); }"
+        ),
         ["a"]
     );
 }
@@ -152,12 +157,12 @@ const BAG: &str = "struct Bag { items: i64[] }\n\
 #[test]
 fn an_overwritten_local_is_handed_over() {
     let src = format!(
-        "{BAG}fun main() {{ let mut bag = Bag {{ items: [] }}; for k in 0..3 {{ bag = insert(bag, k); }} println(total(bag)); }}"
+        "{BAG}fun main(console: Console) {{ let mut bag = Bag {{ items: [] }}; for k in 0..3 {{ bag = insert(bag, k); }} console.println(total(bag)); }}"
     );
     assert_eq!(handed(&src), ["bag", "bag"]);
     // Read again in the same value, or later: kept.
     let src = format!(
-        "{BAG}fun main() {{ let mut bag = Bag {{ items: [] }}; bag = insert(bag, total(bag)); let b2 = insert(bag, 1); println(total(bag)); }}"
+        "{BAG}fun main(console: Console) {{ let mut bag = Bag {{ items: [] }}; bag = insert(bag, total(bag)); let b2 = insert(bag, 1); console.println(total(bag)); }}"
     );
     // Only the last mention inside the value, and the very last.
     assert_eq!(handed(&src), ["bag", "bag"]);
@@ -172,7 +177,7 @@ fn an_overwritten_local_is_handed_over() {
 fn field_targets_and_closures_hand_nothing_over() {
     let src = format!(
         "{BAG}struct Box2 {{ bag: Bag }}\n\
-         fun main() {{ let mut w = Box2 {{ bag: Bag {{ items: [] }} }}; w.bag = insert(w.bag, 1); let mut b = w.bag; let f = fun(): Bag = insert(b, 2); b = insert(b, 3); println(total(b)); }}"
+         fun main(console: Console) {{ let mut w = Box2 {{ bag: Bag {{ items: [] }} }}; w.bag = insert(w.bag, 1); let mut b = w.bag; let f = fun(): Bag = insert(b, 2); b = insert(b, 3); console.println(total(b)); }}"
     );
     // Not `w.bag` (a field target), nor `b` inside the closure (a capture).
     assert_eq!(handed(&src), ["b", "b"]);
@@ -225,13 +230,14 @@ fn receivers_are_slot_zero_and_methods_are_walked() {
 #[test]
 fn a_deferred_mention_counts_at_the_end_of_its_block() {
     // The `defer` runs after `let ys = xs;`, so `xs` is still read then.
-    let src = "fun main() { let xs = [1]; defer println(xs[0]); let ys = xs; }";
+    let src =
+        "fun main(console: Console) { let xs = [1]; defer console.println(xs[0]); let ys = xs; }";
     assert!(moved(src).is_empty());
     // Inside the deferred statement it would be the last use, but the rule
     // errs towards copying: the statement's mentions count at the end too.
-    let src = "fun main() { let xs = [1]; defer { let ys = xs; } println(xs[0]); }";
+    let src = "fun main(console: Console) { let xs = [1]; defer { let ys = xs; } console.println(xs[0]); }";
     assert!(moved(src).is_empty());
     // Below its block, the deferred statement has already run.
-    let src = "fun main() { let xs = [1]; { defer println(xs[0]); } let ys = xs; }";
+    let src = "fun main(console: Console) { let xs = [1]; { defer console.println(xs[0]); } let ys = xs; }";
     assert_eq!(moved(src), ["xs"]);
 }

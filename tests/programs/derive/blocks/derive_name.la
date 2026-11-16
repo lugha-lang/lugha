@@ -6,10 +6,10 @@ struct Point { derive: i64, tuple: i64 } with json.Json
 
 fun derive(x: i64): i64 = x * 2;
 
-fun main() {
+fun main(console: Console) {
     let p = Point { derive: 3, tuple: 4 };
-    println(derive(p.derive));
+    console.println(derive(p.derive));
     let tuple = p.tuple;
-    println(tuple);
-    println(json.stringify(json.encode(p)).unwrap());
+    console.println(tuple);
+    console.println(json.stringify(json.encode(p)).unwrap());
 }

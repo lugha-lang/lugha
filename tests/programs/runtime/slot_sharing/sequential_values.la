@@ -172,7 +172,7 @@ fun sum(w: Wide): i64 = w.g0 + w.g79;
 
 fun bump(w: Wide): Wide = Wide { g0: w.g0 + 1, ..w };
 
-fun main() {
+fun main(console: Console) {
     // Each finished before the next starts.
     let a = sum(wide(1));
     let b = sum(wide(2));
@@ -183,6 +183,6 @@ fun main() {
     let kept2 = bump(keep);
     let e = sum(bump(bump(wide(5))));
     let swapped = if a < b { bump(kept2) } else { keep };
-    println("{a} {b} {c} {d} {e}");
-    println("{sum(keep)} {sum(kept2)} {sum(swapped)}");
+    console.println("{a} {b} {c} {d} {e}");
+    console.println("{sum(keep)} {sum(kept2)} {sum(swapped)}");
 }

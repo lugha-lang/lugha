@@ -322,11 +322,11 @@ mod tests {
 
     #[test]
     fn attributes_and_builtin_types_and_intrinsics() {
-        let tokens = decoded("@test\nfun f(): i64 = 1;\nprintln(2);\nSome(None);\n");
+        let tokens = decoded("@test\nfun f(): i64 = 1;\npanic(2);\nSome(None);\n");
         let deco = Kind::Decorator as u32;
         assert_eq!(&tokens[..2], &[(0, 0, 1, deco, 0), (0, 1, 4, deco, 0)]);
         assert!(tokens.contains(&(1, 9, 3, Kind::Type as u32, DEFAULT_LIBRARY)));
-        assert!(tokens.contains(&(2, 0, 7, Kind::Function as u32, DEFAULT_LIBRARY)));
+        assert!(tokens.contains(&(2, 0, 5, Kind::Function as u32, DEFAULT_LIBRARY)));
         let variant = Kind::EnumMember as u32;
         assert!(tokens.contains(&(3, 0, 4, variant, DEFAULT_LIBRARY)));
         assert!(tokens.contains(&(3, 5, 4, variant, DEFAULT_LIBRARY)));

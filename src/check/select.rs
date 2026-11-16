@@ -101,18 +101,17 @@ mod tests {
     use crate::check::Type;
     use crate::check::test_util::{errors, let_type, ok};
 
-    const CHANS: &str =
-        "fun main() { let a: Chan<i64> = Chan.new(); let b: Chan<string> = Chan.buffered(1); ";
+    const CHANS: &str = "fun main(console: Console) { let a: Chan<i64> = Chan.new(); let b: Chan<string> = Chan.buffered(1); ";
 
     #[test]
     fn select_arms_bind_and_agree() {
         ok(&format!(
             "{CHANS}
             select {{
-                m = a.recv() => match m {{ .Some(n) => println(n), .None => println(\"closed\") }},
-                _ = b.recv() => println(\"b\"),
-                b.send(\"x\") => {{ println(\"sent\"); }}
-                after(500) => println(\"timed out\"),
+                m = a.recv() => match m {{ .Some(n) => console.println(n), .None => console.println(\"closed\") }},
+                _ = b.recv() => console.println(\"b\"),
+                b.send(\"x\") => {{ console.println(\"sent\"); }}
+                after(500) => console.println(\"timed out\"),
             }}
         }}"
         ));

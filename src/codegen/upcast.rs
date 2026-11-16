@@ -230,7 +230,7 @@ mod tests {
     #[test]
     fn a_conversion_finds_the_derived_table_at_run_time() {
         let ir = ir(&format!(
-            "{PETS}fun main() {{ let p: Pet = Dog {{ n: \"d\" }}; let n: Named = p; println(n.name()); }}"
+            "{PETS}fun main(console: Console) {{ let p: Pet = Dog {{ n: \"d\" }}; let n: Named = p; console.println(n.name()); }}"
         ));
         assert!(
             body(&ir, "main").contains("call ptr @lugha_up_Pet.Named("),
@@ -259,7 +259,7 @@ mod tests {
     #[test]
     fn programs_without_such_conversions_have_none() {
         let ir = ir(&format!(
-            "{PETS}fun main() {{ let p: Pet = Dog {{ n: \"d\" }}; println(p.name()); }}"
+            "{PETS}fun main(console: Console) {{ let p: Pet = Dog {{ n: \"d\" }}; console.println(p.name()); }}"
         ));
         assert!(!ir.contains("lugha_up_"), "{ir}");
     }

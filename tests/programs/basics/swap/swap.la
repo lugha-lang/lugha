@@ -16,12 +16,12 @@ impl Shape {
     };
 }
 
-fun show(xs: i64[]) {
+fun show(console: Console, xs: i64[]) {
     for i in 0..xs.len {
-        if i > 0 { print(","); }
-        print(xs[i]);
+        if i > 0 { console.print(","); }
+        console.print(xs[i]);
     }
-    println();
+    console.println("");
 }
 
 fun bubble(xs: i64[]): i64[] {
@@ -58,54 +58,54 @@ fun merge_sort(xs: i64[]): i64[] {
     ys
 }
 
-fun main() {
+fun main(console: Console) {
     // Two arrays trade contents; afterwards each is still its own array.
     let mut a = [1, 2, 3];
     let mut b = [9];
     swap(a, b);
-    show(a);
-    show(b);
+    show(console, a);
+    show(console, b);
     a.push(10);
     b[0] = 100;
-    show(a);
-    show(b);
+    show(console, a);
+    show(console, b);
 
     // Two elements of one array.
-    show(bubble([5, 3, 8, 1, 4]));
+    show(console, bubble([5, 3, 8, 1, 4]));
 
     // Fields, through a `mut self` method and against a local.
     let mut p = Pair { left: [1], right: [2, 2] };
     p.flip();
-    show(p.left);
-    show(p.right);
+    show(console, p.left);
+    show(console, p.right);
     let mut spare = [7, 7, 7];
     swap(p.left, spare);
-    show(p.left);
-    show(spare);
+    show(console, p.left);
+    show(console, spare);
 
     // bool and u8, between a local and an element.
     let mut t = true;
     let mut flags = [false, true];
     swap(t, flags[0]);
-    println(t);
-    println(flags[0]);
+    console.println(t);
+    console.println(flags[0]);
     let mut bytes: u8[] = [1, 2];
     let mut c: u8 = 200;
     swap(bytes[1], c);
-    println(bytes[1]);
-    println(c);
+    console.println(bytes[1]);
+    console.println(c);
 
     // Enums.
     let mut s = Shape.Circle(4);
     let mut q = Shape.Square(3);
     swap(s, q);
-    println(s.side());
-    println(q.side());
+    console.println(s.side());
+    console.println(q.side());
 
     // A place with itself changes nothing.
     swap(a, a);
     swap(a[0], a[0]);
-    show(a);
+    show(console, a);
 
-    show(merge_sort([5, 1, 4, 2, 3, 9, 0, 6]));
+    show(console, merge_sort([5, 1, 4, 2, 3, 9, 0, 6]));
 }

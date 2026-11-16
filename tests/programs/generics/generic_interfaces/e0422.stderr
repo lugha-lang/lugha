@@ -1,8 +1,8 @@
 error[E0422]: `Count` doesn't implement `Source<string>`
-   --> tests/programs/generics/generic_interfaces/e0422.la:16:13
+   --> tests/programs/generics/generic_interfaces/e0422.la:16:21
    |
-16 |     println(words(Count { n: 1 }));
-   |             ^^^^^^^^^^^^^^^^^^^^^
+16 |     console.println(words(Count { n: 1 }));
+   |                     ^^^^^^^^^^^^^^^^^^^^^
    |
    = help: add `impl Source<string> for Count { … }`
 

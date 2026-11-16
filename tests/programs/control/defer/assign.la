@@ -10,12 +10,12 @@ fun count(): i64 {
     total
 }
 
-fun main() {
+fun main(console: Console) {
     let mut n = 1;
-    defer println(n);
+    defer console.println(n);
     defer n += 10;
     let mut log: string[] = ["a"];
     defer log = [];
-    println(n);
-    println(count());
+    console.println(n);
+    console.println(count());
 }

@@ -297,8 +297,7 @@ mod partial_tests {
 
     #[test]
     fn a_broken_statement_leaves_its_function_and_the_other_statements() {
-        let src =
-            "fun main() {\n    let a = 1;\n    let b = a +;\n    println(a);\n}\nfun other() { }\n";
+        let src = "fun main(console: Console) {\n    let a = 1;\n    let b = a +;\n    console.println(a);\n}\nfun other() { }\n";
         let t = tokens(src);
         let (program, diagnostics) = parse_partial_from(&t, 0);
         assert_eq!(parse_from(&t, 0).expect_err("a syntax error"), diagnostics);
