@@ -26,7 +26,6 @@ pub const STD: &[(&str, &str)] = &[
     ("random", include_str!("std/random.la")),
     ("task", include_str!("std/task.la")),
     ("time", include_str!("std/time.la")),
-    ("net", include_str!("std/net.la")),
     ("tls", include_str!("std/tls.la")),
     ("crypto", include_str!("std/crypto.la")),
     ("http", include_str!("std/http.la")),
@@ -60,7 +59,9 @@ pub const PRELUDE: &str = concat!(
     include_str!("prelude/eq.la"),
     include_str!("prelude/debug.la"),
     include_str!("prelude/capabilities.la"),
-    include_str!("prelude/capabilities_real.la")
+    include_str!("prelude/capabilities_real.la"),
+    include_str!("prelude/net.la"),
+    include_str!("prelude/net_real.la")
 );
 
 /// The language specification this compiler implements, embedded verbatim;

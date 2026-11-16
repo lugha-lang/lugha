@@ -1,0 +1,227 @@
+// The real network: the runtime's sockets, through `$os` built-ins only the
+// prelude and std may call. Descriptors live in `Ref`s so every copy of a
+// socket sees it closed.
+
+/** The machine's network. */
+struct $Net {}
+
+impl Net for $Net {
+    fun connect_timeout(self, addr: string, ms: i64): Result<Conn, string> {
+        let fd = $os.net_connect(addr, ms)?;
+        Ok($Conn { fd: Ref.new(fd), timeout: Ref.new(0) })
+    }
+    fun listen(self, addr: string): Result<Listener, string> {
+        let fd = $os.net_listen(addr)?;
+        Ok($Listener { fd: Ref.new(fd), timeout: Ref.new(0) })
+    }
+    fun resolve(self, name: string): Result<string[], string> {
+        let mut out: string[] = [];
+        // A handful of addresses: a scan beats building a set.
+        for a of $os.net_resolve(name, 0)?.split("\n") {
+            let mut seen = false;
+            for b of out {
+                if b == a {
+                    seen = true;
+                }
+            }
+            if !seen {
+                out.push(a);
+            }
+        }
+        Ok(out)
+    }
+    fun udp_bind(self, addr: string): Result<Udp, string> = $udp_open(addr, 0);
+    fun udp_bind_shared(self, addr: string): Result<Udp, string> = $udp_open(addr, 1);
+    fun interfaces(self): Result<NetInterface[], string> {
+        let mut out: NetInterface[] = [];
+        for line of $os.net_interfaces()?.split("\n") {
+            let parts = line.split("\t");
+            if parts.len != 5 {
+                continue;
+            }
+            let mut found = false;
+            for i in 0..out.len {
+                if out[i].name == parts[0] {
+                    found = true;
+                    if parts[4] != "" {
+                        out[i].addresses.push(parts[4]);
+                    }
+                }
+            }
+            if !found {
+                let addresses: string[] = if parts[4] == "" { [] } else { [parts[4]] };
+                out.push(NetInterface {
+                    name: parts[0],
+                    index: parse_i64(parts[1]).unwrap_or(0),
+                    up: parts[2] == "1",
+                    multicast: parts[3] == "1",
+                    addresses: addresses,
+                });
+            }
+        }
+        Ok(out)
+    }
+}
+
+/** A UDP socket bound with `shared` 1 (the port shared) or 0. */
+fun $udp_open(addr: string, shared: i64): Result<Udp, string> {
+    let fd = $os.udp_bind(addr, shared)?;
+    Ok($Udp { fd: Ref.new(fd), timeout: Ref.new(0) })
+}
+
+/** A real listening socket. */
+struct $Listener { fd: Ref<i64>, timeout: Ref<i64> }
+
+/** A real connection. */
+struct $Conn { fd: Ref<i64>, timeout: Ref<i64> }
+
+/** A real UDP socket. */
+struct $Udp { fd: Ref<i64>, timeout: Ref<i64> }
+
+impl Listener for $Listener {
+    fun accept(self): Result<Conn, string> {
+        let fd = self.fd.get();
+        if fd < 0 {
+            return Err("closed");
+        }
+        let conn = $os.net_accept(fd, self.timeout.get())?;
+        Ok($Conn { fd: Ref.new(conn), timeout: Ref.new(0) })
+    }
+
+    fun addr(self): string = $net_name(self.fd.get(), 0);
+
+    fun set_timeout(self, ms: i64) {
+        self.timeout.set(ms);
+    }
+
+    fun close(self) {
+        $net_shut(self.fd);
+    }
+}
+
+impl Conn for $Conn {
+    fun read(self, max: i64): Result<u8[], string> {
+        let fd = self.fd.get();
+        if fd < 0 {
+            return Err("closed");
+        }
+        $os.net_read(fd, max, self.timeout.get())
+    }
+
+    fun write(self, bytes: u8[]): Result<(), string> {
+        let fd = self.fd.get();
+        if fd < 0 {
+            return Err("closed");
+        }
+        $os.net_write(fd, bytes, self.timeout.get())?;
+        Ok(())
+    }
+
+    fun set_timeout(self, ms: i64) {
+        self.timeout.set(ms);
+    }
+
+    fun peer(self): string = $net_name(self.fd.get(), 1);
+
+    fun addr(self): string = $net_name(self.fd.get(), 0);
+
+    fun close(self) {
+        $net_shut(self.fd);
+    }
+}
+
+impl Udp for $Udp {
+    fun send_to(self, bytes: u8[], addr: string): Result<(), string> {
+        let fd = self.fd.get();
+        if fd < 0 {
+            return Err("closed");
+        }
+        $os.udp_send(fd, bytes, addr, self.timeout.get())?;
+        Ok(())
+    }
+
+    fun recv_from(self, max: i64): Result<(u8[], string), string> {
+        let fd = self.fd.get();
+        if fd < 0 {
+            return Err("closed");
+        }
+        $os.udp_recv(fd, max, self.timeout.get())
+    }
+
+    fun join(self, group: string, iface: string): Result<(), string> = self.group(group, iface, 1);
+
+    fun leave(self, group: string, iface: string): Result<(), string> = self.group(group, iface, 0);
+
+    fun set_multicast_ttl(self, ttl: i64): Result<(), string> {
+        if ttl < 1 || ttl > 255 {
+            return Err("TTL must be from 1 to 255");
+        }
+        self.option(0, ttl)
+    }
+
+    fun set_multicast_loop(self, on: bool): Result<(), string> = self.option(1, if on { 1 } else { 0 });
+
+    fun set_multicast_interface(self, iface: string): Result<(), string> {
+        let fd = self.fd.get();
+        if fd < 0 {
+            return Err("closed");
+        }
+        $os.udp_multicast_if(fd, iface)?;
+        Ok(())
+    }
+
+    fun set_timeout(self, ms: i64) {
+        self.timeout.set(ms);
+    }
+
+    fun addr(self): string = $net_name(self.fd.get(), 0);
+
+    fun close(self) {
+        $net_shut(self.fd);
+    }
+}
+
+impl $Udp {
+    /** Joins (`join` 1) or leaves (0) a multicast group. */
+    fun group(self, group: string, iface: string, join: i64): Result<(), string> {
+        let fd = self.fd.get();
+        if fd < 0 {
+            return Err("closed");
+        }
+        $os.udp_group(fd, group, iface, join)?;
+        Ok(())
+    }
+
+    /** Sets multicast option `which`: 0 the hop limit, 1 looping back. */
+    fun option(self, which: i64, value: i64): Result<(), string> {
+        let fd = self.fd.get();
+        if fd < 0 {
+            return Err("closed");
+        }
+        $os.udp_option(fd, which, value)?;
+        Ok(())
+    }
+}
+
+/** A socket's own (`peer` 0) or other end's (`peer` 1) address; `""` once closed. */
+fun $net_name(fd: i64, peer: i64): string {
+    if fd < 0 {
+        return "";
+    }
+    match $os.net_name(fd, peer) {
+        .Ok(text) => text,
+        .Err(_) => "",
+    }
+}
+
+/** Closes the socket in `fd` once, for every copy. */
+fun $net_shut(fd: Ref<i64>) {
+    let open = fd.get();
+    if open >= 0 {
+        $os.net_close(open);
+        fd.set(-1);
+    }
+}
+
+/** The network `main` and tests are given. */
+fun $net(): Net = $Net {};

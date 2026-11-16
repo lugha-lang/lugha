@@ -1,4 +1,4 @@
-error[E0434]: a test takes only the capabilities (`Console`, `Fs`, `Clock`, `Env`, `Proc`, `Entropy`), each at most once, and returns nothing
+error[E0434]: a test takes only the capabilities (`Console`, `Fs`, `Clock`, `Env`, `Proc`, `Entropy`, `Net`), each at most once, and returns nothing
   --> tests/programs/tooling/lughac_test/e0434.la:6:5
   |
 6 | fun takes(n: i64) {

@@ -1,6 +1,6 @@
 ## FEATURE: Capabilities, fourth step: `Net`, taken by `main` and tests, with `Conn`, `Listener` and `Udp` as prelude interfaces; `std.net` becomes the prelude's, and `std.tls` and `std.http` take a `Net`; milestone 183, in v18's Phase 2.
 
-**Status:** proposed 2026-11-16.
+**Status:** proposed 2026-11-16. Approved 2026-11-16.
 
 ## OBJECTIVE
 ```lugha
@@ -70,13 +70,19 @@ fun serve_one(l: Listener) {
 - The test runner's fake `Net`; narrowing (`net.only`, `connect_only`, `listen_only`).
 
 ## TESTS
-- [ ] `tests/programs/capabilities/net/`: the objective; a fake `Net` whose `Conn` answers from memory, used by a helper that only knows `Net`; E0304 for a repeated `Net`.
-- [ ] Migrated: the `std.net`, `std.tls` and `std.http` programs and Rust tests (`tests/net*.rs`, `tests/tls*.rs`, `tests/http*.rs`).
-- [ ] Unit (`check/entry.rs`): `main` takes a `Net`.
-- [ ] Full `cargo test`.
+- [x] `tests/programs/capabilities/net/`: the objective; a fake `Net` whose `Conn` answers from memory, used by a helper that only knows `Net`; E0304 for a repeated `Net`.
+- [x] Migrated: the `std.net`, `std.tls` and `std.http` programs and Rust tests (`tests/net*.rs`, `tests/tls*.rs`, `tests/http*.rs`).
+- [x] Unit (`check/entry.rs`): `main` takes a `Net`.
+- [x] Full `cargo test`.
 
 ## ACCEPTANCE
-- [ ] The objective prints `pong` and `Ok(["127.0.0.1"])` and exits 0.
-- [ ] Outside the prelude, nothing opens a socket or looks up a name without a `Net`, apart from `std.tls`'s own sockets (item 4) until the next PRP.
-- [ ] `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean
-- [ ] Every `pub` item documented; spec, CHANGELOG and CLAUDE.md updated where they change
+- [x] The objective prints `pong` and `Ok(["127.0.0.1"])` and exits 0.
+- [x] Outside the prelude, nothing opens a socket or looks up a name without a `Net`, apart from `std.tls`'s own sockets (item 4) until the next PRP.
+- [x] `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean
+- [x] Every `pub` item documented; spec, CHANGELOG and CLAUDE.md updated where they change
+
+## CHANGES DURING THE BUILD
+- **`resolve`'s de-duplication** scans the few addresses with a plain loop: a `Set {}` literal can't be used inside the prelude (which declares `FromItems` itself), and a closure there would add to every program's closures.
+- **`std.http` runs over a fake `Net`** already for `http://`: its plain connections go through `net.connect_timeout`. The test `fake.la` gets a canned response through `http.get`.
+- **The test programs were threaded by script:** `net: Net` added to each function that connects or listens and to its callers, in `tests/net.rs`, `udp.rs`, `tls.rs`, `tls_keys.rs` and `http.rs`.
+- **The E0304 and E0434 messages** list `Net`; four expected-output files changed with them.

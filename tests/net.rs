@@ -18,11 +18,7 @@ impl Case {
         // A leftover from an earlier run would change what the test sees.
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(
-            dir.join("main.la"),
-            format!("import std.net;\nimport std.task;\n\n{main}"),
-        )
-        .unwrap();
+        std::fs::write(dir.join("main.la"), format!("import std.task;\n\n{main}")).unwrap();
         Case(dir)
     }
 
@@ -62,7 +58,7 @@ impl Drop for Case {
     }
 }
 
-const ECHO: &str = "fun serve(console: Console, conn: net.Conn) {
+const ECHO: &str = "fun serve(console: Console, conn: Conn) {
     match conn.read(4096) {
         .Ok(bytes) => {
             let _ = conn.write(bytes);
@@ -72,7 +68,7 @@ const ECHO: &str = "fun serve(console: Console, conn: net.Conn) {
     conn.close();
 }
 
-fun accept_all(console: Console, listener: net.Listener, n: i64) {
+fun accept_all(console: Console, listener: Listener, n: i64) {
     for _ in 0..n {
         match listener.accept() {
             .Ok(conn) => {
@@ -88,7 +84,7 @@ fun accept_all(console: Console, listener: net.Listener, n: i64) {
 fn a_server_and_a_client_talk_in_one_program() {
     Case::new(&format!(
         "{ECHO}
-fun main(console: Console) {{
+fun main(console: Console, net: Net) {{
     let listener = net.listen(\"127.0.0.1:0\").unwrap();
     let addr = listener.addr();
     console.println(addr.starts_with(\"127.0.0.1:\"));
@@ -115,7 +111,7 @@ fun main(console: Console) {{
 fn many_clients_wait_without_blocking_each_other() {
     Case::new(&format!(
         "{ECHO}
-fun client(addr: string, i: i64, done: Chan<i64>) {{
+fun client(net: Net, addr: string, i: i64, done: Chan<i64>) {{
     let conn = net.connect(addr).unwrap();
     conn.write(\"{{i}}\".to_bytes()).unwrap();
     let back = string_from_utf8(conn.read(64).unwrap()).unwrap();
@@ -130,7 +126,7 @@ fun ticker(ticks: Chan<i64>) {{
     ticks.send(20);
 }}
 
-fun main(console: Console) {{
+fun main(console: Console, net: Net) {{
     let listener = net.listen(\"127.0.0.1:0\").unwrap();
     let addr = listener.addr();
     spawn accept_all(console, listener, 200);
@@ -138,7 +134,7 @@ fun main(console: Console) {{
     spawn ticker(ticks);
     let done: Chan<i64> = Chan.buffered(200);
     for i in 0..200 {{
-        spawn client(addr, i, done);
+        spawn client(net, addr, i, done);
     }}
     let mut ok = 0;
     for _ in 0..200 {{
@@ -156,13 +152,13 @@ fun main(console: Console) {{
 #[test]
 fn waits_time_out_and_failures_are_errors() {
     Case::new(
-        "fun hold(listener: net.Listener) {
+        "fun hold(listener: Listener) {
     let conn = listener.accept().unwrap();
     let _ = conn.read(10);
     conn.close();
 }
 
-fun main(console: Console) {
+fun main(console: Console, net: Net) {
     let listener = net.listen(\"127.0.0.1:0\").unwrap();
     let addr = listener.addr();
     spawn hold(listener);
@@ -199,7 +195,7 @@ fun main(console: Console) {
 fn ipv6_works_where_the_host_has_it() {
     let case = Case::new(&format!(
         "{ECHO}
-fun main(console: Console) {{
+fun main(console: Console, net: Net) {{
     match net.listen(\"[::1]:0\") {{
         .Ok(listener) => {{
             let addr = listener.addr();
@@ -220,7 +216,7 @@ fun main(console: Console) {{
 #[test]
 fn main_alone_waits_for_a_client() {
     let case = Case::new(
-        "fun main(console: Console) {
+        "fun main(console: Console, net: Net) {
     let listener = net.listen(\"127.0.0.1:0\").unwrap();
     // stderr isn't buffered: the test reads the address while this waits.
     console.eprintln(listener.addr());
@@ -252,7 +248,7 @@ fn main_alone_waits_for_a_client() {
 #[test]
 fn resolve_gives_every_address_once() {
     Case::new(
-        "fun main(console: Console) {
+        "fun main(console: Console, net: Net) {
     let local = net.resolve(\"localhost\").unwrap();
     console.println(local.any(fun(a: string): bool = a == \"127.0.0.1\" || a == \"::1\"));
     let mut once = true;

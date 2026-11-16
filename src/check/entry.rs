@@ -10,13 +10,14 @@ use crate::span::Span;
 
 /// The capabilities `main` may take, each with the prelude function that
 /// makes the real one.
-pub const ENTRY_CAPABILITIES: [(&str, &str); 6] = [
+pub const ENTRY_CAPABILITIES: [(&str, &str); 7] = [
     ("$prelude.Console", "$prelude.$console"),
     ("$prelude.Fs", "$prelude.$fs"),
     ("$prelude.Clock", "$prelude.$clock"),
     ("$prelude.Env", "$prelude.$env"),
     ("$prelude.Proc", "$prelude.$proc"),
     ("$prelude.Entropy", "$prelude.$entropy"),
+    ("$prelude.Net", "$prelude.$net"),
 ];
 
 /// The intrinsics only the prelude and std may call; a program reaches them
@@ -133,13 +134,15 @@ mod tests {
         ok("fun main() {}");
         ok("fun main(args: string[], console: Console, fs: Fs): i32 { 0 }");
         ok("fun main(fs: Fs, out: Console, argv: string[]) {}");
-        ok("fun main(e: Entropy, p: Proc, v: Env, c: Clock, out: Console) {}");
+        ok("fun main(e: Entropy, p: Proc, v: Env, c: Clock, out: Console, n: Net) {}");
         for bad in [
             "fun main(n: i64) {}",
             "fun main(a: string[], b: string[]) {}",
             "fun main(c: Console, d: Console) {}",
             "fun main(d: Dir) {}",
             "fun main(a: Clock, b: Clock) {}",
+            "fun main(a: Net, b: Net) {}",
+            "fun main(c: Conn) {}",
         ] {
             assert_eq!(errors(bad), [("E0304", "main")], "{bad}");
         }

@@ -1,6 +1,6 @@
 /**
  * std.tls: TLS connections, through the system's OpenSSL (3.2 or newer),
- * shaped like `std.net`'s. Every certificate is verified — its chain
+ * shaped like a `Net`'s. Every certificate is verified — its chain
  * against the system's trusted roots and the host name — and nothing turns
  * that off: `Options.ca_file` adds certificates to trust (a private CA, or
  * a self-signed certificate). TLS 1.2 is the oldest version spoken.
@@ -11,9 +11,12 @@
  * client's key hidden from the network.
  *
  * A program that uses this module is linked with OpenSSL (`libssl-dev`
- * must be installed to build it). Close what you open, as with `std.net`.
+ * must be installed to build it). Close what you open, as with a `Conn`.
+ *
+ * Every function that connects or listens takes a `Net`. The connections
+ * themselves are still the runtime's own sockets, so a fake `Net` doesn't
+ * reach them yet.
  */
-import std.net;
 
 /** How to connect: `options()` gives the defaults. */
 public struct Options {
@@ -57,18 +60,20 @@ public struct Listener {
 
 /**
  * Connects and verifies the server's certificate for the address's host.
+ * @param net the network to connect or listen through
  * @param addr host:port, `example.com:443`
  * @returns the connection, or `Err` with the reason (`certificate verify failed: …`)
  */
-public fun connect(addr: string): Result<Conn, string> = connect_with(addr, options());
+public fun connect(net: Net, addr: string): Result<Conn, string> = connect_with(net, addr, options());
 
 /**
  * `connect` with options: certificates to trust, a timeout, an address to
  * connect to (`addr`'s host still verified).
+ * @param net the network to connect or listen through
  * @param addr host:port
  * @param opts what to trust and how long to wait
  */
-public fun connect_with(addr: string, opts: Options): Result<Conn, string> {
+public fun connect_with(net: Net, addr: string, opts: Options): Result<Conn, string> {
     let target = if opts.address == "" { addr } else { at(opts.address, port_of(addr))? };
     let h = $os.tls_connect(target, host_of(addr), opts.ca_file, opts.timeout_ms)?;
     Ok(Conn { h: Ref.new(h), timeout: Ref.new(opts.timeout_ms) })
@@ -76,11 +81,12 @@ public fun connect_with(addr: string, opts: Options): Result<Conn, string> {
 
 /**
  * Listens for TLS connections with a certificate and its private key.
+ * @param net the network to connect or listen through
  * @param addr host:port
  * @param cert_file the certificate chain, PEM
  * @param key_file the private key, PEM
  */
-public fun listen(addr: string, cert_file: string, key_file: string): Result<Listener, string> {
+public fun listen(net: Net, addr: string, cert_file: string, key_file: string): Result<Listener, string> {
     let h = $os.tls_listen(addr, cert_file, key_file)?;
     Ok(Listener { h: Ref.new(h), timeout: Ref.new(0) })
 }
@@ -89,10 +95,11 @@ public fun listen(addr: string, cert_file: string, key_file: string): Result<Lis
  * Listens for connections by key: a client gets in only by proving one of
  * `keys.accept`'s keys (a client without one, or with a certificate, is
  * refused in the handshake). `set_accept` changes the list later.
+ * @param net the network to connect or listen through
  * @param addr host:port
  * @param keys this side's secret and the clients' public keys
  */
-public fun listen_keys(addr: string, keys: Keys): Result<Listener, string> {
+public fun listen_keys(net: Net, addr: string, keys: Keys): Result<Listener, string> {
     sized(keys)?;
     let h = $os.tls_listen_keys(addr, keys.secret, keys.accept)?;
     Ok(Listener { h: Ref.new(h), timeout: Ref.new(0) })
@@ -104,11 +111,12 @@ public fun listen_keys(addr: string, keys: Keys): Result<Listener, string> {
  * own. No host name is checked: `addr` is only where to connect. A server
  * that refuses this side's key does so after the handshake has finished
  * here, so it shows as the first read failing.
+ * @param net the network to connect or listen through
  * @param addr host:port or ip:port
  * @param keys this side's secret and the servers' public keys
  * @param timeout_ms how long the connect and handshake, and later reads and writes, may wait; `0` waits forever
  */
-public fun connect_keys(addr: string, keys: Keys, timeout_ms: i64): Result<Conn, string> {
+public fun connect_keys(net: Net, addr: string, keys: Keys, timeout_ms: i64): Result<Conn, string> {
     sized(keys)?;
     let h = $os.tls_connect_keys(addr, keys.secret, keys.accept, timeout_ms)?;
     Ok(Conn { h: Ref.new(h), timeout: Ref.new(timeout_ms) })

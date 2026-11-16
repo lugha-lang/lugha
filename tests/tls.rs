@@ -163,8 +163,8 @@ const SERVE: &str = "fun serve(l: tls.Listener) {
 
 fun trusting(): tls.Options = tls.Options { ca_file: \"ca.pem\", ..tls.options() };
 
-fun try(console: Console, addr: string, opts: tls.Options) {
-    match tls.connect_with(addr, opts) {
+fun try(net: Net, console: Console, addr: string, opts: tls.Options) {
+    match tls.connect_with(net, addr, opts) {
         .Ok(c) => {
             c.write(\"x\".to_bytes()).unwrap();
             console.println(string_from_utf8(c.read(10).unwrap()).unwrap());
@@ -174,8 +174,8 @@ fun try(console: Console, addr: string, opts: tls.Options) {
     }
 }
 
-fun listening(cert: string, key: string): string {
-    let l = tls.listen(\"127.0.0.1:0\", cert, key).unwrap();
+fun listening(net: Net, cert: string, key: string): string {
+    let l = tls.listen(net, \"127.0.0.1:0\", cert, key).unwrap();
     let addr = l.addr();
     spawn serve(l);
     addr
@@ -185,26 +185,26 @@ fun listening(cert: string, key: string): string {
 #[test]
 fn a_verified_connection_carries_bytes_and_bad_certificates_are_refused() {
     let Some(case) = Case::new(&format!(
-        "import std.tls;\nimport std.net;\n\n{SERVE}
-fun main(console: Console) {{
-    let good = listening(\"cert.pem\", \"key.pem\");
-    try(console, good, trusting());
+        "import std.tls;\n\n{SERVE}
+fun main(console: Console, net: Net) {{
+    let good = listening(net, \"cert.pem\", \"key.pem\");
+    try(net, console, good, trusting());
     let port = good.split(\":\")[1];
-    try(console, \"localhost:{{port}}\", trusting());
-    try(console, good, tls.options());
-    try(console, listening(\"self.pem\", \"self.key\"), trusting());
+    try(net, console, \"localhost:{{port}}\", trusting());
+    try(net, console, good, tls.options());
+    try(net, console, listening(net, \"self.pem\", \"self.key\"), trusting());
     let trust_self = tls.Options {{ ca_file: \"self.pem\", ..tls.options() }};
-    try(console, listening(\"self.pem\", \"self.key\"), trust_self);
-    try(console, listening(\"old.pem\", \"key.pem\"), trusting());
-    try(console, listening(\"other.pem\", \"key.pem\"), trusting());
-    console.println(tls.listen(\"127.0.0.1:0\", \"cert.pem\", \"missing.pem\").is_err());
+    try(net, console, listening(net, \"self.pem\", \"self.key\"), trust_self);
+    try(net, console, listening(net, \"old.pem\", \"key.pem\"), trusting());
+    try(net, console, listening(net, \"other.pem\", \"key.pem\"), trusting());
+    console.println(tls.listen(net, \"127.0.0.1:0\", \"cert.pem\", \"missing.pem\").is_err());
     let plain = net.listen(\"127.0.0.1:0\").unwrap();
     let plain_addr = plain.addr();
     spawn refuse(plain);
-    console.println(tls.connect_with(plain_addr, trusting()).is_err());
+    console.println(tls.connect_with(net, plain_addr, trusting()).is_err());
 }}
 
-fun refuse(l: net.Listener) {{
+fun refuse(l: Listener) {{
     let c = l.accept().unwrap();
     let _ = c.write(\"HTTP/1.1 400 Bad Request\\r\\n\\r\\n\".to_bytes());
     c.close();
@@ -231,25 +231,25 @@ import std.tls;
 
 fun handle(req: http.Request): http.Response = http.text(200, \"secure {req.method} {req.path}\");
 
-fun server(addr: string) {
-    http.serve_tls(addr, \"cert.pem\", \"key.pem\", handle).unwrap();
+fun server(net: Net, addr: string) {
+    http.serve_tls(net, addr, \"cert.pem\", \"key.pem\", handle).unwrap();
 }
 
-fun main(console: Console) {
-    let probe = tls.listen(\"127.0.0.1:0\", \"cert.pem\", \"key.pem\").unwrap();
+fun main(console: Console, net: Net) {
+    let probe = tls.listen(net, \"127.0.0.1:0\", \"cert.pem\", \"key.pem\").unwrap();
     let addr = probe.addr();
     probe.close();
-    spawn server(addr);
+    spawn server(net, addr);
     task.yield_now();
     let port = addr.split(\":\")[1];
     let opts = tls.Options { ca_file: \"ca.pem\", ..tls.options() };
-    let res = http.request_tls(\"POST\", \"https://localhost:{port}/x\", Map {}, \"b\".to_bytes(), opts).unwrap();
+    let res = http.request_tls(net, \"POST\", \"https://localhost:{port}/x\", Map {}, \"b\".to_bytes(), opts).unwrap();
     console.println(\"{res.status} {res.text().unwrap()}\");
-    match http.get(\"https://localhost:{port}/\") {
+    match http.get(net, \"https://localhost:{port}/\") {
         .Ok(_) => console.println(\"?\"),
         .Err(e) => console.println(e),
     }
-    console.println(http.get(\"http://localhost:{port}/\").is_err());
+    console.println(http.get(net, \"http://localhost:{port}/\").is_err());
 }
 ",
     ) else {
@@ -269,8 +269,8 @@ import std.tls;
 
 fun handle(req: http.Request): http.Response = http.bytes(200, [7 as u8; 17000000]);
 
-fun server(addr: string) {
-    http.serve_tls(addr, \"cert.pem\", \"key.pem\", handle).unwrap();
+fun server(net: Net, addr: string) {
+    http.serve_tls(net, addr, \"cert.pem\", \"key.pem\", handle).unwrap();
 }
 
 fun silent(l: tls.Listener) {
@@ -279,35 +279,35 @@ fun silent(l: tls.Listener) {
     c.close();
 }
 
-fun fetch(console: Console, url: string, body: i64, ca_file: string) {
+fun fetch(net: Net, console: Console, url: string, body: i64, ca_file: string) {
     let mut limits = http.limits();
     limits.body = body;
     let opts = tls.Options { ca_file: ca_file, ..tls.options() };
-    match http.request_tls_with(\"GET\", url, Map {}, [], limits, opts) {
+    match http.request_tls_with(net, \"GET\", url, Map {}, [], limits, opts) {
         .Ok(res) => console.println(\"{res.status} {res.body.len} {res.body[16999999]}\"),
         .Err(e) => console.println(e),
     }
 }
 
-fun main(console: Console, clock: Clock) {
-    let probe = tls.listen(\"127.0.0.1:0\", \"cert.pem\", \"key.pem\").unwrap();
+fun main(console: Console, clock: Clock, net: Net) {
+    let probe = tls.listen(net, \"127.0.0.1:0\", \"cert.pem\", \"key.pem\").unwrap();
     let addr = probe.addr();
     probe.close();
-    spawn server(addr);
+    spawn server(net, addr);
     task.yield_now();
     let url = \"https://localhost:{addr.split(\":\")[1]}/app.rkb\";
-    fetch(console, url, 33554432, \"ca.pem\");
-    fetch(console, url, 16777216, \"ca.pem\");
-    fetch(console, url, 33554432, \"\");
+    fetch(net, console, url, 33554432, \"ca.pem\");
+    fetch(net, console, url, 16777216, \"ca.pem\");
+    fetch(net, console, url, 33554432, \"\");
 
-    let quiet = tls.listen(\"127.0.0.1:0\", \"cert.pem\", \"key.pem\").unwrap();
+    let quiet = tls.listen(net, \"127.0.0.1:0\", \"cert.pem\", \"key.pem\").unwrap();
     let port = quiet.addr().split(\":\")[1];
     spawn silent(quiet);
     let mut limits = http.limits();
     limits.timeout_ms = 60000;
     let opts = tls.Options { ca_file: \"ca.pem\", timeout_ms: 200, address: \"\" };
     let started = clock.monotonic_ms();
-    match http.request_tls_with(\"GET\", \"https://localhost:{port}/\", Map {}, [], limits, opts) {
+    match http.request_tls_with(net, \"GET\", \"https://localhost:{port}/\", Map {}, [], limits, opts) {
         .Ok(_) => console.println(\"?\"),
         .Err(e) => console.println(e),
     }
@@ -332,32 +332,32 @@ import std.tls;
 
 fun handle(req: http.Request): http.Response = http.text(200, \"pinned {req.path}\");
 
-fun server(addr: string) {
-    http.serve_tls(addr, \"cert.pem\", \"key.pem\", handle).unwrap();
+fun server(net: Net, addr: string) {
+    http.serve_tls(net, addr, \"cert.pem\", \"key.pem\", handle).unwrap();
 }
 
-fun fetch(console: Console, url: string, address: string) {
+fun fetch(net: Net, console: Console, url: string, address: string) {
     let opts = tls.Options { ca_file: \"ca.pem\", address: address, ..tls.options() };
-    match http.request_tls_with(\"GET\", url, Map {}, [], http.limits(), opts) {
+    match http.request_tls_with(net, \"GET\", url, Map {}, [], http.limits(), opts) {
         .Ok(res) => console.println(\"{res.status} {res.text().unwrap()}\"),
         .Err(e) => console.println(e),
     }
 }
 
-fun main(console: Console) {
-    let probe = tls.listen(\"127.0.0.1:0\", \"cert.pem\", \"key.pem\").unwrap();
+fun main(console: Console, net: Net) {
+    let probe = tls.listen(net, \"127.0.0.1:0\", \"cert.pem\", \"key.pem\").unwrap();
     let addr = probe.addr();
     probe.close();
-    spawn server(addr);
+    spawn server(net, addr);
     task.yield_now();
     let port = addr.split(\":\")[1];
-    fetch(console, \"https://localhost:{port}/a\", \"127.0.0.1\");
-    fetch(console, \"https://wrong.example:{port}/b\", \"127.0.0.1\");
-    fetch(console, \"https://localhost:{port}/c\", \"localhost\");
+    fetch(net, console, \"https://localhost:{port}/a\", \"127.0.0.1\");
+    fetch(net, console, \"https://wrong.example:{port}/b\", \"127.0.0.1\");
+    fetch(net, console, \"https://localhost:{port}/c\", \"localhost\");
     let opts = tls.Options { ca_file: \"ca.pem\", address: \"127.0.0.1\", ..tls.options() };
-    let c = tls.connect_with(\"localhost:{port}\", opts).unwrap();
+    let c = tls.connect_with(net, \"localhost:{port}\", opts).unwrap();
     c.close();
-    console.println(tls.connect_with(\"wrong.example:{port}\", opts).is_err());
+    console.println(tls.connect_with(net, \"wrong.example:{port}\", opts).is_err());
 }
 ",
     ) else {

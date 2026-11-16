@@ -7,7 +7,7 @@ use crate::span::Span;
 pub(in crate::check) fn bad_test(span: Span) -> Diagnostic {
     Diagnostic::error(
         "E0434",
-        "a test takes only the capabilities (`Console`, `Fs`, `Clock`, `Env`, `Proc`, `Entropy`), each at most once, and returns nothing",
+        "a test takes only the capabilities (`Console`, `Fs`, `Clock`, `Env`, `Proc`, `Entropy`, `Net`), each at most once, and returns nothing",
         span,
     )
     .with_help(

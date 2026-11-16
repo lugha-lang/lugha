@@ -81,10 +81,10 @@ impl Server {
         let port = free_port();
         let case = Case::new(&format!(
             "{handler}
-fun main() {{
+fun main(net: Net) {{
     let mut limits = http.limits();
     limits.timeout_ms = 500;
-    http.serve_with(\"127.0.0.1:{port}\", limits, handle).unwrap();
+    http.serve_with(net, \"127.0.0.1:{port}\", limits, handle).unwrap();
 }}
 "
         ));
@@ -211,18 +211,18 @@ fn the_client_reads_every_framing_and_reports_failures() {
     let case = Case::new(&format!(
         "import std.http;
 
-fun main(console: Console) {{
-    let a = http.get(\"http://127.0.0.1:{port}/x\").unwrap();
+fun main(console: Console, net: Net) {{
+    let a = http.get(net, \"http://127.0.0.1:{port}/x\").unwrap();
     console.println(\"{{a.status}} {{a.text().unwrap()}}\");
-    let b = http.post(\"http://127.0.0.1:{port}/\", \"text/plain\", \"hi\".to_bytes()).unwrap();
+    let b = http.post(net, \"http://127.0.0.1:{port}/\", \"text/plain\", \"hi\".to_bytes()).unwrap();
     console.println(\"{{b.status}} {{b.text().unwrap()}} {{b.header(\"x-thing\").debug()}}\");
     let mut small = http.limits();
     small.body = 10;
-    console.println(http.request_with(\"GET\", \"http://127.0.0.1:{port}/\", Map {{}}, [], small).is_err());
-    console.println(http.get(\"https://127.0.0.1:{refused}/\").is_err());
-    console.println(http.get(\"ftp://x\").debug());
-    console.println(http.get(\"http:///\").debug());
-    match http.get(\"http://127.0.0.1:{refused}/\") {{
+    console.println(http.request_with(net, \"GET\", \"http://127.0.0.1:{port}/\", Map {{}}, [], small).is_err());
+    console.println(http.get(net, \"https://127.0.0.1:{refused}/\").is_err());
+    console.println(http.get(net, \"ftp://x\").debug());
+    console.println(http.get(net, \"http:///\").debug());
+    match http.get(net, \"http://127.0.0.1:{refused}/\") {{
         .Ok(_) => console.println(\"ok?\"),
         .Err(e) => console.println(e),
     }}
@@ -255,9 +255,9 @@ fn an_address_is_connected_to_with_the_url_host() {
         "import std.http;
 import std.tls;
 
-fun main(console: Console) {{
+fun main(console: Console, net: Net) {{
     let opts = tls.Options {{ address: \"127.0.0.1\", ..tls.options() }};
-    let res = http.request_tls_with(\"GET\", \"http://wrong.example:{port}/x\", Map {{}}, [], http.limits(), opts).unwrap();
+    let res = http.request_tls_with(net, \"GET\", \"http://wrong.example:{port}/x\", Map {{}}, [], http.limits(), opts).unwrap();
     console.println(\"{{res.status}} {{res.text().unwrap()}}\");
 }}
 "
@@ -355,15 +355,15 @@ fn the_client_posts_and_reads_json() {
         "import std.http;
 import std.json;
 
-fun main(console: Console) {{
+fun main(console: Console, net: Net) {{
     let body = json.Value.Object(Map {{ \"n\": json.Value.Array([json.Value.Integer(1), json.Value.Null]) }});
-    let r = http.post_json(\"http://127.0.0.1:{port}/api\", body).unwrap();
+    let r = http.post_json(net, \"http://127.0.0.1:{port}/api\", body).unwrap();
     console.println(r.json().debug());
-    match http.get(\"http://127.0.0.1:{port}/\").unwrap().json() {{
+    match http.get(net, \"http://127.0.0.1:{port}/\").unwrap().json() {{
         .Err(e) => console.println(e.message()),
         .Ok(_) => console.println(\"?\"),
     }}
-    console.println(http.post_json(\"http://127.0.0.1:{port}/\", json.Value.Float(f64.from_bits(9218868437227405312))).debug());
+    console.println(http.post_json(net, \"http://127.0.0.1:{port}/\", json.Value.Float(f64.from_bits(9218868437227405312))).debug());
 }}
 "
     ));

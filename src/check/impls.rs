@@ -90,14 +90,19 @@ pub(super) const ERROR: &str = "$prelude.Error";
 /// implements one.
 pub(super) const DIR: &str = "$prelude.Dir";
 
-/// The open file a `Dir` gives: an interface like the capabilities, so a fake
-/// `Dir` can return fake files.
-pub(super) const FILE: &str = "$prelude.File";
+/// What the capabilities open: interfaces like them, so a fake `Dir` or
+/// `Net` can return fake files and connections.
+const OPENED: [&str; 4] = [
+    "$prelude.File",
+    "$prelude.Listener",
+    "$prelude.Conn",
+    "$prelude.Udp",
+];
 
-/// True for a capability interface: those `main` may take, `Dir`, and the
-/// `File` a `Dir` opens.
+/// True for a capability interface: those `main` may take, `Dir`, and what
+/// they open (`File`, `Listener`, `Conn`, `Udp`).
 pub(super) fn is_capability(key: &str) -> bool {
-    key == DIR || key == FILE || super::ENTRY_CAPABILITIES.iter().any(|(c, _)| *c == key)
+    key == DIR || OPENED.contains(&key) || super::ENTRY_CAPABILITIES.iter().any(|(c, _)| *c == key)
 }
 
 /// The module part of an item's key: `geo` for `geo.Circle`, `""` for an

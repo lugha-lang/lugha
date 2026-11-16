@@ -1,0 +1,9 @@
+error[E0304]: `main` takes only `string[]` and the capabilities (`Console`, `Fs`, `Clock`, `Env`, `Proc`, `Entropy`, `Net`), each at most once, and returns `()` or `i32`
+  --> tests/programs/capabilities/net/e0304.la:1:5
+  |
+1 | fun main(a: Net, b: Net) {}
+  |     ^^^^
+  |
+  = help: for example `fun main(args: string[], console: Console): i32`
+
+For more about E0304, run `lughac explain E0304`.

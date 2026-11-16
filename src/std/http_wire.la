@@ -3,12 +3,11 @@
  * bodies within limits — and the byte helpers it shares. Bundled sources only
  * (programs can't write `$`); see `std.http`.
  */
-import std.net;
 import std.tls;
 
 /** A connection `std.http` reads and writes: plain, or encrypted. */
 enum Stream {
-    Plain(net.Conn),
+    Plain(Conn),
     Secure(tls.Conn),
 }
 

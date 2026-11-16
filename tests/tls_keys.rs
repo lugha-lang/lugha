@@ -101,15 +101,15 @@ fun serve(l: tls.Listener) {
     }
 }
 
-fun listening(server: Device, accept: u8[][]): tls.Listener {
-    let l = tls.listen_keys(\"127.0.0.1:0\", tls.Keys { secret: server.secret, accept: accept }).unwrap();
+fun listening(net: Net, server: Device, accept: u8[][]): tls.Listener {
+    let l = tls.listen_keys(net, \"127.0.0.1:0\", tls.Keys { secret: server.secret, accept: accept }).unwrap();
     spawn serve(l);
     l
 }
 
 // `in` when the server named this client's key back, `refused: …` otherwise.
-fun try(console: Console, addr: string, client: Device, server_key: u8[]) {
-    match tls.connect_keys(addr, tls.Keys { secret: client.secret, accept: [server_key] }, 5000) {
+fun try(net: Net, console: Console, addr: string, client: Device, server_key: u8[]) {
+    match tls.connect_keys(net, addr, tls.Keys { secret: client.secret, accept: [server_key] }, 5000) {
         .Ok(c) => {
             let ours = c.peer_key() == server_key;
             match c.read(100) {
@@ -126,17 +126,17 @@ fun try(console: Console, addr: string, client: Device, server_key: u8[]) {
 #[test]
 fn accepted_keys_get_in_and_others_are_refused() {
     Case::new(
-        "fun main(console: Console, entropy: Entropy) {
+        "fun main(console: Console, entropy: Entropy, net: Net) {
     let (server, a, b, c) = (device(entropy), device(entropy), device(entropy), device(entropy));
-    let l = listening(server, [a.key, b.key]);
-    try(console, l.addr(), a, server.key);
-    try(console, l.addr(), b, server.key);
-    try(console, l.addr(), c, server.key);
+    let l = listening(net, server, [a.key, b.key]);
+    try(net, console, l.addr(), a, server.key);
+    try(net, console, l.addr(), b, server.key);
+    try(net, console, l.addr(), c, server.key);
     // A client that doesn't accept the server's key stops at connect.
-    try(console, l.addr(), a, c.key);
+    try(net, console, l.addr(), a, c.key);
     // Nobody is accepted by an empty list.
-    let empty = listening(server, []);
-    try(console, empty.addr(), a, server.key);
+    let empty = listening(net, server, []);
+    try(net, console, empty.addr(), a, server.key);
 }",
     )
     .runs("in\nin\nrefused\nrefused: peer key not accepted\nrefused\n");
@@ -145,14 +145,14 @@ fn accepted_keys_get_in_and_others_are_refused() {
 #[test]
 fn set_accept_changes_who_gets_in_next() {
     Case::new(
-        "fun main(console: Console, entropy: Entropy) {
+        "fun main(console: Console, entropy: Entropy, net: Net) {
     let (server, a, c) = (device(entropy), device(entropy), device(entropy));
-    let l = listening(server, [a.key]);
-    try(console, l.addr(), c, server.key);
+    let l = listening(net, server, [a.key]);
+    try(net, console, l.addr(), c, server.key);
     l.set_accept([a.key, c.key]).unwrap();
-    try(console, l.addr(), c, server.key);
+    try(net, console, l.addr(), c, server.key);
     l.set_accept([]).unwrap();
-    try(console, l.addr(), a, server.key);
+    try(net, console, l.addr(), a, server.key);
     l.close();
     console.println(l.set_accept([]).debug());
 }",
@@ -163,23 +163,23 @@ fn set_accept_changes_who_gets_in_next() {
 #[test]
 fn wrong_key_lengths_are_refused() {
     Case::new(
-        "fun main(console: Console, entropy: Entropy) {
+        "fun main(console: Console, entropy: Entropy, net: Net) {
     let a = device(entropy);
     let short = [1 as u8; 31];
-    console.println(tls.listen_keys(\"127.0.0.1:0\", tls.Keys { secret: short, accept: [] }).is_err());
-    match tls.listen_keys(\"127.0.0.1:0\", tls.Keys { secret: short, accept: [] }) {
+    console.println(tls.listen_keys(net, \"127.0.0.1:0\", tls.Keys { secret: short, accept: [] }).is_err());
+    match tls.listen_keys(net, \"127.0.0.1:0\", tls.Keys { secret: short, accept: [] }) {
         .Err(e) => console.println(e),
         .Ok(_) => console.println(\"listening\"),
     }
-    match tls.listen_keys(\"127.0.0.1:0\", tls.Keys { secret: a.secret, accept: [a.key, short] }) {
+    match tls.listen_keys(net, \"127.0.0.1:0\", tls.Keys { secret: a.secret, accept: [a.key, short] }) {
         .Err(e) => console.println(e),
         .Ok(_) => console.println(\"listening\"),
     }
-    match tls.connect_keys(\"127.0.0.1:1\", tls.Keys { secret: a.secret, accept: [short] }, 1000) {
+    match tls.connect_keys(net, \"127.0.0.1:1\", tls.Keys { secret: a.secret, accept: [short] }, 1000) {
         .Err(e) => console.println(e),
         .Ok(_) => console.println(\"connected\"),
     }
-    let l = tls.listen_keys(\"127.0.0.1:0\", tls.Keys { secret: a.secret, accept: [] }).unwrap();
+    let l = tls.listen_keys(net, \"127.0.0.1:0\", tls.Keys { secret: a.secret, accept: [] }).unwrap();
     console.println(l.set_accept([short]).debug());
 }",
     )
@@ -192,19 +192,19 @@ fn wrong_key_lengths_are_refused() {
 #[test]
 fn certificates_and_keys_do_not_mix() {
     let case = Case::new(
-        "fun main(console: Console, entropy: Entropy) {
+        "fun main(console: Console, entropy: Entropy, net: Net) {
     let (server, a) = (device(entropy), device(entropy));
     // A certificate client at a by-key listener.
-    let by_key = listening(server, [a.key]);
+    let by_key = listening(net, server, [a.key]);
     let trust = tls.Options { ca_file: \"self.pem\", ..tls.options() };
-    console.println(tls.connect_with(by_key.addr(), trust).is_err());
+    console.println(tls.connect_with(net, by_key.addr(), trust).is_err());
     // A by-key client at a certificate listener, which has no list to change.
-    let by_cert = tls.listen(\"127.0.0.1:0\", \"self.pem\", \"self.key\").unwrap();
+    let by_cert = tls.listen(net, \"127.0.0.1:0\", \"self.pem\", \"self.key\").unwrap();
     spawn serve(by_cert);
-    try(console, by_cert.addr(), a, server.key);
+    try(net, console, by_cert.addr(), a, server.key);
     console.println(by_cert.set_accept([a.key]).debug());
     // A certificate connection has no peer key.
-    let c = tls.connect_with(by_cert.addr(), trust).unwrap();
+    let c = tls.connect_with(net, by_cert.addr(), trust).unwrap();
     console.println(c.peer_key().len);
     c.close();
 }",

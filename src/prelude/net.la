@@ -1,0 +1,134 @@
+// The network capability and what it opens: interfaces, so a fake `Net`
+// hands out fake connections. The real ones are in the next file.
+
+/**
+ * The network: connecting, listening, UDP and name lookup.
+ * `main` takes one as a parameter, `fun main(net: Net)`.
+ *
+ * Waiting to accept, connect, read, write, send or receive pauses only the
+ * green thread that waits: the others keep running, so one program serves
+ * many connections on its one OS thread. Name lookup (`example.com:80`)
+ * does block the thread while it runs. Close what you open: the collector
+ * never closes a socket. Listen on `127.0.0.1` unless other machines should
+ * reach the program. A fake implements the methods without a body.
+ */
+interface Net {
+    /**
+     * Connects to an address, trying each one its name resolves to, giving
+     * up after `ms` milliseconds (`0` waits forever).
+     */
+    fun connect_timeout(self, addr: string, ms: i64): Result<Conn, string>;
+    /**
+     * Listens on an address: `"127.0.0.1:8080"`, `"[::1]:8080"`, port `0` for
+     * any free one (`addr()` says which).
+     */
+    fun listen(self, addr: string): Result<Listener, string>;
+    /**
+     * Every address the system's resolver gives for a name, IPv4 and IPv6, as
+     * text (`"93.184.215.14"`, `"2606:4700::1"`), in its order, each once. An
+     * IP address gives itself. The lookup blocks the thread while it runs.
+     */
+    fun resolve(self, name: string): Result<string[], string>;
+    /**
+     * A UDP socket bound to an address: `"0.0.0.0:0"` for any free port on
+     * every IPv4 interface, `"[::]:5353"` for IPv6. No other socket may bind
+     * the same port.
+     */
+    fun udp_bind(self, addr: string): Result<Udp, string>;
+    /**
+     * `udp_bind`, sharing the port with other sockets that also share it (as
+     * mDNS's 5353 is shared with the system's Avahi). Other programs of the
+     * same user can then bind the port too, and may receive datagrams sent to
+     * it: share only where a protocol needs it.
+     */
+    fun udp_bind_shared(self, addr: string): Result<Udp, string>;
+    /** This machine's network interfaces, each once, in the system's order. */
+    fun interfaces(self): Result<NetInterface[], string>;
+
+    /** Connects to an address, waiting as long as it takes. */
+    fun connect(self, addr: string): Result<Conn, string> = self.connect_timeout(addr, 0);
+}
+
+/** A socket accepting connections: `net.listen(addr)`. Copies share it. */
+interface Listener {
+    /** Waits for the next connection; only this green thread waits. `Err` is `"closed"`, `"timed out"` or the system's reason. */
+    fun accept(self): Result<Conn, string>;
+    /** The address it listens on, as `host:port`; `""` once closed. */
+    fun addr(self): string;
+    /** How long `accept` waits, in milliseconds; `0` (the default) waits forever. */
+    fun set_timeout(self, ms: i64);
+    /** Stops listening; every copy of this listener is closed. Closing twice is fine. */
+    fun close(self);
+}
+
+/** A connection, from `listener.accept()` or `net.connect(addr)`. Copies share it. */
+interface Conn {
+    /** What has arrived, up to `max` bytes (1 to 16777216), waiting for some if none has: `[]` once the other end has finished. */
+    fun read(self, max: i64): Result<u8[], string>;
+    /** Writes every byte, waiting while the connection is full. */
+    fun write(self, bytes: u8[]): Result<(), string>;
+    /** How long a read or write waits, in milliseconds; `0` (the default) waits forever. */
+    fun set_timeout(self, ms: i64);
+    /** The other end's address, as `host:port`; `""` once closed. */
+    fun peer(self): string;
+    /** This end's address, as `host:port`; `""` once closed. */
+    fun addr(self): string;
+    /** Closes the connection; every copy of it is closed. Closing twice is fine. */
+    fun close(self);
+}
+
+/**
+ * A UDP socket: `net.udp_bind(addr)` or `net.udp_bind_shared(addr)`. Copies
+ * share it. A datagram's sender address can be forged: check what it says
+ * before trusting it.
+ */
+interface Udp {
+    /**
+     * Sends one datagram (it may be lost, repeated or reordered on the way) to
+     * an IP address and port, `"192.168.1.20:5353"`, `"[ff02::fb%eth0]:5353"`:
+     * never a name, which would block the thread to look up (`net.resolve`
+     * first). `bytes` may be empty.
+     */
+    fun send_to(self, bytes: u8[], addr: string): Result<(), string>;
+    /**
+     * The next datagram and who sent it (`ip:port`, `[ip%interface]:port` for
+     * IPv6), waiting for one; `max` from 1 to 65536, a longer datagram is
+     * `Err` and is lost.
+     */
+    fun recv_from(self, max: i64): Result<(u8[], string), string>;
+    /**
+     * Joins a multicast group to receive what is sent to it: an IPv4 group
+     * for an IPv4 socket (`"224.0.0.251"`), an IPv6 one for an IPv6 socket
+     * (`"ff02::fb"`); `iface` names the interface (`"eth0"`), `""` for the
+     * system's choice.
+     */
+    fun join(self, group: string, iface: string): Result<(), string>;
+    /** Leaves a multicast group joined with `join` on that interface. */
+    fun leave(self, group: string, iface: string): Result<(), string>;
+    /** How many routers multicast sent from here may cross, from 1 to 255; `1`, the default, keeps it on the local network. */
+    fun set_multicast_ttl(self, ttl: i64): Result<(), string>;
+    /** Whether multicast sent from here also reaches sockets on this machine (on by default). */
+    fun set_multicast_loop(self, on: bool): Result<(), string>;
+    /** Which interface multicast sent from here leaves by: its name, or `""` for the system's choice. */
+    fun set_multicast_interface(self, iface: string): Result<(), string>;
+    /** How long `send_to` and `recv_from` wait, in milliseconds; `0` waits forever. */
+    fun set_timeout(self, ms: i64);
+    /** The address it is bound to, as `host:port`; `""` once closed. */
+    fun addr(self): string;
+    /** Closes it, and every copy. Closing twice is fine. */
+    fun close(self);
+}
+
+/** A network interface of this machine, from `net.interfaces()`. */
+public struct NetInterface {
+    /** Its name: `"lo"`, `"eth0"`, `"wlan0"`. */
+    public name: string,
+    /** The system's number for it (from 1). */
+    public index: i64,
+    /** Whether it is up. */
+    public up: bool,
+    /** Whether it can send and receive multicast. */
+    public multicast: bool,
+    /** Its IPv4 and IPv6 addresses as text; link-local IPv6 ones carry `%name`. */
+    public addresses: string[],
+} with Eq

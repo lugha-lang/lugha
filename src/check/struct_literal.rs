@@ -30,7 +30,11 @@ impl Checker {
             // A prelude struct no module declares: `Pair { … }`, what a
             // fake `Proc` returns, and the collections built with braces,
             // `Map { … }` and `Set { … }`.
-            None if matches!(name.name.as_str(), "Map" | "Set" | "ProcessOutput") => {
+            None if matches!(
+                name.name.as_str(),
+                "Map" | "Set" | "ProcessOutput" | "NetInterface"
+            ) =>
+            {
                 Some(format!("$prelude.{}", name.name))
             }
             None => match self.prelude_iter_type(&name.name) {

@@ -38,7 +38,8 @@ impl Checker {
     }
 
     /// The prelude's key for a type name no module declares: `Result`,
-    /// `Ordering`, `Map`, `Set`, `Hasher` and `ProcessOutput`, or an iterator type.
+    /// `Ordering`, `Map`, `Set`, `Hasher`, `ProcessOutput` and `NetInterface`,
+    /// or an iterator type.
     pub(super) fn prelude_type(&self, name: &str) -> Option<String> {
         if name == "Result" && self.enums.contains_key(RESULT) {
             return Some(RESULT.to_string());
@@ -52,6 +53,7 @@ impl Checker {
             super::maps::SET,
             "$prelude.Hasher",
             "$prelude.ProcessOutput",
+            "$prelude.NetInterface",
         ] {
             if key.strip_prefix("$prelude.") == Some(name) && self.structs.contains_key(key) {
                 return Some(key.to_string());

@@ -15,11 +15,7 @@ fn run(main: &str) -> String {
     // A leftover from an earlier run would change what the test sees.
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(
-        dir.join("main.la"),
-        format!("import std.net;\nimport std.task;\n\n{main}"),
-    )
-    .unwrap();
+    std::fs::write(dir.join("main.la"), format!("import std.task;\n\n{main}")).unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_lughac"))
         .args(["run", "main.la"])
         .current_dir(&dir)
@@ -39,7 +35,7 @@ fn run(main: &str) -> String {
 
 #[test]
 fn datagrams_go_both_ways_and_name_their_sender() {
-    let out = run("fun main(console: Console) {
+    let out = run("fun main(console: Console, net: Net) {
     let a = net.udp_bind(\"127.0.0.1:0\").unwrap();
     let b = net.udp_bind(\"127.0.0.1:0\").unwrap();
     a.set_timeout(2000);
@@ -62,7 +58,7 @@ fn datagrams_go_both_ways_and_name_their_sender() {
 
 #[test]
 fn ipv6_loopback_works_when_the_machine_has_it() {
-    let out = run("fun main(console: Console) {
+    let out = run("fun main(console: Console, net: Net) {
     match net.udp_bind(\"[::1]:0\") {
         .Ok(a) => {
             let b = net.udp_bind(\"[::1]:0\").unwrap();
@@ -84,7 +80,7 @@ fn a_timeout_parks_only_its_green_thread() {
     c.send(1);
 }
 
-fun main(console: Console) {
+fun main(console: Console, net: Net) {
     let u = net.udp_bind(\"127.0.0.1:0\").unwrap();
     u.set_timeout(200);
     let c: Chan<i64> = Chan.new();
@@ -97,7 +93,7 @@ fun main(console: Console) {
 
 #[test]
 fn bad_input_is_refused() {
-    let out = run("fun main(console: Console) {
+    let out = run("fun main(console: Console, net: Net) {
     let a = net.udp_bind(\"127.0.0.1:0\").unwrap();
     let b = net.udp_bind(\"127.0.0.1:0\").unwrap();
     b.set_timeout(2000);
@@ -127,7 +123,7 @@ fn bad_input_is_refused() {
 
 #[test]
 fn shared_sockets_hear_a_multicast_group_until_they_leave() {
-    let out = run("fun main(console: Console) {
+    let out = run("fun main(console: Console, net: Net) {
     let a = net.udp_bind_shared(\"0.0.0.0:0\").unwrap();
     let port = a.addr().split(\":\")[1];
     let b = net.udp_bind_shared(\"0.0.0.0:{port}\").unwrap();
@@ -167,7 +163,7 @@ fn shared_sockets_hear_a_multicast_group_until_they_leave() {
 
 #[test]
 fn interfaces_include_loopback() {
-    let out = run("fun main(console: Console) {
+    let out = run("fun main(console: Console, net: Net) {
     let all = net.interfaces().unwrap();
     for i of all {
         if i.name == \"lo\" {

@@ -59,6 +59,10 @@ impl Checker {
                 | "Proc"
                 | "Entropy"
                 | "File"
+                | "Net"
+                | "Listener"
+                | "Conn"
+                | "Udp"
         ) || is_operator_bound(name))
             && self.interfaces.contains_key(&prelude);
         if module.is_none() && known && !declared {
