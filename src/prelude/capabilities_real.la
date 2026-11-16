@@ -1,0 +1,306 @@
+// The real capabilities: the runtime's, reached through the intrinsics and
+// `$os` built-ins only the prelude and std may call.
+
+/** The real console: the process's standard streams. */
+struct $Console {}
+
+impl Console for $Console {
+    fun print(self, x: Display) { print(x.show()); }
+    fun println(self, x: Display) { println(x.show()); }
+    fun eprint(self, x: Display) { eprint(x.show()); }
+    fun eprintln(self, x: Display) { eprintln(x.show()); }
+    fun read_line(self): Option<string> = read_line();
+    fun read_bytes(self): u8[] = read_stdin_bytes();
+    fun flush(self) { flush(); }
+}
+
+/** The real file system. */
+struct $Fs {}
+
+impl Fs for $Fs {
+    fun cwd(self): Dir = $Dir {};
+}
+
+/** The folder the program started in; paths resolve as the system resolves them. */
+struct $Dir {}
+
+impl Dir for $Dir {
+    fun read_file(self, path: string): Result<string, string> = read_file(path);
+    fun read_bytes(self, path: string): Result<u8[], string> = read_bytes(path);
+    fun write_bytes(self, path: string, bytes: u8[]): Result<i64, string> = write_bytes(path, bytes);
+    fun append_bytes(self, path: string, bytes: u8[]): Result<i64, string> = append_bytes(path, bytes);
+    fun list(self, path: string): Result<string[], string> {
+        let raw = $os.list_dir(path)?;
+        let mut names: string[] = [];
+        for bytes of raw {
+            match string_from_utf8(bytes) {
+                .Ok(name) => names.push(name),
+                .Err(_) => {
+                    return Err("a name in {path} is not valid UTF-8");
+                }
+            }
+        }
+        Ok(names.sort())
+    }
+    fun make_dir(self, path: string): Result<i64, string> = $os.make_dir(path);
+    fun remove_file(self, path: string): Result<i64, string> = $os.remove_file(path);
+    fun remove_dir(self, path: string): Result<i64, string> = $os.remove_dir(path);
+    fun exists(self, path: string): bool = $os.stat_kind(path) != 0;
+    fun is_dir(self, path: string): bool = $os.stat_kind(path) == 2;
+    fun is_file(self, path: string): bool = $os.stat_kind(path) == 1;
+    fun size(self, path: string): Result<i64, string> = $os.file_size(path);
+    fun rename(self, from: string, to: string): Result<(), string> {
+        $os.rename(from, to)?;
+        Ok(())
+    }
+    fun set_mode(self, path: string, mode: i64): Result<(), string> {
+        $os.chmod(path, mode)?;
+        Ok(())
+    }
+    fun sync(self, path: string): Result<(), string> {
+        $os.sync(path)?;
+        Ok(())
+    }
+    fun open(self, path: string): Result<File, string> = $opened(path, 0);
+    fun create(self, path: string): Result<File, string> = $opened(path, 1);
+    fun append(self, path: string): Result<File, string> = $opened(path, 2);
+    fun path(self): Result<string, string> {
+        let bytes = $os.cwd()?;
+        string_from_utf8(bytes)
+    }
+}
+
+/** A file opened in `mode` 0 (reading), 1 (creating) or 2 (appending). */
+fun $opened(path: string, mode: i64): Result<File, string> {
+    let fd = $os.file_open(path, mode)?;
+    Ok($File { fd: Ref.new(fd), writing: mode != 0, buf: Ref.new([]), pos: Ref.new(0), line: Ref.new(0) })
+}
+
+/** A real open file: its descriptor, and what `read_line` read ahead. */
+struct $File {
+    fd: Ref<i64>,
+    writing: bool,
+    buf: Ref<u8[]>,
+    pos: Ref<i64>,
+    line: Ref<i64>,
+}
+
+impl File for $File {
+    fun read(self, max: i64): Result<u8[], string> {
+        let fd = self.reading()?;
+        if max < 1 || max > 16777216 {
+            return Err("max must be from 1 to 16777216");
+        }
+        let buf = self.buf.get();
+        let pos = self.pos.get();
+        if pos >= buf.len {
+            return $os.file_read(fd, max);
+        }
+        let end = if buf.len - pos > max { pos + max } else { buf.len };
+        let got = $cut(buf, pos, end);
+        if end == buf.len {
+            self.buf.set([]);
+            self.pos.set(0);
+        } else {
+            self.pos.set(end);
+        }
+        Ok(got)
+    }
+
+    fun read_line(self): Result<Option<string>, string> {
+        let fd = self.reading()?;
+        let mut buf = self.buf.get();
+        let mut pos = self.pos.get();
+        let mut i = pos;
+        while true {
+            while i < buf.len {
+                if buf[i] == 10 {
+                    let end = if i > pos && buf[i - 1] == 13 { i - 1 } else { i };
+                    let bytes = $cut(buf, pos, end);
+                    self.keep(buf, i + 1);
+                    return self.text(bytes);
+                }
+                i += 1;
+            }
+            // Keep what was read ahead even when the next read fails.
+            self.keep(buf, pos);
+            let more = $os.file_read(fd, 65536)?;
+            if more.len == 0 {
+                if pos == buf.len {
+                    return Ok(None);
+                }
+                let bytes = $cut(buf, pos, buf.len);
+                self.keep([], 0);
+                return self.text(bytes);
+            }
+            // Drop the lines already given once they are most of the buffer,
+            // so it stays about one line plus one read long.
+            if pos * 2 > buf.len {
+                buf = $cut(buf, pos, buf.len);
+                i -= pos;
+                pos = 0;
+            }
+            for b of more {
+                buf.push(b);
+            }
+        }
+        panic("unreachable");
+    }
+
+    fun write(self, bytes: u8[]): Result<(), string> {
+        let fd = self.fd.get();
+        if fd < 0 {
+            return Err("closed");
+        }
+        if !self.writing {
+            return Err("not open for writing");
+        }
+        $os.file_write(fd, bytes)?;
+        Ok(())
+    }
+
+    fun close(self) {
+        let fd = self.fd.get();
+        if fd >= 0 {
+            $os.file_close(fd);
+            self.fd.set(-1);
+            self.buf.set([]);
+            self.pos.set(0);
+        }
+    }
+}
+
+impl $File {
+    /** The descriptor, if this file is open for reading. */
+    fun reading(self): Result<i64, string> {
+        let fd = self.fd.get();
+        if fd < 0 {
+            return Err("closed");
+        }
+        if self.writing {
+            return Err("not open for reading");
+        }
+        Ok(fd)
+    }
+
+    /** Stores the read-ahead buffer and where the unread part starts. */
+    fun keep(self, buf: u8[], pos: i64) {
+        self.buf.set(buf);
+        self.pos.set(pos);
+    }
+
+    /** The next line's bytes as text, counting the line. */
+    fun text(self, bytes: u8[]): Result<Option<string>, string> {
+        let n = self.line.get() + 1;
+        self.line.set(n);
+        match string_from_utf8(bytes) {
+            .Ok(line) => Ok(Some(line)),
+            .Err(_) => Err("line {n} is not valid UTF-8"),
+        }
+    }
+}
+
+/** `bytes[from..to]` as a new array. */
+fun $cut(bytes: u8[], from: i64, to: i64): u8[] {
+    let mut out: u8[] = [];
+    for i in from..to {
+        out.push(bytes[i]);
+    }
+    out
+}
+
+/** The system clocks. */
+struct $Clock {}
+
+impl Clock for $Clock {
+    fun now_ms(self): i64 = $os.wall_ms();
+    fun monotonic_ms(self): i64 = $os.now_ms();
+    fun local_offset(self, ms: i64): Result<i64, string> {
+        // Seconds, rounded down for moments before 1970 too.
+        let seconds = if ms >= 0 || ms % 1000 == 0 { ms / 1000 } else { ms / 1000 - 1 };
+        $os.local_offset(seconds)
+    }
+}
+
+/** The process's environment. */
+struct $Env {}
+
+impl Env for $Env {
+    fun get(self, name: string): Option<string> = match $os.env(name) {
+        .Some(bytes) => string_from_utf8(bytes).ok(),
+        .None => None,
+    };
+}
+
+/** The system's programs. */
+struct $Proc {}
+
+impl Proc for $Proc {
+    fun run(self, cmd: string, args: string[]): Result<ProcessOutput, string> = $started(cmd, args, "", 1);
+    fun run_with(self, cmd: string, args: string[], input: string): Result<ProcessOutput, string> =
+        $started(cmd, args, input, 2);
+    fun call(self, cmd: string, args: string[]): Result<i32, string> {
+        let (code, _, _) = $os.start(cmd, args, "", 0)?;
+        Ok(code)
+    }
+}
+
+/** `$os.start` in `mode` 1 (capture, stdin empty) or 2 (capture, stdin `input`), with the output checked as UTF-8. */
+fun $started(cmd: string, args: string[], input: string, mode: i32): Result<ProcessOutput, string> {
+    let (code, out, err) = $os.start(cmd, args, input, mode)?;
+    let stdout = match string_from_utf8(out) {
+        .Ok(text) => text,
+        .Err(_) => {
+            return Err("stdout is not valid UTF-8");
+        }
+    };
+    let stderr = match string_from_utf8(err) {
+        .Ok(text) => text,
+        .Err(_) => {
+            return Err("stderr is not valid UTF-8");
+        }
+    };
+    Ok(ProcessOutput { code: code, stdout: stdout, stderr: stderr })
+}
+
+/** The kernel's randomness (`getrandom`). */
+struct $Entropy {}
+
+impl Entropy for $Entropy {
+    // Eight bytes per kernel read: fine for keys and seeds.
+    fun bytes(self, n: i64): u8[] {
+        if n < 0 {
+            panic("entropy.bytes({n}): a negative count");
+        }
+        let mut out: u8[] = [];
+        while out.len < n {
+            let mut word = $os.seed();
+            for _ in 0..8 {
+                if out.len < n {
+                    out.push((word & 255).truncate<u8>());
+                    word = word >> 8;
+                }
+            }
+        }
+        out
+    }
+    fun next_u64(self): u64 = $os.seed();
+}
+
+/** The console `main` and tests are given. */
+fun $console(): Console = $Console {};
+
+/** The file system `main` and tests are given. */
+fun $fs(): Fs = $Fs {};
+
+/** The clock `main` and tests are given. */
+fun $clock(): Clock = $Clock {};
+
+/** The environment `main` and tests are given. */
+fun $env(): Env = $Env {};
+
+/** The programs `main` and tests may start. */
+fun $proc(): Proc = $Proc {};
+
+/** The randomness `main` and tests are given. */
+fun $entropy(): Entropy = $Entropy {};

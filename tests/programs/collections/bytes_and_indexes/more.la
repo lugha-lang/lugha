@@ -1,29 +1,29 @@
 // An empty file, appends, a missing file, every kind of invalid UTF-8
 // (each after one valid byte), a valid four-byte character, and a u16
 // index into a string.
-fun main(console: Console) {
+fun main(console: Console, files: Fs) {
     let empty: u8[] = [];
-    match write_bytes("e.bin", empty) {
+    match files.cwd().write_bytes("e.bin", empty) {
         .Ok(n) => console.println(n),
         .Err(e) => console.println(e),
     }
-    match read_bytes("e.bin") {
+    match files.cwd().read_bytes("e.bin") {
         .Ok(b) => console.println(b.len),
         .Err(e) => console.println(e),
     }
-    match append_bytes("e.bin", [1, 2]) {
+    match files.cwd().append_bytes("e.bin", [1, 2]) {
         .Ok(n) => console.println(n),
         .Err(e) => console.println(e),
     }
-    match append_bytes("e.bin", [3]) {
+    match files.cwd().append_bytes("e.bin", [3]) {
         .Ok(n) => console.println(n),
         .Err(e) => console.println(e),
     }
-    match read_bytes("e.bin") {
+    match files.cwd().read_bytes("e.bin") {
         .Ok(b) => console.println(b.debug()),
         .Err(e) => console.println(e),
     }
-    match read_bytes("missing.bin") {
+    match files.cwd().read_bytes("missing.bin") {
         .Ok(b) => console.println(b.debug()),
         .Err(e) => console.println("missing: {e}"),
     }

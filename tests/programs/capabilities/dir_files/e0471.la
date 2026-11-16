@@ -1,0 +1,7 @@
+fun main() {
+    let b = read_bytes("f");
+    let w = write_bytes("f", "x".to_bytes());
+    let a = append_bytes("f", "x".to_bytes());
+    let i = read_stdin_bytes();
+    flush();
+}

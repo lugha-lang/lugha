@@ -127,8 +127,8 @@ fn methods_modules_variants_and_built_ins_have_signatures() {
 
 #[test]
 fn intrinsics_show_the_specs_call_form() {
-    let (text, at) = new_line("read_bytes(");
-    assert_eq!(help(&text, at), shown("read_bytes(path)", 0, "path"));
+    let (text, at) = new_line("string_from_utf8(");
+    assert_eq!(help(&text, at), shown("string_from_utf8(data)", 0, "data"));
     let (text, at) = new_line("parse_i64(");
     assert_eq!(help(&text, at), shown("parse_i64(s)", 0, "s"));
 }

@@ -165,7 +165,7 @@ mod tests {
             Type::Array(Box::new(Type::U8))
         );
         assert_eq!(
-            let_type("fun main() { let r = read_stdin_bytes(); }", "r"),
+            let_type("fun main(c: Console) { let r = c.read_bytes(); }", "r"),
             Type::Array(Box::new(Type::U8))
         );
         assert_eq!(

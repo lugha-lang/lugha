@@ -1,8 +1,8 @@
 // Capabilities: what a program needs to touch the world outside it. `main`
 // takes the ones it uses as parameters, and passes them on; each is an
 // interface, so a fake for a test is a type that implements it. The real
-// ones reach the runtime through the intrinsics and `$os` built-ins only
-// the prelude and std may call.
+// ones (in the next file) reach the runtime through the intrinsics and
+// `$os` built-ins only the prelude and std may call.
 
 /**
  * Standard input, output and error: `console.println("hello")`.
@@ -19,6 +19,10 @@ interface Console {
     fun eprintln(self, x: Display);
     /** The next line of standard input without its line ending; `None` at the end. */
     fun read_line(self): Option<string>;
+    /** The rest of standard input as bytes, all of it: `[]` at the end or on a read error. */
+    fun read_bytes(self): u8[];
+    /** Writes out what standard output holds now: a prompt shows before a long wait. */
+    fun flush(self);
 }
 
 /**
@@ -32,17 +36,104 @@ interface Fs {
 
 /**
  * A folder, through which files are read and written: paths are relative
- * to it.
+ * to it. Errors are the system's message (`"No such file or directory"`); a
+ * path holding a NUL byte is `Err("path contains a NUL byte")` (or `false`).
+ * Nothing here deletes recursively. A fake implements the methods without a
+ * body; the others are written over them.
  */
 interface Dir {
-    /** The whole file, or `Err` with the system's message. */
+    /** The whole file as text, any bytes that aren't UTF-8 shown as U+FFFD. */
     fun read_file(self, path: string): Result<string, string>;
-    /** Replaces the file's contents: `Ok` with the bytes written. */
-    fun write_file(self, path: string, text: string): Result<i64, string>;
-    /** Adds to the end of the file, creating it if needed: `Ok` with the bytes written. */
-    fun append_file(self, path: string, text: string): Result<i64, string>;
+    /** The whole file as bytes. */
+    fun read_bytes(self, path: string): Result<u8[], string>;
+    /** Replaces the file's contents, making it if needed: `Ok` with the bytes written. */
+    fun write_bytes(self, path: string, bytes: u8[]): Result<i64, string>;
+    /** Adds to the end of the file, making it if needed: `Ok` with the bytes written. */
+    fun append_bytes(self, path: string, bytes: u8[]): Result<i64, string>;
+    /** The names in a folder, sorted by their bytes, without `.` and `..`; `Err` also when a name isn't UTF-8. */
+    fun list(self, path: string): Result<string[], string>;
+    /** Makes one folder (mode 0777 less the umask); its parent must exist. */
+    fun make_dir(self, path: string): Result<i64, string>;
+    /** Removes a file or a symbolic link; never a folder. */
+    fun remove_file(self, path: string): Result<i64, string>;
+    /** Removes a folder, which must be empty. */
+    fun remove_dir(self, path: string): Result<i64, string>;
+    /** Whether something exists at `path`, following symbolic links. */
+    fun exists(self, path: string): bool;
+    /** Whether `path` is a folder. */
+    fun is_dir(self, path: string): bool;
+    /** Whether `path` is a regular file. */
+    fun is_file(self, path: string): bool;
+    /**
+     * The size in bytes of the regular file at `path`, following symbolic
+     * links, without opening it: `Err("Is a directory")` for a folder,
+     * `Err("not a regular file")` for anything else but a file.
+     */
+    fun size(self, path: string): Result<i64, string>;
+    /**
+     * Renames `from` to `to`, replacing `to` in one step: anyone opening `to`
+     * sees the old file or the new one, never neither. Only within one file
+     * system (`Invalid cross-device link` otherwise), never a copy.
+     */
+    fun rename(self, from: string, to: string): Result<(), string>;
+    /** Sets the permission bits (`chmod`), following symbolic links: `mode` from 0 to 0o7777. */
+    fun set_mode(self, path: string, mode: i64): Result<(), string>;
+    /** Writes a file's data, or a folder's entries, out to the disk (`fsync`), so it survives a power cut. */
+    fun sync(self, path: string): Result<(), string>;
+    /** Opens a file for reading. */
+    fun open(self, path: string): Result<File, string>;
+    /** Opens a file for writing, emptying it first, or makes it (mode 0666 less the umask). */
+    fun create(self, path: string): Result<File, string>;
+    /** Opens a file for writing at its end, making it if needed: every write lands at the end. */
+    fun append(self, path: string): Result<File, string>;
     /** The folder's absolute path, or `Err` with the system's message. */
     fun path(self): Result<string, string>;
+
+    /** Replaces the file's contents with `text`, making it if needed: `Ok` with the bytes written. */
+    fun write_file(self, path: string, text: string): Result<i64, string> = self.write_bytes(path, text.to_bytes());
+    /** Adds `text` to the end of the file, making it if needed: `Ok` with the bytes written. */
+    fun append_file(self, path: string, text: string): Result<i64, string> = self.append_bytes(path, text.to_bytes());
+    /** Makes a folder and any missing parents; fine if it exists already. */
+    fun make_dirs(self, path: string): Result<i64, string> {
+        let mut prefix = if path.starts_with("/") { "/" } else { "" };
+        for part of path.split("/") {
+            if part.len == 0 {
+                continue;
+            }
+            prefix = if prefix.len == 0 || prefix.ends_with("/") { prefix + part } else { prefix + "/" + part };
+            if !self.is_dir(prefix) {
+                self.make_dir(prefix)?;
+            }
+        }
+        Ok(0)
+    }
+}
+
+/**
+ * An open file, from a `Dir`'s `open` (reading), `create` or `append`
+ * (writing), never both. Every copy is the same stream. Close what you open:
+ * the collector never closes a file. Reads and writes block the whole
+ * program while they run: quick for files on a disk, but a FIFO or a
+ * terminal stalls the other green threads too. A writing file used to read
+ * is `Err("not open for reading")`, the reverse `Err("not open for
+ * writing")`, and any use after `close` is `Err("closed")`.
+ */
+interface File {
+    /** Up to `max` bytes (1 to 16777216): what `read_line` read ahead first, else one read; `[]` at the end. */
+    fun read(self, max: i64): Result<u8[], string>;
+    /**
+     * The next line, without its `\n` and one `\r` before it: `None` at the
+     * end; a line that isn't UTF-8 is `Err("line N is not valid UTF-8")` and
+     * is skipped.
+     */
+    fun read_line(self): Result<Option<string>, string>;
+    /** Writes every byte, straight to the file: nothing waits in a buffer. */
+    fun write(self, bytes: u8[]): Result<(), string>;
+    /** Closes the file and every copy of it; closing twice is fine. */
+    fun close(self);
+
+    /** Writes a string's bytes, as `write` does. */
+    fun write_text(self, s: string): Result<(), string> = self.write(s.to_bytes());
 }
 
 /**
@@ -102,129 +193,3 @@ interface Entropy {
     fun next_u64(self): u64;
 }
 
-/** The real console: the process's standard streams. */
-struct $Console {}
-
-impl Console for $Console {
-    fun print(self, x: Display) { print(x.show()); }
-    fun println(self, x: Display) { println(x.show()); }
-    fun eprint(self, x: Display) { eprint(x.show()); }
-    fun eprintln(self, x: Display) { eprintln(x.show()); }
-    fun read_line(self): Option<string> = read_line();
-}
-
-/** The real file system. */
-struct $Fs {}
-
-impl Fs for $Fs {
-    fun cwd(self): Dir = $Dir {};
-}
-
-/** The folder the program started in; paths resolve as the system resolves them. */
-struct $Dir {}
-
-impl Dir for $Dir {
-    fun read_file(self, path: string): Result<string, string> = read_file(path);
-    fun write_file(self, path: string, text: string): Result<i64, string> = write_file(path, text);
-    fun append_file(self, path: string, text: string): Result<i64, string> = append_file(path, text);
-    fun path(self): Result<string, string> {
-        let bytes = $os.cwd()?;
-        string_from_utf8(bytes)
-    }
-}
-
-/** The system clocks. */
-struct $Clock {}
-
-impl Clock for $Clock {
-    fun now_ms(self): i64 = $os.wall_ms();
-    fun monotonic_ms(self): i64 = $os.now_ms();
-    fun local_offset(self, ms: i64): Result<i64, string> {
-        // Seconds, rounded down for moments before 1970 too.
-        let seconds = if ms >= 0 || ms % 1000 == 0 { ms / 1000 } else { ms / 1000 - 1 };
-        $os.local_offset(seconds)
-    }
-}
-
-/** The process's environment. */
-struct $Env {}
-
-impl Env for $Env {
-    fun get(self, name: string): Option<string> = match $os.env(name) {
-        .Some(bytes) => string_from_utf8(bytes).ok(),
-        .None => None,
-    };
-}
-
-/** The system's programs. */
-struct $Proc {}
-
-impl Proc for $Proc {
-    fun run(self, cmd: string, args: string[]): Result<ProcessOutput, string> = $started(cmd, args, "", 1);
-    fun run_with(self, cmd: string, args: string[], input: string): Result<ProcessOutput, string> =
-        $started(cmd, args, input, 2);
-    fun call(self, cmd: string, args: string[]): Result<i32, string> {
-        let (code, _, _) = $os.start(cmd, args, "", 0)?;
-        Ok(code)
-    }
-}
-
-/** `$os.start` in `mode` 1 (capture, stdin empty) or 2 (capture, stdin `input`), with the output checked as UTF-8. */
-fun $started(cmd: string, args: string[], input: string, mode: i32): Result<ProcessOutput, string> {
-    let (code, out, err) = $os.start(cmd, args, input, mode)?;
-    let stdout = match string_from_utf8(out) {
-        .Ok(text) => text,
-        .Err(_) => {
-            return Err("stdout is not valid UTF-8");
-        }
-    };
-    let stderr = match string_from_utf8(err) {
-        .Ok(text) => text,
-        .Err(_) => {
-            return Err("stderr is not valid UTF-8");
-        }
-    };
-    Ok(ProcessOutput { code: code, stdout: stdout, stderr: stderr })
-}
-
-/** The kernel's randomness (`getrandom`). */
-struct $Entropy {}
-
-impl Entropy for $Entropy {
-    // Eight bytes per kernel read: fine for keys and seeds.
-    fun bytes(self, n: i64): u8[] {
-        if n < 0 {
-            panic("entropy.bytes({n}): a negative count");
-        }
-        let mut out: u8[] = [];
-        while out.len < n {
-            let mut word = $os.seed();
-            for _ in 0..8 {
-                if out.len < n {
-                    out.push((word & 255).truncate<u8>());
-                    word = word >> 8;
-                }
-            }
-        }
-        out
-    }
-    fun next_u64(self): u64 = $os.seed();
-}
-
-/** The console `main` and tests are given. */
-fun $console(): Console = $Console {};
-
-/** The file system `main` and tests are given. */
-fun $fs(): Fs = $Fs {};
-
-/** The clock `main` and tests are given. */
-fun $clock(): Clock = $Clock {};
-
-/** The environment `main` and tests are given. */
-fun $env(): Env = $Env {};
-
-/** The programs `main` and tests may start. */
-fun $proc(): Proc = $Proc {};
-
-/** The randomness `main` and tests are given. */
-fun $entropy(): Entropy = $Entropy {};

@@ -32,8 +32,9 @@ Nov 15, 2026 · @kithinji
 - The prelude's `Error: Display` is the shared error interface (`Result<T, Error>`, `?` from any error, `"{e}"`), implemented by `string` and std's errors; an interface that extends others is a value type, its table holding its ancestors' items (E0464 retired) (milestone 179; sections 4–6).
 - Capabilities, first step: `main` takes `args: string[]`, `console: Console` and `fs: Fs` by type; printing, reading input and files go through `Console` and `fs.cwd()`; `print`, `println`, `eprint`, `eprintln`, `read_line`, `read_file`, `write_file`, `append_file`, `args` and `exit` are gone (E0471) (milestone 180; sections 5–6).
 - Capabilities, second step: `Clock` (`now_ms`, `monotonic_ms`, `local_offset`), `Env` (`get`), `Proc` (`run`, `run_with`, `call`, giving a `ProcessOutput`) and `Entropy` (`bytes`, `next_u64`), taken by `main` and tests like `Console`; `Dir.path()`; `std.env` and `std.process` are gone, and `std.time`, `std.random` and `std.crypto` take the capabilities (milestone 181; sections 6, 9).
+- Capabilities, third step: everything `std.fs` did is a method of `Dir` (`list`, `make_dir`, `make_dirs`, `remove_file`, `remove_dir`, `exists`, `is_dir`, `is_file`, `size`, `rename`, `set_mode`, `sync`, `open`, `create`, `append`, `read_bytes`, `write_bytes`, `append_bytes`), file streams are the prelude's `File` interface, `Console` gains `read_bytes()` and `flush()`, and `read_bytes`, `write_bytes`, `append_bytes`, `read_stdin_bytes` and `flush` are gone from programs (E0471); `std.fs` is removed (milestone 182; sections 5, 6, 9).
 
-**Breaking:** printing, input, files and the arguments need capabilities (milestone 180): `fun main() { println(x); }` is `fun main(console: Console) { console.println(x); }`; a function that prints takes the `Console` as a parameter; `read_file(p)` is `fs.cwd().read_file(p)` with `fs: Fs` taken by `main`; `args()` is an `args: string[]` parameter of `main`; `exit(n)` is returning `n` from `main`. The clock, the environment, other programs and the system's randomness need capabilities too (milestone 181): `time.now_ms()`, `time.monotonic_ms()` and `time.local_offset(ms)` are `clock.now_ms()`, `clock.monotonic_ms()` and `clock.local_offset(ms)` (its error a `string`); `env.get(n)` is the same call on an `env: Env`; `env.current_dir()` is `fs.cwd().path()`; `env.set_current_dir` is gone (the working folder never changes); `process.run`, `run_with` and `call` are `proc.run`, `proc.run_with` and `proc.call`, and `process.Output` is `ProcessOutput`; `random.from_os()` is `random.from_entropy(entropy)`; `crypto.random_bytes(n)` is `entropy.bytes(n)`; `crypto.ed25519_keypair()` and `crypto.x25519_keypair()` take the `Entropy`. `#{…}` is gone (milestone 178): `#{"a": 1}` is `Map { "a": 1 }`, `#{1, 2}` is `Set { 1, 2 }`, and `#{}` is `Map {}` or `Set {}`; maps and sets print that way; a struct implementing `FromEntries` or `FromItems` is built with braces only in its own module. A numeric `as` that can lose information is E0469 (milestone 177): `n as u8` for a wider `n` is `n.truncate<u8>()` for the old bits, a float `as` an integer is `x.saturate<i64>()` for the old result, `n as f64` for an `i64` is `n.round<f64>()`, `n as char` is `n.try_into<char>()`; `f(a < b, c > (d))` now passes type arguments. Every variant in a pattern takes a leading dot (milestone 176): `Some(x) =>` is `.Some(x) =>`, `None =>` is `.None =>`, `if let Some(x) = o` is `if let .Some(x) = o`; an undotted one is E0212 or E0468, and `mut None` is E0468, not E0428. A `Result` used as a statement is E0467 (milestone 175): write `let _ = f();` to drop one on purpose. `assert_eq` and `assert_ne` are ordinary generic calls (milestone 173): an argument that can't be typed alone, first (`assert_eq(None, o)`), is E0412; write it second. The prelude's helpers are only methods (milestone 172): `map(xs, f)`, `str_trim(s)` and the like are no longer functions a program can call (E0301); write `xs.map(f)`, `s.trim()`. Operators go through blocks (milestone 171): an own `fun add(self, o: V): V` becomes `impl Add for V { … }`, several `mul`s on one type become one `impl Mul<R> for V` each, and `impl f64 { fun mul(self, v: V): V }` becomes `impl Mul<V> for f64` (that form is now E0466; E0458 is retired); an operator on an interface value is E0404, and a bound gives an operator only when it is an operator interface (`T: Mul<f64>`), not an interface with its own `mul`. Printing needs `Display` (milestone 170): `println(xs)`, `"{opt}"` and `to_string(p)` on an array, `Option`, tuple, map, `()` or a struct or enum without `impl Display` are E0422; write `.debug()` for the old text, or `impl Display`. A type's own `show` method becomes `impl Display for T`, and is no longer used inside an array or another value's text. `unwrap()` on an `Err` shows the error's debug form (`"boom"` quoted). `debug` is a reserved name. A struct or enum ordered with `<`, `sort`, `min` or `max` needs `with Ord` or `impl Ord` (milestone 168); an own `cmp` method no longer orders it, and `Ord` now implies `Eq`. Floats aren't `Ord`: `[1.5].sort()`, `math.min(1.5, 2.0)` and tuples or structs holding a float that are ordered are E0451; sort floats with `xs.sort_by(f64.total_order)`. A struct or enum compared with `==` or used as a map key or set value needs `with Eq` or `with Key` (milestone 167); own `eq` and `hash` methods become `impl Eq` and `impl Key`. A struct or enum encoded, decoded or otherwise used through a derivable interface needs `with I` (milestone 165); a type's own `to_json` or `show` no longer replaces a derived item. A type that met an interface by its methods needs `impl I for T`; methods that implement an interface move from `impl T { … }` into it. A number, string or array converted to a program's interface (`let x: Any = 1;`) is E0422 unless a block implements it for that type (milestone 169).
+**Breaking:** printing, input, files and the arguments need capabilities (milestone 180): `fun main() { println(x); }` is `fun main(console: Console) { console.println(x); }`; a function that prints takes the `Console` as a parameter; `read_file(p)` is `fs.cwd().read_file(p)` with `fs: Fs` taken by `main`; `args()` is an `args: string[]` parameter of `main`; `exit(n)` is returning `n` from `main`. The clock, the environment, other programs and the system's randomness need capabilities too (milestone 181): `time.now_ms()`, `time.monotonic_ms()` and `time.local_offset(ms)` are `clock.now_ms()`, `clock.monotonic_ms()` and `clock.local_offset(ms)` (its error a `string`); `env.get(n)` is the same call on an `env: Env`; `env.current_dir()` is `fs.cwd().path()`; `env.set_current_dir` is gone (the working folder never changes); `process.run`, `run_with` and `call` are `proc.run`, `proc.run_with` and `proc.call`, and `process.Output` is `ProcessOutput`; `random.from_os()` is `random.from_entropy(entropy)`; `crypto.random_bytes(n)` is `entropy.bytes(n)`; `crypto.ed25519_keypair()` and `crypto.x25519_keypair()` take the `Entropy`. Files and folders go through a `Dir` (milestone 182): `fs.make_dirs(p)` and the rest of `std.fs` are `dir.make_dirs(p)` on a `dir` from `fs.cwd()`, `fs.list_dir(p)` is `dir.list(p)`, `fs.File` is `File`; `read_bytes(p)`, `write_bytes(p, b)` and `append_bytes(p, b)` are `dir.read_bytes(p)` and so on; `read_stdin_bytes()` is `console.read_bytes()` and `flush()` is `console.flush()`. `#{…}` is gone (milestone 178): `#{"a": 1}` is `Map { "a": 1 }`, `#{1, 2}` is `Set { 1, 2 }`, and `#{}` is `Map {}` or `Set {}`; maps and sets print that way; a struct implementing `FromEntries` or `FromItems` is built with braces only in its own module. A numeric `as` that can lose information is E0469 (milestone 177): `n as u8` for a wider `n` is `n.truncate<u8>()` for the old bits, a float `as` an integer is `x.saturate<i64>()` for the old result, `n as f64` for an `i64` is `n.round<f64>()`, `n as char` is `n.try_into<char>()`; `f(a < b, c > (d))` now passes type arguments. Every variant in a pattern takes a leading dot (milestone 176): `Some(x) =>` is `.Some(x) =>`, `None =>` is `.None =>`, `if let Some(x) = o` is `if let .Some(x) = o`; an undotted one is E0212 or E0468, and `mut None` is E0468, not E0428. A `Result` used as a statement is E0467 (milestone 175): write `let _ = f();` to drop one on purpose. `assert_eq` and `assert_ne` are ordinary generic calls (milestone 173): an argument that can't be typed alone, first (`assert_eq(None, o)`), is E0412; write it second. The prelude's helpers are only methods (milestone 172): `map(xs, f)`, `str_trim(s)` and the like are no longer functions a program can call (E0301); write `xs.map(f)`, `s.trim()`. Operators go through blocks (milestone 171): an own `fun add(self, o: V): V` becomes `impl Add for V { … }`, several `mul`s on one type become one `impl Mul<R> for V` each, and `impl f64 { fun mul(self, v: V): V }` becomes `impl Mul<V> for f64` (that form is now E0466; E0458 is retired); an operator on an interface value is E0404, and a bound gives an operator only when it is an operator interface (`T: Mul<f64>`), not an interface with its own `mul`. Printing needs `Display` (milestone 170): `println(xs)`, `"{opt}"` and `to_string(p)` on an array, `Option`, tuple, map, `()` or a struct or enum without `impl Display` are E0422; write `.debug()` for the old text, or `impl Display`. A type's own `show` method becomes `impl Display for T`, and is no longer used inside an array or another value's text. `unwrap()` on an `Err` shows the error's debug form (`"boom"` quoted). `debug` is a reserved name. A struct or enum ordered with `<`, `sort`, `min` or `max` needs `with Ord` or `impl Ord` (milestone 168); an own `cmp` method no longer orders it, and `Ord` now implies `Eq`. Floats aren't `Ord`: `[1.5].sort()`, `math.min(1.5, 2.0)` and tuples or structs holding a float that are ordered are E0451; sort floats with `xs.sort_by(f64.total_order)`. A struct or enum compared with `==` or used as a map key or set value needs `with Eq` or `with Key` (milestone 167); own `eq` and `hash` methods become `impl Eq` and `impl Key`. A struct or enum encoded, decoded or otherwise used through a derivable interface needs `with I` (milestone 165); a type's own `to_json` or `show` no longer replaces a derived item. A type that met an interface by its methods needs `impl I for T`; methods that implement an interface move from `impl T { … }` into it. A number, string or array converted to a program's interface (`let x: Any = 1;`) is E0422 unless a block implements it for that type (milestone 169).
 
 **Changes in v17 since v16** (milestones 91–163):
 - Green threads: `spawn f(x)` runs a call concurrently and gives a `Task<T>` (a plain `Task` for a call that returns nothing) whose `join()` waits for the result. `Chan<T>` carries values between green threads: `Chan.new()` (unbuffered) or `Chan.buffered(n)`, `send`, `recv` (an `Option`, `None` once closed), `try_recv`, `close`, `is`. `select` waits on several channels at once, with an `after(ms)` timeout or a `default` that never waits. `std.task` has `sleep(ms)` and `yield_now()`. Every function stays an ordinary function: there is no `async` and no `await`, so nothing is coloured. All green threads share the program's one OS thread; a panic in any of them ends the program, as does `main` returning, and a deadlock is a panic (sections 2–9).
@@ -1088,11 +1089,11 @@ let sign = if x < 0 { -1 } else if x == 0 { 0 } else { 1 };
 
 **break and continue.** Without a label, apply to the innermost enclosing loop. Using either outside a loop is a compile error (E0504).
 
-**defer** (v17, milestone 151). `defer e;`, `defer place op value;` (any assignment, checked as that statement) or `defer { … }` runs `e` when the block holding it is left, on every way out after the `defer` was reached: the block's end, `return`, `?` returning, `break` and `continue` (through every block between the jump and its loop). Several run last first, innermost block first. `e` is evaluated when it runs, reading variables as they are then (`let mut n = 1; defer println(n); n = 2;` prints 2), with the names in scope at the `defer` (a later `let` shadowing one doesn't change what it reads). A block's tail and a `return` value are computed first and keep the value they had (`defer xs.push(4); xs` gives `xs` without the 4). A `defer` not yet reached doesn't run, and one inside a deferred block runs at that block's end. `e` must have type `()` (E0456), so a `Result` can't be dropped by accident: `defer { fs.remove_file(p); }` discards one on purpose. A `return`, `?`, `break` or `continue` that would leave `e` is E0455, since its block is already being left; loops and closures inside `e` may use them. A closure's or a spawned call's defers run when it returns. A panic, `exit` and the end of the program don't run pending defers (section 6). `defer` is for closing files and sockets on an early `?`:
+**defer** (v17, milestone 151). `defer e;`, `defer place op value;` (any assignment, checked as that statement) or `defer { … }` runs `e` when the block holding it is left, on every way out after the `defer` was reached: the block's end, `return`, `?` returning, `break` and `continue` (through every block between the jump and its loop). Several run last first, innermost block first. `e` is evaluated when it runs, reading variables as they are then (`let mut n = 1; defer println(n); n = 2;` prints 2), with the names in scope at the `defer` (a later `let` shadowing one doesn't change what it reads). A block's tail and a `return` value are computed first and keep the value they had (`defer xs.push(4); xs` gives `xs` without the 4). A `defer` not yet reached doesn't run, and one inside a deferred block runs at that block's end. `e` must have type `()` (E0456), so a `Result` can't be dropped by accident: `defer { let _ = dir.remove_file(p); }` discards one on purpose. A `return`, `?`, `break` or `continue` that would leave `e` is E0455, since its block is already being left; loops and closures inside `e` may use them. A closure's or a spawned call's defers run when it returns. A panic, `exit` and the end of the program don't run pending defers (section 6). `defer` is for closing files and sockets on an early `?`:
 
 ```lugha
 for path in paths {
-    let f = fs.open(path)?;
+    let f = dir.open(path)?;
     defer f.close();            // at the end of each iteration
     out.push(f.read_line()?);   // an Err here still closes f
 }
@@ -1117,17 +1118,13 @@ for path in paths {
 | `parse_i64(s)` | `string` | `Some(n)` if `s` is an optional `-` followed by decimal digits and fits in `i64`, else `None`; no `+`, spaces, `_` or hex (v3) |
 | `parse_u64(s)` | `string` | `Some(n)` if `s` is decimal digits only and fits in `u64`, else `None`; no sign (v10) |
 | `parse_f64(s)` | `string` | `Some(x)` if `s` is an optional `-`, digits, an optional `.` and digits, and an optional exponent (`e`/`E`, optional sign, digits), else `None`; `"3"` gives `3.0`, while `".5"`, `"5."`, `"inf"` and `"nan"` give `None` (v3) |
-| `read_bytes(path)` | `string` | `Result<u8[], string>`: the whole file as bytes, or `Err` with the system's message (v14) |
-| `write_bytes(path, data)`, `append_bytes(path, data)` | `string`, `u8[]` | `Result<i64, string>`: like `write_file` and `append_file`, writing exactly `data` (v14) |
-| `read_stdin_bytes()` | Nothing | `u8[]`: everything left on stdin (v14) |
-| `flush()` | Nothing | `()`: what `print` wrote so far goes out now, so a long-running program's line shows at once (v17, milestone 115); a failure is ignored, as `print`'s are |
 | `string_from_utf8(data)` | `u8[]` | `Result<string, string>`: a string of exactly those bytes if they are valid UTF-8 (no overlong forms, surrogates, code points above U+10FFFF or truncated sequences), else `Err("invalid UTF-8 at byte N")` with the first bad sequence's offset; the only way from bytes to a `string` (v14) |
 | `include_bytes(path)` | a string literal | `u8[]`: the contents of the file `path` names, read when the program is compiled (v17, milestone 128; below) |
 | `include_str(path)` | a string literal | `string`: the same, as text; the file must be UTF-8 (E0448) |
 | `c_read(p, offset, len)` | `CPtr`, `u64`, `u64` | `u8[]`: a copy of `len` bytes at `p + offset` in C's memory; a null `p` panics (v17, section 8) |
 | `c_write(p, offset, bytes)` | `CPtr`, `u64`, `u8[]` | `()`: copies `bytes` to `p + offset` in C's memory; a null `p` panics (v17, section 8) |
 
-**Gone from programs** (v18, milestone 180): `print`, `println`, `eprint`, `eprintln`, `read_line`, `read_file`, `write_file`, `append_file`, `args` and `exit`. Each reached outside the program without being given the means to, so a call is E0471, naming the capability to take instead (Capabilities, section 6); the names stay reserved (E0302). Their behaviour lives on as the methods of `Console` and `Dir`, and the arguments as a parameter of `main`; a program ends by returning from `main`.
+**Gone from programs** (v18, milestones 180 and 182): `print`, `println`, `eprint`, `eprintln`, `read_line`, `read_stdin_bytes`, `flush`, `read_file`, `write_file`, `append_file`, `read_bytes`, `write_bytes`, `append_bytes`, `args` and `exit`. Each reached outside the program without being given the means to, so a call is E0471, naming the capability to take instead (Capabilities, section 6); the names stay reserved (E0302). Their behaviour lives on as the methods of `Console` and `Dir`, and the arguments as a parameter of `main`; a program ends by returning from `main`.
 
 **Included files** (v17, milestone 128). `include_bytes(path)` and `include_str(path)` build a file's contents into the program: lughac reads the file while checking (so `lughac check` and the language server report the errors too) and the compiled program holds the bytes, read-only, without reading anything when it runs. Rebuilding reads the file again. The argument is a string literal (not a constant or interpolation) holding a path relative to the folder of the `.la` file that names it, with `/` between folders; `.` and `..` may appear. The file must lie inside its package's folder — the folder of the `lugha.toml` that governs the file, or the main file's folder when there is none — after symbolic links are resolved, so no path, `..` or link reaches the builder's other files; and it must be a regular file of at most 16 MiB (16 777 216 bytes). Anything else is E0447, saying why: not one string literal, empty, absolute, holding `\`, outside the package's folder, missing, not a file, unreadable or too large. `include_str` of bytes that aren't UTF-8 is E0448, naming the first bad byte. Both calls are constant expressions (section 6), so a `const` may hold one; and like any value, `let mut b = LOGO; b[0] = 1;` changes only `b`. The bundled `std` modules and the prelude include nothing.
 
@@ -1237,7 +1234,7 @@ A v0 program is a single `.la` file containing top-level items: functions, exter
 - **Deadlock:** when no green thread can run, none is sleeping, none waits on a socket and one waits, the program panics with `panic: deadlock: every green thread is waiting` (no location), exit 101.
 - **Actors** (milestone 92) are green threads that take messages from an unbounded mailbox one at a time: messages from one caller in the order sent, from several in the order they arrive. A panic inside an actor's method prints its message, as any panic does, but ends only that actor: the caller waiting for that message's result, and every later caller, panics with ``actor `Counter` panicked`` at its call; a call to a stopped actor panics with ``actor `Counter` has stopped``. A stack overflow inside an actor still ends the program. Plain `spawn f()` threads keep the rule above. Actors waiting on each other are a deadlock.
 
-**The standard library** (v15). Version 15 has `std.math`, `std.random` and `std.fs` (and had `std.env` and `std.process`, which became the `Env` and `Proc` capabilities in v18, milestone 181); version 17 adds `std.task`, `std.time`, `std.net`, `std.tls`, `std.crypto`, `std.http`, `std.toml` and `std.json`.
+**The standard library** (v15). Version 15 has `std.math` and `std.random` (and had `std.env`, `std.process` and `std.fs`, which became the `Env`, `Proc` and `Dir` capabilities in v18, milestones 181 and 182); version 17 adds `std.task`, `std.time`, `std.net`, `std.tls`, `std.crypto`, `std.http`, `std.toml` and `std.json`.
 
 `std.math` (milestone 53). The float functions take and return any `T: Float` (`f32` or `f64`) and follow IEEE 754: they never panic, `sqrt(-1.0)` is `NaN`, `ln(0.0)` is `-inf` and `pow(0.0, -1.0)` is `inf`.
 
@@ -1271,11 +1268,14 @@ An integer goes to a float function through a cast: `math.sqrt(n as f64)`; `math
 | `r.choice<T>(xs: T[]): Option<T>` | a uniformly chosen element, `None` for an empty array |
 | `r.shuffle<T>(xs: T[]): T[]` | a copy of `xs` in a uniformly random order (Fisher–Yates); `xs` is unchanged |
 
-`std.fs` (milestone 65). Folders, what exists, and (v17, milestone 146) file streams; whole files stay with the intrinsics (`read_file`, `write_file`, …). Errors are the system's message, as for `read_file`; a path holding a NUL byte is `Err("path contains a NUL byte")` (or `false`). Nothing deletes recursively.
+**Folders and files** (`Dir`; `std.fs` from milestone 65 until v18 moved it onto `Dir`, milestone 182). The methods of a `Dir` (section 6), paths relative to it. Errors are the system's message, as for `read_file`; a path holding a NUL byte is `Err("path contains a NUL byte")` (or `false`). Nothing deletes recursively.
 
-| Function | Result |
+| Method | Result |
 | --- | --- |
-| `list_dir(path): Result<string[], string>` | the entries' names sorted by their bytes, without `.` and `..`; a name that isn't UTF-8 is `Err("a name in <path> is not valid UTF-8")` |
+| `read_file(path)`, `write_file(path, text)`, `append_file(path, text)` | whole files as text (section 6) |
+| `read_bytes(path): Result<u8[], string>` | the whole file as bytes (v14) |
+| `write_bytes(path, data)`, `append_bytes(path, data): Result<i64, string>` | like `write_file` and `append_file`, writing exactly `data` (v14) |
+| `list(path): Result<string[], string>` | the entries' names sorted by their bytes, without `.` and `..`; a name that isn't UTF-8 is `Err("a name in <path> is not valid UTF-8")` |
 | `make_dir(path): Result<i64, string>` | `Ok(0)` after making one folder (mode 0777 less the umask); its parent must exist |
 | `make_dirs(path): Result<i64, string>` | `Ok(0)` after making the folder and any missing parents; already existing is fine |
 | `remove_file(path): Result<i64, string>` | `Ok(0)` after removing a file or symbolic link; a folder is `Err` |
@@ -1289,7 +1289,7 @@ An integer goes to a float function through a cast: `math.sqrt(n as f64)`; `math
 | `create(path): Result<File, string>` | a `File` for writing, emptied first or made (mode 0666 less the umask) |
 | `append(path): Result<File, string>` | a `File` for writing at its end (`O_APPEND`), made if missing |
 
-**File streams** (v17, milestone 146). A `File` is a shared handle to one open file, like `net.Conn`: every copy is the same stream, and the collector never closes one, so a file left open stays open until the program exits. Each is opened close-on-exec, for reading or for writing, never both; there is no seeking. Reads and writes block the whole program while they run, quick for disk files, but a FIFO or terminal stalls the other green threads too. Using a writing `File` to read is `Err("not open for reading")`, the reverse `Err("not open for writing")`, and any use after `close` is `Err("closed")`.
+**File streams** (v17, milestone 146). A `File` (a prelude interface since v18, milestone 182, so a fake `Dir` can give fake files; `write_text` is written over `write`) is a shared handle to one open file, like `net.Conn`: every copy is the same stream, and the collector never closes one, so a file left open stays open until the program exits. Each is opened close-on-exec, for reading or for writing, never both; there is no seeking. Reads and writes block the whole program while they run, quick for disk files, but a FIFO or terminal stalls the other green threads too. Using a writing `File` to read is `Err("not open for reading")`, the reverse `Err("not open for writing")`, and any use after `close` is `Err("closed")`.
 
 | Method | Result |
 | --- | --- |
@@ -1465,15 +1465,15 @@ This rejects a few correct programs, such as a function whose only exit is a `re
 **Entry point.** Every program defines `main`, without type parameters, returning `()` or an `i32` (the process exit code; 0 for `()`). Its parameters are what the runtime supplies (v18, milestone 180), matched by type, with any names, in any order, each at most once: `string[]`, the command-line arguments with the program's path first; and the capabilities `Console`, `Fs`, `Clock`, `Env`, `Proc` and `Entropy` (milestone 181). Anything else is E0304: `main(args: string[], console: Console): i32`, `main(out: Console)` and `main()` are all fine, `main(n: i64)` and `main(a: string[], b: string[])` aren't. The user's `main` is emitted as `lugha_fn_main`, like every Lugha function, and the compiler emits a real C `main` that initializes the runtime, makes the values `main` asks for, and calls it (see section 9). A `@test` function takes the same capabilities (not the arguments), and `lughac test` gives it the real ones.
 
 **Capabilities** (v18, milestone 180). A program touches the world outside it only through values it is given: `main` takes them, and passes them on as ordinary parameters and fields, so a function's signature says what it may do (`fun price(order: Order): Money` touches nothing). They are prelude interfaces, visible in every module unless a module declares its own name, met only by `impl` (so a fake for a test is a type that says it implements one), and may be sent to tasks and actors:
-- **`Console`:** `print(x)`, `println(x)`, `eprint(x)`, `eprintln(x)`, each taking any `Display` value (it converts where the parameter expects the interface, as any value does; `println("")` for an empty line), writing its text to stdout or stderr (`eprint` flushes stdout first, so a terminal shows output in program order); `read_line(): Option<string>`, the next line of stdin without its `\n` (and a `\r` before it), a last line without `\n` still returned, `None` at the end of input or on a read error, stdout flushed first so a prompt shows.
+- **`Console`:** `read_bytes(): u8[]`, everything left on stdin, and `flush()`, sending out what `print` wrote so far so a long-running program's line shows at once (a failure is ignored, as `print`'s are) (milestone 182); `print(x)`, `println(x)`, `eprint(x)`, `eprintln(x)`, each taking any `Display` value (it converts where the parameter expects the interface, as any value does; `println("")` for an empty line), writing its text to stdout or stderr (`eprint` flushes stdout first, so a terminal shows output in program order); `read_line(): Option<string>`, the next line of stdin without its `\n` (and a `\r` before it), a last line without `\n` still returned, `None` at the end of input or on a read error, stdout flushed first so a prompt shows.
 - **`Fs`:** `cwd(): Dir`, the folder the program started in.
-- **`Dir`:** `read_file(path): Result<string, string>`, the whole file or `Err` with the system's message (`"No such file or directory"`); `write_file(path, text): Result<i64, string>`, replacing the file's contents, `Ok` with the bytes written; `append_file(path, text): Result<i64, string>`, adding to the end and creating the file if needed. Paths are relative to the folder. A `Dir` isn't confined yet: until narrowing arrives (`fs.dir(path)`, with `..` and symbolic links kept inside), `fs.cwd()` reaches what the process can, as the old intrinsics did.
+- **`Dir`:** `read_file(path): Result<string, string>`, the whole file or `Err` with the system's message (`"No such file or directory"`); `write_file(path, text): Result<i64, string>`, replacing the file's contents, `Ok` with the bytes written; `append_file(path, text): Result<i64, string>`, adding to the end and creating the file if needed; and every folder and file operation (milestone 182; "Folders and files", section 9). Paths are relative to the folder. A fake implements the methods the interface leaves without a body; `write_file`, `append_file` and `make_dirs` are written over them. A `Dir` isn't confined yet: until narrowing arrives (`fs.dir(path)`, with `..` and symbolic links kept inside), `fs.cwd()` reaches what the process can, as the old intrinsics did.
 - **`Dir.path(): Result<string, string>`** (milestone 181): the folder's absolute path, or `Err` with the system's message (when it was deleted). The working folder never changes.
 - **`Clock`** (milestone 181): `now_ms(): i64`, milliseconds since 1970-01-01 00:00 UTC from the system clock (`CLOCK_REALTIME`), which can jump when the clock is set; `monotonic_ms(): i64`, milliseconds from an unspecified start that never goes back (`CLOCK_MONOTONIC`), for intervals; `local_offset(ms): Result<i64, string>`, the system zone's offset from UTC at moment `ms` in seconds east, daylight saving included (`localtime_r`'s `tm_gmtoff`: `TZ` if set, else `/etc/localtime`, else UTC), or `Err` for a moment the system can't represent. Pausing (`task.sleep`) needs no clock.
 - **`Env`** (milestone 181): `get(name): Option<string>`, the variable's value, `None` when it is unset, isn't valid UTF-8, or `name` contains a NUL byte. Variables are read-only.
 - **`Proc`** (milestone 181): runs another program and waits for it. **There is never a shell**: the command and each argument reach the program exactly as given (`posix_spawnp`), so `;`, `|`, `$( )`, quotes and globs in them mean nothing. A command without `/` is looked up on `PATH`, one with `/` is a path; whoever controls `PATH` chooses which program a bare name runs, so use a path containing `/` when that matters. The program inherits this one's environment and working folder unchanged and gets only stdin, stdout and stderr: every other descriptor is closed on exec. A NUL byte in the command or an argument is `Err` before anything starts. There is no timeout and no limit on output size. `run(cmd, args): Result<ProcessOutput, string>` runs `cmd` with an empty stdin and captures its output; `run_with(cmd, args, input)` does the same, writing `input` to its stdin; `call(cmd, args): Result<i32, string>` runs `cmd` sharing this program's stdin, stdout and stderr (what this program printed comes first), and gives its exit code. `ProcessOutput` is a prelude struct, `{ code: i32, stdout: string, stderr: string } with Eq`: `code` is the exit status, or `128 + n` when signal `n` ended the program, as shells report it. Any exit code is `Ok`; `Err` means the program couldn't start (`"tool: No such file or directory"`), an argument held a NUL byte, or its output isn't valid UTF-8 (`"stdout is not valid UTF-8"`). stdin, stdout and stderr are served together, so a program that fills one pipe while another is being read can't deadlock.
 - **`Entropy`** (milestone 181): the operating system's randomness, for keys, nonces and seeds: `bytes(n): u8[]`, `n` random bytes (a panic for a negative `n`); `next_u64(): u64`, 64 random bits. The real one reads the kernel (`getrandom`, else `/dev/urandom`, else a panic). A seeded generator (`std.random`) needs none.
-- `debug(x)`, `panic` and the assertions need no capability. `std.fs` and `std.net` (with `std.tls` and `std.http`) still reach the system directly; taking capabilities is their next step. `hpke_seal` and TLS draw their one-time keys from OpenSSL's own generator.
+- `debug(x)`, `panic` and the assertions need no capability. `std.net` (with `std.tls` and `std.http`) still reaches the system directly; taking a capability is its next step. `hpke_seal` and TLS draw their one-time keys from OpenSSL's own generator.
 
 ## 7. Memory model
 
@@ -1627,7 +1627,7 @@ on_clicked(button, "clicked", fun(b: GtkWidget) { clicks.update(fun(n) = n + 1);
 - A format specifier (v13) is parsed once by the checker (E0431) and again by codegen, which passes its parts to `lugha_rt_fmt_int`, `lugha_rt_fmt_float` or `lugha_rt_pad`, from a runtime fragment `format.c`. Programs without specifiers give byte-identical IR.
 - `format` (v14) splits its template into text and holes in the checker and again in codegen, then lowers like an interpolated string with the arguments as its parts. Programs without `format` give byte-identical IR.
 - `Proc` (v18; `std.process` before) is prelude code over one built-in, `$os.start(cmd, args, input, mode): Result<(i32, u8[], u8[]), string>` (named `$os.spawn` until `spawn` became a keyword in v17; `lugha_rt_spawn`: `posix_spawnp`, `pipe2(O_CLOEXEC)` pipes, a `poll` loop, `SIGPIPE` blocked while writing, `waitpid`); the outputs become strings through `string_from_utf8`. The runtime opens its own files close-on-exec (`fopen` mode `"e"`, `O_CLOEXEC`). Changes to `runtime/process.c` need the user's security review, like `modules/git.rs`.
-- `std.fs` (v15) is Lugha code over `$os.list_dir` (names as bytes, sorted in Lugha), `$os.make_dir`, `$os.remove_file`, `$os.remove_dir` (`mkdir`, `unlink`, `rmdir`) and `$os.stat_kind` (`stat`: 0 none, 1 file, 2 folder, 3 other); `make_dirs` is Lugha over `make_dir` and `is_dir`.
+- `Dir` (v18; `std.fs` before) is prelude code over `$os.list_dir` (names as bytes, sorted in Lugha), `$os.make_dir`, `$os.remove_file`, `$os.remove_dir` (`mkdir`, `unlink`, `rmdir`) and `$os.stat_kind` (`stat`: 0 none, 1 file, 2 folder, 3 other); `make_dirs` is Lugha over `make_dir` and `is_dir`.
 - `Env` and `Dir.path` (v18; `std.env` before) are prelude code over `$os.env(name): Option<u8[]>` (`lugha_rt_env`, `getenv`, a copy) and `$os.cwd(): Result<u8[], string>` (`lugha_rt_cwd`, `getcwd` with a growing buffer); the bytes become strings through `string_from_utf8`, so C never decides what UTF-8 is.
 - `std.random` (v15) is Lugha code except `$os.seed()`, which calls the runtime's `lugha_rt_os_seed() -> u64`, and `$float.from_f64(x)`, which is a no-op at `f64` and `fptrunc` at `f32`; both built-ins can be named only in bundled sources.
 - A std module (v15) is embedded in `lughac` (`lugha::STD`) and joins the program's offset space like a file when imported; its items' symbols carry its path, `lugha_fn_std/math/sqrt<f64>`. A `$float.<op>` built-in at `f32` or `f64` lowers to LLVM's intrinsic at that width (`llvm.sqrt.f64`, `llvm.log` for `ln`, `llvm.round`, `llvm.atan2`, …), so `std.math` makes no call into libm. Programs that import nothing from `std` give byte-identical IR.
@@ -1739,8 +1739,8 @@ The compiler, `lughac`, is written in Rust with inkwell. It turns one `.la` file
 | `lugha_rt_str_quote(s)` | `s` quoted and escaped, for strings inside a printed value (v12) |
 | `lugha_rt_os_seed()` | 64 bits of OS entropy for the real `Entropy` (v18; `std.random`'s `from_os()` before): `getrandom`, else `/dev/urandom`, else a panic |
 | `lugha_rt_env(name, out)` / `lugha_rt_cwd(out, error)` / `lugha_rt_chdir(path, error)` (v16) | `Env` and `Dir.path` (v18; `std.env` before, `chdir` now unused): a variable's bytes, or 0 when unset or the name holds a NUL; the working directory's bytes, or 0 and the system's message |
-| `lugha_rt_list_dir(path, out, error)` / `lugha_rt_make_dir` / `lugha_rt_remove_file` / `lugha_rt_remove_dir(path, error)` / `lugha_rt_stat_kind(path)` | `std.fs` (v15): a folder's names as bytes, one folder made or removed, a file removed, each with the system's message on failure; the kind of thing at a path |
-| `lugha_rt_file_open(path, mode, out, error)` / `lugha_rt_file_read(fd, max, out, error)` / `lugha_rt_file_write(fd, bytes, error)` / `lugha_rt_file_close(fd)` | `std.fs`'s file streams (v17, milestone 146): a descriptor opened close-on-exec (mode 0 reads, 1 creates or truncates, 2 appends), one read, a write of every byte, a close |
+| `lugha_rt_list_dir(path, out, error)` / `lugha_rt_make_dir` / `lugha_rt_remove_file` / `lugha_rt_remove_dir(path, error)` / `lugha_rt_stat_kind(path)` | `Dir` (v18; `std.fs` before): a folder's names as bytes, one folder made or removed, a file removed, each with the system's message on failure; the kind of thing at a path |
+| `lugha_rt_file_open(path, mode, out, error)` / `lugha_rt_file_read(fd, max, out, error)` / `lugha_rt_file_write(fd, bytes, error)` / `lugha_rt_file_close(fd)` | `File`'s (v18; `std.fs`'s before) file streams (v17, milestone 146): a descriptor opened close-on-exec (mode 0 reads, 1 creates or truncates, 2 appends), one read, a write of every byte, a close |
 | `lugha_rt_spawn(cmd, args, input, mode, code, out, err, error)` | `Proc` (v18; `std.process` before): runs a program without a shell (mode 0 shares stdio, 1 captures with an empty stdin, 2 also writes `input`), and gives its code and output bytes, or 0 and why it couldn't start |
 | `lugha_rt_fmt_int(v, bits, signed, kind, alt, fill, align, width, zero)` / `lugha_rt_fmt_float(v, f32, precision, fill, align, width, zero)` / `lugha_rt_pad(text, fill, align, width)` | Format specifiers (v13): an integer (sign- or zero-extended to `i64`), a float (as `f64`), or any other value's text, padded; all arguments are plain numbers |
 | `lugha_rt_print_newline()` | The newline `println` adds |
@@ -1954,7 +1954,7 @@ Name and type errors, reported by the checker:
 | E0453 | A field intrinsic used wrongly | `derive.fields(…)` outside a derive block or in a `for enum` block; an `f` that isn't generic over one `F: I`; a local named `derive` in a block |
 | E0454 | Retired in v18 (a type's own `eq` without `hash`; now `impl Eq` and `impl Key`) | never reported |
 | E0455 | A `return`, `?`, `break` or `continue` leaving a deferred statement | `defer { return; }`; `defer { let n = load()?; }`; `while c { defer { break; } }` |
-| E0456 | A deferred statement with a value | `defer fs.remove_file(p);` (a `Result`); `defer n + 1;` |
+| E0456 | A deferred statement with a value | `defer dir.remove_file(p);` (a `Result`); `defer n + 1;` |
 | E0457 | An operand that fits more than one arithmetic method | `v * 2` where `V` has `Mul<i64>` and `Mul<u8>`; `2 * v` with `impl Mul<V> for i64` and `impl Mul<V> for u8` |
 | E0458 | Retired in v18 (arithmetic in `impl f64 { … }`; now `impl Mul<V> for f64`, E0459 and E0466) | never reported |
 | E0459 | An `impl I for T` written where it may not be (v18) | `impl shapes.Shape for geo.Square` in a third module; `impl Show for bool` outside `Show`'s module; `impl Show for fun(i64): i64`; `impl<T> Show for T`; `impl Eq for f64[]`; `impl Display for P` |
@@ -3248,13 +3248,13 @@ fun main(console: Console) {
 **Bytes and indexes** (milestone 45). Run in an empty folder. Prints `wrote 4`, `[104, 105, 0, 255]`, `6`, `Ok("héllo")`, `Err("invalid UTF-8 at byte 1")`, `195 169 104` on six lines, exits with 0.
 
 ```
-fun main(console: Console) {
+fun main(console: Console, fs: Fs) {
     let data: u8[] = [104, 105, 0, 255];
-    match write_bytes("out.bin", data) {
+    match fs.cwd().write_bytes("out.bin", data) {
         .Ok(n) => console.println("wrote {n}"),
         .Err(e) => console.println("error {e}"),
     }
-    match read_bytes("out.bin") {
+    match fs.cwd().read_bytes("out.bin") {
         .Ok(b) => console.println(b.debug()),
         .Err(e) => console.println(e),
     }
@@ -3609,28 +3609,28 @@ fun main(console: Console, env: Env, fs: Fs) {
 **Directories** (milestone 65). Prints `["a.log", "b.log"]`, `true true false`, `Directory not empty`, `false` on four lines, exits with 0, and leaves nothing behind.
 
 ```
-// std.fs (v15): folders and what exists, cleaned up afterwards.
-import std.fs;
-
-fun main(console: Console, files: Fs) {
-    let made = fs.make_dirs("runs/2026");
-    let a = files.cwd().write_file("runs/2026/b.log", "b");
-    let b = files.cwd().write_file("runs/2026/a.log", "a");
-    match fs.list_dir("runs/2026") {
+// Folders and what exists (v15, through a `Dir` since v18), cleaned up
+// afterwards.
+fun main(console: Console, fs: Fs) {
+    let dir = fs.cwd();
+    let made = dir.make_dirs("runs/2026");
+    let a = dir.write_file("runs/2026/b.log", "b");
+    let b = dir.write_file("runs/2026/a.log", "a");
+    match dir.list("runs/2026") {
         .Ok(names) => console.println(names.debug()),
         .Err(e) => console.println(e),
     }
-    console.println("{fs.is_dir("runs")} {fs.is_file("runs/2026/a.log")} {fs.exists("runs/x")}");
-    match fs.remove_dir("runs/2026") {
+    console.println("{dir.is_dir("runs")} {dir.is_file("runs/2026/a.log")} {dir.exists("runs/x")}");
+    match dir.remove_dir("runs/2026") {
         .Ok(_) => console.println("removed"),
         .Err(e) => console.println(e),
     }
-    for name of fs.list_dir("runs/2026").unwrap_or([]) {
-        let gone = fs.remove_file("runs/2026/{name}");
+    for name of dir.list("runs/2026").unwrap_or([]) {
+        let gone = dir.remove_file("runs/2026/{name}");
     }
-    let x = fs.remove_dir("runs/2026");
-    let y = fs.remove_dir("runs");
-    console.println(fs.exists("runs"));
+    let x = dir.remove_dir("runs/2026");
+    let y = dir.remove_dir("runs");
+    console.println(dir.exists("runs"));
 }
 ```
 
@@ -3690,18 +3690,16 @@ fun main(console: Console) {
 ```
 // The working folder (v18): `fs.cwd()` is where the program started, and
 // it never changes; paths are relative to it.
-import std.fs;
-
-fun main(console: Console, files: Fs) {
-    let here = files.cwd();
-    let made = fs.make_dirs("inbox/2026");
+fun main(console: Console, fs: Fs) {
+    let here = fs.cwd();
+    let made = here.make_dirs("inbox/2026");
     let wrote = here.write_file("inbox/2026/note.txt", "hi");
     console.println(here.path().is_ok());
-    console.println(fs.is_file("inbox/2026/note.txt"));
+    console.println(here.is_file("inbox/2026/note.txt"));
     console.println(here.read_file("inbox/2026/note.txt").debug());
-    let a = fs.remove_file("inbox/2026/note.txt");
-    let b = fs.remove_dir("inbox/2026");
-    let c = fs.remove_dir("inbox");
+    let a = here.remove_file("inbox/2026/note.txt");
+    let b = here.remove_dir("inbox/2026");
+    let c = here.remove_dir("inbox");
 }
 ```
 
@@ -4059,6 +4057,7 @@ The spec is implemented in five milestones, each ending in a program that runs. 
 | 179 | `Error` and extending interfaces as values (v18) | `interface Error: Display`, `impl Error for string` and std's errors; an interface that extends others is a value type; E0464 retired | `tests/programs/interfaces/extending_values` (done) |
 | 180 | Capabilities, first step (v18) | `main` takes `string[]`, `Console`, `Fs`; `Console`, `Fs`, `Dir`; `print`, `println`, `eprint`, `eprintln`, `read_line`, `read_file`, `write_file`, `append_file`, `args`, `exit` removed (E0471) | `tests/programs/capabilities/console_fs` (done) |
 | 181 | Capabilities, second step (v18) | `Clock`, `Env`, `Proc` (with `ProcessOutput`) and `Entropy`, taken by `main` and tests; `Dir.path`; `std.env` and `std.process` removed; `std.time`'s clocks, `random.from_os` and `crypto.random_bytes` removed; key pairs take `Entropy` | `tests/programs/capabilities/clock_env_proc_entropy/` (done) |
+| 182 | Capabilities, third step (v18) | `std.fs` onto `Dir` (`list`, `make_dirs`, `size`, `rename`, `open`, …, byte files); `File` a prelude interface; `Console.read_bytes`, `flush`; `read_bytes`, `write_bytes`, `append_bytes`, `read_stdin_bytes`, `flush` are E0471; `std.fs` removed | `tests/programs/capabilities/dir_files/` (done) |
 
 In milestones 1 and 2, every value can be treated as `i64`, so codegen can start before the type checker exists. Until milestone 4 provides `lugha_rt_panic`, integer `+`, `-` and `*` wrap, and `/` and `%` stop the program with a trap on a zero divisor or `MIN / -1`. Milestone 3 then replaces that assumption with real types. The process exit code is the low 8 bits of `main`'s result, so milestone tests use results below 256.
 

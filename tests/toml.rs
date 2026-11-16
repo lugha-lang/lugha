@@ -104,9 +104,9 @@ fun table(m: Map<string, toml.Value>): string {
     "{{" + parts.join(", ") + "}}"
 }
 
-fun main(args: string[], console: Console): i32 {
+fun main(args: string[], console: Console, fs: Fs): i32 {
     let path = args[1];
-    let text = match string_from_utf8(read_bytes(path).unwrap()) {
+    let text = match string_from_utf8(fs.cwd().read_bytes(path).unwrap()) {
         .Ok(t) => t,
         .Err(_) => {
             console.println("ERROR Utf8 not UTF-8");

@@ -1,10 +1,9 @@
 // File streams over many reads: 200 000 lines written
 // piece by piece and read back by line and in chunks, `read` after
 // `read_line` giving the read-ahead first, an empty file, a long line.
-import std.fs;
 
-fun run(console: Console): Result<(), string> {
-    let out = fs.create("big.txt")?;
+fun run(files: Fs, console: Console): Result<(), string> {
+    let out = files.cwd().create("big.txt")?;
     let mut total = 0;
     for i in 0..200000 {
         let line = "line {i}\n";
@@ -13,7 +12,7 @@ fun run(console: Console): Result<(), string> {
     }
     out.close();
 
-    let f = fs.open("big.txt")?;
+    let f = files.cwd().open("big.txt")?;
     let mut count = 0;
     let mut last = "";
     while true {
@@ -30,7 +29,7 @@ fun run(console: Console): Result<(), string> {
     f.close();
     console.println("{count} lines, last {last}");
 
-    let g = fs.open("big.txt")?;
+    let g = files.cwd().open("big.txt")?;
     let mut bytes = 0;
     while true {
         let got = g.read(4096)?;
@@ -42,28 +41,28 @@ fun run(console: Console): Result<(), string> {
     g.close();
     console.println("{bytes} bytes of {total}");
 
-    let h = fs.open("big.txt")?;
+    let h = files.cwd().open("big.txt")?;
     console.println(h.read_line().debug());
     let next = h.read(7)?;
     console.println(string_from_utf8(next).debug());
     console.println(h.read_line().debug());
     h.close();
 
-    let empty = fs.create("empty.txt")?;
+    let empty = files.cwd().create("empty.txt")?;
     empty.close();
-    let e = fs.open("empty.txt")?;
+    let e = files.cwd().open("empty.txt")?;
     console.println(e.read_line().debug());
     console.println(e.read(1).debug());
     e.close();
 
-    let long = fs.create("long.txt")?;
+    let long = files.cwd().create("long.txt")?;
     let mut text = "";
     for i in 0..10000 {
         text = text + "0123456789";
     }
     long.write_text(text + "\nshort")?;
     long.close();
-    let l = fs.open("long.txt")?;
+    let l = files.cwd().open("long.txt")?;
     match l.read_line()? {
         .Some(line) => console.println("{line.len} {line == text}"),
         .None => console.println("none"),
@@ -74,6 +73,6 @@ fun run(console: Console): Result<(), string> {
     Ok(())
 }
 
-fun main(console: Console) {
-    console.println(run(console).debug());
+fun main(console: Console, files: Fs) {
+    console.println(run(files, console).debug());
 }

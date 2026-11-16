@@ -90,9 +90,14 @@ pub(super) const ERROR: &str = "$prelude.Error";
 /// implements one.
 pub(super) const DIR: &str = "$prelude.Dir";
 
-/// True for a capability interface: those `main` may take, and `Dir`.
+/// The open file a `Dir` gives: an interface like the capabilities, so a fake
+/// `Dir` can return fake files.
+pub(super) const FILE: &str = "$prelude.File";
+
+/// True for a capability interface: those `main` may take, `Dir`, and the
+/// `File` a `Dir` opens.
 pub(super) fn is_capability(key: &str) -> bool {
-    key == DIR || super::ENTRY_CAPABILITIES.iter().any(|(c, _)| *c == key)
+    key == DIR || key == FILE || super::ENTRY_CAPABILITIES.iter().any(|(c, _)| *c == key)
 }
 
 /// The module part of an item's key: `geo` for `geo.Circle`, `""` for an

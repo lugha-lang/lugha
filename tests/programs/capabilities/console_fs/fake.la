@@ -7,6 +7,8 @@ impl Console for Recorder {
     fun eprint(self, x: Display) { self.print(x); }
     fun eprintln(self, x: Display) { self.print(x); }
     fun read_line(self): Option<string> = Some("canned");
+    fun read_bytes(self): u8[] = [];
+    fun flush(self) {}
 }
 
 fun greet(console: Console, name: string) {

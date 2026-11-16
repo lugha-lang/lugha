@@ -1,21 +1,20 @@
 // File streams: create, append, read lines over
 // `\r\n` and a last line without `\n`, the end of the file, the wrong mode,
 // closing twice, and using a closed file.
-import std.fs;
 
 fun run(console: Console, files: Fs): Result<(), string> {
-    let out = fs.create("notes.txt")?;
+    let out = files.cwd().create("notes.txt")?;
     out.write_text("first\r\nsecond\n")?;
     out.write("last".to_bytes())?;
     console.println(out.read(10).debug());
     console.println(out.read_line().debug());
     out.close();
 
-    let log = fs.append("notes.txt")?;
+    let log = files.cwd().append("notes.txt")?;
     log.write_text("!\n")?;
     log.close();
 
-    let f = fs.open("notes.txt")?;
+    let f = files.cwd().open("notes.txt")?;
     let copy = f;
     while true {
         match f.read_line()? {
@@ -35,7 +34,7 @@ fun run(console: Console, files: Fs): Result<(), string> {
     console.println(f.read_line().debug());
     console.println(copy.write_text("x").debug());
 
-    let again = fs.create("notes.txt")?;
+    let again = files.cwd().create("notes.txt")?;
     again.write_text("fresh")?;
     again.close();
     console.println(files.cwd().read_file("notes.txt").debug());

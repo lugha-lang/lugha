@@ -1,0 +1,41 @@
+error[E0471]: `read_bytes` needs an `Fs`
+  --> tests/programs/capabilities/dir_files/e0471.la:2:13
+  |
+2 |     let b = read_bytes("f");
+  |             ^^^^^^^^^^
+  |
+  = help: take `fs: Fs` in `main` (and pass it on), then call `fs.cwd().read_bytes(…)`
+
+error[E0471]: `write_bytes` needs an `Fs`
+  --> tests/programs/capabilities/dir_files/e0471.la:3:13
+  |
+3 |     let w = write_bytes("f", "x".to_bytes());
+  |             ^^^^^^^^^^^
+  |
+  = help: take `fs: Fs` in `main` (and pass it on), then call `fs.cwd().write_bytes(…)`
+
+error[E0471]: `append_bytes` needs an `Fs`
+  --> tests/programs/capabilities/dir_files/e0471.la:4:13
+  |
+4 |     let a = append_bytes("f", "x".to_bytes());
+  |             ^^^^^^^^^^^^
+  |
+  = help: take `fs: Fs` in `main` (and pass it on), then call `fs.cwd().append_bytes(…)`
+
+error[E0471]: `read_stdin_bytes` needs a `Console`
+  --> tests/programs/capabilities/dir_files/e0471.la:5:13
+  |
+5 |     let i = read_stdin_bytes();
+  |             ^^^^^^^^^^^^^^^^
+  |
+  = help: take `console: Console` in `main` (and pass it on), then call `console.read_bytes()`
+
+error[E0471]: `flush` needs a `Console`
+  --> tests/programs/capabilities/dir_files/e0471.la:6:5
+  |
+6 |     flush();
+  |     ^^^^^
+  |
+  = help: take `console: Console` in `main` (and pass it on), then call `console.flush()`
+
+For more about E0471, run `lughac explain E0471`.

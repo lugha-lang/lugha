@@ -1,10 +1,10 @@
-fun main(console: Console) {
+fun main(console: Console, files: Fs) {
     let data: u8[] = [104, 105, 0, 255];
-    match write_bytes("out.bin", data) {
+    match files.cwd().write_bytes("out.bin", data) {
         .Ok(n) => console.println("wrote {n}"),
         .Err(e) => console.println("error {e}"),
     }
-    match read_bytes("out.bin") {
+    match files.cwd().read_bytes("out.bin") {
         .Ok(b) => console.println(b.debug()),
         .Err(e) => console.println(e),
     }

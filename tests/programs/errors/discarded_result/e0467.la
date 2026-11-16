@@ -1,5 +1,4 @@
 // A `Result` dropped as a statement is E0467; `let _ =` drops one on purpose.
-import std.fs;
 
 fun save(text: string): Result<(), string> {
     if text == "" {
@@ -8,7 +7,7 @@ fun save(text: string): Result<(), string> {
     Ok(())
 }
 
-fun main(console: Console) {
+fun main(console: Console, files: Fs) {
     save("draft");                       // E0467: this `Result` is discarded
     let _ = save("draft");               // a deliberate discard
     match save("") {
@@ -16,6 +15,6 @@ fun main(console: Console) {
         .Err(e) => console.println("not saved: {e}"),
     }
     defer {
-        let _ = fs.remove_file("tmp.txt");   // a discard inside `defer`'s braces
+        let _ = files.cwd().remove_file("tmp.txt");   // a discard inside `defer`'s braces
     };
 }

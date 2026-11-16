@@ -1,0 +1,6 @@
+Ok([1, 2, 3])
+Ok(["a.bin"])
+true Ok(3)
+Ok(Some("one"))
+false
+false

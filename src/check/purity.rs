@@ -382,13 +382,13 @@ mod tests {
     fn std_reaches_the_system_through_os() {
         let found = errors(&[(
             "main.la",
-            "import std.fs;\nconst A: bool = fs.exists(\"x\");\nfun main() {}",
+            "import std.task;\nconst A: () = task.sleep(1);\nfun main() {}",
         )]);
         // Without the prelude std has errors of its own; the constant's comes last.
         let last = found.last().expect("E0445");
         assert_eq!(
             (last.0, last.1.as_str()),
-            ("E0445", "fs.exists(\"x\")"),
+            ("E0445", "task.sleep(1)"),
             "{found:?}"
         );
     }

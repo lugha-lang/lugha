@@ -21,15 +21,20 @@ pub const ENTRY_CAPABILITIES: [(&str, &str); 6] = [
 
 /// The intrinsics only the prelude and std may call; a program reaches them
 /// through a capability.
-pub(super) const AMBIENT: [&str; 10] = [
+pub(super) const AMBIENT: [&str; 15] = [
     "print",
     "println",
     "eprint",
     "eprintln",
     "read_line",
+    "read_stdin_bytes",
+    "flush",
     "read_file",
     "write_file",
     "append_file",
+    "read_bytes",
+    "write_bytes",
+    "append_bytes",
     "args",
     "exit",
 ];
@@ -85,11 +90,13 @@ impl Checker {
     /// the capability and the call to write.
     pub(super) fn ambient_call(&mut self, name: &str, span: Span) {
         let (capability, instead) = match name {
-            "read_line" => ("Console", "`console.read_line()`".to_string()),
+            "read_line" | "flush" => ("Console", format!("`console.{name}()`")),
+            "read_stdin_bytes" => ("Console", "`console.read_bytes()`".to_string()),
             "print" | "println" | "eprint" | "eprintln" => {
                 ("Console", format!("`console.{name}(…)`"))
             }
-            "read_file" | "write_file" | "append_file" => ("Fs", format!("`fs.cwd().{name}(…)`")),
+            "read_file" | "write_file" | "append_file" | "read_bytes" | "write_bytes"
+            | "append_bytes" => ("Fs", format!("`fs.cwd().{name}(…)`")),
             "args" => (
                 "string[]",
                 "an `args: string[]` parameter of `main`".to_string(),
@@ -146,6 +153,17 @@ mod tests {
             ("let t = read_file(\"p\");", "read_file"),
             ("let a = args();", "args"),
             ("exit(1);", "exit"),
+            ("let b = read_bytes(\"p\");", "read_bytes"),
+            (
+                "let w = write_bytes(\"p\", \"x\".to_bytes());",
+                "write_bytes",
+            ),
+            (
+                "let a = append_bytes(\"p\", \"x\".to_bytes());",
+                "append_bytes",
+            ),
+            ("let i = read_stdin_bytes();", "read_stdin_bytes"),
+            ("flush();", "flush"),
         ] {
             let src = format!("fun main() {{ {body} }}");
             assert_eq!(errors(&src), [("E0471", name)], "{body}");

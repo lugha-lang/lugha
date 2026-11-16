@@ -58,6 +58,7 @@ impl Checker {
                 | "Env"
                 | "Proc"
                 | "Entropy"
+                | "File"
         ) || is_operator_bound(name))
             && self.interfaces.contains_key(&prelude);
         if module.is_none() && known && !declared {

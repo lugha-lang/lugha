@@ -1,0 +1,7 @@
+Ok(())
+["a", "a/b", "a/b/c"]
+Ok("first\nsecond")
+Ok(Some("first"))
+Ok(Some("second"))
+Ok(None)
+Err("read-only tape")

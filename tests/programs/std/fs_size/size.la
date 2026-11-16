@@ -1,7 +1,6 @@
 // `fs.size`: a regular file's size from `stat`, links
 // followed, without opening it; a folder, a FIFO, a missing path and a NUL
 // byte are `Err`; a sparse 5 GB file proves sizes past 32 bits.
-import std.fs;
 
 fun say(console: Console, label: string, r: Result<i64, string>) {
     match r {
@@ -13,17 +12,17 @@ fun say(console: Console, label: string, r: Result<i64, string>) {
 fun main(console: Console, files: Fs, proc: Proc): i32 {
     let w = files.cwd().write_file("note.txt", "hello, size");
     let e = files.cwd().write_file("empty.txt", "");
-    say(console, "note", fs.size("note.txt"));
-    say(console, "empty", fs.size("empty.txt"));
-    let made = fs.make_dir("box");
-    say(console, "folder", fs.size("box"));
-    say(console, "missing", fs.size("nope.txt"));
-    say(console, "nul", fs.size("note\0.txt"));
+    say(console, "note", files.cwd().size("note.txt"));
+    say(console, "empty", files.cwd().size("empty.txt"));
+    let made = files.cwd().make_dir("box");
+    say(console, "folder", files.cwd().size("box"));
+    say(console, "missing", files.cwd().size("nope.txt"));
+    say(console, "nul", files.cwd().size("note\0.txt"));
     let l = proc.run("ln", ["-s", "note.txt", "link"]);
-    say(console, "link", fs.size("link"));
+    say(console, "link", files.cwd().size("link"));
     let f = proc.run("mkfifo", ["pipe"]);
-    say(console, "fifo", fs.size("pipe"));
+    say(console, "fifo", files.cwd().size("pipe"));
     let t = proc.run("truncate", ["-s", "5G", "big"]);
-    say(console, "big", fs.size("big"));
+    say(console, "big", files.cwd().size("big"));
     0
 }

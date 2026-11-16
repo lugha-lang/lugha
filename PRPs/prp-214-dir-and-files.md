@@ -1,6 +1,6 @@
 ## FEATURE: Capabilities, third step: everything `std.fs` did becomes `Dir`'s (folders, what exists, sizes, renames, modes, syncing, file streams as the prelude's `File`), bytes go through `Dir` and `Console`, and the last ambient file and console intrinsics (`read_bytes`, `write_bytes`, `append_bytes`, `read_stdin_bytes`, `flush`) are E0471; `std.fs` is removed; milestone 182, in v18's Phase 2.
 
-**Status:** proposed 2026-11-16.
+**Status:** proposed 2026-11-16. Approved 2026-11-16.
 
 ## OBJECTIVE
 ```lugha
@@ -64,13 +64,20 @@ fun main(console: Console, fs: Fs): i32 {
 - Any runtime change: the methods call the existing `$os` built-ins and intrinsics.
 
 ## TESTS
-- [ ] `tests/programs/capabilities/dir_files/`: the objective; a fake `Dir` that implements only the core and uses `read_file` and `make_dirs` from the defaults; a fake `File`; E0471 for each of the five.
-- [ ] `tests/programs/std/fs/`, `file_streams/`, `fs_size/` and the other importers, migrated (the folder becomes `capabilities/dir_*` where it tests `Dir`).
-- [ ] Unit (`check/entry.rs`): the five are E0471.
-- [ ] Full `cargo test`.
+- [x] `tests/programs/capabilities/dir_files/`: the objective; a fake `Dir` that implements only the core and uses `read_file` and `make_dirs` from the defaults; a fake `File`; E0471 for each of the five.
+- [x] `tests/programs/std/fs/`, `file_streams/`, `fs_size/` and the other importers, migrated (the folder becomes `capabilities/dir_*` where it tests `Dir`).
+- [x] Unit (`check/entry.rs`): the five are E0471.
+- [x] Full `cargo test`.
 
 ## ACCEPTANCE
-- [ ] The objective prints as commented and exits 0, leaving nothing behind.
-- [ ] Outside the prelude and std, nothing reads or writes a file, a folder or the standard streams except through `Console`, `Fs`, `Dir` or `File`.
-- [ ] `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean
-- [ ] Every `pub` item documented; spec, CHANGELOG and CLAUDE.md updated where they change
+- [x] The objective prints as commented and exits 0, leaving nothing behind.
+- [x] Outside the prelude and std, nothing reads or writes a file, a folder or the standard streams except through `Console`, `Fs`, `Dir` or `File`.
+- [x] `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean
+- [x] Every `pub` item documented; spec, CHANGELOG and CLAUDE.md updated where they change
+
+## CHANGES DURING THE BUILD
+- **`read_file` stays core:** the intrinsic shows bytes that aren't UTF-8 as U+FFFD, so it can't be written over `read_bytes` and `string_from_utf8` without changing what it gives. `write_file`, `append_file` and `make_dirs` are the defaults.
+- **The real implementations** moved to `src/prelude/capabilities_real.la` (306 lines), the interfaces staying in `capabilities.la` (195).
+- **`File` counts as a capability** for the checker's lists (met only by `impl`, sendable), so a fake `Dir` can return fake files.
+- **The language server's intrinsic signatures** lost the five rows; its signature-help test uses `string_from_utf8`.
+- **PRP-212's fake `Console`** in `tests/programs/capabilities/console_fs/fake.la` gained the two new methods.

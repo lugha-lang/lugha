@@ -24,7 +24,6 @@ pub mod template;
 pub const STD: &[(&str, &str)] = &[
     ("math", include_str!("std/math.la")),
     ("random", include_str!("std/random.la")),
-    ("fs", include_str!("std/fs.la")),
     ("task", include_str!("std/task.la")),
     ("time", include_str!("std/time.la")),
     ("net", include_str!("std/net.la")),
@@ -60,7 +59,8 @@ pub const PRELUDE: &str = concat!(
     include_str!("prelude/maps.la"),
     include_str!("prelude/eq.la"),
     include_str!("prelude/debug.la"),
-    include_str!("prelude/capabilities.la")
+    include_str!("prelude/capabilities.la"),
+    include_str!("prelude/capabilities_real.la")
 );
 
 /// The language specification this compiler implements, embedded verbatim;

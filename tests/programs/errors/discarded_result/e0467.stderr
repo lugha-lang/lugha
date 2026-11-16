@@ -1,7 +1,7 @@
 error[E0467]: this `Result<(), string>` is discarded
-   --> tests/programs/errors/discarded_result/e0467.la:12:5
+   --> tests/programs/errors/discarded_result/e0467.la:11:5
    |
-12 |     save("draft");                       // E0467: this `Result` is discarded
+11 |     save("draft");                       // E0467: this `Result` is discarded
    |     ^^^^^^^^^^^^^
    |
    = help: handle it with `?` or `match`, or drop it on purpose with `let _ = …;`

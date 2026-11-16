@@ -1,0 +1,29 @@
+// The objective: folders, bytes, a file stream and the console's flush,
+// all through the `Dir` that `fs.cwd()` gives; nothing is left behind.
+fun main(console: Console, fs: Fs): i32 {
+    let here = fs.cwd();
+    let made = here.make_dirs("out/logs");
+    let w = here.write_bytes("out/logs/a.bin", [1, 2, 3]);
+    console.println(here.read_bytes("out/logs/a.bin").debug());
+    console.println(here.list("out/logs").debug());
+    console.println("{here.is_dir("out")} {here.size("out/logs/a.bin").debug()}");
+    match here.create("out/notes.txt") {
+        .Ok(f) => {
+            let a = f.write_text("one\ntwo\n");
+            f.close();
+        }
+        .Err(e) => console.eprintln(e),
+    }
+    let f = here.open("out/notes.txt").unwrap();
+    console.println(f.read_line().debug());
+    f.close();
+    let r = here.rename("out/notes.txt", "out/n.txt");
+    console.println(here.exists("out/notes.txt"));
+    let x = here.remove_file("out/n.txt");
+    let y = here.remove_file("out/logs/a.bin");
+    let z = here.remove_dir("out/logs");
+    let v = here.remove_dir("out");
+    console.println(here.exists("out"));
+    console.flush();
+    0
+}

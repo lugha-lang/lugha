@@ -1,9 +1,8 @@
 // The point of `defer`: a file opened in a loop is closed on every exit,
 // even when a read fails and `?` returns early, so descriptors stay flat.
-import std.fs;
 
-fun first_line(path: string): Result<string, string> {
-    let f = fs.open(path)?;
+fun first_line(files: Fs, path: string): Result<string, string> {
+    let f = files.cwd().open(path)?;
     defer f.close();
     match f.read_line()? {
         .Some(line) => Ok(line),
@@ -11,22 +10,22 @@ fun first_line(path: string): Result<string, string> {
     }
 }
 
-fun open_count(): i64 {
-    match fs.list_dir("/proc/self/fd") {
+fun open_count(files: Fs): i64 {
+    match files.cwd().list("/proc/self/fd") {
         .Ok(names) => names.len,
         .Err(e) => panic(e),
     }
 }
 
-fun main(console: Console) {
-    let before = open_count();
+fun main(console: Console, files: Fs) {
+    let before = open_count(files);
     let mut failed = 0;
     for i in 0..10000 {
         // A folder opens, but reading it fails.
-        if first_line(".").is_err() {
+        if first_line(files, ".").is_err() {
             failed += 1;
         }
     }
     console.println(failed);
-    console.println(open_count() == before);
+    console.println(open_count(files) == before);
 }
