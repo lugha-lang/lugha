@@ -146,6 +146,9 @@ static void panic_end(const char *text, size_t len);
 #ifdef LUGHA_RC
 static void lugha_rc_start(void);
 void lugha_rt_rc_free(void *object, void (*drop)(void *));
+void lugha_rt_rc_release(void *object);
+void (*lugha_rt_rc_drop_of(const void *object))(void *);
+void lugha_rt_rc_set_drop(void *object, void (*drop)(void *));
 #endif
 
 /* The C `main`'s arguments, for `args()`. */
@@ -217,13 +220,17 @@ LughaArray *lugha_rt_array_grow(const LughaArray *array, int64_t elem_size) {
         die("panic: out of memory\n");
     }
     LughaArray *grown = lugha_rt_alloc((int64_t)sizeof(LughaArray) + cap * elem_size);
+#ifdef LUGHA_RC
+    lugha_rt_rc_set_drop(grown, lugha_rt_rc_drop_of(array));
+#endif
     grown->len = array->len;
     grown->cap = cap;
     memcpy(grown->elems, array->elems, (size_t)(array->len * elem_size));
 #ifdef LUGHA_RC
     /* The elements moved to `grown`; the old block, unique since codegen
      * made it so before growing, goes without dropping them. */
-    lugha_rt_rc_free((void *)array, NULL);
+    lugha_rt_rc_set_drop((void *)array, NULL);
+    lugha_rt_rc_release((void *)array);
 #endif
     return grown;
 }

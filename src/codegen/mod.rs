@@ -68,6 +68,7 @@ mod owning;
 mod patterns;
 mod places;
 mod printing;
+mod rc;
 mod rebuild;
 mod refs;
 mod results;
