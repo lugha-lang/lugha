@@ -57,6 +57,7 @@ impl Checker {
             conversions: HashMap::new(),
             try_conversions: HashMap::new(),
             through_index: std::collections::HashSet::new(),
+            collections: HashSet::new(),
             impls: HashMap::new(),
             asking: derive_with::Asking::default(),
             nominal_calls: HashMap::new(),

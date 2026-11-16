@@ -13,6 +13,8 @@ pub(super) struct Walk<'a> {
     pub(super) positions: HashMap<Span, Vec<usize>>,
     /// The function each call calls, for keeping through hand-ons.
     pub(super) callees: &'a HashMap<ExprId, String>,
+    /// The chosen calls of brace literals built as collections.
+    pub(super) collections: &'a std::collections::HashSet<ExprId>,
     /// Whether a value may hold arrays: only those make a parameter kept.
     pub(super) deep: &'a dyn Fn(ExprId) -> bool,
     /// The loops enclosing the current point.
@@ -176,10 +178,16 @@ impl Walk<'_> {
             }
             // `out place`: the place C fills, written after the call.
             ExprKind::Pass(_, place) => self.expr(place),
-            // `#{ … }`: its keys' and values' arrays, stored like elements.
-            ExprKind::Hashed(lit) => {
-                self.expr(&lit.keys);
-                self.expr(&lit.values);
+            // `Map { k: v }`: the call it stands for, its arrays stored.
+            ExprKind::StructLit(lit)
+                if let Some(call) = lit.collection.as_deref().and_then(|c| {
+                    [&c.entries, &c.items]
+                        .into_iter()
+                        .flatten()
+                        .find(|call| self.collections.contains(&call.id))
+                }) =>
+            {
+                self.expr(call)
             }
             ExprKind::StructLit(lit) => {
                 lit.fields.iter().for_each(|(_, e)| self.store(e));

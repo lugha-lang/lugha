@@ -1,7 +1,7 @@
-error[E0201]: this map's entries are `key: value`
-  --> tests/programs/collections/maps_and_sets/mixed.la:2:23
+error[E0201]: these braces hold `key: value` entries, not items
+  --> tests/programs/collections/maps_and_sets/mixed.la:2:27
   |
-2 |     let m = #{"a": 1, 2};
-  |                       ^
+2 |     let m = Map { "a": 1, 2 };
+  |                           ^
 
 For more about E0201, run `lughac explain E0201`.

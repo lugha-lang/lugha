@@ -1,0 +1,5 @@
+[("ann", 3), ("bo", 5), ("ann", 4)]
+Map { "x": Set { 1, 2 }, "y": Set {} }
+Map { "a": [] }
+Map { 7: "seven", 8: "eight" }
+Map { "x": 1 }

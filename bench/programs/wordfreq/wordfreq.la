@@ -37,7 +37,7 @@ fun main() {
     }
     let text = picked.join(" ");
 
-    let mut counts: Map<string, i64> = #{};
+    let mut counts: Map<string, i64> = Map {};
     for w of text.split(" ") {
         counts[w] = counts.get(w).unwrap_or(0) + 1;
     }

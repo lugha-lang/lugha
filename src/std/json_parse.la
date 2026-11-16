@@ -258,7 +258,7 @@ impl Parser {
     fun object(mut self, depth: i64): Result<Value, Oops> {
         self.deeper(depth)?;
         self.pos += 1;
-        let mut members: Map<string, Value> = #{};
+        let mut members: Map<string, Value> = Map {};
         self.skip_ws();
         if at(self.b, self.pos) == 125 {
             self.pos += 1;

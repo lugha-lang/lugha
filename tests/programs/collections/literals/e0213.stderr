@@ -1,0 +1,17 @@
+error[E0213]: `#{…}` literals are gone
+  --> tests/programs/collections/literals/e0213.la:2:13
+  |
+2 |     let m = #{"a": 1};
+  |             ^^
+  |
+  = help: write `Map { "a": 1 }` for a map or `Set { 1, 2 }` for a set
+
+error[E0213]: `#{…}` literals are gone
+  --> tests/programs/collections/literals/e0213.la:3:13
+  |
+3 |     let s = #{1, 2};
+  |             ^^
+  |
+  = help: write `Map { "a": 1 }` for a map or `Set { 1, 2 }` for a set
+
+For more about E0213, run `lughac explain E0213`.

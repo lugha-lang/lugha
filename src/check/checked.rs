@@ -76,6 +76,9 @@ pub struct Checked {
     /// `g[i] += v`, the receiver of `g[i].push(x)`): read the element, change
     /// the copy, then hand it to `set_index` (recorded at `write_id`).
     pub through_index: HashSet<ExprId>,
+    /// The `from_entries` or `from_items` call of each brace literal built
+    /// as a collection: lowered instead of the struct reading.
+    pub collections: HashSet<ExprId>,
     /// Every `impl I for T` block, by `T`'s key.
     pub impls: super::Impls,
     /// Calls of an item of an interface met through `impl I for T`, by

@@ -238,7 +238,7 @@ fn nothing_completes_inside_a_string_or_comment() {
 
 #[test]
 fn a_maps_members_complete_without_its_internals() {
-    let main = "fun main() {\n    let m = #{\"a\": 1};\n    println(m.len);\n}\n";
+    let main = "fun main() {\n    let m = Map { \"a\": 1 };\n    println(m.len);\n}\n";
     let t = Temp::with(&[("main.la", main)]);
     let uri = t.uri("main.la");
     let mut server = Server::start(&t, json!({}));

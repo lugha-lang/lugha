@@ -51,13 +51,13 @@ fun parse_document(text: string, limits: Limits): Result<Map<string, Value>, Tom
     if b.len > limits.bytes {
         return Err(TomlError { kind: ErrorKind.Limit, detail: "a text larger than {limits.bytes} bytes", line: 1, column: 1 });
     }
-    let root = Flag { own: 0, recursive: 0, kids: #{} };
+    let root = Flag { own: 0, recursive: 0, kids: Map {} };
     let mut p = Parser {
         b: b,
         pos: 0,
         limits: limits,
         values: 0,
-        nodes: [Node { entries: #{} }],
+        nodes: [Node { entries: Map {} }],
         lists: [],
         flags: [root],
         pending: [],
@@ -327,7 +327,7 @@ impl Parser {
     }
 
     fun new_node(mut self): i64 {
-        self.nodes.push(Node { entries: #{} });
+        self.nodes.push(Node { entries: Map {} });
         self.nodes.len - 1
     }
 
@@ -382,7 +382,7 @@ impl Parser {
 
     /** Node `n` as a `Value` table (its depth is bounded by the keys' limit). */
     fun table(self, n: i64): Map<string, Value> {
-        let mut out: Map<string, Value> = #{};
+        let mut out: Map<string, Value> = Map {};
         for (k, slot) of self.nodes[n].entries {
             out[k] = match slot {
                 .Val(v) => v,
@@ -423,7 +423,7 @@ impl Parser {
             f = match self.flags[f].kids.get(k) {
                 .Some(next) => next,
                 .None => {
-                    self.flags.push(Flag { own: 0, recursive: 0, kids: #{} });
+                    self.flags.push(Flag { own: 0, recursive: 0, kids: Map {} });
                     let n = self.flags.len - 1;
                     self.flags[f].kids[k] = n;
                     n

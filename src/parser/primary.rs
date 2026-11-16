@@ -2,7 +2,7 @@
 //! block-like `if` and `{ }` expressions.
 
 use super::{PResult, Parser};
-use crate::ast::{Expr, ExprKind, FormatText, Ident, Part, StructLiteral};
+use crate::ast::{Expr, ExprKind, FormatText, Ident, Part};
 use crate::diagnostic::Diagnostic;
 use crate::lexer::TokenKind;
 use crate::span::Span;
@@ -121,10 +121,11 @@ impl Parser<'_> {
         if !self.no_struct {
             return self.struct_lit(start, module, name).map(Some);
         }
-        // `Name { field:` can't begin a block, so it must be a misplaced literal.
+        // `Name { field:`, `Name { "a":` and `Name { 1,` can't begin a
+        // block, so they must be a misplaced literal.
         let looks_like_literal = !self.scrutinee
-            && matches!(self.peek_at(1), TokenKind::Ident(_))
-            && self.peek_at(2) == &TokenKind::Colon;
+            && !matches!(self.peek_at(1), TokenKind::RBrace)
+            && matches!(self.peek_at(2), TokenKind::Colon | TokenKind::Comma);
         if !looks_like_literal {
             return Ok(None);
         }
@@ -137,40 +138,6 @@ impl Parser<'_> {
         let message = "struct literal in a condition must be in parentheses";
         self.error(Diagnostic::error("E0205", message, literal.span).with_help(help));
         Ok(Some(literal))
-    }
-
-    fn struct_lit(&mut self, start: usize, module: Option<Ident>, name: Ident) -> PResult<Expr> {
-        let open = self.bump();
-        let entries = self.comma_list(open, TokenKind::RBrace, |p| {
-            // `..base`: the fields not written come from `base`.
-            if p.at(&TokenKind::DotDot) {
-                let at = p.bump();
-                return Ok(Err((at, p.expr()?)));
-            }
-            let field = p.ident("field name")?;
-            p.expect(&TokenKind::Colon)?;
-            Ok(Ok((field, p.expr()?)))
-        })?;
-        let (mut fields, mut base) = (Vec::new(), None);
-        let last = entries.len().saturating_sub(1);
-        for (i, entry) in entries.into_iter().enumerate() {
-            match entry {
-                Ok(field) => fields.push(field),
-                Err((_, value)) if i == last && base.is_none() => base = Some(Box::new(value)),
-                Err((at, _)) => {
-                    let message = "`..base` must come last in a struct literal, once";
-                    let help = "write the fields first, then `..base`: `P { x: 1, ..p }`";
-                    self.error(Diagnostic::error("E0201", message, at).with_help(help));
-                }
-            }
-        }
-        let literal = StructLiteral {
-            module,
-            name,
-            fields,
-            base,
-        };
-        Ok(self.mk(start, ExprKind::StructLit(Box::new(literal))))
     }
 
     /// `[]`, `[a, b, …]` or `[value; count]`, after the `[` at `open`.

@@ -72,7 +72,7 @@ fun main() {
     o[0][0][1] = 8;
     println(o.inner[0].rows.debug());
 
-    let mut m: Map<string, Rows> = #{"a": Rows { rows: [[1]] }};
+    let mut m: Map<string, Rows> = Map { "a": Rows { rows: [[1]] } };
     m["a"][0][0] += 100;
     m["a"][0].push(2);
     println(m["a"].rows.debug());

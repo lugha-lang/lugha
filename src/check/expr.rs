@@ -129,7 +129,6 @@ impl Checker {
             {
                 self.float_from_bits(expr, callee, found, args)
             }
-            ExprKind::Hashed(lit) => self.hashed(expr, lit, expect),
             // An `out` argument where no extern's `out` parameter takes it.
             ExprKind::Pass(_, place) => {
                 self.report(super::out_params::misplaced(expr.span));

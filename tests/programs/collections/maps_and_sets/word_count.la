@@ -1,7 +1,7 @@
 // Maps: counting words, in insertion order.
 fun main() {
     let text = "the cat and the hat and the bat";
-    let mut counts: Map<string, i64> = #{};
+    let mut counts: Map<string, i64> = Map {};
     for w of text.split(" ") {
         counts[w] = counts.get(w).unwrap_or(0) + 1;
     }

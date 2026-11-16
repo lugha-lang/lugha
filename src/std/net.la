@@ -66,7 +66,7 @@ public fun connect_timeout(addr: string, ms: i64): Result<Conn, string> {
  */
 public fun resolve(name: string): Result<string[], string> {
     let mut out: string[] = [];
-    let mut seen: Set<string> = #{};
+    let mut seen: Set<string> = Set {};
     for a of $os.net_resolve(name, 0)?.split("\n") {
         if seen.insert(a) {
             out.push(a);

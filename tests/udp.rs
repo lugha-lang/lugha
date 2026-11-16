@@ -180,7 +180,7 @@ fn interfaces_include_loopback() {
             println(has);
         }
     }
-    let mut names: Set<string> = #{};
+    let mut names: Set<string> = Set {};
     let mut once = true;
     for i of all {
         once = once && names.insert(i.name);

@@ -51,7 +51,6 @@ impl<'ctx> Lowerer<'ctx> {
             ExprKind::Pass(..) => {
                 unreachable!("checked: `out`/`ptr`/`mut` only as an extern's argument")
             }
-            ExprKind::Hashed(lit) => self.hashed(expr, lit)?,
             ExprKind::Int(_) | ExprKind::Float(_) => self.literal(expr, false),
             ExprKind::Char(code) => self
                 .context
@@ -259,9 +258,10 @@ impl<'ctx> Lowerer<'ctx> {
                 self.construct(&ty, &field.name, &[])?
             }
             ExprKind::Field(base, field) => self.field(base, field)?,
-            ExprKind::StructLit(lit) => {
-                self.struct_literal(expr, &lit.fields, lit.base.as_deref())?
-            }
+            ExprKind::StructLit(lit) => match self.chosen_collection(lit) {
+                Some(call) => return self.expr(call),
+                None => self.struct_literal(expr, &lit.fields, lit.base.as_deref())?,
+            },
             ExprKind::Array(elements) => self.array_literal(expr, elements)?,
             ExprKind::Tuple(elements) => self.tuple_literal(expr, elements)?,
             ExprKind::Repeat(value, count) => self.repeat(expr, value, count)?,

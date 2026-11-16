@@ -1,17 +1,26 @@
-//! Maps and sets in codegen: a `#{ … }` literal is a
-//! call of the prelude's `$map_of(keys, values)` or `$set_of(keys)` instance
-//! the checker recorded at the literal's id.
+//! Maps and sets in codegen: reads and writes through `m[k]`, and the
+//! collection reading of brace literals (`Map { "a": 1 }`).
 
 use inkwell::IntPredicate;
-use inkwell::values::{BasicValueEnum, ValueKind};
+use inkwell::values::BasicValueEnum;
 
 use super::CodegenError;
 use super::lower::{Lowerer, POSITIONED};
 use super::value::Value;
-use crate::ast::{Expr, ExprKind, HashLiteral, Ident};
+use crate::ast::{Expr, ExprKind, Ident, StructLiteral};
 use crate::check::Type;
 
 impl<'ctx> Lowerer<'ctx> {
+    /// The call a brace literal stands for when the checker built it as a
+    /// collection (`Map { "a": 1 }`); `None` for a struct's fields.
+    pub(super) fn chosen_collection<'a>(&self, lit: &'a StructLiteral) -> Option<&'a Expr> {
+        let collection = lit.collection.as_deref()?;
+        [&collection.entries, &collection.items]
+            .into_iter()
+            .flatten()
+            .find(|call| self.collections.contains(&call.id))
+    }
+
     /// True if `e` is a map (the prelude's `Map<K, V>`).
     pub(super) fn is_map(&self, e: &Expr) -> bool {
         matches!(self.ty(e), Type::Struct(k, _) if k == "$prelude.Map")
@@ -114,30 +123,5 @@ impl<'ctx> Lowerer<'ctx> {
             type_args: None,
         };
         self.method_call(at, &callee, args)
-    }
-
-    /// `#{ … }`: its instance of `$map_of` or `$set_of`, called on its arrays.
-    pub(super) fn hashed(
-        &mut self,
-        expr: &Expr,
-        lit: &HashLiteral,
-    ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
-        let key = self.callees[&expr.id].clone();
-        let instance = self
-            .prelude_target(expr, &key)
-            .expect("checked: a literal is an instance of `$map_of` or `$set_of`");
-        let args = match key.ends_with("$set_of") {
-            true => vec![lit.keys.clone()],
-            false => vec![lit.keys.clone(), lit.values.clone()],
-        };
-        let values = self.arguments(&args, &instance.signature.params, false)?;
-        let site = self
-            .builder
-            .build_call(instance.signature.function, &values, "hashed")
-            .expect(POSITIONED);
-        match site.try_as_basic_value() {
-            ValueKind::Basic(result) => Ok(result),
-            ValueKind::Instruction(_) => unreachable!("`$map_of` and `$set_of` return a value"),
-        }
     }
 }

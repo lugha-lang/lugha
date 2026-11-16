@@ -1,10 +1,9 @@
 // SYNTAX TEST "source.lugha" "map and set literals"
 
-let ages = #{"ann": 31, "bo": 40};
-//         ^^ punctuation.definition.map.begin.lugha
-//           ^^^^^ string.quoted.double.lugha
-//                  ^^ constant.numeric.decimal.lugha
-//                              ^ punctuation.definition.map.end.lugha
-let seen: Set<i64> = #{1, 2};
+let ages = Map { "ann": 31, "bo": 40 };
+//         ^^^ entity.name.type.lugha
+//               ^^^^^ string.quoted.double.lugha
+//                      ^^ constant.numeric.decimal.lugha
+let seen: Set<i64> = Set { 1, 2 };
 //        ^^^ entity.name.type.lugha
-//                   ^^ punctuation.definition.map.begin.lugha
+//                   ^^^ entity.name.type.lugha

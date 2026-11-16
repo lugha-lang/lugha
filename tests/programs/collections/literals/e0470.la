@@ -1,0 +1,8 @@
+struct Point { x: i64, y: i64 }
+
+fun main() {
+    let p = Point { 1, 2 };
+    let q = Point { "x": 1 };
+    let s = Set { "a": 1 };
+    let m = Map { 1, 2 };
+}

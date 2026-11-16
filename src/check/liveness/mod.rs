@@ -90,11 +90,18 @@ pub(super) fn maybe_deep(ty: &crate::check::Type, structs: &crate::check::Struct
     }
 }
 
+/// What the checker recorded that the walk reads: each name's mention, each
+/// call's callee, and the chosen calls of brace literals built as collections.
+pub(super) type Tables<'a> = (
+    &'a HashMap<ExprId, Mention>,
+    &'a HashMap<ExprId, String>,
+    &'a std::collections::HashSet<ExprId>,
+);
+
 /// Liveness of every function, method and derive item in `units`.
 pub(super) fn analyse(
     units: &[Unit],
-    mentions: &HashMap<ExprId, Mention>,
-    callees: &HashMap<ExprId, String>,
+    (mentions, callees, collections): Tables<'_>,
     deep: &dyn Fn(ExprId) -> bool,
 ) -> Liveness {
     let mut positions: HashMap<Span, Vec<usize>> = HashMap::new();
@@ -108,6 +115,7 @@ pub(super) fn analyse(
         mentions,
         positions,
         callees,
+        collections,
         deep,
         loops: Vec::new(),
         closures: 0,

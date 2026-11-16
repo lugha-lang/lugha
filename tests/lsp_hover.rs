@@ -301,7 +301,7 @@ fn a_receiver_typed_by_its_calls_expected_type_hovers_with_it() {
 
 #[test]
 fn prelude_types_show_as_written() {
-    let main = "fun main() {\n    let m = #{\"a\": 1};\n    let it = [1].iter();\n    println(m.len);\n}\n";
+    let main = "fun main() {\n    let m = Map { \"a\": 1 };\n    let it = [1].iter();\n    println(m.len);\n}\n";
     let t = Temp::with(&[("main.la", main)]);
     let uri = t.uri("main.la");
     let mut s = Server::start(&t, json!({}));

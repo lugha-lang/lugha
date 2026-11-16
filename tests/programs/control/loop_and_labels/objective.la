@@ -23,7 +23,7 @@ fun main() {
         break 0;
     };
     println(found);
-    println(next_id(#{1, 2}));
+    println(next_id(Set { 1, 2 }));
 
     outer: for i in 0..3 {
         for j in 0..3 {

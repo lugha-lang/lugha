@@ -26,7 +26,7 @@ fun main() {
     let b = User { id: 7, name: "Ada", seen: 9 };
     println(a == b);
     println(a != User { id: 8, name: "ada", seen: 1 });
-    let mut names: Map<User, string> = #{};
+    let mut names: Map<User, string> = Map {};
     names.insert(a, "first");
     names.insert(b, "second");
     let other = User { id: 7, name: "x", seen: 0 };
@@ -40,11 +40,11 @@ fun main() {
     println((1, "a", 'c') == (1, "a", 'c'));
     println(Tree.Node(Tree.Leaf(1), Tree.Empty) == Tree.Node(Tree.Leaf(1), Tree.Empty));
     println(Tree.Node(Tree.Leaf(1), Tree.Empty) == Tree.Node(Tree.Empty, Tree.Leaf(1)));
-    let m1: Map<string, i64> = #{"a": 1, "b": 2};
-    let m2: Map<string, i64> = #{"b": 2, "a": 1};
-    let s1: Set<i64> = #{1, 2, 3};
-    let s2: Set<i64> = #{3, 2, 1};
-    let m3: Map<string, i64> = #{"a": 1};
+    let m1: Map<string, i64> = Map { "a": 1, "b": 2 };
+    let m2: Map<string, i64> = Map { "b": 2, "a": 1 };
+    let s1: Set<i64> = Set { 1, 2, 3 };
+    let s2: Set<i64> = Set { 3, 2, 1 };
+    let m3: Map<string, i64> = Map { "a": 1 };
     println("{m1 == m2} {s1 == s2} {m1 != m3}");
     let p = c_malloc(8);
     println("{p == p} {p == c_malloc(8)}");

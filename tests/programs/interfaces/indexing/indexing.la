@@ -95,7 +95,7 @@ fun main() {
     println(p["b"]);
 
     // Maps with tuple keys take the comma too.
-    let mut d: Map<(i64, i64), string> = #{};
+    let mut d: Map<(i64, i64), string> = Map {};
     d[0, 0] = "origin";
     println(d[0, 0]);
 }

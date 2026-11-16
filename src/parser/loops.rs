@@ -164,8 +164,8 @@ mod tests {
     #[test]
     fn a_map_key_is_never_a_label() {
         assert_eq!(
-            body("let m = #{a: loop { break 1; }};"),
-            "(block (let m (map (array a) (array (loop (block (break 1)))))))"
+            body("let m = Map { a: loop { break 1; } };"),
+            "(block (let m (struct-lit Map (a (loop (block (break 1)))))))"
         );
     }
 

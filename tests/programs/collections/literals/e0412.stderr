@@ -1,0 +1,9 @@
+error[E0412]: cannot infer the type arguments of `Map {}`
+  --> tests/programs/collections/literals/e0412.la:2:13
+  |
+2 |     let m = Map {};
+  |             ^^^^^^
+  |
+  = help: write them, `Map<string, i64> {}`, or annotate the variable: `let m: Map<string, i64> = Map {};`
+
+For more about E0412, run `lughac explain E0412`.

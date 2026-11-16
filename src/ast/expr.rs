@@ -102,8 +102,6 @@ pub enum ExprKind {
     /// `out place`, `ptr e` or `mut place`: a call argument for an extern's
     /// parameter of that mode.
     Pass(crate::ast::PassMode, Box<Expr>),
-    /// `#{k: v, …}`, `#{x, …}` or `#{}`. Boxed: rare.
-    Hashed(Box<HashLiteral>),
     /// `if cond { then } [else …]`; the else branch is an `If` or `Block` expression.
     If {
         cond: Box<Expr>,
@@ -251,6 +249,25 @@ pub struct StructLiteral {
     /// `..base` after the fields: where every field not written comes
     /// from.
     pub base: Option<Box<Expr>>,
+    /// The collection reading of the braces, `Map { "a": 1 }` or
+    /// `Set { 1, 2 }`; `None` with `..base`, which only a struct takes.
+    pub collection: Option<Box<Collection>>,
+}
+
+/// The braces after a type name read as a collection: the elements as
+/// written, and the calls they stand for. The checker picks this reading
+/// or the struct's fields; both share the value expressions.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Collection {
+    /// `key: value` (`Some` value) or an item, in order.
+    pub elements: Vec<(Expr, Option<Expr>)>,
+    /// True when every element is `name: value`: the struct reading can
+    /// take them as fields.
+    pub as_fields: bool,
+    /// `T.from_entries([k, …], [v, …])`, when no element is an item.
+    pub entries: Option<Expr>,
+    /// `T.from_items([a, …])`, when no element is `key: value`.
+    pub items: Option<Expr>,
 }
 
 /// One piece of an interpolated string.
@@ -341,26 +358,4 @@ pub struct IfLet {
     pub scrutinee: Expr,
     pub then: Block,
     pub else_: Option<Box<Expr>>,
-}
-
-/// Which `#{ … }` a literal is.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HashKind {
-    /// `#{k: v, …}`.
-    Map,
-    /// `#{x, …}`.
-    Set,
-    /// `#{}`: a map or a set, by its expected type.
-    Empty,
-}
-
-/// A `#{ … }` literal. The parser gives its keys (a
-/// set's values) and a map's values as two array expressions of their own,
-/// so the checker and codegen treat the literal as a call of the prelude's
-/// `$map_of(keys, values)` or `$set_of(keys)`.
-#[derive(Debug, Clone, PartialEq)]
-pub struct HashLiteral {
-    pub kind: HashKind,
-    pub keys: Expr,
-    pub values: Expr,
 }

@@ -24,7 +24,7 @@ fun mixed(): i64 {
 }
 
 fun counts(words: string[]): i64 {
-    let mut m: Map<string, i64> = #{};
+    let mut m: Map<string, i64> = Map {};
     for w of words { m.insert(w, m.get(w).unwrap_or(0) + 1); }
     let seen = Ref.new(0);
     for w of words { if m.get(w) == Some(1) { seen.set(seen.get() + 1); } }

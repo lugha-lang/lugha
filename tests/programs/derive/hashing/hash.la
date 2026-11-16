@@ -8,10 +8,10 @@ enum Tree { Leaf(i64), Node(Tree, Tree), Empty } with Key
 
 fun main() {
     // The same numbers, the other way round: equal sets, one key.
-    let mut sets: Set<Set<i64>> = #{};
+    let mut sets: Set<Set<i64>> = Set {};
     for n in 0..200 {
-        let mut a: Set<i64> = #{};
-        let mut b: Set<i64> = #{};
+        let mut a: Set<i64> = Set {};
+        let mut b: Set<i64> = Set {};
         for i in 0..n {
             a.insert(i);
             b.insert(n - 1 - i);
@@ -21,39 +21,39 @@ fun main() {
     }
     println(sets.len);
 
-    let mut maps: Set<Map<string, i64>> = #{};
-    maps.insert(#{"a": 1, "b": 2});
-    maps.insert(#{"b": 2, "a": 1});
-    maps.insert(#{"a": 1, "b": 3});
+    let mut maps: Set<Map<string, i64>> = Set {};
+    maps.insert(Map { "a": 1, "b": 2 });
+    maps.insert(Map { "b": 2, "a": 1 });
+    maps.insert(Map { "a": 1, "b": 3 });
     println(maps.len);
 
-    let mut by_point: Map<P, i64> = #{};
+    let mut by_point: Map<P, i64> = Map {};
     by_point.insert(P { x: 1, tag: "a", at: (-1, 2) }, 10);
     by_point.insert(P { x: 1, tag: "b", at: (-1, 2) }, 20);
     println((by_point.get(P { x: 1, tag: "a", at: (-1, 2) })).debug());
     println((by_point.get(P { x: 1, tag: "a", at: (-1, 3) })).debug());
 
-    let mut trees: Map<Tree, string> = #{};
+    let mut trees: Map<Tree, string> = Map {};
     trees.insert(Tree.Node(Tree.Leaf(1), Tree.Empty), "left");
     trees.insert(Tree.Node(Tree.Empty, Tree.Leaf(1)), "right");
     println((trees.get(Tree.Node(Tree.Leaf(1), Tree.Empty))).debug());
     println(trees.len);
 
-    let mut small: Map<u8, char> = #{};
-    let mut wide: Map<i32, bool> = #{};
+    let mut small: Map<u8, char> = Map {};
+    let mut wide: Map<i32, bool> = Map {};
     for i in 0..200 {
         small.insert(i.truncate<u8>(), 'x');
         wide.insert(-(i.truncate<i32>()), i % 2 == 0);
     }
     println("{small.len} {wide.get(-4).debug()} {wide.get(5).debug()}");
 
-    let mut chars: Set<char> = #{'é', 'e'};
+    let mut chars: Set<char> = Set { 'é', 'e' };
     chars.insert('é');
-    let mut options: Set<Option<string>> = #{};
+    let mut options: Set<Option<string>> = Set {};
     options.insert(None);
     options.insert(Some("x"));
     options.insert(None);
-    let mut lists: Map<i64[], i64> = #{};
+    let mut lists: Map<i64[], i64> = Map {};
     lists.insert([1, 2], 1);
     lists.insert([2, 1], 2);
     lists.insert([1, 2], 3);
@@ -61,7 +61,7 @@ fun main() {
 
     let p = c_malloc(8);
     let q = c_malloc(8);
-    let mut handles: Map<CPtr, string> = #{};
+    let mut handles: Map<CPtr, string> = Map {};
     handles.insert(p, "p");
     handles.insert(q, "q");
     handles.insert(p, "p again");

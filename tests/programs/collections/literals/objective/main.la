@@ -1,0 +1,19 @@
+import bag { Bag };
+
+fun main() {
+    let ages = Map { "ann": 31, "bo": 40 };
+    let primes = Set { 2, 3, 5, 7 };
+    let index = Map<string, i64[]> {};
+    let empty: Set<char> = Set {};
+    let name = "cy";
+    let more = Map { name: 22 };
+    let fruit = Bag { "apple", "apple", "pear" };
+    println(ages.debug());
+    println(primes.debug());
+    println("{index.len} {empty.len} {more["cy"]}");
+    println(fruit.counts["apple"]);
+    if ages == (Map { "bo": 40, "ann": 31 }) {
+        println("same");
+    }
+    println(empty.debug());
+}

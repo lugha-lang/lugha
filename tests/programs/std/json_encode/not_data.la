@@ -14,6 +14,6 @@ fun main() {
     let h = Holder { shapes: [] };
     let c = json.encode(h);
     let d = json.encode([Slot.Empty]);
-    let flags: Map<bool, i64> = #{true: 1};
+    let flags: Map<bool, i64> = Map { true: 1 };
     let e = json.encode(flags);
 }

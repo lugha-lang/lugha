@@ -3,6 +3,6 @@
 struct Reading { at: i64, value: f64 } with Eq
 
 fun main() {
-    let m = #{Reading { at: 1, value: 0.5 }: 1};
-    let s: Set<f64> = #{};
+    let m = Map { Reading { at: 1, value: 0.5 }: 1 };
+    let s: Set<f64> = Set {};
 }

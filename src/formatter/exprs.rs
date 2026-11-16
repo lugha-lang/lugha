@@ -68,25 +68,6 @@ impl Printer<'_> {
             ExprKind::Pass(mode, place) => {
                 concat(vec![text(format!("{} ", mode.word())), self.expr(place)])
             }
-            // `#{"a": 1}`, `#{1, 2}`, `#{}`.
-            ExprKind::Hashed(lit) => {
-                let (ExprKind::Array(keys), ExprKind::Array(values)) =
-                    (&lit.keys.kind, &lit.values.kind)
-                else {
-                    unreachable!("the parser gives a literal's keys and values as arrays")
-                };
-                let mut items = Vec::new();
-                for (i, key) in keys.iter().enumerate() {
-                    let k = self.allowing(|p| p.expr(key));
-                    items.push(match values.get(i) {
-                        Some(value) => {
-                            concat(vec![k, text(": "), self.allowing(|p| p.expr(value))])
-                        }
-                        None => k,
-                    });
-                }
-                huggable(list("#{", items, "}"))
-            }
             ExprKind::Repeat(value, count) => {
                 let (v, n) = self.allowing(|p| (p.expr(value), p.expr(count)));
                 concat(vec![text("["), v, text("; "), n, text("]")])
@@ -145,11 +126,24 @@ impl Printer<'_> {
                 name.push_str(&self.ident(&lit.name));
                 name.push_str(&self.type_args(e));
                 let fields: Vec<Doc> = self.allowing(|p| {
-                    let mut docs: Vec<Doc> = lit
-                        .fields
-                        .iter()
-                        .map(|(f, v)| concat(vec![text(format!("{}: ", p.ident(f))), p.expr(v)]))
-                        .collect();
+                    // The elements as written: fields, entries or items.
+                    let mut docs: Vec<Doc> = match &lit.collection {
+                        Some(c) => c
+                            .elements
+                            .iter()
+                            .map(|(k, v)| match v {
+                                Some(v) => concat(vec![p.expr(k), text(": "), p.expr(v)]),
+                                None => p.expr(k),
+                            })
+                            .collect(),
+                        None => lit
+                            .fields
+                            .iter()
+                            .map(|(f, v)| {
+                                concat(vec![text(format!("{}: ", p.ident(f))), p.expr(v)])
+                            })
+                            .collect(),
+                    };
                     // `..base` last.
                     if let Some(b) = &lit.base {
                         docs.push(concat(vec![text(".."), p.expr(b)]));

@@ -1,11 +1,11 @@
-// Maps and sets: `#{k: v, …}` and `#{x, …}`.
+// Maps and sets: `Map { k: v, … }` and `Set { x, … }`.
 // A compact table: entries in insertion order (removed ones marked and
 // compacted when half are), and `$slots`, open addressing with linear probing
 // at a load of at most 2/3 over indexes into the entries. Values, like arrays:
 // copies are independent. Keys are hashed by `Key`'s `hash`, which matches `==`.
 
 /**
- * A map from keys to values, visited in insertion order: `#{"ann": 31}`.
+ * A map from keys to values, visited in insertion order: `Map { "ann": 31 }`.
  * Read with `m[k]` (panics when missing) or `m.get(k)`; write with `m[k] = v`.
  */
 struct Map<K, V> {
@@ -19,12 +19,40 @@ struct Map<K, V> {
 }
 
 /**
- * A set of distinct values, visited in insertion order: `#{1, 2, 3}`.
+ * A set of distinct values, visited in insertion order: `Set { 1, 2, 3 }`.
  */
 struct Set<T> {
     /** The number of values. */
     len: i64,
     $map: Map<T, bool>,
+}
+
+/**
+ * A type built from `key: value` entries with braces: `Map { "ann": 31 }`.
+ * The literal calls `from_entries` with the keys and the values in order.
+ */
+interface FromEntries<K, V> {
+    /** The value holding `keys[i]` with `values[i]`, in order. */
+    fun from_entries(keys: K[], values: V[]): Self;
+}
+
+/**
+ * A type built from items with braces: `Set { 1, 2, 3 }`. The literal
+ * calls `from_items` with the items in order.
+ */
+interface FromItems<T> {
+    /** The value holding `items`, in order. */
+    fun from_items(items: T[]): Self;
+}
+
+/** `Map { "ann": 31, "bo": 40 }`; a later equal key replaces the value. */
+impl FromEntries<K, V> for Map<K: Key, V> {
+    fun from_entries(keys: K[], values: V[]): Map<K, V> = $map_of(keys, values);
+}
+
+/** `Set { 1, 2, 3 }`; an item already in it is kept once. */
+impl FromItems<T> for Set<T: Key> {
+    fun from_items(items: T[]): Set<T> = $set_of(items);
 }
 
 /** The slot `k` is in (`.0`) and its entry, or -1 when it has none (`.1`). */

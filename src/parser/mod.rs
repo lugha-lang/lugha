@@ -7,6 +7,7 @@
 
 mod actors;
 mod attributes;
+mod braces;
 mod closure;
 mod conditional;
 mod consts;
@@ -16,7 +17,6 @@ mod describe;
 mod expr;
 mod format;
 mod generic;
-mod hashed;
 mod import;
 mod interface;
 mod item;

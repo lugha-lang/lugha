@@ -97,6 +97,9 @@ impl Parser<'_> {
         if let Some((module, name)) = named
             && let Some(mut literal) = self.struct_lit_after(start, module, name)?
         {
+            if let ExprKind::StructLit(lit) = &mut literal.kind {
+                super::braces::type_args_to_calls(lit, &args);
+            }
             literal.type_args = Some(Box::new(args));
             return Ok(literal);
         }

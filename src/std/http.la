@@ -74,7 +74,7 @@ public fun limits(): Limits = Limits {
  */
 public fun text(status: i64, text: string): Response = Response {
     status: status,
-    headers: #{"content-type": "text/plain; charset=utf-8"},
+    headers: Map { "content-type": "text/plain; charset=utf-8" },
     body: text.to_bytes(),
 };
 
@@ -86,7 +86,7 @@ public fun text(status: i64, text: string): Response = Response {
  * @param v the body's value
  */
 public fun json(status: i64, v: js.Value): Response = match js.stringify(v) {
-    .Ok(t) => Response { status: status, headers: #{"content-type": "application/json"}, body: t.to_bytes() },
+    .Ok(t) => Response { status: status, headers: Map { "content-type": "application/json" }, body: t.to_bytes() },
     .Err(e) => text(500, e.detail),
 };
 
@@ -103,7 +103,7 @@ fun json_body(body: u8[]): Result<js.Value, js.JsonError> = match string_from_ut
  */
 public fun bytes(status: i64, body: u8[]): Response = Response {
     status: status,
-    headers: #{"content-type": "application/octet-stream"},
+    headers: Map { "content-type": "application/octet-stream" },
     body: body,
 };
 
@@ -260,7 +260,7 @@ fun send(conn: Stream, res: Response, keep: bool): Result<(), string> {
  * @param url `http://host[:port]/path?query`
  * @returns the response, or `Err` with the reason
  */
-public fun get(url: string): Result<Response, string> = request("GET", url, #{}, []);
+public fun get(url: string): Result<Response, string> = request("GET", url, Map {}, []);
 
 /**
  * `POST url` with a body.
@@ -269,7 +269,7 @@ public fun get(url: string): Result<Response, string> = request("GET", url, #{},
  * @param body the bytes
  */
 public fun post(url: string, content_type: string, body: u8[]): Result<Response, string> =
-    request("POST", url, #{"content-type": content_type}, body);
+    request("POST", url, Map { "content-type": content_type }, body);
 
 /**
  * `POST url` with `v` as a compact `application/json` body.
@@ -409,7 +409,7 @@ fun exchange(method: string, url: string, headers: Map<string, string>, body: u8
 fun read_response(conn: Stream, method: string, limits: Limits): Result<Response, string> {
     let mut reader = Reader { conn: conn, buf: [], pos: 0, deadline: $os.now_ms() + limits.timeout_ms };
     let mut status = 100;
-    let mut headers: Map<string, string> = #{};
+    let mut headers: Map<string, string> = Map {};
     // `100 Continue` and other 1xx responses come before the real one.
     while status >= 100 && status < 200 {
         let line = reader.line(limits.line, 400).map_err(failure)?.ok_or("malformed response")?;

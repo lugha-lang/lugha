@@ -32,11 +32,11 @@ fun main() {
     let f: f32 = 1.5;
     println((round((f, 0.1, true, 'é'))).debug());
     println((round(())).debug());
-    let m: Map<string, i64> = #{"b": 2, "a": 1};
+    let m: Map<string, i64> = Map { "b": 2, "a": 1 };
     println(round(m).debug());
-    let mi: Map<i64, bool> = #{3: true, -1: false};
+    let mi: Map<i64, bool> = Map { 3: true, -1: false };
     println(round(mi).debug());
-    let s: Set<string> = #{"x", "y"};
+    let s: Set<string> = Set { "x", "y" };
     println(round(s).debug());
     let o: Option<Option<i64>> = Some(None);
     println(round(o).debug());

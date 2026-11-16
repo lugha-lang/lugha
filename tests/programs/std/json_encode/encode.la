@@ -28,11 +28,11 @@ fun main() {
     let f: f32 = 1.5;
     show((f, 0.1, true, 'é'));
     show(());
-    let m: Map<string, i64> = #{"b": 2, "a": 1};
+    let m: Map<string, i64> = Map { "b": 2, "a": 1 };
     show(m);
-    let mi: Map<i64, bool> = #{3: true, -1: false};
+    let mi: Map<i64, bool> = Map { 3: true, -1: false };
     show(mi);
-    let s: Set<string> = #{"x", "y"};
+    let s: Set<string> = Set { "x", "y" };
     show(s);
     let o: Option<Option<i64>> = Some(None);
     show(o);

@@ -23,6 +23,6 @@ fun main() {
     let d = Dog { called: "rex" };
     println(both(d));
     println(pass(d));
-    let seen = #{Pair { a: 1, b: 2 }: "one-two"};
+    let seen = Map { Pair { a: 1, b: 2 }: "one-two" };
     println(seen.get(Pair { a: 1, b: 2 }).debug());
 }

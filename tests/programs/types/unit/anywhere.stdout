@@ -1,5 +1,5 @@
 7
-#{()}
+Set { () }
 3 Some(())
 closure
 ()

@@ -1,0 +1,33 @@
+error[E0470]: these braces can't build `Point`: a struct's braces hold `field: value`
+  --> tests/programs/collections/literals/e0470.la:4:21
+  |
+4 |     let p = Point { 1, 2 };
+  |                     ^
+  |
+  = help: implement `FromEntries` or `FromItems` for `Point` to build it from entries or items
+
+error[E0470]: these braces can't build `Point`: a struct's braces hold `field: value`
+  --> tests/programs/collections/literals/e0470.la:5:21
+  |
+5 |     let q = Point { "x": 1 };
+  |                     ^^^
+  |
+  = help: implement `FromEntries` or `FromItems` for `Point` to build it from entries or items
+
+error[E0470]: these braces can't build `Set`: it is built from items
+  --> tests/programs/collections/literals/e0470.la:6:19
+  |
+6 |     let s = Set { "a": 1 };
+  |                   ^^^
+  |
+  = help: write the items alone
+
+error[E0470]: these braces can't build `Map`: it is built from `key: value` entries
+  --> tests/programs/collections/literals/e0470.la:7:19
+  |
+7 |     let m = Map { 1, 2 };
+  |                   ^
+  |
+  = help: write `key: value`
+
+For more about E0470, run `lughac explain E0470`.

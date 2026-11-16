@@ -232,8 +232,9 @@ mod tests {
 
     #[test]
     fn a_write_inside_a_map_entry_finds_its_slot() {
-        let ir =
-            ir("fun main() { let mut m = #{\"a\": [1]}; m[\"a\"].push(2); m[\"a\"][0] += 1; }");
+        let ir = ir(
+            "fun main() { let mut m = Map { \"a\": [1] }; m[\"a\"].push(2); m[\"a\"][0] += 1; }",
+        );
         let main = &ir[ir.find("define void @lugha_fn_main").unwrap()..];
         let main = &main[..main.find("\n}\n").unwrap()];
         let calls = |name: &str| {

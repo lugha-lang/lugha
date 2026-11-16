@@ -39,8 +39,8 @@ fun main() {
     let none: Option<i64> = None;
     let empty: i64[] = [];
     println("{none.debug()} {empty.debug()} {().debug()} {true.debug()}");
-    let m: Map<string, i64[]> = #{"a": [1], "b": []};
-    let s: Set<char> = #{'x'};
+    let m: Map<string, i64[]> = Map { "a": [1], "b": [] };
+    let s: Set<char> = Set { 'x' };
     println("{m.debug()} {s.debug()}");
     let r: Result<i64, string> = Err("no");
     println(r.debug());

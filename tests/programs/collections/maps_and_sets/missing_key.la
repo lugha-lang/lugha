@@ -1,4 +1,4 @@
 fun main() {
-    let m = #{"a": 1};
+    let m = Map { "a": 1 };
     println(m["z"]);
 }

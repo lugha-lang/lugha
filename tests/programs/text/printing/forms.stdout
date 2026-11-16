@@ -2,7 +2,7 @@
 '\n'
 "tab\there \"q\""
 None [] () true
-#{"a": [1], "b": []} #{'x'}
+Map { "a": [1], "b": [] } Set { 'x' }
 Err("no")
 Pair { a: "x", b: (1, 'c') }
 Node(Leaf, 1, Node(Leaf, 2, Leaf))

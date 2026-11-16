@@ -11,34 +11,34 @@ enum Color {
 } with Key
 
 fun main() {
-    let a = #{"x": 1, "y": 2};
+    let a = Map { "x": 1, "y": 2 };
     let mut b = a;
     b["z"] = 3;
     println(a.len);
     println(b.len);
-    println(a == #{"y": 2, "x": 1});
+    println(a == Map { "y": 2, "x": 1 });
     println(a == b);
-    println(#{1, 2} == #{2, 1});
-    let mut m = #{"k": 10};
+    println(Set { 1, 2 } == Set { 2, 1 });
+    let mut m = Map { "k": 10 };
     m["k"] = 11;
     println(m.get("k").debug());
     println(m.get("nope").debug());
     println(m.remove("k").debug());
     println(m.has("k"));
     println(m.debug());
-    let points = #{Point { x: 1, y: 2 }: "a", Point { x: 3, y: 4 }: "b"};
+    let points = Map { Point { x: 1, y: 2 }: "a", Point { x: 3, y: 4 }: "b" };
     println(points[Point { x: 3, y: 4 }]);
-    let colors = #{Color.Red: 0, Color.Rgb(1, 2, 3): 1};
+    let colors = Map { Color.Red: 0, Color.Rgb(1, 2, 3): 1 };
     println(colors[Color.Rgb(1, 2, 3)]);
-    let grid = #{(0, 0): '.', (0, 1): '#'};
+    let grid = Map { (0, 0): '.', (0, 1): '#' };
     println(grid[(0, 1)]);
-    let mut groups: Map<string, Set<i64>> = #{};
-    groups["even"] = #{2, 4};
-    groups["odd"] = #{1};
+    let mut groups: Map<string, Set<i64>> = Map {};
+    groups["even"] = Set { 2, 4 };
+    groups["odd"] = Set { 1 };
     println(groups.debug());
     println(b.keys().debug());
     println(b.values().debug());
-    let mut big: Map<i64, i64> = #{};
+    let mut big: Map<i64, i64> = Map {};
     for i in 0..1000 {
         big[i] = i * i;
     }

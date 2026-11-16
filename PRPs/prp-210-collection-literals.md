@@ -1,10 +1,11 @@
 ## FEATURE: Collection literals `Map { "ann": 31 }`, `Set { 1, 2 }`, `Map {}`, through the prelude interfaces `FromEntries` and `FromItems`; `#{…}` is removed; milestone 178, in v18's Phase 1.
 
-**Status:** proposed 2026-11-16.
+**Status:** proposed 2026-11-16. Approved 2026-11-16.
 
 ## OBJECTIVE
 ```lugha
-struct Bag { counts: Map<string, i64> }
+// bag.la
+public struct Bag { public counts: Map<string, i64> }
 
 impl FromItems<string> for Bag {
     fun from_items(items: string[]): Bag {
@@ -15,6 +16,9 @@ impl FromItems<string> for Bag {
         Bag { counts: counts }               // in Bag's own module: a struct literal
     }
 }
+
+// main.la
+import bag { Bag };
 
 fun main() {
     let ages = Map { "ann": 31, "bo": 40 };
@@ -82,11 +86,20 @@ fun main() {
 - A `=>` form.
 
 ## TESTS
-- [ ] `tests/programs/collections/literals/`: the OBJECTIVE minus its error (runs), a user `FromEntries` type, nested literals, type arguments and context, keys as expressions, W0105, E0213, E0470 (each wrong form), E0301 with the string help, E0412 for `Map {}` without a type, E0205 in a condition.
-- [ ] Parser and checker unit tests; formatter round-trip.
-- [ ] The full `cargo test`.
+- [x] `tests/programs/collections/literals/`: the OBJECTIVE minus its error (runs), a user `FromEntries` type, nested literals, type arguments and context, keys as expressions, W0105, E0213, E0470 (each wrong form), E0301 with the string help, E0412 for `Map {}` without a type, E0205 in a condition.
+- [x] Parser and checker unit tests; formatter round-trip.
+- [x] The full `cargo test`.
 
 ## ACCEPTANCE
-- [ ] The OBJECTIVE gives E0213 at `#{` only, and once that line goes prints as its comments say, then `same`.
-- [ ] The full `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
-- [ ] Spec, CHANGELOG, ledger and the error pages updated.
+- [x] The OBJECTIVE gives E0213 at `#{` only, and once that line goes prints as its comments say, then `same`.
+- [x] The full `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
+- [x] Spec, CHANGELOG, ledger and the error pages updated.
+
+## CHANGES DURING THE BUILD
+- **The objective's `Bag` lives in its own module** (`bag.la`): by the module rule, `Bag { "apple", … }` in `Bag`'s own file is its struct literal, so the objective as first written gave E0470 there.
+- **W0105 is for the prelude's `Map` and `Set` only:** a program's `FromItems` type may want repeats (a bag).
+- **`Map {}` with nothing to type it** gives one E0412, "cannot infer the type arguments of `Map {}`", with help to write them, instead of errors on the hidden arrays.
+- **E0205 for collections:** in a condition, `Name {` followed by any one token and `:` or `,` is a misplaced literal (it can't start a block), so `if m == Map { "a": 1 } {` gets the parentheses help.
+- **`FromEntries` and `FromItems` are nominal** (met only by `impl … for T`) and visible by bare name in every module, like `Display`.
+- **Walkers follow the checker's choice:** `Checked::collections` lists the call each collection literal stands for; liveness, hoisting and codegen walk that call, otherwise the struct's fields.
+- **Migration:** the old checker recorded whether each `#{…}` was a map or a set before the parser changed, so every `#{}` became the right `Map {}` or `Set {}`; the VS Code grammar drops its `#{` rule (extension version bumped).

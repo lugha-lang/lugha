@@ -64,7 +64,7 @@ fun main() {
     println(true.label());
     println(().label());
     println((1, false).label());
-    let m: Map<string, bool> = #{"a": true};
+    let m: Map<string, bool> = Map { "a": true };
     // A block for a map, called as a method and qualified.
     println(m.label());
     println(Show.label(m));

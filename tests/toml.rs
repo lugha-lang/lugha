@@ -347,7 +347,7 @@ fun main() {{
          Overflow: an integer too large for i64: 9223372036854775808 (line 1, column 5)\n\
          Overflow: an integer too large for i64: -9223372036854775809 (line 1, column 5)\n\
          Overflow: an integer too large for i64 (line 1, column 5)\n\
-         #{\"n\": Integer(-9223372036854775808)}\n#{\"n\": Integer(9223372036854775807)}\n1048000\n"
+         Map { \"n\": Integer(-9223372036854775808) }\nMap { \"n\": Integer(9223372036854775807) }\n1048000\n"
     );
 }
 

@@ -237,7 +237,7 @@ mod tests {
     #[test]
     fn arrays_strings_and_maps_are_unchanged() {
         ok(
-            "fun main() { let xs = [1, 2]; let s = \"ab\"; let m = #{\"a\": 1}; \
+            "fun main() { let xs = [1, 2]; let s = \"ab\"; let m = Map { \"a\": 1 }; \
             let a = xs[0] + m[\"a\"]; let b = s[1]; }",
         );
         assert_eq!(

@@ -1,0 +1,12 @@
+/** A multiset of words. */
+public struct Bag { public counts: Map<string, i64> }
+
+impl FromItems<string> for Bag {
+    fun from_items(items: string[]): Bag {
+        let mut counts: Map<string, i64> = Map {};
+        for x of items {
+            counts[x] = counts.get(x).unwrap_or(0) + 1;
+        }
+        Bag { counts: counts }
+    }
+}

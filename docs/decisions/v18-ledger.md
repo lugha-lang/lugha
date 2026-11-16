@@ -72,6 +72,7 @@ The draft must cite every `approved` line exactly once as a rule, and contain no
 - LIT-04 approved — Braces after a type name: a struct takes field names; a `FromEntries` type takes entries; a `FromItems` type takes items. A struct implementing either is built with braces only as a collection.
 - LIT-05 approved — In conditions, these literals need parentheses, as struct literals do.
 - LIT-06 approved — The debug form prints `Map { "a": 1 }` and `Set { 1, 2 }`.
+- LIT-07 approved — In the module that declares a type implementing `FromEntries` or `FromItems`, braces after its name are its struct literal (how it builds itself); everywhere else they are entries or items.
 
 ## PRE — what moves out of the compiler
 

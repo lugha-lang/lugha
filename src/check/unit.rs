@@ -51,7 +51,7 @@ mod tests {
                 let c: Chan<()> = Chan.new();\n\
                 let t: Task<()> = spawn log(\"t\");\n\
                 let r: () = t.join();\n\
-                let m: Map<string, ()> = #{\"a\": ()};\n\
+                let m: Map<string, ()> = Map { \"a\": () };\n\
             }");
         assert_eq!(let_type("fun main() { let x = (); }", "x"), Type::Unit);
         assert_eq!(

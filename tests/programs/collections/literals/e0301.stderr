@@ -1,0 +1,9 @@
+error[E0301]: cannot find `ann` in this scope
+  --> tests/programs/collections/literals/e0301.la:2:19
+  |
+2 |     let m = Map { ann: 31 };
+  |                   ^^^
+  |
+  = help: for the string, write `"ann"`
+
+For more about E0301, run `lughac explain E0301`.

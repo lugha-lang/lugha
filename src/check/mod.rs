@@ -26,6 +26,7 @@ mod callbacks;
 mod channels;
 mod checked;
 mod closures;
+mod collections;
 mod concat;
 mod concrete_defaults;
 mod conditional;
@@ -334,6 +335,8 @@ pub(super) struct Checker {
     try_conversions: HashMap<ExprId, Type>,
     /// See `Checked::through_index`.
     through_index: std::collections::HashSet<ExprId>,
+    /// See `Checked::collections`.
+    collections: HashSet<ExprId>,
     /// See `Checked::impls`.
     impls: impls::Impls,
     /// See `derive_with::Asking`.

@@ -1,7 +1,7 @@
 // Sets: the first of each value, and set algebra.
 fun main() {
     let xs = [3, 1, 3, 2, 1];
-    let mut seen: Set<i64> = #{};
+    let mut seen: Set<i64> = Set {};
     let mut firsts: i64[] = [];
     for x of xs {
         if seen.insert(x) {
@@ -12,12 +12,12 @@ fun main() {
     println(seen.debug());
     println(seen.has(2));
     println(seen.has(9));
-    let a = #{1, 2, 3};
-    let b = #{2, 3, 4};
+    let a = Set { 1, 2, 3 };
+    let b = Set { 2, 3, 4 };
     println(a.union(b).debug());
     println(a.intersect(b).debug());
     println(a.minus(b).debug());
-    let mut s = #{"x", "y"};
+    let mut s = Set { "x", "y" };
     println(s.remove("x"));
     println(s.remove("x"));
     println(s.len);

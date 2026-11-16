@@ -28,8 +28,9 @@ Nov 15, 2026 · @kithinji
 - A discarded `Result` is an error (E0467): an expression statement of type `Result` must be handled (`?`, `match`) or dropped on purpose with `let _ = …;` (milestone 175; section 6).
 - Enum variants in patterns take a leading dot, `.Some(x)`, `.None`, `.Circle(r)`, and a bare name in a pattern is always a binding, at the top level too (E0212, E0468) (milestone 176; sections 3–4).
 - Type arguments may be written at a use, `pick<string>([])`, `xs.map<string>(f)`, `Chan<Job>.new()`, `Pair<u8> { … }`, `Option<i64>.None`, with `_` for one left to inference; `as` converts only where nothing can be lost, and `try_into`, `truncate`, `saturate`, `round`, `floor` and `ceil` name the rest (E0469) (milestone 177; sections 3–5).
+- Maps and sets are written `Map { "ann": 31 }`, `Set { 1, 2 }`, `Map {}` and `Set {}`, through the prelude interfaces `FromEntries` and `FromItems`, which any type may implement; `#{…}` is gone (E0213, E0470) (milestone 178; sections 3–4).
 
-**Breaking:** a numeric `as` that can lose information is E0469 (milestone 177): `n as u8` for a wider `n` is `n.truncate<u8>()` for the old bits, a float `as` an integer is `x.saturate<i64>()` for the old result, `n as f64` for an `i64` is `n.round<f64>()`, `n as char` is `n.try_into<char>()`; `f(a < b, c > (d))` now passes type arguments. Every variant in a pattern takes a leading dot (milestone 176): `Some(x) =>` is `.Some(x) =>`, `None =>` is `.None =>`, `if let Some(x) = o` is `if let .Some(x) = o`; an undotted one is E0212 or E0468, and `mut None` is E0468, not E0428. A `Result` used as a statement is E0467 (milestone 175): write `let _ = f();` to drop one on purpose. `assert_eq` and `assert_ne` are ordinary generic calls (milestone 173): an argument that can't be typed alone, first (`assert_eq(None, o)`), is E0412; write it second. The prelude's helpers are only methods (milestone 172): `map(xs, f)`, `str_trim(s)` and the like are no longer functions a program can call (E0301); write `xs.map(f)`, `s.trim()`. Operators go through blocks (milestone 171): an own `fun add(self, o: V): V` becomes `impl Add for V { … }`, several `mul`s on one type become one `impl Mul<R> for V` each, and `impl f64 { fun mul(self, v: V): V }` becomes `impl Mul<V> for f64` (that form is now E0466; E0458 is retired); an operator on an interface value is E0404, and a bound gives an operator only when it is an operator interface (`T: Mul<f64>`), not an interface with its own `mul`. Printing needs `Display` (milestone 170): `println(xs)`, `"{opt}"` and `to_string(p)` on an array, `Option`, tuple, map, `()` or a struct or enum without `impl Display` are E0422; write `.debug()` for the old text, or `impl Display`. A type's own `show` method becomes `impl Display for T`, and is no longer used inside an array or another value's text. `unwrap()` on an `Err` shows the error's debug form (`"boom"` quoted). `debug` is a reserved name. A struct or enum ordered with `<`, `sort`, `min` or `max` needs `with Ord` or `impl Ord` (milestone 168); an own `cmp` method no longer orders it, and `Ord` now implies `Eq`. Floats aren't `Ord`: `[1.5].sort()`, `math.min(1.5, 2.0)` and tuples or structs holding a float that are ordered are E0451; sort floats with `xs.sort_by(f64.total_order)`. A struct or enum compared with `==` or used as a map key or set value needs `with Eq` or `with Key` (milestone 167); own `eq` and `hash` methods become `impl Eq` and `impl Key`. A struct or enum encoded, decoded or otherwise used through a derivable interface needs `with I` (milestone 165); a type's own `to_json` or `show` no longer replaces a derived item. A type that met an interface by its methods needs `impl I for T`; methods that implement an interface move from `impl T { … }` into it. A number, string or array converted to a program's interface (`let x: Any = 1;`) is E0422 unless a block implements it for that type (milestone 169).
+**Breaking:** `#{…}` is gone (milestone 178): `#{"a": 1}` is `Map { "a": 1 }`, `#{1, 2}` is `Set { 1, 2 }`, and `#{}` is `Map {}` or `Set {}`; maps and sets print that way; a struct implementing `FromEntries` or `FromItems` is built with braces only in its own module. A numeric `as` that can lose information is E0469 (milestone 177): `n as u8` for a wider `n` is `n.truncate<u8>()` for the old bits, a float `as` an integer is `x.saturate<i64>()` for the old result, `n as f64` for an `i64` is `n.round<f64>()`, `n as char` is `n.try_into<char>()`; `f(a < b, c > (d))` now passes type arguments. Every variant in a pattern takes a leading dot (milestone 176): `Some(x) =>` is `.Some(x) =>`, `None =>` is `.None =>`, `if let Some(x) = o` is `if let .Some(x) = o`; an undotted one is E0212 or E0468, and `mut None` is E0468, not E0428. A `Result` used as a statement is E0467 (milestone 175): write `let _ = f();` to drop one on purpose. `assert_eq` and `assert_ne` are ordinary generic calls (milestone 173): an argument that can't be typed alone, first (`assert_eq(None, o)`), is E0412; write it second. The prelude's helpers are only methods (milestone 172): `map(xs, f)`, `str_trim(s)` and the like are no longer functions a program can call (E0301); write `xs.map(f)`, `s.trim()`. Operators go through blocks (milestone 171): an own `fun add(self, o: V): V` becomes `impl Add for V { … }`, several `mul`s on one type become one `impl Mul<R> for V` each, and `impl f64 { fun mul(self, v: V): V }` becomes `impl Mul<V> for f64` (that form is now E0466; E0458 is retired); an operator on an interface value is E0404, and a bound gives an operator only when it is an operator interface (`T: Mul<f64>`), not an interface with its own `mul`. Printing needs `Display` (milestone 170): `println(xs)`, `"{opt}"` and `to_string(p)` on an array, `Option`, tuple, map, `()` or a struct or enum without `impl Display` are E0422; write `.debug()` for the old text, or `impl Display`. A type's own `show` method becomes `impl Display for T`, and is no longer used inside an array or another value's text. `unwrap()` on an `Err` shows the error's debug form (`"boom"` quoted). `debug` is a reserved name. A struct or enum ordered with `<`, `sort`, `min` or `max` needs `with Ord` or `impl Ord` (milestone 168); an own `cmp` method no longer orders it, and `Ord` now implies `Eq`. Floats aren't `Ord`: `[1.5].sort()`, `math.min(1.5, 2.0)` and tuples or structs holding a float that are ordered are E0451; sort floats with `xs.sort_by(f64.total_order)`. A struct or enum compared with `==` or used as a map key or set value needs `with Eq` or `with Key` (milestone 167); own `eq` and `hash` methods become `impl Eq` and `impl Key`. A struct or enum encoded, decoded or otherwise used through a derivable interface needs `with I` (milestone 165); a type's own `to_json` or `show` no longer replaces a derived item. A type that met an interface by its methods needs `impl I for T`; methods that implement an interface move from `impl T { … }` into it. A number, string or array converted to a program's interface (`let x: Any = 1;`) is E0422 unless a block implements it for that type (milestone 169).
 
 **Changes in v17 since v16** (milestones 91–163):
 - Green threads: `spawn f(x)` runs a call concurrently and gives a `Task<T>` (a plain `Task` for a call that returns nothing) whose `join()` waits for the result. `Chan<T>` carries values between green threads: `Chan.new()` (unbuffered) or `Chan.buffered(n)`, `send`, `recv` (an `Option`, `None` once closed), `try_recv`, `close`, `is`. `select` waits on several channels at once, with an `after(ms)` timeout or a `default` that never waits. `std.task` has `sleep(ms)` and `yield_now()`. Every function stays an ordinary function: there is no `async` and no `await`, so nothing is coloured. All green threads share the program's one OS thread; a panic in any of them ends the program, as does `main` returning, and a deadlock is a panic (sections 2–9).
@@ -84,7 +85,7 @@ Nov 15, 2026 · @kithinji
 - Extern structs hold `Option` of a handle (C's nullable pointer); unions hold plain data only, so no pointer is made up from a number (milestone 106; section 8).
 - The C boundary takes pointers (milestones 103–105; section 8): `ptr` and `mut` parameters; arrays as `xs: T[]` and `mut xs: T[]`; `extern union`; `CPtr` with `c_read`/`c_write`; callbacks taking `T[]` and `Ref<T[]>`.
 - `out` parameters on externs: `extern fun get_fuel(c: Context, out fuel: u64): bool;` and `get_fuel(ctx, out fuel)` — C writes through the pointer and the place gets the value after the call (milestone 102; sections 3, 8).
-- Maps and sets: `Map<K, V>` and `Set<T>`, built in, with `#{"ann": 31}` and `#{1, 2}` literals; values like arrays, keys any `Eq` type without floats, insertion order, `m[k]`, `for (k, v) of m`, `==` regardless of order. The iterator type `it.map(f)` returns is renamed `Mapped` (milestone 101; sections 2–5, 9, 10).
+- Maps and sets: `Map<K, V>` and `Set<T>`, built in, with `#{"ann": 31}` and `#{1, 2}` literals (`Map { … }` and `Set { … }` since v18); values like arrays, keys any `Eq` type without floats, insertion order, `m[k]`, `for (k, v) of m`, `==` regardless of order. The iterator type `it.map(f)` returns is renamed `Mapped` (milestone 101; sections 2–5, 9, 10).
 - Glob re-exports: `public import raw { * };` makes every `public` item of `raw` an item of this module, so a package's entry can flatten a sub-module (milestone 100; sections 3, 6).
 - Package entry modules: `import kivuli;` imports the package's `lib.la` (in its `source` folder) as the module `kivuli`; `lughac init --lib` writes one (milestone 99; sections 6, 9).
 - Module doc comments: a `/** … */` at the top of a file, followed by a blank line or an `import`, documents its module; hovering the module's name shows it, and the std modules are documented (milestone 98; sections 2, 9).
@@ -487,13 +488,13 @@ primary      = INT | FLOAT | CHAR | STRING | interpolated | closure | "true" | "
              | int_type "." IDENT                 (* `i16.MAX` (v10) *)
              | "(" expr ")"
              | "[" [ expr ( ";" expr | { "," expr } [ "," ] ) ] "]"
-             | "#{" [ entry { "," entry } [ "," ] ] "}"      (* v17: a map's entries are `expr ":" expr`, a set's `expr` *)
+             | "Set { " [ entry { "," entry } [ "," ] ] " }"      (* v17: a map's entries are `expr ":" expr`, a set's `expr` *)
              | block_like ;
 interpolated = STRING_START expr [ FMT_SPEC ] { STRING_MID expr [ FMT_SPEC ] } STRING_END ;   (* "a {x} b {y:>5} c" *)
 closure      = "fun" "(" [ cparam { "," cparam } [ "," ] ] ")" [ ":" type ] ( block | "=" expr ) ;   (* v3 *)
 cparam       = IDENT [ ":" type ] ;
 struct_init  = "{" [ init { "," init } [ "," ] ] "}" ;   (* `..expr` only last, once: v17 *)
-init         = IDENT ":" expr | ".." expr ;
+init         = expr ":" expr | expr | ".." expr ;   (* a field `IDENT ":" expr`, an entry or an item, by the type (v18) *)
 infix        = binop expr | "as" type ;
 ```
 
@@ -546,6 +547,7 @@ The bit operators sit between comparisons and `+ -`, as in Rust, so `flags & MAS
 | E0210 | An unknown or misplaced attribute | `@inline fun f() {}`; `@test struct S {}`; `@caller_location` on an interface's item, an actor's message, `main` or a test |
 | E0211 | `spawn` without a call, or a malformed `select` arm | `spawn f;`, `spawn 1 + f()`; `select { c.recv() => 1 }`, `select { x => 1 }` |
 | E0212 | A variant in a pattern without its leading dot (v18) | `Circle(r) =>`; `if let Some(x) = o` |
+| E0213 | A `#{…}` literal (v18) | `#{"a": 1}` — help: `Map { "a": 1 }` or `Set { 1, 2 }` |
 | E0207 | `::` used as a path separator | `Shape::Circle(1.0)` — help: write `Shape.Circle`; parsing continues as if `.` were written; `Stack::<i64>` — help: `Stack<i64>` (v18) |
 
 ## 4. Type system
@@ -935,15 +937,16 @@ Evaluation is strictly left to right: operands, call arguments and struct-litera
 
 **Arithmetic.** Integer `+`, `-`, `*` and unary `-` panic on overflow: if the true result doesn't fit the type, the program stops with `integer overflow` instead of continuing with a wrong value. Integer `/` and `%` panic when the divisor is zero, and also for `MIN / -1`, which overflows. `%` takes the sign of the dividend, like C and Rust. Compound assignments such as `+=` are checked the same way, including `%=` (v9), which panics on a zero divisor as `%` does. Shifts (v7) lose the bits shifted out and never panic for overflow; `>>` copies the sign bit for `i32` and `i64` and fills with zeros for the unsigned types; a shift amount that is negative, or at least the type's width (8, 32 or 64), panics with `shift out of range` at the operator. `&=`, `|=`, `^=`, `<<=` and `>>=` mean `x = x op y` with the place evaluated once, as `+=` does, and need an integer.
 
-**Maps and sets** (v17, milestone 101). `Map<K, V>` maps keys to values and `Set<T>` holds distinct values; both are built in, like `Option` (a module's own `Map` or `Set` still means its own). A literal writes them: `#{"ann": 31, "bo": 40}` is a `Map<string, i64>`, `#{1, 2, 3}` a `Set<i64>`; the first entry decides which, and mixing `key: value` and plain entries is E0201. `#{}` is empty and takes its type from where it is used, like `[]` (E0412 with nothing to go on). Entries are typed like an array literal's elements. Two equal literal keys in one literal are warning W0105; the later one wins.
+**Maps and sets** (v17, milestone 101). `Map<K, V>` maps keys to values and `Set<T>` holds distinct values; both are built in, like `Option` (a module's own `Map` or `Set` still means its own). A literal names the type (v18, milestone 178): `Map { "ann": 31, "bo": 40 }` is a `Map<string, i64>`, `Set { 1, 2, 3 }` a `Set<i64>`, and the empty ones `Map {}` and `Set {}` take their types from where they are used or from written type arguments, `Map<string, i64[]> {}` (E0412 with nothing to go on). Keys are expressions: `Map { name: 1 }` uses the variable `name`, and a bare name nothing defines is E0301 with help to write `"name"`. Entries are typed like an array literal's elements, evaluated left to right. Two equal literal keys in one literal are warning W0105; the later one wins. `#{…}` is gone (E0213).
+- **Collection literals** (v18): braces after a type name hold `field: value` for a struct, `key: value` entries for a type that implements the prelude's `FromEntries<K, V>` (`fun from_entries(keys: K[], values: V[]): Self`), and items for one that implements `FromItems<T>` (`fun from_items(items: T[]): Self`); the literal is the call `T.from_entries([k, …], [v, …])` or `T.from_items([a, …])`, with the literal's type arguments and expected type. `Map` implements `FromEntries` and `Set` `FromItems`, and any program type may: `Bag { "apple", "pear" }`. In the module that declares such a type its braces are still its fields, which is how it builds itself; elsewhere they are entries or items. `{}` on a type implementing both is `FromEntries`. The wrong form, items for a struct or a `FromEntries` type, entries for a `FromItems` type, or a key that isn't a field name, is E0470. In a condition such a literal needs parentheses, as a struct literal does (E0205): `if m == (Map { "a": 1 }) { … }`; mixing entries and items is E0201.
 - **Values:** like arrays, maps and sets copy on assignment and passing (copy-on-write, so a copy is cheap until one side changes), change only through `let mut` or `mut self`, and move on their last use. Share one through `Ref<Map<K, V>>`.
-- **Keys** (v18): `K`, and a set's `T`, must be `Key` (above): written (`Set<f64>`) or inferred (`#{1.5: 1}`), a key that isn't is E0422 or E0451, a float named as such (`NaN != NaN` would lose the entry); a key that mentions a type parameter is checked where the map is used, every map operation asking `K: Key`. Keys are hashed through `Key`, consistently with `==`.
+- **Keys** (v18): `K`, and a set's `T`, must be `Key` (above): written (`Set<f64>`) or inferred (`Map { 1.5: 1 }`), a key that isn't is E0422 or E0451, a float named as such (`NaN != NaN` would lose the entry); a key that mentions a type parameter is checked where the map is used, every map operation asking `K: Key`. Keys are hashed through `Key`, consistently with `==`.
 - **Order:** iteration, printing, `keys()` and `values()` follow insertion order; giving a key a new value keeps its place; removing a key and adding it again puts it last.
 - **Maps:** `m.len`; `m[k]` (panics `no key "z" in the map` at the `[` when `k` has no value); `m[k] = v` adds or replaces; inside an existing entry, `m[k]` is a place (v17, milestone 156), as `xs[i]` is: `m[k] += v`, `m[k].x = v`, `m[k][i] = v`, `m[k].push(x)`, `swap(m[a], m[b])` and `for x of mut m[k]` change the value where it is, and a missing key panics `no key "z" in the map` at the `[`, as a read does (to add a key, assign it first); `m.get(k): Option<V>`; `m.has(k): bool`; `m.insert(k, v)`; `m.remove(k): Option<V>`; `m.clear()`; `m.keys(): K[]`; `m.values(): V[]`; `for (k, v) of m` and `m.iter()`, each entry a tuple.
 - **Sets:** `s.len`; `s.has(x)`; `s.insert(x): bool` (true when new); `s.remove(x): bool`; `s.clear()`; `for x of s` and `s.iter()`; `a.union(b)` (`a`'s values, then `b`'s new ones), `a.intersect(b)`, `a.minus(b)`.
 - **Collecting:** `it.collect_map()` on an iterator of `(K, V)` and `it.collect_set()` on any other; a later key's value wins, a repeated value is kept once.
 - **Loops:** `for … of m` visits a copy, so the body may change `m` (`m[k] = …`) without changing what the loop visits. `for … of mut` over a map or set is E0442: loop over `m.keys()` and assign `m[k]`.
-- **Equality and printing:** `==` compares entries regardless of order (`#{"a": 1, "b": 2} == #{"b": 2, "a": 1}`); a map is `Eq` when its values are. They print as their literals: `#{"ann": 31, "bo": 40}`, `#{1, 2, 3}`, `#{}`.
+- **Equality and printing:** `==` compares entries regardless of order (`Map { "a": 1, "b": 2 } == Map { "b": 2, "a": 1 }`); a map is `Eq` when its values are. They print as their literals: `Map { "ann": 31, "bo": 40 }`, `Set { 1, 2, 3 }`, `Map {}`, `Set {}`.
 - **Implementation:** written in Lugha in the prelude (`Map`, `Set`, a compact table in insertion order over arrays, open addressing), hashing keys with `Eq`'s `hash` (v17, milestones 143–144): FNV-1a over the same structure `==` compares, written in derive blocks, with one built-in only the prelude can name, `$hash.text(s, h)`, for a string's bytes; a key type's own `eq` and `hash` are used if it has them. Maps and sets hash their entries in any order, as `==` compares them, so equal maps and sets are one key however they were built. Hashing isn't hardened against keys chosen to collide.
 
 **Tuples** (v14). `(A, B, …)` is a tuple type of two or more elements, and `(a, b, …)` a tuple value; `(x)` is just `x`, and `(a,)` is E0201. A tuple is a value like a struct whose fields are named `0`, `1`, …: `t.0` reads an element and `t.0 = v` changes one in a `let mut` tuple (an index past the end is E0410), and `t.1.0` reaches into a nested tuple. Assigning, passing and returning copy it by the copy rules. `==` compares element-wise; `<`, `<=`, `>` and `>=` compare lexicographically, the first unequal element deciding, and need every element `Ord` (E0451 otherwise, naming the element), so a tuple of `Ord` elements is `Ord`. Functions can return several values: `fun divmod(a: i64, b: i64): (i64, i64) = (a / b, a % b);`. A tuple prints as `(1, "a")`, its strings quoted. `Pair` (v13) is gone: `zip` yields tuples.
@@ -1076,7 +1079,7 @@ let sign = if x < 0 { -1 } else if x == 0 { 0 } else { 1 };
 
 **loop** (v17, milestone 152). `loop { body }` runs `body` again and again until a `break` targets it, or a `return`, `?`, `panic` or `exit` leaves it. It is an expression, like `if`: `break value;` gives the loop that value, and every `break` targeting one loop gives the same type (E0403 at the value otherwise); the loop's expected type flows into each value (`let o: Option<i64> = loop { break None; };`), and with none the first `break`'s value decides. A plain `break;` gives `()`. A `loop` that no `break` targets never ends: its type is `never`, so it counts as returning (section 6) and can stand in for any type. Its body has type `()` (E0403 for a tail value). As a statement it needs no `;`, like any block-like one, and its value, if any, must be `()` (E0505). Only a `loop` gives a value: `break value` out of a `while` or `for` is E0514, since those can end without a `break`. `loop` is a keyword.
 
-**Labels** (v17, milestone 152). `name:` directly before `loop`, `while`, `while let` or `for` labels that loop: `outer: for row of grid { for x of row { if x == 0 { continue outer; } } }`. `break name;`, `break name value;` and `continue name;` reach the loop with that label, running the defers of every block they leave, innermost first, as a plain `break` does. Labels live apart from variables: after `break`, a name is the label only when an enclosing loop has that label, and otherwise the start of a value (`break x;` breaks with `x`); after `continue`, a name is always a label. A label that no enclosing loop has is E0512, and labels don't reach into closures or spawned calls, whose bodies are their own functions. Nested loops can't share a label (E0513); loops side by side may. A labelled `loop` is also an expression: `let first = search: loop { … break search x; … };`. In a map literal, `#{a: loop { … }}` is the entry `a`, not a label.
+**Labels** (v17, milestone 152). `name:` directly before `loop`, `while`, `while let` or `for` labels that loop: `outer: for row of grid { for x of row { if x == 0 { continue outer; } } }`. `break name;`, `break name value;` and `continue name;` reach the loop with that label, running the defers of every block they leave, innermost first, as a plain `break` does. Labels live apart from variables: after `break`, a name is the label only when an enclosing loop has that label, and otherwise the start of a value (`break x;` breaks with `x`); after `continue`, a name is always a label. A label that no enclosing loop has is E0512, and labels don't reach into closures or spawned calls, whose bodies are their own functions. Nested loops can't share a label (E0513); loops side by side may. A labelled `loop` is also an expression: `let first = search: loop { … break search x; … };`. In a collection literal, `Map { a: loop { … } }` is the entry `a`, not a label.
 
 **break and continue.** Without a label, apply to the innermost enclosing loop. Using either outside a loop is a compile error (E0504).
 
@@ -1143,7 +1146,7 @@ for path in paths {
 | a struct | — | `Point { x: 1, y: 2 }`, or `Point {}` without fields |
 | an enum value, `Option`, `Result` | — | `Circle(1.5)`, `Empty`, `Some(5)`, `None`, `Ok(1)`, `Err("no")` |
 | an array, a tuple | — | `[1, 2, 3]`, `[]`, `(1, "a")` |
-| a map, a set | — | `#{"a": 1}`, `#{1, 2}` |
+| a map, a set | — | `Map { "a": 1 }`, `Set { 1, 2 }` |
 | `()` | — | `()` |
 | an interface value | its `show`, when it declares one | the value inside it |
 | a function, a `Ref`, a task, a channel, an actor, a handle, a C union | — | `<fun>`, `Ref(…)`, `<task>`, `<chan>`, `<actor Counter>`, `<W>`, `<union>` |
@@ -1954,7 +1957,7 @@ Name and type errors, reported by the checker:
 | E0442 | `for … of mut` over a map or set | `for (k, v) of mut m { … }` |
 | E0443 | `out` or `mut` missing or misplaced in a call | `bump(c)` for `mut c: Counter` (v18); `get_fuel(ctx, fuel)` for `out fuel: u64`; `put(out n)` where `n` isn't `out` |
 | E0444 | A union literal writing other than one field | `U { a: 1, b: 2.0 }`; `U {}` |
-| E0445 | Not a constant | a call, closure, `if`, block, interpolation or `#{…}` in a constant's value; a constant of type `Ref<T>`, a function, a task, a channel, an actor, a handle, a map or a set |
+| E0445 | Not a constant | a call, closure, `if`, block, interpolation or collection literal in a constant's value; a constant of type `Ref<T>`, a function, a task, a channel, an actor, a handle, a map or a set |
 | E0446 | A constant that depends on itself | `const A: i64 = B; const B: i64 = A;` |
 | E0447 | A file that can't be included | `include_bytes("../../secret")` leaving the package; a missing file; one over 16 MiB; `include_str(PATH)` |
 | E0448 | `include_str` of a file that isn't UTF-8 | `include_str("logo.png")` |
@@ -1979,6 +1982,7 @@ Name and type errors, reported by the checker:
 | E0467 | A discarded `Result` (v18) | `save("");` as a statement, where `save` returns a `Result` |
 | E0468 | A variant name used as a binding in a pattern (v18) | `None =>` on an `Option`; `.Some(Empty)` on an `Option<Shape>` |
 | E0469 | A cast that can lose information (v18) | `big as u8` for `big: i64`; `2.5 as i64`; `n as f64` for `n: i64`; `n as T` for `T: Num` |
+| E0470 | Braces that can't build their type (v18) | `Point { 1, 2 }`; `Set { "a": 1 }`; `Map { 1, 2 }`; `Bag { "a" }` in `Bag`'s own module |
 | E0437 | A malformed `extern struct` | `extern struct S { s: string }`; a field of an array, a plain struct, an enum, `Option` (other than of a handle) or a function type; a handle, `Option` of one or `CPtr` in an `extern union`, at any depth; `extern struct S<T> { … }`; `extern struct S {}` |
 | E0433 | A pattern that must match every value but might not | `let (1, x) = t;`, `let Some(n) = o;` without `else`, `for (Some(a), b) of …` |
 | E0428 | Or-pattern alternatives that bind differently | `.Some(x) \| .None`; `.Count(n) \| .Circle(n)` with `n` an `i64` and an `f64` |
@@ -2005,7 +2009,7 @@ Name and type errors, reported by the checker:
 | W0102 | Unreachable `match` arm (warning) | an arm after `_`, or a variant already covered |
 | W0103 | Unused `match` binding (warning) | `Some(Emtpy) => 0`, a misspelled variant that became a binding |
 | W0104 | `..base` that copies nothing (warning) | `P { x: 1.0, y: 2.0, ..p }` |
-| W0105 | A key written twice in a `#{ … }` literal (warning) | `#{"a": 1, "a": 2}`; `#{1, 1}` |
+| W0105 | A key written twice in a map or set literal (warning) | `Map { "a": 1, "a": 2 }`; `Set { 1, 1 }` |
 | W0106 | A `let` holding `()` (warning) | `let x = log();` where `log` has no return type; not `let x: () = log();`, `let x = ();` or `let _ = log();` |
 | W0107 | A leading zero that looks octal (warning) | `0600`, `007` (decimal; write `0o600` for octal) |
 
@@ -3845,12 +3849,12 @@ fun main() {
 }
 ```
 
-**Word count** (milestone 101). Prints `#{"the": 3, "cat": 1, "and": 2, "hat": 1, "bat": 1}`, `3`, `5`, `the: 3`, `and: 2` on five lines, exits with 0.
+**Word count** (milestone 101). Prints `Map { "the": 3, "cat": 1, "and": 2, "hat": 1, "bat": 1 }`, `3`, `5`, `the: 3`, `and: 2` on five lines, exits with 0.
 
 ```
 fun main() {
     let text = "the cat and the hat and the bat";
-    let mut counts: Map<string, i64> = #{};
+    let mut counts: Map<string, i64> = Map {};
     for w of text.split(" ") {
         counts[w] = counts.get(w).unwrap_or(0) + 1;
     }
@@ -3865,11 +3869,11 @@ fun main() {
 }
 ```
 
-**Dedupe** (milestone 101). Prints `[3, 1, 2]`, `#{3, 1, 2}`, `true`, `#{1, 2, 3, 4}`, `#{2, 3}`, `#{1}`, `true` on seven lines, exits with 0.
+**Dedupe** (milestone 101). Prints `[3, 1, 2]`, `Set { 3, 1, 2 }`, `true`, `Set { 1, 2, 3, 4 }`, `Set { 2, 3 }`, `Set { 1 }`, `true` on seven lines, exits with 0.
 
 ```
 fun main() {
-    let mut seen: Set<i64> = #{};
+    let mut seen: Set<i64> = Set {};
     let mut firsts: i64[] = [];
     for x of [3, 1, 3, 2, 1] {
         if seen.insert(x) {
@@ -3879,12 +3883,12 @@ fun main() {
     println(firsts.debug());
     println(seen.debug());
     println(seen.has(2));
-    let a = #{1, 2, 3};
-    let b = #{2, 3, 4};
+    let a = Set { 1, 2, 3 };
+    let b = Set { 2, 3, 4 };
     println(a.union(b).debug());
     println(a.intersect(b).debug());
     println(a.minus(b).debug());
-    println(#{1, 2} == #{2, 1});
+    println(Set { 1, 2 } == Set { 2, 1 });
 }
 ```
 
@@ -4070,6 +4074,7 @@ The spec is implemented in five milestones, each ending in a program that runs. 
 | 175 | Discarded `Result` (v18) | an expression statement of type `Result` is E0467; `let _ = …;` drops one | `tests/programs/errors/discarded_result` (done) |
 | 176 | Dotted variants (v18) | `.Some(x)`, `.None`, `.Circle(r)` in every pattern; a bare name always binds; E0212, E0468 | `tests/programs/patterns/dot_variants` (done) |
 | 177 | Type arguments and lossless `as` (v18) | `max<i64>(a, b)`, `Chan<Job>.new()`, `Pair<u8> { … }`, `Option<i64>.None`; `as` only without loss; `try_into`, `truncate`, `saturate`, `round`, `floor`, `ceil`; E0469 | `tests/programs/generics/type_arguments`, `tests/programs/numbers/conversions` (done) |
+| 178 | Collection literals (v18) | `Map { "a": 1 }`, `Set { 1, 2 }`, `Map {}`; `FromEntries` and `FromItems`; `#{…}` removed; E0213, E0470 | `tests/programs/collections/literals` (done) |
 
 In milestones 1 and 2, every value can be treated as `i64`, so codegen can start before the type checker exists. Until milestone 4 provides `lugha_rt_panic`, integer `+`, `-` and `*` wrap, and `/` and `%` stop the program with a trap on a zero divisor or `MIN / -1`. Milestone 3 then replaces that assumption with real types. The process exit code is the low 8 bits of `main`'s result, so milestone tests use results below 256.
 

@@ -106,7 +106,8 @@ fn check_with(
             .get(id.0 as usize)
             .is_some_and(|t: &Type| liveness::maybe_deep(t, &structs))
     };
-    let live = liveness::analyse(units, &checker.mentions, &checker.callees, &deep);
+    let tables = (&checker.mentions, &checker.callees, &checker.collections);
+    let live = liveness::analyse(units, tables, &deep);
     Ok((
         Checked {
             types,
@@ -121,6 +122,7 @@ fn check_with(
             conversions: checker.conversions,
             try_conversions: checker.try_conversions,
             through_index: checker.through_index,
+            collections: checker.collections,
             impls: checker.impls,
             nominal_calls: checker
                 .nominal_calls

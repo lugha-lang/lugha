@@ -99,10 +99,8 @@ fun go(): Result<(), json.JsonError> {
     let v = json.parse("{{\"user\": {{\"name\": \"ada\", \"id\": 9007199254740993}}}}")?;
     println((json.get(v, "user").and_then(fun(u) = json.get(u, "name")).and_then(json.as_text)).debug());
     println((json.get(v, "user").and_then(fun(u) = json.get(u, "id")).and_then(json.as_i64)).debug());
-    let reply = json.Value.Object(#{
-        "ok": json.Value.Bool(true),
-        "tags": json.Value.Array([json.Value.Text("a"), json.Value.Null]),
-    });
+    let reply = json.Value.Object(Map { "ok": json.Value.Bool(true),
+        "tags": json.Value.Array([json.Value.Text("a"), json.Value.Null]), });
     println(json.stringify(reply)?);
     println(json.pretty(reply)?);
     match json.parse("{{\"a\": 1, \"a\": 2}}") {
@@ -150,7 +148,7 @@ fun main() {
          ok Float(9.223372036854776e18)\nok Integer(-9223372036854775808)\n\
          ok Float(-9.223372036854776e18)\nok Float(1.0)\nok Float(100.0)\nok Integer(0)\n\
          ok Float(-0.0)\nok Float(0.0)\n\
-         ok Object(#{\"b\": Integer(1), \"a\": Text(\"x\"), \"c\": Object(#{}), \"d\": Array([])})\n\
+         ok Object(Map { \"b\": Integer(1), \"a\": Text(\"x\"), \"c\": Object(Map {}), \"d\": Array([]) })\n\
          [240, 157, 132, 158, 195, 169, 34, 92, 47, 8, 12, 10, 13, 9]\n"
     );
 }
@@ -286,11 +284,9 @@ fun main() {
     written(json.stringify(json.Value.Text(text)));
     written(json.stringify(json.Value.Array([])));
     written(json.pretty(json.Value.Array([])));
-    written(json.pretty(json.Value.Object(#{})));
-    let nested = json.Value.Object(#{
-        "a": json.Value.Array([json.Value.Integer(1), json.Value.Null]),
-        "b": json.Value.Object(#{}),
-    });
+    written(json.pretty(json.Value.Object(Map {})));
+    let nested = json.Value.Object(Map { "a": json.Value.Array([json.Value.Integer(1), json.Value.Null]),
+        "b": json.Value.Object(Map {}), });
     written(json.stringify(nested));
     written(json.pretty(nested));
     let floats: f64[] = [1.0, 0.1, 1.0e300, 5.0e-324, -0.0, 1.0e21];
@@ -300,7 +296,7 @@ fun main() {
     }
     written(json.stringify(json.Value.Float(nan)));
     written(json.pretty(json.Value.Array([json.Value.Float(inf)])));
-    written(json.stringify(json.Value.Object(#{"x": json.Value.Float(-inf)})));
+    written(json.stringify(json.Value.Object(Map { "x": json.Value.Float(-inf) })));
 }
 "#);
     assert_eq!(

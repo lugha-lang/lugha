@@ -27,7 +27,11 @@ impl Checker {
                 self.item_visible(&key, expr.span);
                 Some(key)
             }
-            // A prelude struct no module declares, `Pair { … }`.
+            // A prelude struct no module declares: `Pair { … }`, and the
+            // collections built with braces, `Map { … }` and `Set { … }`.
+            None if matches!(name.name.as_str(), "Map" | "Set") => {
+                Some(format!("$prelude.{}", name.name))
+            }
             None => match self.prelude_iter_type(&name.name) {
                 Some(key) => Some(key),
                 None => {
@@ -36,6 +40,15 @@ impl Checker {
                 }
             },
         };
+        // `Map { "a": 1 }`: braces that build a collection.
+        if let Some(k) = &key
+            && self.structs.contains_key(k)
+            && let Some(ty) = self.collection_literal((expr, lit, k), expect)
+        {
+            // Its written type arguments went to the call's type name.
+            self.written_used.insert(expr.id);
+            return ty;
+        }
         let Some(info) = key.as_ref().and_then(|k| self.structs.get(k)) else {
             for (_, value) in given {
                 self.value(value, None);

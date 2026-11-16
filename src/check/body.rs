@@ -76,6 +76,10 @@ mod tests {
         let src = "fun fib(n: i32): i32 = if n < 2 { n } else { fib(n - 1) + fib(n - 2) };\n\
                    fun main(): i32 { let n: i32 = 3; let mut t: i32 = 0; for i in 0..n { t += i; } fib(10) + t - n }";
         let checked = ok(src);
-        assert!(!checked.types.contains(&Type::Error), "{:?}", checked.types);
+        // The program's own expressions; the prelude's come after them.
+        let (tokens, _) = crate::lexer::lex(src).expect("it lexes");
+        let (program, _) = crate::parser::parse(&tokens).expect("it parses");
+        let own = &checked.types[..program.expr_count as usize];
+        assert!(!own.contains(&Type::Error), "{own:?}");
     }
 }

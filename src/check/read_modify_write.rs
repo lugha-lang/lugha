@@ -172,13 +172,13 @@ mod tests {
     #[test]
     fn map_entries_are_places() {
         ok(
-            "struct P { x: i64 }\nfun main() { let mut m: Map<string, P> = #{};\n\
-            let mut n: Map<string, i64[]> = #{}; let mut c: Map<string, i64> = #{};\n\
+            "struct P { x: i64 }\nfun main() { let mut m: Map<string, P> = Map {};\n\
+            let mut n: Map<string, i64[]> = Map {}; let mut c: Map<string, i64> = Map {};\n\
             m[\"a\"].x = 5; n[\"a\"][0] = 3; n[\"a\"].push(4); c[\"a\"] += 1;\n\
             swap(n[\"a\"], n[\"b\"]); for x of mut n[\"a\"] { x = 2; } }",
         );
         assert_eq!(
-            errors("fun main() { let c: Map<string, i64> = #{}; c[\"a\"] += 1; }"),
+            errors("fun main() { let c: Map<string, i64> = Map {}; c[\"a\"] += 1; }"),
             [("E0501", "c[\"a\"]")]
         );
     }

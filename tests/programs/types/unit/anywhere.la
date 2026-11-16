@@ -11,9 +11,9 @@ fun log(s: string) {
 fun pick<T>(a: T, b: T, first: bool): T = if first { a } else { b };
 
 fun main() {
-    let m: Map<(), i64> = #{(): 7};
+    let m: Map<(), i64> = Map { (): 7 };
     println(m[()]);
-    let s: Set<()> = #{(), ()};
+    let s: Set<()> = Set { (), () };
     println(s.debug());
     let mut us: ()[] = [(), (), ()];
     us.push(());

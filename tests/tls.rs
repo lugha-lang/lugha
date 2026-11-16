@@ -243,7 +243,7 @@ fun main() {
     task.yield_now();
     let port = addr.split(\":\")[1];
     let opts = tls.Options { ca_file: \"ca.pem\", ..tls.options() };
-    let res = http.request_tls(\"POST\", \"https://localhost:{port}/x\", #{}, \"b\".to_bytes(), opts).unwrap();
+    let res = http.request_tls(\"POST\", \"https://localhost:{port}/x\", Map {}, \"b\".to_bytes(), opts).unwrap();
     println(\"{res.status} {res.text().unwrap()}\");
     match http.get(\"https://localhost:{port}/\") {
         .Ok(_) => println(\"?\"),
@@ -284,7 +284,7 @@ fun fetch(url: string, body: i64, ca_file: string) {
     let mut limits = http.limits();
     limits.body = body;
     let opts = tls.Options { ca_file: ca_file, ..tls.options() };
-    match http.request_tls_with(\"GET\", url, #{}, [], limits, opts) {
+    match http.request_tls_with(\"GET\", url, Map {}, [], limits, opts) {
         .Ok(res) => println(\"{res.status} {res.body.len} {res.body[16999999]}\"),
         .Err(e) => println(e),
     }
@@ -308,7 +308,7 @@ fun main() {
     limits.timeout_ms = 60000;
     let opts = tls.Options { ca_file: \"ca.pem\", timeout_ms: 200, address: \"\" };
     let started = time.monotonic_ms();
-    match http.request_tls_with(\"GET\", \"https://localhost:{port}/\", #{}, [], limits, opts) {
+    match http.request_tls_with(\"GET\", \"https://localhost:{port}/\", Map {}, [], limits, opts) {
         .Ok(_) => println(\"?\"),
         .Err(e) => println(e),
     }
@@ -339,7 +339,7 @@ fun server(addr: string) {
 
 fun fetch(url: string, address: string) {
     let opts = tls.Options { ca_file: \"ca.pem\", address: address, ..tls.options() };
-    match http.request_tls_with(\"GET\", url, #{}, [], http.limits(), opts) {
+    match http.request_tls_with(\"GET\", url, Map {}, [], http.limits(), opts) {
         .Ok(res) => println(\"{res.status} {res.text().unwrap()}\"),
         .Err(e) => println(e),
     }

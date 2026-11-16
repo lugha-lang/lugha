@@ -1,0 +1,12 @@
+/** Rows of name and score, kept in the order written. */
+public struct Table { public rows: (string, i64)[] }
+
+impl FromEntries<string, i64> for Table {
+    fun from_entries(keys: string[], values: i64[]): Table {
+        let mut rows: (string, i64)[] = [];
+        for i in 0..keys.len {
+            rows.push((keys[i], values[i]));
+        }
+        Table { rows: rows }
+    }
+}

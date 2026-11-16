@@ -8,12 +8,12 @@ impl P {
 }
 
 fun main() {
-    let mut m: Map<string, P> = #{};
+    let mut m: Map<string, P> = Map {};
     m["a"] = P { x: 1 };
     m["a"].x = 5;
     m["a"].bump();
     println(m["a"].x);
-    let mut n: Map<string, i64[]> = #{};
+    let mut n: Map<string, i64[]> = Map {};
     n["a"] = [1];
     n["b"] = [9];
     n["a"][0] = 3;

@@ -54,7 +54,7 @@ fn the_preludes_blocks_count_and_a_types_own_method_wins() {
         format!(
             "interface Count {{ fun keys(self): i64; }}\n\
              impl<V> Count for Map<string, V> {{ fun keys(self): i64 = self.len; }}\n\
-             fun main() {{ let m: Map<string, i64> = #{{}}; {body} }}"
+             fun main() {{ let m: Map<string, i64> = Map {{}}; {body} }}"
         )
     };
     assert!(matches!(

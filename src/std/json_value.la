@@ -260,7 +260,7 @@ derive<T: Json> Json for Option<T> {
 /** An object, its keys as text: a string as it is, an integer in decimal. */
 derive<K: Key + $JsonKey, V: Json> Json for Map<K, V> {
     fun to_json(self): Value {
-        let mut out: Map<string, Value> = #{};
+        let mut out: Map<string, Value> = Map {};
         for (k, x) of self {
             out.insert(k.$key_text(), x.to_json());
         }
@@ -269,7 +269,7 @@ derive<K: Key + $JsonKey, V: Json> Json for Map<K, V> {
 
     fun from_json(v: Value, path: string): Result<Map<K, V>, DecodeError> {
         let m = $dec_object(v, path)?;
-        let mut out: Map<K, V> = #{};
+        let mut out: Map<K, V> = Map {};
         for (k, x) of m {
             let at = "{path}[\"{k}\"]";
             let key = K.$key_from(k, at)?;
@@ -293,7 +293,7 @@ derive<T: Key + Json> Json for Set<T> {
 
     fun from_json(v: Value, path: string): Result<Set<T>, DecodeError> {
         let xs = $dec_items(v, -1, path)?;
-        let mut out: Set<T> = #{};
+        let mut out: Set<T> = Set {};
         for i in 0..xs.len {
             if !out.insert(T.from_json(xs[i], $index_path(path, i))?) {
                 return $fail($index_path(path, i), "a repeated element");
@@ -373,7 +373,7 @@ fun $enc_member<F: Json>(c: (), name: string, x: F): (string, Value) = (name, x.
 
 /** An object of `parts`, in order. */
 fun $members(parts: (string, Value)[]): Value {
-    let mut m: Map<string, Value> = #{};
+    let mut m: Map<string, Value> = Map {};
     for (k, x) of parts {
         m.insert(k, x);
     }

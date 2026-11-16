@@ -1,0 +1,9 @@
+error[E0205]: struct literal in a condition must be in parentheses
+  --> tests/programs/collections/literals/e0205.la:3:13
+  |
+3 |     if m == Map { "a": 1 } {
+  |             ^^^^^^^^^^^^^^
+  |
+  = help: wrap it in parentheses: `(Map { … })`
+
+For more about E0205, run `lughac explain E0205`.

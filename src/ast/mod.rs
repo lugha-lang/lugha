@@ -11,8 +11,8 @@ mod pattern;
 mod types;
 
 pub use expr::{
-    BinOp, Closure, Expr, ExprId, ExprKind, FormatCall, FormatText, HashKind, HashLiteral, IfLet,
-    Part, SelectArm, SelectKind, StructLiteral, TypeArgs, UnOp, spawned_call,
+    BinOp, Closure, Collection, Expr, ExprId, ExprKind, FormatCall, FormatText, IfLet, Part,
+    SelectArm, SelectKind, StructLiteral, TypeArgs, UnOp, spawned_call,
 };
 pub use header::{
     Bound, Field, Import, ImportItem, InterfaceDecl, InterfaceItem, TypeParam, Visibility,

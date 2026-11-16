@@ -271,9 +271,8 @@ impl<'ctx> Lowerer<'ctx> {
                 let deep = self.ty(place).is_deep(&self.structs);
                 self.scan_write(scan, place, deep);
             }
-            ExprKind::Hashed(lit) => {
-                self.scan_read(scan, &lit.keys);
-                self.scan_read(scan, &lit.values);
+            ExprKind::StructLit(lit) if let Some(call) = self.chosen_collection(lit) => {
+                self.scan_read(scan, call)
             }
             ExprKind::StructLit(lit) => {
                 lit.fields.iter().for_each(|(_, e)| self.scan_read(scan, e));

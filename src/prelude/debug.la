@@ -64,25 +64,31 @@ fun $debug_part<F: Debug>(ctx: (), name: string, x: F): string = x.debug();
 /** A field and its debug form, inside a struct. */
 fun $debug_field<F: Debug>(ctx: (), name: string, x: F): string = name + ": " + x.debug();
 
-/** `#{"ann": 31, "bo": 40}`: keys and values in their debug forms. */
+/** `Map { "ann": 31, "bo": 40 }`: keys and values in their debug forms. */
 impl Debug for Map<K: Key, V> {
     fun debug(self): string {
         let mut parts: string[] = [];
         for (k, v) of self.iter() {
             parts.push(k.debug() + ": " + v.debug());
         }
-        "#{{" + parts.join(", ") + "}}"
+        match parts.len {
+            0 => "Map {{}}",
+            _ => "Map {{ " + parts.join(", ") + " }}",
+        }
     }
 }
 
-/** `#{1, 2, 3}`. */
+/** `Set { 1, 2, 3 }`. */
 impl Debug for Set<T: Key> {
     fun debug(self): string {
         let mut parts: string[] = [];
         for x of self.iter() {
             parts.push(x.debug());
         }
-        "#{{" + parts.join(", ") + "}}"
+        match parts.len {
+            0 => "Set {{}}",
+            _ => "Set {{ " + parts.join(", ") + " }}",
+        }
     }
 }
 

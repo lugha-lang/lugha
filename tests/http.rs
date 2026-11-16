@@ -58,7 +58,7 @@ fun handle(req: http.Request): http.Response {
         (\"POST\", \"/echo\") => http.bytes(200, req.body),
         (\"GET\", \"/inject\") => http.Response {
             status: 200,
-            headers: #{\"x-bad\": \"a\\r\\nset-cookie: x\", \"x-good\": \"ok\"},
+            headers: Map { \"x-bad\": \"a\\r\\nset-cookie: x\", \"x-good\": \"ok\" },
             body: [],
         },
         _ => http.text(404, \"not found\"),
@@ -218,7 +218,7 @@ fun main() {{
     println(\"{{b.status}} {{b.text().unwrap()}} {{b.header(\"x-thing\").debug()}}\");
     let mut small = http.limits();
     small.body = 10;
-    println(http.request_with(\"GET\", \"http://127.0.0.1:{port}/\", #{{}}, [], small).is_err());
+    println(http.request_with(\"GET\", \"http://127.0.0.1:{port}/\", Map {{}}, [], small).is_err());
     println(http.get(\"https://127.0.0.1:{refused}/\").is_err());
     println(http.get(\"ftp://x\").debug());
     println(http.get(\"http:///\").debug());
@@ -257,7 +257,7 @@ import std.tls;
 
 fun main() {{
     let opts = tls.Options {{ address: \"127.0.0.1\", ..tls.options() }};
-    let res = http.request_tls_with(\"GET\", \"http://wrong.example:{port}/x\", #{{}}, [], http.limits(), opts).unwrap();
+    let res = http.request_tls_with(\"GET\", \"http://wrong.example:{port}/x\", Map {{}}, [], http.limits(), opts).unwrap();
     println(\"{{res.status}} {{res.text().unwrap()}}\");
 }}
 "
@@ -282,7 +282,7 @@ import std.json;
 fun handle(req: http.Request): http.Response {
     match req.path {
         \"/echo\" => match req.json() {
-            .Ok(v) => http.json(200, json.Value.Object(#{\"echo\": v})),
+            .Ok(v) => http.json(200, json.Value.Object(Map { \"echo\": v })),
             .Err(e) => http.text(400, e.message()),
         },
         \"/nan\" => http.json(200, json.Value.Array([json.Value.Float(f64.from_bits(9221120237041090560))])),
@@ -356,7 +356,7 @@ fn the_client_posts_and_reads_json() {
 import std.json;
 
 fun main() {{
-    let body = json.Value.Object(#{{\"n\": json.Value.Array([json.Value.Integer(1), json.Value.Null])}});
+    let body = json.Value.Object(Map {{ \"n\": json.Value.Array([json.Value.Integer(1), json.Value.Null]) }});
     let r = http.post_json(\"http://127.0.0.1:{port}/api\", body).unwrap();
     println(r.json().debug());
     match http.get(\"http://127.0.0.1:{port}/\").unwrap().json() {{
@@ -370,7 +370,7 @@ fun main() {{
     let out = case.command().output().unwrap();
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
-        "Ok(Object(#{\"ok\": Array([Float(1.5)])}))\nexpected a value (line 1, column 1)\n\
+        "Ok(Object(Map { \"ok\": Array([Float(1.5)]) }))\nexpected a value (line 1, column 1)\n\
          Err(\"NaN or an infinity can't be written as JSON (line 0, column 0)\")\n",
         "{}",
         String::from_utf8_lossy(&out.stderr)

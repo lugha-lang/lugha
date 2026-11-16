@@ -1,0 +1,6 @@
+fun main() {
+    let m = Map { "a": 1 };
+    if m == Map { "a": 1 } {
+        println("same");
+    }
+}

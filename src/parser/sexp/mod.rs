@@ -173,6 +173,22 @@ fn bare(expr: &Expr) -> String {
             format!("(closure ({}) {ret} {})", params.join(" "), block(&c.body))
         }
         ExprKind::Field(base, field) => format!("(. {} {})", self::expr(base), field.name),
+        // Braces only a collection can take: entries or items as written.
+        ExprKind::StructLit(lit) if lit.collection.as_ref().is_some_and(|c| !c.as_fields) => {
+            let c = lit.collection.as_ref().expect("checked by the guard");
+            let elements: String = c
+                .elements
+                .iter()
+                .map(|(k, v)| match v {
+                    Some(v) => format!(" (: {} {})", self::expr(k), self::expr(v)),
+                    None => format!(" {}", self::expr(k)),
+                })
+                .collect();
+            format!(
+                "(collection {}{elements})",
+                qualified(&lit.module, &lit.name)
+            )
+        }
         ExprKind::StructLit(lit) => {
             let fields: String = lit
                 .fields
@@ -192,11 +208,6 @@ fn bare(expr: &Expr) -> String {
         ExprKind::Tuple(elements) => list("tuple", &elements.iter().collect::<Vec<_>>()),
         ExprKind::Repeat(value, count) => list("repeat", &[value, count]),
         ExprKind::Pass(mode, place) => list(mode.word(), &[place]),
-        ExprKind::Hashed(lit) => match lit.kind {
-            crate::ast::HashKind::Map => list("map", &[&lit.keys, &lit.values]),
-            crate::ast::HashKind::Set => list("set", &[&lit.keys]),
-            crate::ast::HashKind::Empty => "(hash-empty)".to_string(),
-        },
         ExprKind::Loop { label, body } => format!("(loop{} {})", lbl(label), block(body)),
         ExprKind::If { cond, then, else_ } => {
             let otherwise = else_

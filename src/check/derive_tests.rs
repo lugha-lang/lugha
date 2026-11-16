@@ -160,7 +160,7 @@ fn eq_reaches_the_preludes_blocks_through_a_bound() {
     // `K: Key` is all a map needs; its keys reach `Key`'s blocks.
     let found = program_monos(
         "struct P { x: i64 } with Key\n\
-         fun count<K: Key>(xs: K[]): i64 { let mut m: Map<K, i64> = #{}; for x of xs { m.insert(x, 1); } m.len }\n\
+         fun count<K: Key>(xs: K[]): i64 { let mut m: Map<K, i64> = Map {}; for x of xs { m.insert(x, 1); } m.len }\n\
          fun main() { let n = count([P { x: 1 }]); }",
     );
     assert!(

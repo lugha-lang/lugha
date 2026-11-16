@@ -97,6 +97,9 @@ pub(super) struct Lowerer<'ctx> {
     pub(super) try_conversions: HashMap<ExprId, Type>,
     /// Places written through a type's `index` (`Checked::through_index`).
     pub(super) through_index: std::collections::HashSet<ExprId>,
+    /// The chosen calls of brace literals built as collections
+    /// (`Checked::collections`).
+    pub(super) collections: std::collections::HashSet<ExprId>,
     /// See `Checked::impls`.
     pub(super) impls: crate::check::Impls,
     /// See `Checked::nominal_calls`.
@@ -244,6 +247,7 @@ pub(super) fn lower<'ctx>(
         interfaces: checked.interfaces.clone(),
         try_conversions: checked.try_conversions.clone(),
         through_index: checked.through_index.clone(),
+        collections: checked.collections.clone(),
         impls: checked.impls.clone(),
         nominal_calls: checked.nominal_calls.clone(),
         qualified: checked.qualified.clone(),

@@ -433,3 +433,11 @@ fn written_type_arguments_are_kept() {
         "fun f() {\n    let a = pick<string, _>([]);\n    let s = Stack<i64>.new();\n    let p = m.Pair<u8> { a: 1 };\n    let w = xs.map<string>(g);\n}\n",
     );
 }
+
+#[test]
+fn collection_literals_keep_their_elements() {
+    check(
+        "fun f(){let m=Map{\"a\":1,k:2};let s=Set{1,2};let e=Map<string,i64>{};let p=P{x:1,..q};}",
+        "fun f() {\n    let m = Map { \"a\": 1, k: 2 };\n    let s = Set { 1, 2 };\n    let e = Map<string, i64> {};\n    let p = P { x: 1, ..q };\n}\n",
+    );
+}

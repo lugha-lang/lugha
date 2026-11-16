@@ -128,16 +128,24 @@ impl Checker {
                 super::derive::ORD,
                 super::derive::DEBUG,
                 super::derive::DISPLAY,
+                super::collections::FROM_ENTRIES,
+                super::collections::FROM_ITEMS,
             ]
             .contains(&key)
             || is_operator(key)
     }
 
     /// True for an interface a type meets only through `impl I for T`:
-    /// `Display`, and any but the prelude's and the derivable ones, which
-    /// the compiler still finds by their methods' names.
+    /// `Display`, the collection literals' interfaces, and any but the
+    /// prelude's and the derivable ones, which the compiler still finds by
+    /// their methods' names.
     pub(super) fn nominal(&self, key: &str) -> bool {
-        (module_of(key) != "$prelude" || key == super::derive::DISPLAY || is_operator(key))
+        let prelude_nominal = [
+            super::derive::DISPLAY,
+            super::collections::FROM_ENTRIES,
+            super::collections::FROM_ITEMS,
+        ];
+        (module_of(key) != "$prelude" || prelude_nominal.contains(&key) || is_operator(key))
             && !self.derives.derivable(key)
     }
 

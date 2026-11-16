@@ -1,0 +1,17 @@
+warning[W0105]: this key is already in the map
+  --> tests/programs/collections/literals/w0105.la:2:27
+  |
+2 |     let m = Map { "a": 1, "a": 2 };
+  |                           ^^^
+  |
+  = help: the later entry wins; remove one of them
+
+warning[W0105]: this value is already in the set
+  --> tests/programs/collections/literals/w0105.la:3:22
+  |
+3 |     let s = Set { 1, 1 };
+  |                      ^
+  |
+  = help: a set holds it once; remove one of them
+
+For more about W0105, run `lughac explain W0105`.

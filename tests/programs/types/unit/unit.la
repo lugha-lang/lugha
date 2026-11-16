@@ -42,6 +42,6 @@ fun main() {
     let task: Task<()> = spawn log("from a task");
     let r: () = task.join();
     println(r.debug());
-    let seen: Map<string, ()> = #{"x": ()};
+    let seen: Map<string, ()> = Map { "x": () };
     println(seen.has("x"));
 }
