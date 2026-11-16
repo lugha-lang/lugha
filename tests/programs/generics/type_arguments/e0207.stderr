@@ -1,0 +1,9 @@
+error[E0207]: `::` is not Lugha syntax
+  --> tests/programs/generics/type_arguments/e0207.la:5:18
+  |
+5 |     let s = Stack::<i64>.new();
+  |                  ^^
+  |
+  = help: write the type arguments right after the name: `Stack<…>`
+
+For more about E0207, run `lughac explain E0207`.

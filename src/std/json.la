@@ -56,7 +56,7 @@ public fun as_i64(v: Value): Option<i64> = match v { .Integer(n) => Some(n), _ =
 /** The number as a float, if `v` is a `Float` or an `Integer` (widened). */
 public fun as_f64(v: Value): Option<f64> = match v {
     .Float(x) => Some(x),
-    .Integer(n) => Some(n as f64),
+    .Integer(n) => Some(n.round<f64>()),
     _ => None,
 };
 

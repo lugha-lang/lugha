@@ -8,7 +8,7 @@ const V: &str = "struct V { x: f64 }\n\
     impl Mul for V { fun mul(self, w: V): V = V { x: self.x * w.x }; }\n\
     impl Mul<f64> for V { fun mul(self, k: f64): V = V { x: self.x * k }; }\n\
     impl Mul<u8> for V { fun mul(self, n: u8): V = V { x: self.x * (n as f64) }; }\n\
-    impl Mul<i64> for V { fun mul(self, n: i64): V = V { x: self.x * (n as f64) }; }\n";
+    impl Mul<i64> for V { fun mul(self, n: i64): V = V { x: self.x * n.round<f64>() }; }\n";
 
 #[test]
 fn the_right_operand_chooses_the_block() {
@@ -74,7 +74,7 @@ fn only_an_operator_bound_gives_an_operator() {
 fn defaults_fill_trailing_arguments() {
     ok("interface Conv<To = Self> { fun conv(self): To; }\n\
         struct C { c: f64 }\nimpl Conv for C { fun conv(self): C = self; }\n\
-        impl Conv<f64> for i64 { fun conv(self): f64 = self as f64; }\n\
+        impl Conv<f64> for i64 { fun conv(self): f64 = self.round<f64>(); }\n\
         fun same<T: Conv>(x: T): T = x.conv();\nfun main() { let c = same(C { c: 1.0 }); }");
     assert_eq!(
         errors(

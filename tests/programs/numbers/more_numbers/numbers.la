@@ -8,5 +8,5 @@ fun main() {
     let x: f32 = 0.1;
     println(x);
     println(x as f64 > 0.1);
-    println(-1 as u32);
+    println((-1).truncate<u32>());
 }

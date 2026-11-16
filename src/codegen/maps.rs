@@ -111,6 +111,7 @@ impl<'ctx> Lowerer<'ctx> {
             id: at.id,
             span: at.span,
             kind: ExprKind::Field(Box::new(base.clone()), method),
+            type_args: None,
         };
         self.method_call(at, &callee, args)
     }

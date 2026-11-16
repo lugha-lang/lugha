@@ -246,6 +246,12 @@ impl<'ctx> Lowerer<'ctx> {
         if base_type == Type::String && name.name == "slice" {
             return self.string_slice(base, args, name.span.start).map(Some);
         }
+        // `x.truncate<u8>()` and the other conversions.
+        if base_type.is_numeric() && crate::check::CONVERSIONS.contains(&name.name.as_str()) {
+            return self
+                .conversion(call, base, &name.name, name.span.start)
+                .map(Some);
+        }
         // `x.to_bits()`: the same bits as an integer.
         if base_type.is_float() && name.name == "to_bits" {
             let value = self.get(base, &base_type)?;

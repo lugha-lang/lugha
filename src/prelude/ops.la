@@ -137,7 +137,7 @@ fun $total_order_f64(a: f64, b: f64): bool = $total_key_f64(a) < $total_key_f64(
 
 /** `x`'s bits, as an integer ordered as the total order orders floats. */
 fun $total_key_f64(x: f64): i64 {
-    let bits = x.to_bits() as i64;
+    let bits = x.to_bits().truncate<i64>();
     if bits < 0 { bits ^ 9223372036854775807 } else { bits }
 }
 
@@ -146,7 +146,7 @@ fun $total_order_f32(a: f32, b: f32): bool = $total_key_f32(a) < $total_key_f32(
 
 /** `x`'s bits, ordered as the total order orders floats. */
 fun $total_key_f32(x: f32): i32 {
-    let bits = x.to_bits() as i32;
+    let bits = x.to_bits().truncate<i32>();
     if bits < 0 { bits ^ 2147483647 } else { bits }
 }
 

@@ -87,7 +87,7 @@ pub const PROGRAMS: [(&str, &str, &str); 3] = [
     ),
     (
         "callbacks_take_and_return_structs",
-        "fun shade(i: i64): Color = Color { r: i as u8, g: 1, b: 2, a: 3 };\n\
+        "fun shade(i: i64): Color = Color { r: i.truncate<u8>(), g: 1, b: 2, a: 3 };\n\
              fun main() {\n\
                  let k: f32 = 2.0;\n\
                  println((map_point(fun(p: V2): V2 = V2 { x: p.x * k, y: p.y + k })).debug());\n\

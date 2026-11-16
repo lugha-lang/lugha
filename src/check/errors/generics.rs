@@ -96,7 +96,7 @@ pub(in crate::check) fn cannot_infer(param: &str, span: Span) -> Diagnostic {
         format!("cannot infer the type argument `{param}`"),
         span,
     )
-    .with_help("annotate the variable, e.g. `let s: Stack<i64> = …;`")
+    .with_help("write the type arguments, e.g. `Stack<i64>.new()` or `pick<i64>(xs)`, or annotate the variable: `let s: Stack<i64> = …;`")
 }
 
 /// E0420: generic instances nested too deep.

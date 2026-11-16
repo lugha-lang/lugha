@@ -85,7 +85,7 @@ derive Eq for i8 {
 
 derive Key for i8 {
     fun hash(self, mut h: Hasher) {
-        h.$word(self as u64);
+        h.$word(self.truncate<u64>());
     }
 }
 
@@ -95,7 +95,7 @@ derive Eq for i16 {
 
 derive Key for i16 {
     fun hash(self, mut h: Hasher) {
-        h.$word(self as u64);
+        h.$word(self.truncate<u64>());
     }
 }
 
@@ -105,7 +105,7 @@ derive Eq for i32 {
 
 derive Key for i32 {
     fun hash(self, mut h: Hasher) {
-        h.$word(self as u64);
+        h.$word(self.truncate<u64>());
     }
 }
 
@@ -115,7 +115,7 @@ derive Eq for i64 {
 
 derive Key for i64 {
     fun hash(self, mut h: Hasher) {
-        h.$word(self as u64);
+        h.$word(self.truncate<u64>());
     }
 }
 
@@ -225,7 +225,7 @@ derive<T: Eq> Eq for T[] {
 
 derive<T: Key> Key for T[] {
     fun hash(self, mut h: Hasher) {
-        h.$word(self.len as u64);
+        h.$word(self.len.truncate<u64>());
         for x of self {
             x.hash(mut h);
         }
@@ -260,7 +260,7 @@ derive Eq for enum {
 
 derive Key for enum {
     fun hash(self, mut h: Hasher) {
-        h.$word(derive.index(self) as u64);
+        h.$word(derive.index(self).truncate<u64>());
         h = derive.fold(self, h, $part);
     }
 }
@@ -291,7 +291,7 @@ derive<K: Key, V: Key> Key for Map<K, V> {
             x.hash(mut e);
             sum = sum.wrapping_add(e.finish());
         }
-        h.$word(self.len as u64);
+        h.$word(self.len.truncate<u64>());
         h.$word(sum);
     }
 }
@@ -309,7 +309,7 @@ derive<T: Key> Key for Set<T> {
             x.hash(mut e);
             sum = sum.wrapping_add(e.finish());
         }
-        h.$word(self.len as u64);
+        h.$word(self.len.truncate<u64>());
         h.$word(sum);
     }
 }

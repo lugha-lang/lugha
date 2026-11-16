@@ -104,6 +104,10 @@ impl Checker {
         let generics = signature.generics.clone();
         let (muts, is_extern) = (signature.muts.clone(), signature.is_extern);
         let name = key.rsplit('.').next().unwrap_or(key);
+        let written = match &call.kind {
+            ExprKind::Call(callee, _) => self.written(callee, name, &generics),
+            _ => Default::default(),
+        };
         if args.len() != params.len() {
             self.report(errors::arity(name, params.len(), args.len(), call.span));
             self.unchecked_args(args);
@@ -117,13 +121,7 @@ impl Checker {
             true => (self.extern_inputs(key, args, params.clone()), Vec::new()),
             false => self.mut_inputs(&muts, args, &params),
         };
-        match self.infer(
-            call,
-            &generics,
-            Default::default(),
-            Some((&ret, expect)),
-            &inputs,
-        ) {
+        match self.infer(call, &generics, written, Some((&ret, expect)), &inputs) {
             Some(targs) => {
                 self.settle_mut(&passed, args, (&params, &generics, &targs));
                 self.used(call, key, &targs);

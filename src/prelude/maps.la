@@ -32,7 +32,7 @@ fun $map_find<K: Key, V>(m: Map<K, V>, k: K): (i64, i64) {
     let mask = m.$slots.len - 1;
     let mut h = Hasher.new();
     k.hash(mut h);
-    let mut i = (h.finish() & (mask as u64)) as i64;
+    let mut i = (h.finish() & (mask.truncate<u64>())).truncate<i64>();
     while true {
         let s = m.$slots[i];
         if s == 0 {

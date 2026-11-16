@@ -27,7 +27,7 @@ fun main() {
     for b0 in 0..256 {
         let mut line = "";
         for b1 in 0..256 {
-            line = line + verdict([b0 as u8, b1 as u8]);
+            line = line + verdict([b0.truncate<u8>(), b1.truncate<u8>()]);
         }
         println("{b0}: {line}");
     }

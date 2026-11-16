@@ -2,5 +2,5 @@
 fun area(r: f64): f64 = 3.14159 * r * r;
 
 fun main(): i32 {
-    area(2.5) as i32
+    area(2.5).saturate<i32>()
 }

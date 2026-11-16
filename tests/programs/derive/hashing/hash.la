@@ -42,8 +42,8 @@ fun main() {
     let mut small: Map<u8, char> = #{};
     let mut wide: Map<i32, bool> = #{};
     for i in 0..200 {
-        small.insert(i as u8, 'x');
-        wide.insert(-(i as i32), i % 2 == 0);
+        small.insert(i.truncate<u8>(), 'x');
+        wide.insert(-(i.truncate<i32>()), i % 2 == 0);
     }
     println("{small.len} {wide.get(-4).debug()} {wide.get(5).debug()}");
 

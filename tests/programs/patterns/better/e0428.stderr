@@ -9,7 +9,7 @@ error[E0428]: `r` is not bound in this alternative
 error[E0428]: `n` is i64 in the first alternative but f64 here
   --> tests/programs/patterns/better/e0428.la:7:17
   |
-7 |     .Count(n) | .Circle(n) => n as f64,
+7 |     .Count(n) | .Circle(n) => n.round<f64>(),
   |                 ^^^^^^^^^^
   |
   = help: every alternative of `p | q` must bind the same names, each at one type

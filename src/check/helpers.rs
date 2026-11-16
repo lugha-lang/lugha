@@ -7,7 +7,7 @@ use super::expr::Expect;
 use super::generics::subst;
 use super::infer::bind;
 use super::{Checker, Type, errors};
-use crate::ast::{Expr, Ident};
+use crate::ast::{Expr, ExprKind, Ident};
 
 impl Checker {
     /// `xs.m(args)` where `xs` is an array and `m` a helper: a call of the
@@ -39,7 +39,11 @@ impl Checker {
         }
         // The receiver was checked already: it binds the block's parameters.
         let generics = m.generics.clone();
-        let bound = bind(&block.self_type(), receiver, &generics);
+        let mut bound = bind(&block.self_type(), receiver, &generics);
+        // The method's own parameters may be written: `xs.map<string>(f)`.
+        if let ExprKind::Call(callee, _) = &call.kind {
+            bound.extend(self.written(callee, &name.name, &generics[m.outer..]));
+        }
         let inputs: Vec<_> = args
             .iter()
             .zip(&m.params)

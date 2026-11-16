@@ -425,3 +425,11 @@ fn caller_location_goes_on_its_own_line() {
         "@caller_location\nfun f(n: i64): i64 {\n    if n < 0 {\n        panic(\"no\");\n    }\n    n\n}\nimpl P {\n    @caller_location\n    fun g(self) {}\n}\n",
     );
 }
+
+#[test]
+fn written_type_arguments_are_kept() {
+    check(
+        "fun f(){let a=pick<string,_>([]);let s=Stack<i64>.new();let p=m.Pair<u8>{a:1};let w=xs.map<string>(g);}",
+        "fun f() {\n    let a = pick<string, _>([]);\n    let s = Stack<i64>.new();\n    let p = m.Pair<u8> { a: 1 };\n    let w = xs.map<string>(g);\n}\n",
+    );
+}

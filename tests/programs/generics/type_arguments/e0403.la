@@ -1,0 +1,7 @@
+fun first<T>(xs: T[]): T = xs[0];
+fun ordered<T: Ord>(a: T, b: T): bool = a < b;
+
+fun main() {
+    let n = first<i64>(["a"]);
+    let o = ordered<f64>(1.0, 2.0);
+}

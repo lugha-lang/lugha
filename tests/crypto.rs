@@ -258,7 +258,7 @@ fn hkdf_sha256_matches_rfc_5869_and_checks_lengths() {
     let out = run("fun span(from: i64, to: i64): u8[] {
     let mut out: u8[] = [];
     for i in from..to {
-        out.push(i as u8);
+        out.push(i.truncate<u8>());
     }
     out
 }

@@ -21,7 +21,7 @@ const PICK: Option<Color> = Some(Color.Mix(1, MAX_PLAYERS));
 const NONE: Option<i64> = None;
 const RED: Color = Color.Red;
 const FIRST: i64 = PRIMES[0] + ORIGIN.y;
-const RATIO: f64 = MAX_PLAYERS as f64 / 3.0;
+const RATIO: f64 = MAX_PLAYERS.round<f64>() / 3.0;
 const DONE: Result<(), string> = Ok(());
 
 fun total(xs: i64[]): i64 {

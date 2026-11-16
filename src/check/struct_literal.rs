@@ -134,16 +134,19 @@ impl Checker {
                 _ => found,
             };
         }
-        match self.infer(
-            expr,
-            &generics,
-            Default::default(),
-            Some((&ty, expect)),
-            &inputs,
-        ) {
+        let written = self.written(expr, &lit_name(expr), &generics);
+        match self.infer(expr, &generics, written, Some((&ty, expect)), &inputs) {
             Some(targs) => subst(&ty, &generics, &targs),
             None => Type::Error,
         }
+    }
+}
+
+/// The struct's name in a literal, for messages.
+fn lit_name(expr: &Expr) -> String {
+    match &expr.kind {
+        crate::ast::ExprKind::StructLit(literal) => literal.name.name.clone(),
+        _ => "this".to_string(),
     }
 }
 

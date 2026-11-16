@@ -26,8 +26,22 @@ impl<'ctx> Lowerer<'ctx> {
             from
         };
         let value = self.get(inner, &from)?;
+        Ok(self.convert(value, &from, &to))
+    }
+
+    /// `value` of type `from` as a `to`: integers truncate or extend by the
+    /// source's signedness, integers become the nearest float, floats
+    /// become integers toward zero, clamped, NaN as 0, and an integer
+    /// becomes a `char` or U+FFFD.
+    pub(super) fn convert(
+        &self,
+        value: BasicValueEnum<'ctx>,
+        from: &Type,
+        to: &Type,
+    ) -> BasicValueEnum<'ctx> {
+        let (from, to) = (from.clone(), to.clone());
         let b = &self.builder;
-        Ok(match (&from, &to) {
+        match (&from, &to) {
             _ if from == to => value,
             // An integer `as char`: U+FFFD unless it is a scalar value.
             (_, Type::Char) => self.to_char(value.into_int_value(), &from).into(),
@@ -83,7 +97,7 @@ impl<'ctx> Lowerer<'ctx> {
                 .expect(POSITIONED)
                 .into()
             }
-        })
+        }
     }
 }
 
@@ -135,7 +149,7 @@ mod tests {
     #[test]
     fn integer_casts_follow_signedness() {
         let ir = ir(
-            "fun main() { let a: i32 = -7; let b = a as i64; let c: u8 = 200; let d = c as i64; let e = d as u8; }",
+            "fun main() { let a: i32 = -7; let b = a as i64; let c: u8 = 200; let d = c as i64; let e = d.truncate<u8>(); }",
         );
         assert!(ir.contains("sext i32"), "{ir}");
         assert!(ir.contains("zext i8"), "{ir}");
@@ -145,7 +159,7 @@ mod tests {
     #[test]
     fn float_casts_use_the_right_conversions() {
         let ir = ir(
-            "fun main() { let c: u8 = 200; let f = c as f64; let x = 2.5; let i = x as i32; let u = x as u8; }",
+            "fun main() { let c: u8 = 200; let f = c as f64; let x = 2.5; let i = x.saturate<i32>(); let u = x.saturate<u8>(); }",
         );
         assert!(ir.contains("uitofp i8"), "{ir}");
         assert!(ir.contains("@llvm.fptosi.sat.i32.f64"), "{ir}");
@@ -157,7 +171,7 @@ mod tests {
         let ir = ir("fun main() {\n\
             let a: u64 = 1; let b = a + a; let c = a < b;\n\
             let d: u32 = 7; let e = d / d;\n\
-            let x: f32 = 1.5; let y = x + x; let z = y as f64; let w = z as f32;\n\
+            let x: f32 = 1.5; let y = x + x; let z = y as f64; let w = z.round<f32>();\n\
         }");
         for needle in [
             "@llvm.uadd.with.overflow.i64",
@@ -173,9 +187,9 @@ mod tests {
     }
 
     #[test]
-    fn integers_become_chars_or_the_replacement() {
-        let ir = ir("fun main() { let n: u32 = 65; let c = n as char; println(c); }");
-        assert!(ir.contains("i32 65533"), "{ir}");
+    fn a_byte_becomes_a_char() {
+        let ir = ir("fun main() { let n: u8 = 65; let c = n as char; println(c); }");
+        assert!(ir.contains("zext i8"), "{ir}");
         assert!(ir.contains("@lugha_rt_print_char"), "{ir}");
     }
 }

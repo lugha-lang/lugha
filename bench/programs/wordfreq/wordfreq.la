@@ -21,7 +21,7 @@ fun vocabulary(rng: Lcg): (string[], Lcg) {
         let len = 3 + rng.next() % 8;
         let mut bytes: u8[] = [];
         for _ in 0..len {
-            bytes.push((97 + rng.next() % 26) as u8);
+            bytes.push((97 + rng.next() % 26).truncate<u8>());
         }
         words.push(string_from_utf8(bytes).unwrap());
     }

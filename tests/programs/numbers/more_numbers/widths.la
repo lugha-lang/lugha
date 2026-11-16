@@ -13,13 +13,13 @@ fun main() {
     println(half > 9223372036854775807);
 
     // casts: saturation, NaN, truncation, signedness
-    println(1.0e20 as u32);
-    println(-5.5 as u64);
+    println((1.0e20).saturate<u32>());
+    println((-5.5).saturate<u64>());
     let nan: f64 = 0.0 / 0.0;
-    println(nan as u32);
-    println(300 as u32 as u8);
-    println(b as i64);
-    println(a as f32);
+    println(nan.saturate<u32>());
+    println((300 as u32).truncate<u8>());
+    println(b.truncate<i64>());
+    println(a.round<f32>());
     println(a as u64 + 1);
 
     // f32 prints its own shortest form

@@ -113,6 +113,19 @@ impl Parser<'_> {
                     }
                     Err(field) => field,
                 },
+                TokenKind::Lt if super::type_args::takes_type_args(&expr) => {
+                    match self.try_type_args() {
+                        Some(args) => {
+                            expr = self.with_type_args(start, expr, args)?;
+                            continue;
+                        }
+                        None => return Ok(expr),
+                    }
+                }
+                TokenKind::ColonColon if self.peek_at(1) == &TokenKind::Lt => {
+                    expr = self.turbofish(start, expr)?;
+                    continue;
+                }
                 TokenKind::ColonColon => self.colon_colon(expr)?,
                 TokenKind::Question => {
                     self.bump();
@@ -152,6 +165,24 @@ impl Parser<'_> {
             }
         }
         Ok(Err(ExprKind::Field(Box::new(base), member)))
+    }
+
+    /// `base::<T>`: E0207, then read as `base<T>`.
+    #[inline(never)]
+    fn turbofish(&mut self, start: usize, base: Expr) -> PResult<Expr> {
+        let at = self.bump();
+        let Some(args) = self.try_type_args() else {
+            return Err(self.expected("type arguments after `::`"));
+        };
+        let name = match &base.kind {
+            ExprKind::Name(name) => name.clone(),
+            ExprKind::Field(_, member) => member.name.clone(),
+            _ => "name".to_string(),
+        };
+        let message = "`::` is not Lugha syntax";
+        let help = format!("write the type arguments right after the name: `{name}<…>`");
+        self.error(Diagnostic::error("E0207", message, at).with_help(help));
+        self.with_type_args(start, base, args)
     }
 
     /// `base::member`: E0207, then read as `base.member`.

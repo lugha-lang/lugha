@@ -107,6 +107,22 @@ fn lbl(label: &Option<crate::ast::Ident>) -> String {
 
 /// Prints one expression.
 pub fn expr(expr: &Expr) -> String {
+    let plain = bare(expr);
+    match &expr.type_args {
+        Some(written) => {
+            let args: Vec<String> = written
+                .args
+                .iter()
+                .map(|a| a.as_ref().map_or("_".to_string(), self::ty))
+                .collect();
+            format!("(targs {plain} {})", args.join(" "))
+        }
+        None => plain,
+    }
+}
+
+/// `expr` without its written type arguments.
+fn bare(expr: &Expr) -> String {
     let list = |head: &str, items: &[&Expr]| {
         let mut parts = vec![head.to_string()];
         parts.extend(items.iter().map(|e| self::expr(e)));

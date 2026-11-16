@@ -1,0 +1,9 @@
+fun pair<A, B>(a: A, b: B): (A, B) = (a, b);
+fun plain(x: i64): i64 = x;
+struct Point { x: i64 }
+
+fun main() {
+    let p = pair<u8>(1, "x");
+    let q = plain<i64>(1);
+    let r = Point<i64> { x: 1 };
+}

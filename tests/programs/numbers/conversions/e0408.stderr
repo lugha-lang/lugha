@@ -1,0 +1,33 @@
+error[E0408]: `truncate` can't convert `f64` to `u8`
+  --> tests/programs/numbers/conversions/e0408.la:2:17
+  |
+2 |     let a = 2.5.truncate<u8>();
+  |                 ^^^^^^^^
+  |
+  = help: `truncate` keeps the low bits of an integer; from a float, write `round`, `floor`, `ceil` or `saturate`
+
+error[E0408]: `floor` can't convert `i64` to `i64`
+  --> tests/programs/numbers/conversions/e0408.la:3:15
+  |
+3 |     let b = 7.floor<i64>();
+  |               ^^^^^
+  |
+  = help: `floor` and `ceil` round a float; an integer is already whole
+
+error[E0408]: `truncate` can't convert `i64` to `bool`
+  --> tests/programs/numbers/conversions/e0408.la:4:17
+  |
+4 |     let c = 300.truncate<bool>();
+  |                 ^^^^^^^^
+  |
+  = help: `truncate` keeps the low bits of an integer; from a float, write `round`, `floor`, `ceil` or `saturate`
+
+error[E0412]: cannot infer the type argument `U`
+  --> tests/programs/numbers/conversions/e0408.la:5:17
+  |
+5 |     let d = 1.5.round();
+  |                 ^^^^^
+  |
+  = help: write the target: `x.round<u8>()`
+
+For more about E0408 and E0412, run `lughac explain <code>`.

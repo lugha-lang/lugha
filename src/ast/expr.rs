@@ -43,6 +43,19 @@ pub struct Expr {
     pub span: Span,
     /// Which expression.
     pub kind: ExprKind,
+    /// Type arguments written after a name, a member name or a struct
+    /// literal's name: `max<i64>`, `xs.map<string>`, `Pair<u8> { … }`.
+    /// Boxed: rare, and every `Expr` stays small.
+    pub type_args: Option<Box<TypeArgs>>,
+}
+
+/// Type arguments written at a use, and where.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeArgs {
+    /// In order; `None` for `_`, left to inference.
+    pub args: Vec<Option<super::Type>>,
+    /// From `<` to `>`.
+    pub span: Span,
 }
 
 /// The expression forms of the language.

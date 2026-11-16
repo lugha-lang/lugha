@@ -1,0 +1,19 @@
+error[E0418]: `pair` takes 2 type arguments but 1 was given
+  --> tests/programs/generics/type_arguments/e0418.la:6:17
+  |
+6 |     let p = pair<u8>(1, "x");
+  |                 ^^^^
+
+error[E0418]: `plain` takes 0 type arguments but 1 was given
+  --> tests/programs/generics/type_arguments/e0418.la:7:18
+  |
+7 |     let q = plain<i64>(1);
+  |                  ^^^^^
+
+error[E0418]: `Point` takes 0 type arguments but 1 was given
+  --> tests/programs/generics/type_arguments/e0418.la:8:18
+  |
+8 |     let r = Point<i64> { x: 1 };
+  |                  ^^^^^
+
+For more about E0418, run `lughac explain E0418`.

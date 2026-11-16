@@ -122,7 +122,7 @@ fn has_popcnt(code: &[u8]) -> bool {
 fn the_default_cpu_is_baseline_x86_64_and_cpu_levels_add_instructions() {
     // `args()` keeps the value unknown until the program runs, so LLVM
     // can't fold the count away: 12345 has six bits set.
-    let src = "fun main(): i32 { let x = args().len as u64 * 12345; x.count_ones() as i32 }\n";
+    let src = "fun main(): i32 { let x = args().len.truncate<u64>() * 12345; x.count_ones().truncate<i32>() }\n";
     let (baseline, code) = object_and_exit(src, Cpu::default());
     assert_eq!(code, Some(6));
     assert!(!has_popcnt(&baseline), "baseline x86-64 has no popcnt");
@@ -163,7 +163,7 @@ fn division_truncates_and_remainder_takes_the_dividends_sign() {
 #[test]
 fn integer_overflow_panics() {
     for body in [
-        "let x: i64 = 9223372036854775807; (x + 1) as i32",
+        "let x: i64 = 9223372036854775807; (x + 1).truncate<i32>()",
         "let x: i32 = -2147483648; let y = -x; y",
         "let b: u8 = 16; (b * b) as i32",
     ] {
@@ -176,7 +176,7 @@ fn bad_divisions_panic() {
     for body in [
         "1 / 0",
         "1 % 0",
-        "let m: i64 = -9223372036854775808; (m / -1) as i32",
+        "let m: i64 = -9223372036854775808; (m / -1).truncate<i32>()",
     ] {
         let status = run(&format!("fun main(): i32 {{ {body} }}"));
         assert_eq!(status.code(), Some(PANIC), "{body}: {status:?}");
@@ -302,7 +302,7 @@ fun main(): i32 {
     let k = early(0);
     let l = early(7);
     let sum = a.x + b.x + c.x + c.y + d + f + g.x + h + i.x + j.x + k.x + l.x;
-    sum as i32
+    sum.truncate<i32>()
 }
 ";
     // 1 + 2 + 3 + 3 + 2 + 4 + 4 + 4 + 6 + 6 + 100 + 8
@@ -340,7 +340,7 @@ fun main(): i32 {
     let add3 = fun(n: i64): i64 = n + 3;
     let eq = if same(x, x) && !same(x, y) { 1 } else { 0 };
     let r = acc.i.a + acc.n + total + twice(add3, 1) + area_of(Sq { s: 4 }) + eq;
-    r as i32
+    r.truncate<i32>()
 }
 ";
     // acc: a = 2+5+2+5 = 14, n = 3+7+3+7 = 20; total = 1 + 12 + 9 = 22;

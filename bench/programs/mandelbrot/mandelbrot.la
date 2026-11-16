@@ -3,12 +3,12 @@
 
 fun main() {
     let n = parse_i64(args()[1]).unwrap();
-    let size = n as f64;
+    let size = n.round<f64>();
     let mut inside = 0;
     for y in 0..n {
-        let ci = 2.0 * y as f64 / size - 1.0;
+        let ci = 2.0 * y.round<f64>() / size - 1.0;
         for x in 0..n {
-            let cr = 2.0 * x as f64 / size - 1.5;
+            let cr = 2.0 * x.round<f64>() / size - 1.5;
             let mut zr = 0.0;
             let mut zi = 0.0;
             let mut tr = 0.0;

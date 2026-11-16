@@ -1,0 +1,15 @@
+// Built-in generic types take written type arguments too.
+fun main() {
+    let c = Chan<string>.buffered(2);
+    c.send("hi");
+    println(c.recv().debug());
+    let r = Ref<f32>.new(1.5);
+    r.set(2.5);
+    println(r.get());
+    let none = Option<i64>.None;
+    println(none.debug());
+    // Comparisons stay comparisons.
+    let (a, b, c2) = (1, 2, 3);
+    println(a < b);
+    println([a < b, c2 > a].debug());
+}

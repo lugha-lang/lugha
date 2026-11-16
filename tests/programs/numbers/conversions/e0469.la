@@ -1,0 +1,11 @@
+fun widen<T: Num>(x: T): f64 = x as f64;
+
+fun main() {
+    let big: i64 = 300;
+    let a = big as u8;
+    let b = 2.5 as i64;
+    let c = big as f64;
+    let n: u32 = 65;
+    let d = n as char;
+    let e = 'é' as u8;
+}

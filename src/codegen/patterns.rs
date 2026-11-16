@@ -284,7 +284,7 @@ mod tests {
     #[test]
     fn flat_matches_keep_their_switch() {
         let ir = ir(&format!(
-            "{SHAPE}fun f(s: Shape): i64 = match s {{ .Circle(_) => 1, .Rect(w, _) => w as i64, .Empty => 3 }};\nfun main() {{}}"
+            "{SHAPE}fun f(s: Shape): i64 = match s {{ .Circle(_) => 1, .Rect(w, _) => w.saturate<i64>(), .Empty => 3 }};\nfun main() {{}}"
         ));
         assert!(body(&ir, "f").contains("switch i32"), "{ir}");
     }

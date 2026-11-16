@@ -8,7 +8,7 @@ impl Circle { fun area(self): f64 = self.r; }
 struct Square { side: f64 }
 impl Shape for Square { fun area(self): i64 = 1; fun extra(self) {} }
 
-fun total<T: Shape>(xs: T[]): f64 = xs.len as f64;
+fun total<T: Shape>(xs: T[]): f64 = xs.len.round<f64>();
 
 fun main() {
     println(total([Circle { r: 1.0 }]));

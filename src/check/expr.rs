@@ -44,6 +44,7 @@ impl Checker {
     /// Checks `expr`, records its type and returns it.
     pub(super) fn expr(&mut self, expr: &Expr, expect: Option<&Expect>) -> Type {
         let ty = self.expr_kind(expr, expect);
+        self.untaken_type_args(expr, &ty);
         // An actor's state is made only inside the actor or for `spawn`.
         self.state_outside(expr, &ty);
         self.record(expr, ty.clone());

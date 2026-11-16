@@ -16,7 +16,7 @@ impl Mul<u8> for V {
 }
 
 impl Mul<i64> for V {
-    fun mul(self, n: i64): V = V { x: self.x * (n as f64) };
+    fun mul(self, n: i64): V = V { x: self.x * (n.round<f64>()) };
 }
 
 fun main() {

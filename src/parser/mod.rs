@@ -33,6 +33,7 @@ mod tasks;
 #[cfg(test)]
 mod test_util;
 mod tuples;
+mod type_args;
 
 use crate::ast::{Expr, ExprId, ExprKind, Ident, Program};
 use crate::diagnostic::Diagnostic;
@@ -216,6 +217,7 @@ impl Parser<'_> {
             id,
             span: Span::new(start, self.prev_end()),
             kind,
+            type_args: None,
         }
     }
 

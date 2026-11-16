@@ -27,8 +27,9 @@ Nov 15, 2026 · @kithinji
 - Sizes in bytes: `8.kb()`, `64.mb()`, `1.gb()` on the integer types from `i16` and `u16` up, in powers of 1024, each keeping its receiver's type (milestone 174; section 5).
 - A discarded `Result` is an error (E0467): an expression statement of type `Result` must be handled (`?`, `match`) or dropped on purpose with `let _ = …;` (milestone 175; section 6).
 - Enum variants in patterns take a leading dot, `.Some(x)`, `.None`, `.Circle(r)`, and a bare name in a pattern is always a binding, at the top level too (E0212, E0468) (milestone 176; sections 3–4).
+- Type arguments may be written at a use, `pick<string>([])`, `xs.map<string>(f)`, `Chan<Job>.new()`, `Pair<u8> { … }`, `Option<i64>.None`, with `_` for one left to inference; `as` converts only where nothing can be lost, and `try_into`, `truncate`, `saturate`, `round`, `floor` and `ceil` name the rest (E0469) (milestone 177; sections 3–5).
 
-**Breaking:** every variant in a pattern takes a leading dot (milestone 176): `Some(x) =>` is `.Some(x) =>`, `None =>` is `.None =>`, `if let Some(x) = o` is `if let .Some(x) = o`; an undotted one is E0212 or E0468, and `mut None` is E0468, not E0428. A `Result` used as a statement is E0467 (milestone 175): write `let _ = f();` to drop one on purpose. `assert_eq` and `assert_ne` are ordinary generic calls (milestone 173): an argument that can't be typed alone, first (`assert_eq(None, o)`), is E0412; write it second. The prelude's helpers are only methods (milestone 172): `map(xs, f)`, `str_trim(s)` and the like are no longer functions a program can call (E0301); write `xs.map(f)`, `s.trim()`. Operators go through blocks (milestone 171): an own `fun add(self, o: V): V` becomes `impl Add for V { … }`, several `mul`s on one type become one `impl Mul<R> for V` each, and `impl f64 { fun mul(self, v: V): V }` becomes `impl Mul<V> for f64` (that form is now E0466; E0458 is retired); an operator on an interface value is E0404, and a bound gives an operator only when it is an operator interface (`T: Mul<f64>`), not an interface with its own `mul`. Printing needs `Display` (milestone 170): `println(xs)`, `"{opt}"` and `to_string(p)` on an array, `Option`, tuple, map, `()` or a struct or enum without `impl Display` are E0422; write `.debug()` for the old text, or `impl Display`. A type's own `show` method becomes `impl Display for T`, and is no longer used inside an array or another value's text. `unwrap()` on an `Err` shows the error's debug form (`"boom"` quoted). `debug` is a reserved name. A struct or enum ordered with `<`, `sort`, `min` or `max` needs `with Ord` or `impl Ord` (milestone 168); an own `cmp` method no longer orders it, and `Ord` now implies `Eq`. Floats aren't `Ord`: `[1.5].sort()`, `math.min(1.5, 2.0)` and tuples or structs holding a float that are ordered are E0451; sort floats with `xs.sort_by(f64.total_order)`. A struct or enum compared with `==` or used as a map key or set value needs `with Eq` or `with Key` (milestone 167); own `eq` and `hash` methods become `impl Eq` and `impl Key`. A struct or enum encoded, decoded or otherwise used through a derivable interface needs `with I` (milestone 165); a type's own `to_json` or `show` no longer replaces a derived item. A type that met an interface by its methods needs `impl I for T`; methods that implement an interface move from `impl T { … }` into it. A number, string or array converted to a program's interface (`let x: Any = 1;`) is E0422 unless a block implements it for that type (milestone 169).
+**Breaking:** a numeric `as` that can lose information is E0469 (milestone 177): `n as u8` for a wider `n` is `n.truncate<u8>()` for the old bits, a float `as` an integer is `x.saturate<i64>()` for the old result, `n as f64` for an `i64` is `n.round<f64>()`, `n as char` is `n.try_into<char>()`; `f(a < b, c > (d))` now passes type arguments. Every variant in a pattern takes a leading dot (milestone 176): `Some(x) =>` is `.Some(x) =>`, `None =>` is `.None =>`, `if let Some(x) = o` is `if let .Some(x) = o`; an undotted one is E0212 or E0468, and `mut None` is E0468, not E0428. A `Result` used as a statement is E0467 (milestone 175): write `let _ = f();` to drop one on purpose. `assert_eq` and `assert_ne` are ordinary generic calls (milestone 173): an argument that can't be typed alone, first (`assert_eq(None, o)`), is E0412; write it second. The prelude's helpers are only methods (milestone 172): `map(xs, f)`, `str_trim(s)` and the like are no longer functions a program can call (E0301); write `xs.map(f)`, `s.trim()`. Operators go through blocks (milestone 171): an own `fun add(self, o: V): V` becomes `impl Add for V { … }`, several `mul`s on one type become one `impl Mul<R> for V` each, and `impl f64 { fun mul(self, v: V): V }` becomes `impl Mul<V> for f64` (that form is now E0466; E0458 is retired); an operator on an interface value is E0404, and a bound gives an operator only when it is an operator interface (`T: Mul<f64>`), not an interface with its own `mul`. Printing needs `Display` (milestone 170): `println(xs)`, `"{opt}"` and `to_string(p)` on an array, `Option`, tuple, map, `()` or a struct or enum without `impl Display` are E0422; write `.debug()` for the old text, or `impl Display`. A type's own `show` method becomes `impl Display for T`, and is no longer used inside an array or another value's text. `unwrap()` on an `Err` shows the error's debug form (`"boom"` quoted). `debug` is a reserved name. A struct or enum ordered with `<`, `sort`, `min` or `max` needs `with Ord` or `impl Ord` (milestone 168); an own `cmp` method no longer orders it, and `Ord` now implies `Eq`. Floats aren't `Ord`: `[1.5].sort()`, `math.min(1.5, 2.0)` and tuples or structs holding a float that are ordered are E0451; sort floats with `xs.sort_by(f64.total_order)`. A struct or enum compared with `==` or used as a map key or set value needs `with Eq` or `with Key` (milestone 167); own `eq` and `hash` methods become `impl Eq` and `impl Key`. A struct or enum encoded, decoded or otherwise used through a derivable interface needs `with I` (milestone 165); a type's own `to_json` or `show` no longer replaces a derived item. A type that met an interface by its methods needs `impl I for T`; methods that implement an interface move from `impl T { … }` into it. A number, string or array converted to a program's interface (`let x: Any = 1;`) is E0422 unless a block implements it for that type (milestone 169).
 
 **Changes in v17 since v16** (milestones 91–163):
 - Green threads: `spawn f(x)` runs a call concurrently and gives a `Task<T>` (a plain `Task` for a call that returns nothing) whose `join()` waits for the result. `Chan<T>` carries values between green threads: `Chan.new()` (unbuffered) or `Chan.buffered(n)`, `send`, `recv` (an `Option`, `None` once closed), `try_recv`, `close`, `is`. `select` waits on several channels at once, with an `after(ms)` timeout or a `default` that never waits. `std.task` has `sleep(ms)` and `yield_now()`. Every function stays an ordinary function: there is no `async` and no `await`, so nothing is coloured. All green threads share the program's one OS thread; a panic in any of them ends the program, as does `main` returning, and a deadlock is a panic (sections 2–9).
@@ -472,15 +473,16 @@ alternative  = "_"
 
 expr         = prefix { infix } ;            (* Pratt loop, see table *)
 prefix       = ( "-" | "!" ) prefix | "spawn" postfix | postfix ;   (* binds tighter than infix; spawn: v17 *)
-postfix      = primary { call | index | member | "?" } ;   (* `read(p)?` (v4) *)
+postfix      = primary [ type_args ] { call | index | member | "?" } ;   (* `read(p)?` (v4) *)
+type_args    = "<" ( type | "_" ) { "," ( type | "_" ) } ">" ;   (* only by the context rule (v18) *)
 call         = "(" [ arg { "," arg } [ "," ] ] ")" ;
 arg          = [ "out" | "ptr" | "mut" ] expr ;      (* for an extern's parameter of that mode, v17 *)
 index        = "[" expr { "," expr } [ "," ] "]" ;   (* `a[x, y]` is `a[(x, y)]` (v17, milestone 155) *)
-member       = "." ( IDENT | INT ) ;          (* `t.0` (v14) *)
+member       = "." ( IDENT [ type_args ] | INT ) ;   (* `t.0` (v14); `xs.map<string>` (v18) *)
 primary      = INT | FLOAT | CHAR | STRING | interpolated | closure | "true" | "false"
              | "(" expr "," expr { "," expr } [ "," ] ")"   (* a tuple (v14) *)
              | "(" ")"                              (* the unit value (v17) *)
-             | IDENT [ "." IDENT ] [ struct_init ]  (* `m.T { … }` *)
+             | IDENT [ "." IDENT ] [ type_args ] [ struct_init ]  (* `m.T { … }`, `Pair<u8> { … }` *)
              | "self"
              | int_type "." IDENT                 (* `i16.MAX` (v10) *)
              | "(" expr ")"
@@ -521,7 +523,7 @@ The bit operators sit between comparisons and `+ -`, as in Rust, so `flags & MAS
 
 **Enum values and `match`.** `Shape.Circle(2.0)` and `Shape.Empty` need no grammar of their own: they parse as a member access, followed by a call when there are payloads, and the checker decides they name a variant (section 4). A `match` scrutinee is a `cond`, parsed in no-struct-literal mode like an `if` condition. A variant in a pattern is `.IDENT`, with its payload slots after it (`.Some(.Empty)`); a bare `IDENT` is always a new binding, at the top level too (`other =>`), so the parser never needs the types to tell them apart. `IDENT (` without the dot is E0212. An arm whose value is a block ends at its `}`, so `{ … }` then `.Ok(v) =>` is the next arm. A guard after `if` is parsed like a `cond`.
 
-**Generic headers.** Type parameters follow the name, like Rust and TypeScript: `fun max<T: Ord>(a: T, b: T): T`. An `impl` names its type's parameters without bounds, `impl Stack<T> { … }`; the bounds come from the type's declaration. Type arguments are never written at a use (section 4), so `<` after a name in an expression is always a comparison; `Stack::<i64>` is E0207.
+**Generic headers.** Type parameters follow the name, like Rust and TypeScript: `fun max<T: Ord>(a: T, b: T): T`. An `impl` names its type's parameters without bounds, `impl Stack<T> { … }`; the bounds come from the type's declaration. Type arguments may be written at a use (v18, section 4): after a name or a member name, `<` begins them only when a list of types closed by `>` follows and the token after the `>` is `(`, `.`, `{`, `)`, `,`, `;`, `]`, `}` or the end of the input; otherwise it is a comparison. So `f(a < b, c > (d))` passes `a` the type arguments `b, c` (write `f((a < b), (c > d))` for comparisons), while `f(a < b, c > d)` compares. `Stack::<i64>` is E0207, with help `Stack<i64>`.
 
 **Actors** (v17, milestone 92). `actor_decl = [ visibility ] "actor" IDENT "{" { [ visibility ] IDENT ":" type "," | fun_decl } "}"` declares an actor at the top level: its fields (each followed by `,` unless last) and methods, in any order. Inside the body `Self`, and the actor's own name, mean its state. Anything else in the body is E0201.
 
@@ -544,7 +546,7 @@ The bit operators sit between comparisons and `+ -`, as in Rust, so `flags & MAS
 | E0210 | An unknown or misplaced attribute | `@inline fun f() {}`; `@test struct S {}`; `@caller_location` on an interface's item, an actor's message, `main` or a test |
 | E0211 | `spawn` without a call, or a malformed `select` arm | `spawn f;`, `spawn 1 + f()`; `select { c.recv() => 1 }`, `select { x => 1 }` |
 | E0212 | A variant in a pattern without its leading dot (v18) | `Circle(r) =>`; `if let Some(x) = o` |
-| E0207 | `::` used as a path separator | `Shape::Circle(1.0)` — help: write `Shape.Circle`; parsing continues as if `.` were written |
+| E0207 | `::` used as a path separator | `Shape::Circle(1.0)` — help: write `Shape.Circle`; parsing continues as if `.` were written; `Stack::<i64>` — help: `Stack<i64>` (v18) |
 
 ## 4. Type system
 
@@ -745,12 +747,17 @@ Equality costs time proportional to the values compared. `f64` keeps IEEE semant
 
 **Characters** (v14). A `char` literal is one character between single quotes, `'a'`, `'é'`, `'😀'`, or an escape: `'\n'`, `'\t'`, `'\r'`, `'\0'`, `'\\'`, `'\''`, `'\"'`, `'\u{1F600}'` (one to six hex digits naming a scalar value). Anything else is E0112.
 - **Comparison:** `==` and `<` compare code points, so `char` is `Ord`. There is no arithmetic (E0404).
-- **Casts:** `c as` any integer type gives its code point (truncated as casts do); any integer `as char` gives that character, or U+FFFD when the value is not a scalar value, since casts never fail. `char_from(n: u32): Option<char>` checks instead. `char` casts to nothing else (E0408).
+- **Casts:** `c as u32` (or `i32`, `i64`, `u64`) gives its code point, and `b as char` gives the character of a byte `b: u8` (v18; narrower integer types and other integers are E0469). `n.try_into<char>()` and `char_from(n: u32)` give an `Option<char>`. `char` casts to nothing else (E0408).
 - **Strings:** `s.chars()` iterates a string's characters (a `Chars` iterator), decoding UTF-8; each invalid sequence gives U+FFFD and moves one byte on, so it never fails. `s.char_count()` counts them. `for b of s` still loops over bytes.
 - **Methods:** `c.is_alphabetic()`, `is_digit()` (`0`–`9`), `is_whitespace()`, `is_upper()`, `is_lower()`, `to_upper()` and `to_lower()` cover ASCII and Latin-1 (U+0000–U+00FF) only: other characters are neither letters nor cased, and `ß`, `ÿ` and `µ` keep their case.
 - **Names:** `char_from` and `Chars` are the prelude's, visible like `range` unless a module declares its own.
 
-**Casts.** `expr as T` converts between numeric types (`i32`, `i64`, `u8`, `u32`, `u64`, `f32`, `f64`; every pair, v7). `f64` to `f32` rounds to nearest, and `f32` to `f64` is exact. Integer narrowing truncates. Integer to float rounds to nearest. Float to integer truncates toward zero and saturates at the target's range; NaN becomes 0. `bool` cannot be cast; write `if b { 1 } else { 0 }` instead. A type parameter bounded by `Num` or `Float` casts like a number, to and from any numeric type or other such parameter (v15): `n as T`, `x as f64`; each instance casts by these rules at its own types. An unbounded `T` is E0408.
+**Casts.** `expr as T` converts between numbers only where nothing can be lost (v18): a type to itself; an integer to an integer whose range holds the source's (`u8 as i16`, `i32 as i64`, never signed to unsigned); an integer to a float that holds every value exactly (`i8`, `i16`, `u8`, `u16` to `f32`, any integer up to 32 bits to `f64`); `f32 as f64`; and a `char` to `u32`, `i32`, `i64` or `u64`, or a `u8 as char`. A number literal takes the target type when it fits (`0 as u64`; `300 as u8` is E0402), and an integer literal that a float holds exactly becomes one (`1 as f64`). A type parameter bounded by `Num` or `Float` casts when the cast is lossless at every type its bound admits (`x as f64` for `T: Float`); an unbounded `T` is E0408. Any other numeric cast is E0469, whose help names the method to write: a conversion that can lose information names the loss.
+- **`try_into<U>()`**: `Option<U>`, `Some` exactly when `U` holds the value exactly (a float must be whole and in range for an integer; an integer must be representable in a float; NaN stays NaN between floats). From any integer, `try_into<char>()` is `Some` for a Unicode scalar value.
+- **`truncate<U>()`**: integers to integers only; keeps the low bits, two's complement (`300.truncate<u8>()` is 44, `(-1).truncate<u8>()` 255).
+- **`saturate<U>()`**: the nearest value of `U` within its range. An integer clamps (`300.saturate<u8>()` is 255); a float to an integer rounds toward zero, clamps, and NaN becomes 0; to a float, the nearest value, finite values clamped to the finite range.
+- **`round<U>()`**, **`floor<U>()`**, **`ceil<U>()`**: round the named way, then convert; `round` takes halves away from zero (`2.5.round<i64>()` is 3, `(-2.5).round<i64>()` −3). A result the target can't hold, or NaN to an integer, panics with `conversion out of range` at the method; `saturate` is the clamping form. `round` also gives an integer's nearest float (`n.round<f64>()`, how an `i64` becomes an `f64`), `f64`'s nearest `f32`, and between integers is exact or panics. `floor` and `ceil` take a float.
+- Each takes its target as a type argument, or from the expected type (`let b: u8 = n.truncate();`; E0412 when neither gives it), works on every number and on type parameters bounded by `Num` or `Float` at their instances, and is E0408 on a pair it doesn't convert (`truncate` from a float, `floor` from an integer). `bool` cannot be converted; write `if b { 1 } else { 0 }`.
 
 **Names of types.** A local — a `let`, a parameter, a `for` variable or a `match` binding — may not be named like a struct, an enum or `Option` (E0311). So a name before `.` is always unambiguous: a type, meaning a variant or associated function follows, or a local, meaning a field or method follows.
 
@@ -839,7 +846,8 @@ Strings are bytes: every position is a byte offset, and `slice` can cut a multi-
 
 **Using a generic.**
 - **Type arguments:** a generic type is written with all its arguments in type positions: `Stack<i64>`, `Option<Vec2>`, `Pair<string, f64>`. A wrong count, or a bare `Stack` in a type position, is E0418.
-- **Inference:** at a call, a struct literal, a variant or an associated function, the type arguments are inferred, never written. They come first from the expected type, then from the arguments that can be typed alone, then from the ones that can't (number literals, `None`, `[]`, and (v17) calls only their result can type, associated functions included (`Cmd.none()` for `fun none(): Cmd<M>` in `impl Cmd<M>`) — a call whose result's type parameter only such arguments could fix, `column([text("a")])`, a list or `Some` of them, and a tuple holding one, `("a", text("a"))`, count too), so `max(x, 3)` with `x: u8` makes `3` a `u8`, a struct literal's fields take their types from each other in any order (`App { init: (0, Cmd.none()), update: step }`), and `pair(text("a"), v)` with `v: View<Msg>` makes `text`'s `M` a `Msg`. A method call whose receiver is such a call, when the method's result mentions the receiver type's own parameters, waits too, and passes its expected type to the receiver: the parameters the expected type fixes in the result give the receiver's type, the rest left open (v17). When the method returns the receiver's own type (`fun pad(self, n: i64): Node<M>` in `impl Node<M>`): `fun a(): Node<Msg> = leaf("x").pad(8).pad(2);`, `[leaf("x").pad(8)]` where a `Node<Msg>[]` is expected; when it returns one of them (milestone 148), as `unwrap` and `expect` on `Option<T>` and `Result<T, E>` do: `let p: Person = json.decode(v).unwrap();`, `json.decode(v).unwrap() == q`, and with `fun first(self): T` in `impl Pair<T>`, `let n: u8 = zeros().first();`. In a list literal with no expected type, when the first element is such a call, the first element that can be typed alone gives the element type (v17): `[text("a"), button("+", Msg.Inc)]` is a `View<Msg>[]`. A method's `impl` parameters come from its receiver: `s.push(1)` on a `Stack<string>` is E0401.
+- **Written type arguments** (v18): optional, at generic calls (`pick<string>([])`), function values (`bigger<i64>`), a method's own parameters (`xs.map<string>(f)`), associated functions and built-in constructors of generic types (`Stack<i64>.new()`, `Chan<Job>.new()`, `Ref<f32>.new(1.5)`), struct literals (`Pair<u8> { a: 1, b: 2 }`) and variants (`Shape<f64>.Circle(r)`, and through `Option`'s name, `Option<i64>.None`, `Option<u8>.Some(7)`). They bind their parameters before inference runs; `_` leaves one to inference (`conv<_, u8>(x, 3)`). The list gives every parameter or is E0418 (`` `two` takes 2 type arguments but 1 was given ``), as is a list on something without type parameters (a plain function, a local, a field); an argument that misses its bound is E0419 (E0451 for a derivable interface), and one the code contradicts is E0403 at the argument it contradicts.
+- **Inference:** at a call, a struct literal, a variant or an associated function, the type arguments not written are inferred. They come first from the expected type, then from the arguments that can be typed alone, then from the ones that can't (number literals, `None`, `[]`, and (v17) calls only their result can type, associated functions included (`Cmd.none()` for `fun none(): Cmd<M>` in `impl Cmd<M>`) — a call whose result's type parameter only such arguments could fix, `column([text("a")])`, a list or `Some` of them, and a tuple holding one, `("a", text("a"))`, count too), so `max(x, 3)` with `x: u8` makes `3` a `u8`, a struct literal's fields take their types from each other in any order (`App { init: (0, Cmd.none()), update: step }`), and `pair(text("a"), v)` with `v: View<Msg>` makes `text`'s `M` a `Msg`. A method call whose receiver is such a call, when the method's result mentions the receiver type's own parameters, waits too, and passes its expected type to the receiver: the parameters the expected type fixes in the result give the receiver's type, the rest left open (v17). When the method returns the receiver's own type (`fun pad(self, n: i64): Node<M>` in `impl Node<M>`): `fun a(): Node<Msg> = leaf("x").pad(8).pad(2);`, `[leaf("x").pad(8)]` where a `Node<Msg>[]` is expected; when it returns one of them (milestone 148), as `unwrap` and `expect` on `Option<T>` and `Result<T, E>` do: `let p: Person = json.decode(v).unwrap();`, `json.decode(v).unwrap() == q`, and with `fun first(self): T` in `impl Pair<T>`, `let n: u8 = zeros().first();`. In a list literal with no expected type, when the first element is such a call, the first element that can be typed alone gives the element type (v17): `[text("a"), button("+", Msg.Inc)]` is a `View<Msg>[]`. A method's `impl` parameters come from its receiver: `s.push(1)` on a `Stack<string>` is E0401.
 - **Can't infer:** a parameter still undecided is E0412, with help to annotate: `let s: Stack<i64> = Stack.new();`.
 - **Bounds at a use:** a type argument that doesn't satisfy its bound is E0419 (`Num`, `Float`, `Eq` on a parameter or a `Ref`), E0422 (a struct or enum that didn't ask for `Eq` or `Ord`) or E0451 (a part with no `derive` block, named by its path: `largest([[1]])` fails because `i64[]` is not `Ord`). `Ord` holds for the integers, `char`, `string`, `()`, tuples of `Ord` elements, type parameters declared `Ord`, and a struct or enum that asks or implements it, below.
 - **`Ord`** (v15, milestone 59; an interface since v18, milestone 168): order is the prelude's derivable interface `interface Ord: Eq { fun cmp(self, other: Self): Ordering; }`, returning the prelude's `enum Ordering { Less, Equal, Greater }`, and still a reserved bound name. `a < b` is `a.cmp(b) == Ordering.Less`, `a <= b` is `!= Greater`, `a > b` is `== Greater` and `a >= b` is `!= Less`. A struct or enum is `Ord` only when it asks, `with Ord` (which implies `with Eq`), getting the prelude's blocks: fields compared in declaration order and variants by declaration order, then payloads, the first unequal part deciding. Or it implements it by hand, `impl Ord for T { fun cmp(self, other: T): Ordering … }`, used for `<`, `sort`, `min`, `max` and tuples wherever the type appears; such a type must be `Eq` too (E0422), and a `cmp` method outside an `impl Ord` block doesn't order it. `<` on a struct or enum that isn't `Ord` is E0422 when it didn't ask, and E0451 when a part isn't, naming the path. The integers, `char`, `string` and `()` are `Ord`, and tuples are when their elements are; `bool`, arrays, `Option`, maps, sets and handles aren't. **Floats** keep `<`, `<=`, `>` and `>=`, by IEEE rules, but aren't `Ord`: `NaN` is neither below nor above anything. `f64.total_order(a, b)` and `f32.total_order(a, b)` are built-in associated functions, `fun(f64, f64): bool`, true when `a` comes before `b` in IEEE 754's total order (`-NaN < -inf < … < -0.0 < 0.0 < … < inf < NaN`); they can be called or passed, `xs.sort_by(f64.total_order)`. A float in an ordered type is E0451, with help naming them. `Ordering`'s variants are written `Ordering.Less`, like any enum's; a module's own `Ordering` means its own, and the prelude's prints as `$prelude.Ordering` in messages.
@@ -1919,13 +1927,13 @@ Name and type errors, reported by the checker:
 | E0407 | Retired in v17 (was: `void` used as a value, before `()` was one); never reported, never reused | |
 | E0410 | No such field | `s.size` on a `string`; `(5).len`; `p.z` or `Point { z: 1.0 }` on a `Point` without `z` |
 | E0411 | Not indexable or not iterable | `n[0]` where `n` is an `i64`; `p[0]` or `p[0] = 1` where `p`'s type has no `index` or `set_index` of the indexing shape; `for c of 5`; a `for … of` over a type whose `next` isn't `fun next(mut self): Option<T>` |
-| E0412 | Cannot infer an array's element type, `None`'s type, or a type argument | `let xs = [];`, `let x = None;`, `let s = Stack.new();`, `let m = max;` — annotate it: `let xs: i64[] = [];` |
+| E0412 | Cannot infer an array's element type, `None`'s type, or a type argument | `let xs = [];`, `let x = None;`, `let s = Stack.new();`, `let m = max;` — annotate it, `let xs: i64[] = [];`, or write the type arguments, `Stack<i64>.new()` (v18) |
 | E0413 | Struct literal missing fields | `Point { x: 1.0 }` |
 | E0414 | Struct literal field given twice | `Point { x: 1.0, x: 2.0, y: 0.0 }` |
 | E0415 | No such variant or method | `Shape.Circel(1.0)`, a `.Square` pattern on a `Shape`, `p.size()`, `xs.push(1)` |
 | E0416 | Wrong number of payloads | `Shape.Rect(1.0)`, `Rect(w) => …` |
 | E0417 | Non-exhaustive `match` | `match s { Circle(r) => r }` with more variants; an integer `match` without `_` |
-| E0418 | Wrong number of type arguments | `Stack<i64, i64>`, a bare `Stack` as a parameter type |
+| E0418 | Wrong number of type arguments | `Stack<i64, i64>`, a bare `Stack` as a parameter type; `pair<u8>(1, "x")` for `fun pair<A, B>`; `plain<i64>(1)` (v18) |
 | E0419 | Type argument doesn't satisfy its bound | a `Ref`, or a type holding one, as a `T: Eq`; `sum(["a"])` with `T: Num`, `math.sqrt(2)` (`i64` isn't `Float`), or a method of an `impl Grid<T: Num>` on a `Grid<string>` |
 | E0420 | Generic instantiation too deep | `fun f<T>(x: T) { f([x]); }`; `struct S<T> { xs: S<T[]>[] }` |
 | E0421 | A method no bound declares | `s.perimeter()` in `fun f<T: Shape>(s: T)` |
@@ -1970,6 +1978,7 @@ Name and type errors, reported by the checker:
 | E0466 | Methods for a type this module doesn't declare (v18) | `impl f64 { … }`; `impl shapes.W { … }` |
 | E0467 | A discarded `Result` (v18) | `save("");` as a statement, where `save` returns a `Result` |
 | E0468 | A variant name used as a binding in a pattern (v18) | `None =>` on an `Option`; `.Some(Empty)` on an `Option<Shape>` |
+| E0469 | A cast that can lose information (v18) | `big as u8` for `big: i64`; `2.5 as i64`; `n as f64` for `n: i64`; `n as T` for `T: Num` |
 | E0437 | A malformed `extern struct` | `extern struct S { s: string }`; a field of an array, a plain struct, an enum, `Option` (other than of a handle) or a function type; a handle, `Option` of one or `CPtr` in an `extern union`, at any depth; `extern struct S<T> { … }`; `extern struct S {}` |
 | E0433 | A pattern that must match every value but might not | `let (1, x) = t;`, `let Some(n) = o;` without `else`, `for (Some(a), b) of …` |
 | E0428 | Or-pattern alternatives that bind differently | `.Some(x) \| .None`; `.Count(n) \| .Circle(n)` with `n` an `i64` and an `f64` |
@@ -1977,7 +1986,7 @@ Name and type errors, reported by the checker:
 | E0431 | A bad format specifier | `"{n:.2}"` with `n: i64`; `"{x:q}"`; `"{f:x}"` with `f: f64`; `"{n:#}"`; `"{s:05}"` with `s: string`; `"{n:2000}"` |
 | E0432 | A bad `format` template | `format(t, 1)` with `t` a variable; `format("{} and {}", 1)`; `format("{x}", 1)`; `format("a {")` |
 | E0409 | Type not allowed in an extern signature | `extern fun total(xs: i64[]): i64;` — no array, plain struct (an `extern struct` is fine), enum, `Option` (but of a handle or `string`) or interface parameters or returns, and functions only as callback parameters (§8); a callback returning a string, `extern fun f(cb: fun(i64): string);` |
-| E0408 | Invalid cast | `ready as i32` where `ready` is `bool`; `x as bool`; `n as T` for a `T` without `Num` or `Float` |
+| E0408 | Invalid cast or conversion | `ready as i32` where `ready` is `bool`; `x as bool`; `n as T` for a `T` without `Num` or `Float`; `2.5.truncate<u8>()`, `n.floor<i64>()` on an integer (v18) |
 | E0501 | Assignment to an immutable binding | `let total = 0; total = 5;`; assigning to a parameter or loop variable; `xs[0] = 1;` where `xs` isn't `let mut`; `for x of mut xs` where `xs` isn't |
 | E0502 | Assignment to something that isn't a place | `(a + b) = 3;`; `for x of mut [1, 2]` |
 | E0503 | Missing return | a function not returning `()` whose body can end without a value (§6); a stray `;` after the result gets a "remove this semicolon" label |
@@ -2069,7 +2078,7 @@ fun centroid(pts: Point[]): Point {
         sx += p.x;
         sy += p.y;
     }
-    let n = pts.len as f64;
+    let n = pts.len.round<f64>();
     Point { x: sx / n, y: sy / n }
 }
 
@@ -2797,7 +2806,7 @@ fun main() {
     let x: f32 = 0.1;
     println(x);
     println(x as f64 > 0.1);
-    println(-1 as u32);
+    println((-1).truncate<u32>());
 }
 ```
 
@@ -3146,7 +3155,7 @@ struct Circle { r: f64 }
 impl Shape for Circle { fun area(self): f64 = 3.0 * self.r * self.r; }
 
 struct Square { side: i64 }
-impl Shape for Square { fun area(self): f64 = (self.side * self.side) as f64; }
+impl Shape for Square { fun area(self): f64 = (self.side * self.side).round<f64>(); }
 impl Display for Square { fun show(self): string = "square {self.side}"; }
 
 struct Bad { code: i64 }
@@ -3549,7 +3558,7 @@ fun mean<T: Num>(xs: T[]): T {
     for x of xs {
         s += x;
     }
-    s / xs.len as T
+    s / xs.len.round<T>()
 }
 
 fun scale<T: Num>(x: T): T = x * 3 - 2;
@@ -3560,7 +3569,7 @@ fun main() {
     println(mean([1.0, 2.0, 6.0]));
     println(scale(5 as u8));
     println(half(3.0 as f32));
-    println(mean([2.5, 3.5]) as i64);
+    println(mean([2.5, 3.5]).saturate<i64>());
 }
 ```
 
@@ -4060,6 +4069,7 @@ The spec is implemented in five milestones, each ending in a program that runs. 
 | 174 | Sizes (v18) | `kb()`, `mb()`, `gb()` on integers, in powers of 1024 | `tests/programs/numbers/sizes` (done) |
 | 175 | Discarded `Result` (v18) | an expression statement of type `Result` is E0467; `let _ = …;` drops one | `tests/programs/errors/discarded_result` (done) |
 | 176 | Dotted variants (v18) | `.Some(x)`, `.None`, `.Circle(r)` in every pattern; a bare name always binds; E0212, E0468 | `tests/programs/patterns/dot_variants` (done) |
+| 177 | Type arguments and lossless `as` (v18) | `max<i64>(a, b)`, `Chan<Job>.new()`, `Pair<u8> { … }`, `Option<i64>.None`; `as` only without loss; `try_into`, `truncate`, `saturate`, `round`, `floor`, `ceil`; E0469 | `tests/programs/generics/type_arguments`, `tests/programs/numbers/conversions` (done) |
 
 In milestones 1 and 2, every value can be treated as `i64`, so codegen can start before the type checker exists. Until milestone 4 provides `lugha_rt_panic`, integer `+`, `-` and `*` wrap, and `/` and `%` stop the program with a trap on a zero divisor or `MIN / -1`. Milestone 3 then replaces that assumption with real types. The process exit code is the low 8 bits of `main`'s result, so milestone tests use results below 256.
 

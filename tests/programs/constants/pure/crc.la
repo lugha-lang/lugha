@@ -4,7 +4,7 @@ fun crc_table(): u32[] {
     let mut t: u32[] = [];
     let mut i = 0;
     while i < 256 {
-        let mut c = i as u32;
+        let mut c = i.truncate<u32>();
         let mut k = 0;
         while k < 8 {
             c = if c & 1 == 1 { 0xEDB88320 ^ (c >> 1) } else { c >> 1 };

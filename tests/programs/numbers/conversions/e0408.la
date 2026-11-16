@@ -1,0 +1,6 @@
+fun main() {
+    let a = 2.5.truncate<u8>();
+    let b = 7.floor<i64>();
+    let c = 300.truncate<bool>();
+    let d = 1.5.round();
+}

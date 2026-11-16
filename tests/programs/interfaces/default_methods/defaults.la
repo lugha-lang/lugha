@@ -22,7 +22,7 @@ impl Shape for Sq {
 struct Many<T> { items: T[] }
 
 impl Shape for Many<T> {
-    fun area(self): f64 = self.items.len as f64;
+    fun area(self): f64 = self.items.len.round<f64>();
 }
 
 fun tell<T: Shape>(x: T): string = x.describe();

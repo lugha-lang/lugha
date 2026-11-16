@@ -108,6 +108,7 @@ impl<'ctx> Lowerer<'ctx> {
             id: link.id,
             span: link.span,
             kind: ExprKind::Index(Box::new(base.clone()), *open, Box::new(index.clone())),
+            type_args: None,
         };
         let element = match self.map_method(&read, &base, "index", std::slice::from_ref(&index))? {
             Some(Value::Val(v)) => v,
@@ -126,11 +127,13 @@ impl<'ctx> Lowerer<'ctx> {
             id: link.write_id(),
             span: link.span,
             kind: ExprKind::Field(Box::new(base), method),
+            type_args: None,
         };
         let hand_back = Expr {
             id: link.write_id(),
             span: link.span,
             kind: ExprKind::Call(Box::new(callee), vec![index, handed]),
+            type_args: None,
         };
         Ok((replaced(place, link.id, &copy), hand_back))
     }
@@ -182,6 +185,7 @@ impl<'ctx> Lowerer<'ctx> {
             id,
             span: e.span,
             kind: ExprKind::Name(name),
+            type_args: None,
         }
     }
 }

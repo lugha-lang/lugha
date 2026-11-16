@@ -1,0 +1,49 @@
+error[E0469]: `as` can lose information: `T` to `f64`
+  --> tests/programs/numbers/conversions/e0469.la:1:32
+  |
+1 | fun widen<T: Num>(x: T): f64 = x as f64;
+  |                                ^^^^^^^^
+  |
+  = help: name the conversion, which works at every instance: `x.saturate<f64>()`, `x.round<f64>()` or `x.try_into<f64>()`
+
+error[E0469]: `as` can lose information: `i64` to `u8`
+  --> tests/programs/numbers/conversions/e0469.la:5:13
+  |
+5 |     let a = big as u8;
+  |             ^^^^^^^^^
+  |
+  = help: `x.truncate<u8>()` keeps the low bits; `x.saturate<u8>()` clamps to the range; `x.try_into<u8>()` gives an `Option`
+
+error[E0469]: `as` can lose information: `f64` to `i64`
+  --> tests/programs/numbers/conversions/e0469.la:6:13
+  |
+6 |     let b = 2.5 as i64;
+  |             ^^^^^^^^^^
+  |
+  = help: `x.round<i64>()`, `x.floor<i64>()` and `x.ceil<i64>()` round and panic out of range; `x.saturate<i64>()` rounds toward zero and clamps; `x.try_into<i64>()` gives an `Option`
+
+error[E0469]: `as` can lose information: `i64` to `f64`
+  --> tests/programs/numbers/conversions/e0469.la:7:13
+  |
+7 |     let c = big as f64;
+  |             ^^^^^^^^^^
+  |
+  = help: `x.round<f64>()` gives the nearest `f64`; `x.try_into<f64>()` gives an `Option`, `None` unless it is exact
+
+error[E0469]: `as` can lose information: `u32` to `char`
+  --> tests/programs/numbers/conversions/e0469.la:9:13
+  |
+9 |     let d = n as char;
+  |             ^^^^^^^^^
+  |
+  = help: `x.try_into<char>()` gives an `Option`, `None` unless `x` is a valid code point
+
+error[E0469]: `as` can lose information: `char` to `u8`
+   --> tests/programs/numbers/conversions/e0469.la:10:13
+   |
+10 |     let e = 'é' as u8;
+   |             ^^^^^^^^^
+   |
+   = help: convert the code point: `(c as u32).truncate<u8>()` or `(c as u32).try_into<u8>()`
+
+For more about E0469, run `lughac explain E0469`.

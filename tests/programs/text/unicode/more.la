@@ -9,10 +9,10 @@ fun main() {
         .Some(line) => println(line.chars().collect().debug()),
         .None => println("none"),
     }
-    println(-1 as char);
-    println(1114111 as char as u32);
-    println(1114112 as char as u32);
-    println(57343 as char as u32);
+    println((-1).try_into<char>().unwrap_or('\u{FFFD}'));
+    println(1114111.try_into<char>().unwrap_or('\u{FFFD}') as u32);
+    println(1114112.try_into<char>().unwrap_or('\u{FFFD}') as u32);
+    println(57343.try_into<char>().unwrap_or('\u{FFFD}') as u32);
     println(char_from(57344).is_some());
     println([
         'ß'.is_lower(),

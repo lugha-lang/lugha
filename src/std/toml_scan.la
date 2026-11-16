@@ -176,7 +176,7 @@ fun number(t: u8[], i: i64): Result<Value, Oops> {
     if magnitude > limit {
         return Err(oops(ErrorKind.Overflow, "an integer too large for i64: {text(t)}", i));
     }
-    Ok(Value.Integer(if neg { -(magnitude as i64) } else { magnitude as i64 }))
+    Ok(Value.Integer(if neg { -(magnitude.truncate<i64>()) } else { magnitude.truncate<i64>() }))
 }
 
 /** `t`'s digits of `radix`, with underscores only between digits. */

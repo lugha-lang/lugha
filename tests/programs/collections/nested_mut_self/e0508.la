@@ -15,7 +15,7 @@ impl G {
 fun main() {
     let mut g = G { vals: [], inner: V { x: 1.0 } };
     let h = g;
-    g.put(g.vals.len as f64 + g.inner.x);
+    g.put(g.vals.len.round<f64>() + g.inner.x);
     g.take(g.inner);
     g.set(if g.vals.len > 0 { g.vals } else { h.vals });
 }

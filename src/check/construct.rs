@@ -37,6 +37,9 @@ impl Checker {
         (base, variant): (&Expr, &Ident),
         expect: Option<&Expect>,
     ) -> Option<Type> {
+        if let Some(ty) = self.qualified_option(base, variant, None, expect) {
+            return Some(ty);
+        }
         let name = self.enum_named(base)?;
         self.record(base, Type::Unit);
         // A variant with payloads, not called, is a function value.
@@ -44,7 +47,13 @@ impl Checker {
             self.hover.variant_use(&name, variant);
             return Some(ty);
         }
-        Some(self.construct((expr, variant.span), &name, variant, &[], expect))
+        Some(self.construct(
+            (expr, variant.span, Some(base)),
+            &name,
+            variant,
+            &[],
+            expect,
+        ))
     }
 
     /// `E.V(args)`, `Some(x)`: a construction call. `None` if `callee` isn't one.
@@ -68,16 +77,21 @@ impl Checker {
         let ExprKind::Field(base, variant) = &callee.kind else {
             return None;
         };
+        if let Some(ty) = self.qualified_option(base, variant, Some((call, args)), expect) {
+            self.record(callee, Type::Unit);
+            return Some(ty);
+        }
         let name = self.enum_named(base)?;
         self.record(base, Type::Unit);
         self.record(callee, Type::Unit);
-        Some(self.construct((call, call.span), &name, variant, args, expect))
+        Some(self.construct((call, call.span, Some(base)), &name, variant, args, expect))
     }
 
-    /// `E.V` or `E.V(args)` at `at`, inferring a generic enum's arguments.
+    /// `E.V` or `E.V(args)` at `at`, inferring a generic enum's arguments
+    /// after those written on `base` (`Shape<f64>.Circle(r)`).
     pub(super) fn construct(
         &mut self,
-        (at, span): (&Expr, Span),
+        (at, span, base): (&Expr, Span, Option<&Expr>),
         name: &str,
         variant: &Ident,
         args: &[Expr],
@@ -117,13 +131,11 @@ impl Checker {
             .map(|(a, p)| (a, Expect::of(p)))
             .collect();
         let declared = Type::Enum(name.to_string(), super::generics::params(&generics));
-        match self.infer(
-            at,
-            &generics,
-            Default::default(),
-            Some((&declared, expect)),
-            &inputs,
-        ) {
+        let written = match base {
+            Some(base) => self.written(base, name.rsplit('.').next().unwrap_or(name), &generics),
+            None => Default::default(),
+        };
+        match self.infer(at, &generics, written, Some((&declared, expect)), &inputs) {
             Some(targs) => subst(&declared, &generics, &targs),
             None => Type::Error,
         }
@@ -146,6 +158,39 @@ impl Checker {
             Type::Error | Type::Never => Type::Error,
             inner => Type::Option(Box::new(inner)),
         }
+    }
+
+    /// `Option.None`, `Option<i64>.None` and `Option<i64>.Some(x)`: the
+    /// variants through the type's name, so type arguments can be written.
+    /// `None` if `base` isn't `Option`.
+    fn qualified_option(
+        &mut self,
+        base: &Expr,
+        variant: &Ident,
+        call: Option<(&Expr, &[Expr])>,
+        expect: Option<&Expect>,
+    ) -> Option<Type> {
+        if !matches!(&base.kind, ExprKind::Name(n) if n == "Option")
+            || self.local("Option").is_some()
+        {
+            return None;
+        }
+        self.record(base, Type::Unit);
+        let written = self.written_one(base, "Option");
+        let written = written.map(|t| Expect::of(Type::Option(Box::new(t))));
+        let expect = written.as_ref().or(expect);
+        Some(match (variant.name.as_str(), call) {
+            ("None", None) => self.none(variant.span, expect),
+            ("Some", Some((call, args))) => self.some(call, args, expect),
+            (_, call) => {
+                let ty = Type::Option(Box::new(Type::Error));
+                self.report(errors::no_variant(&variant.name, &ty, variant.span));
+                call.iter().for_each(|(_, args)| {
+                    self.unchecked(args);
+                });
+                Type::Error
+            }
+        })
     }
 
     /// `None`: needs an expected `Option<T>` (E0412 otherwise).

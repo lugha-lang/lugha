@@ -7,7 +7,7 @@ fun centroid(pts: Point[]): Point {
         sx += p.x;
         sy += p.y;
     }
-    let n = pts.len as f64;
+    let n = pts.len.round<f64>();
     Point { x: sx / n, y: sy / n }
 }
 

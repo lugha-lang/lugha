@@ -227,7 +227,7 @@ fn spec_prints_the_bundled_specification() {
 
 #[test]
 fn structs_and_methods_compile_and_run() {
-    let src = b"struct P { x: i64 }\nimpl P { fun get(self): i64 = self.x; }\nfun main(): i32 { let p = P { x: 7 }; p.get() as i32 }\n";
+    let src = b"struct P { x: i64 }\nimpl P { fun get(self): i64 = self.x; }\nfun main(): i32 { let p = P { x: 7 }; p.get().truncate<i32>() }\n";
     let dir = TempDir::with(&[("p.la", src)]);
     let out = lughac(&dir.0, &["run", "p.la"]);
     assert_eq!(out.status.code(), Some(7), "{}", text(&out.stderr));

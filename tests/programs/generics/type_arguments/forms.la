@@ -1,0 +1,34 @@
+// Type arguments written at every kind of use.
+struct Pair<T> { a: T, b: T }
+enum Shape<T> { Circle(T), Empty }
+struct Stack<T> { items: T[] }
+impl Stack<T> {
+    fun new(): Stack<T> = Stack { items: [] };
+    fun size(self): i64 = self.items.len;
+}
+
+fun pick<T>(xs: T[]): Option<T> = if xs.len > 0 { Some(xs[0]) } else { None };
+fun conv<A, B>(a: A, b: B): B = b;
+fun bigger<T: Ord>(a: T, b: T): T = if a > b { a } else { b };
+
+fun main() {
+    let none = pick<string>([]);
+    println(none.debug());
+    let first = bigger<i64>;
+    println(first(3, 4));
+    let p = Pair<u8> { a: 1, b: 2 };
+    println(p.a + p.b);
+    let o = Option<i64>.None;
+    println(o.debug());
+    let s = Option<u8>.Some(7);
+    println(s.debug());
+    let words = [1, 2].map<string>(fun(n) = "<{n}>");
+    println(words.debug());
+    let st = Stack<f64>.new();
+    println(st.size());
+    let c = Shape<f64>.Circle(1.0);
+    let e = Shape<i64>.Empty;
+    println(c.debug());
+    println(e.debug());
+    println(conv<_, u8>("x", 3));
+}

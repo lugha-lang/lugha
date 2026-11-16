@@ -354,7 +354,9 @@ mod tests {
 
     #[test]
     fn functions_are_prefixed_and_typed_by_their_signature() {
-        let ir = ir("fun half(x: u8): f64 = x as f64 / 2.0;\nfun main(): i32 { half(9) as i32 }");
+        let ir = ir(
+            "fun half(x: u8): f64 = x as f64 / 2.0;\nfun main(): i32 { half(9).saturate<i32>() }",
+        );
         assert!(ir.contains("define double @lugha_fn_half(i8"), "{ir}");
         assert!(ir.contains("call double @lugha_fn_half(i8"), "{ir}");
     }

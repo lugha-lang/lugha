@@ -22,6 +22,12 @@ impl Checker {
         let ExprKind::Field(base, name) = &callee.kind else {
             return None;
         };
+        // `Option.None`, `Option<u8>.Some(7)`: constructions.
+        if matches!(&base.kind, ExprKind::Name(t) if t == "Option")
+            && self.local("Option").is_none()
+        {
+            return None;
+        }
         // `T.f(…)` through a bound of type parameter `T`.
         if let ExprKind::Name(t) = &base.kind
             && self.local(t).is_none()
@@ -40,7 +46,10 @@ impl Checker {
         {
             self.record(base, Type::Unit);
             self.record(callee, Type::Unit);
-            return Some(self.ref_new(call, name, args, expect));
+            // `Ref<f32>.new(1.5)`: the written type is the box's.
+            let written = self.written_one(base, "Ref");
+            let written = written.map(|t| Expect::of(Type::Ref(Box::new(t))));
+            return Some(self.ref_new(call, name, args, written.as_ref().or(expect)));
         }
         // `Chan.new()` and `Chan.buffered(n)`, unless the module has a `Chan`.
         if let ExprKind::Name(t) = &base.kind
@@ -49,7 +58,10 @@ impl Checker {
         {
             self.record(base, Type::Unit);
             self.record(callee, Type::Unit);
-            return Some(self.chan_new(call, name, args, expect));
+            // `Chan<Job>.new()`: the written type is the channel's.
+            let written = self.written_one(base, "Chan");
+            let written = written.map(|t| Expect::of(Type::Chan(Box::new(t))));
+            return Some(self.chan_new(call, name, args, written.as_ref().or(expect)));
         }
         // `Shape.area(c)`: an interface's item, called on its first argument.
         if let Some(key) = self.interface_named_by(base)
@@ -180,6 +192,10 @@ impl Checker {
         if name.name == "debug"
             && let Some(ty) = self.debug_call(call, receiver, args)
         {
+            return ty;
+        }
+        // `x.truncate<u8>()` and the other conversions.
+        if let Some(ty) = self.conversion_call(call, (receiver, name), args, expect) {
             return ty;
         }
         if let Some(m) = builtin(receiver, &name.name) {

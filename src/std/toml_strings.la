@@ -180,7 +180,7 @@ fun escape(b: u8[], i: i64, out: u8[]): Result<(u8[], i64), Oops> {
         _ => 0,
     };
     if simple != 0 {
-        out.push(simple as u8);
+        out.push(simple.truncate<u8>());
         return Ok((out, i + 2));
     }
     let width = if c == 117 { 4 } else if c == 85 { 8 } else { 0 };
@@ -205,19 +205,19 @@ fun escape(b: u8[], i: i64, out: u8[]): Result<(u8[], i64), Oops> {
 fun encode(code: i64, out: u8[]): u8[] {
     let mut out = out;
     if code < 128 {
-        out.push(code as u8);
+        out.push(code.truncate<u8>());
     } else if code < 2048 {
-        out.push((192 + code / 64) as u8);
-        out.push((128 + code % 64) as u8);
+        out.push((192 + code / 64).truncate<u8>());
+        out.push((128 + code % 64).truncate<u8>());
     } else if code < 65536 {
-        out.push((224 + code / 4096) as u8);
-        out.push((128 + code / 64 % 64) as u8);
-        out.push((128 + code % 64) as u8);
+        out.push((224 + code / 4096).truncate<u8>());
+        out.push((128 + code / 64 % 64).truncate<u8>());
+        out.push((128 + code % 64).truncate<u8>());
     } else {
-        out.push((240 + code / 262144) as u8);
-        out.push((128 + code / 4096 % 64) as u8);
-        out.push((128 + code / 64 % 64) as u8);
-        out.push((128 + code % 64) as u8);
+        out.push((240 + code / 262144).truncate<u8>());
+        out.push((128 + code / 4096 % 64).truncate<u8>());
+        out.push((128 + code / 64 % 64).truncate<u8>());
+        out.push((128 + code % 64).truncate<u8>());
     }
     out
 }

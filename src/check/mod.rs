@@ -32,6 +32,7 @@ mod conditional;
 mod conflicts;
 mod construct;
 mod consts;
+mod conversions;
 mod defaults;
 mod defer;
 mod derive;
@@ -88,6 +89,7 @@ mod modules;
 mod mut_params;
 use mut_params::muts_of;
 mod named_imports;
+mod new;
 mod numbers;
 mod operators;
 mod ops;
@@ -119,6 +121,7 @@ mod tasks;
 mod templates;
 mod test_fns;
 mod tuples;
+mod type_args;
 mod type_patterns;
 mod types;
 mod unit;
@@ -133,6 +136,7 @@ pub use callbacks::{CParam, CParams};
 pub use channels::{CHAN_BUFFERED, CHAN_NEW};
 pub use checked::Checked;
 pub(crate) use concat::CONCAT;
+pub use conversions::{CONVERSIONS, int_bits};
 pub use defaults::SELF;
 pub use derive::{Block as DeriveBlock, Covers, DEBUG, DISPLAY, Derives, EQ, ORD};
 pub use derive_intrinsics::{DERIVE_OPS, derive_op};
@@ -189,87 +193,6 @@ pub fn check(program: &Program) -> Result<(Checked, Vec<Diagnostic>), Vec<Diagno
         package: None,
         origin: None,
     }])
-}
-
-impl Checker {
-    /// A checker with room for `count` expression types.
-    fn new(count: usize) -> Self {
-        Checker {
-            types: vec![None; count],
-            diagnostics: Vec::new(),
-            functions: HashMap::new(),
-            structs: HashMap::new(),
-            enums: HashMap::new(),
-            handles: HashMap::new(),
-            c_params: HashMap::new(),
-            variant_values: HashMap::new(),
-            consts: HashMap::new(),
-            const_uses: HashMap::new(),
-            const_order: Vec::new(),
-            c_structs: std::collections::HashSet::new(),
-            c_unions: std::collections::HashSet::new(),
-            methods: HashMap::new(),
-            scopes: Vec::new(),
-            ret: Type::Unit,
-            loops: Vec::new(),
-            loop_labels: HashMap::new(),
-            outer_labels: Vec::new(),
-            deferring: None,
-            dead: false,
-            iterating: Vec::new(),
-            copied_loops: std::collections::HashSet::new(),
-            changes: Vec::new(),
-            mentions: HashMap::new(),
-            element_hints: HashMap::new(),
-            module: Vec::new(),
-            package: None,
-            origin: None,
-            includes: HashMap::new(),
-            include_reads: HashMap::new(),
-            imports: HashMap::new(),
-            privacy: visibility::Privacy::default(),
-            aliases: named_imports::Aliases::new(),
-            glob_clashes: Vec::new(),
-            reexports: HashMap::new(),
-            externs: HashMap::new(),
-            callees: HashMap::new(),
-            annotations: HashMap::new(),
-            type_params: Vec::new(),
-            instances: HashMap::new(),
-            interfaces: HashMap::new(),
-            closures: Vec::new(),
-            captures: HashMap::new(),
-            uses_tasks: false,
-            actors: std::collections::HashSet::new(),
-            in_actor: None,
-            spawn_operand: None,
-            conversions: HashMap::new(),
-            try_conversions: HashMap::new(),
-            through_index: std::collections::HashSet::new(),
-            impls: HashMap::new(),
-            asking: derive_with::Asking::default(),
-            nominal_calls: HashMap::new(),
-            qualified: std::collections::HashSet::new(),
-            impl_owners: HashMap::new(),
-            default_args: HashMap::new(),
-            iterations: HashMap::new(),
-            owner: String::new(),
-            param_literals: Vec::new(),
-            uses: Vec::new(),
-            calls: Vec::new(),
-            effects: HashMap::new(),
-            reads: HashMap::new(),
-            body_types: HashMap::new(),
-            derives: derive::Derives::default(),
-            deriving: None,
-            derived: HashMap::new(),
-            debug_calls: Vec::new(),
-            located: HashSet::new(),
-            derive_calls: HashMap::new(),
-            hover: partial::Recorder::new(count),
-            test_mode: false,
-        }
-    }
 }
 
 /// A declared function.
@@ -453,6 +376,9 @@ pub(super) struct Checker {
     body_types: HashMap<String, Vec<Type>>,
     /// Names and expression spans for the language server's hover.
     hover: partial::Recorder,
+    /// Uses whose written type arguments a call, value or literal took;
+    /// any others are E0418 (`type_args`).
+    written_used: HashSet<ExprId>,
     /// Checking for `lughac test`: no `main` needed.
     test_mode: bool,
 }

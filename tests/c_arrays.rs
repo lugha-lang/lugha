@@ -103,7 +103,7 @@ extern fun count_a(xs: Thing[], n: u64): i32;
 
 fun main() {
     let bytes: u8[] = [1, 2, 3, 250];
-    println(sum_bytes(bytes, bytes.len as u64));
+    println(sum_bytes(bytes, bytes.len.truncate<u64>()));
     let empty: i64[] = [];
     println(sum_i64(empty, 0));
     let nums = [5, -7, 100];

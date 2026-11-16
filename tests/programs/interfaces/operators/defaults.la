@@ -11,7 +11,7 @@ impl Convert for Celsius {
 }
 
 impl Convert<f64> for i64 {
-    fun convert(self): f64 = self as f64;
+    fun convert(self): f64 = self.round<f64>();
 }
 
 fun same<T: Convert>(x: T): T = x.convert();

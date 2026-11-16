@@ -114,7 +114,7 @@ impl Writer {
             };
             if named != 0 {
                 self.out.push(92);
-                self.out.push(named as u8);
+                self.out.push(named.truncate<u8>());
             } else if c < 32 {
                 self.put("\\u00");
                 self.out.push(digits[(c / 16) as i64]);

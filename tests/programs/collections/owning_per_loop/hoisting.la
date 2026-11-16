@@ -39,7 +39,7 @@ fun main() {
     let old = g;
     let mut k = 0;
     while k < 2 {
-        g.cells[k][1] = k as f64;
+        g.cells[k][1] = k.round<f64>();
         g.cells[0].push(9.0);
         k += 1;
     }

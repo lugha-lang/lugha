@@ -45,6 +45,7 @@ impl Checker {
             id: link.element_id(),
             span: link.span,
             kind: ExprKind::Name(ELEMENT.to_string()),
+            type_args: None,
         };
         let local = Local {
             ty: element,

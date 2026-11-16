@@ -1,17 +1,18 @@
 ## FEATURE: Explicit type arguments at uses (`max<i64>(a, b)`, `Chan<Job>.new(16)`), and `as` only where nothing is lost, with `try_into`, `truncate`, `saturate`, `round`, `floor` and `ceil` for the rest; milestone 177, in v18's Phase 1.
 
-**Status:** proposed 2026-11-16.
+**Status:** proposed 2026-11-16. Approved 2026-11-16.
 
 ## OBJECTIVE
 ```lugha
 struct Pair<T> { a: T, b: T }
 
 fun pick<T>(xs: T[]): Option<T> = if xs.len > 0 { Some(xs[0]) } else { None };
+fun bigger<T: Ord>(a: T, b: T): T = if a > b { a } else { b };
 
 fun main() {
     // Type arguments, written where inference can't or shouldn't decide.
     let none = pick<string>([]);
-    let first = max<i64>;                         // a function value
+    let first = bigger<i64>;                      // a function value
     let p = Pair<u8> { a: 1, b: 2 };
     let o = Option<i64>.None;
     let words = [1, 2].map<string>(fun(n) = "{n}");
@@ -86,12 +87,21 @@ fun main() {
 - `From`/`Into`-style conversion interfaces.
 
 ## TESTS
-- [ ] `tests/programs/generics/type_arguments/`: every form in decision 2 runs; E0418 (count, non-generic), E0419, E0403 at an argument; `f(a < b, c > d)` stays comparisons.
-- [ ] `tests/programs/numbers/conversions/`: the `as` table (allowed casts run), E0469 per kind, every method on edge values (`-1.truncate<u8>()`, `NaN.saturate<i64>()`, `2.5.round<i64>()`, `-2.5.round<i64>()`, `u64.MAX.round<f64>()`, `try_into` both ways), the `round` panic as a `.stderr`, generic receivers and targets.
-- [ ] Parser unit tests for the context rule; checker unit tests per decision.
-- [ ] The full `cargo test`.
+- [x] `tests/programs/generics/type_arguments/`: every form in decision 2 runs; E0418 (count, non-generic), E0419, E0403 at an argument; `f(a < b, c > d)` stays comparisons.
+- [x] `tests/programs/numbers/conversions/`: the `as` table (allowed casts run), E0469 per kind, every method on edge values (`-1.truncate<u8>()`, `NaN.saturate<i64>()`, `2.5.round<i64>()`, `-2.5.round<i64>()`, `u64.MAX.round<f64>()`, `try_into` both ways), the `round` panic as a `.stderr`, generic receivers and targets.
+- [x] Parser unit tests for the context rule; checker unit tests per decision.
+- [x] The full `cargo test`.
 
 ## ACCEPTANCE
-- [ ] The OBJECTIVE gives E0469 at `big as u8` only, and once that line goes prints `4`, `44`, `255`, `None`, `3`, `-3`, `9007199254740992.0` and panics at the last line.
-- [ ] The full `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
-- [ ] Spec, CHANGELOG, CLAUDE.md and the error pages updated.
+- [x] The OBJECTIVE gives E0469 at `big as u8` only, and once that line goes prints `4`, `44`, `255`, `None`, `3`, `-3`, `9007199254740992.0` and panics at the last line.
+- [x] The full `cargo test` passes; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
+- [x] Spec, CHANGELOG, CLAUDE.md and the error pages updated.
+
+## CHANGES DURING THE BUILD
+- **`check/mod.rs` split** (agreed with the user): `Checker::new` moved to `check/new.rs`, so the struct could take the field recording which written type arguments a use took.
+- **Literals and `as`:** a number literal takes the target type when it fits (`0 as u64`, `200 as u8`; `300 as u8` is E0402), and an integer literal a float holds exactly becomes one (`1 as f64`), so no migration rewrote a literal into a method.
+- **The target may come from the expected type:** `let b: u8 = n.truncate();`; neither is E0412 with help to write it.
+- **`Option<T>.None` and `Option<T>.Some(x)`** are new forms (the draft's `Option<i64>.None` needed them); `Ref<T>.new(v)` and `Chan<T>.new()` take written arguments too.
+- **`Stack::<i64>`** is E0207 with the help "write the type arguments right after the name: `Stack<…>`".
+- **Generic programs:** `n as T` became `n.round<T>()` (exact or a panic) or `x.saturate<U>()`; `numbers_as_t`'s `narrow(300)` now prints 255 (clamped) instead of 44.
+- **The objective** uses its own `bigger<T>`: the prelude has no generic `max` function.

@@ -1,0 +1,36 @@
+// Every conversion method at its edges, and the casts `as` still makes.
+fun main() {
+    let small: u8 = 200;
+    let wide = small as i64;
+    let f = small as f64;
+    println(wide);
+    println(f);
+    let big: i64 = 300;
+    println(big.truncate<u8>());
+    println(big.saturate<u8>());
+    println(big.try_into<u8>().debug());
+    println(big.try_into<u16>().debug());
+    println(2.5.round<i64>());
+    println((-2.5).round<i64>());
+    println((-2.5).floor<i64>());
+    println(2.1.ceil<i64>());
+    println(9_007_199_254_740_993.round<f64>());
+    println((-1).truncate<u8>());
+    println((-1).saturate<u8>());
+    println((-1).try_into<u64>().debug());
+    println(u64.MAX.try_into<i64>().debug());
+    println(i64.MAX.try_into<f64>().debug());
+    println(1.5.try_into<i64>().debug());
+    println(3.0.try_into<u8>().debug());
+    println(1.0e300.saturate<i64>());
+    println(1.0e300.saturate<f32>());
+    println(0.1.try_into<f32>().debug());
+    println(65.try_into<char>().debug());
+    println(55296.try_into<char>().debug());
+    let x: f64 = 0.0 / 0.0;
+    println(x.saturate<i32>());
+    println(x.try_into<f32>().debug());
+    let c = 'é';
+    println(c as u32);
+    println(233.truncate<u8>() as char);
+}

@@ -10,10 +10,10 @@ fun main() {
     println(a < b);
     let w: i16 = -300;
     println(w * 100);
-    println(w as u16);
+    println(w.truncate<u16>());
     let u: u16 = 65000;
     println(u + 535);
-    println(u as i8);
+    println(u.truncate<i8>());
     println("{a}/{u}");
 
     let m: i8 = i8.MAX;

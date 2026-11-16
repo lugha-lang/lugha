@@ -177,7 +177,20 @@ impl Checker {
     /// `expr as T` between numeric types; `bool` can't be cast.
     pub(super) fn cast(&mut self, expr: &Expr, inner: &Expr, target: &crate::ast::Type) -> Type {
         let to = self.resolve(target);
+        // A number literal has no loss to hide: `0 as u64` is a `u64` zero.
+        let float_literal = matches!(&inner.kind, ExprKind::Float(_))
+            || matches!(&inner.kind, ExprKind::Unary(_, x) if matches!(x.kind, ExprKind::Float(_)));
+        if is_literal(inner) && to.is_numeric() && to.is_float() == float_literal {
+            return self.value(inner, Some(&Expect::of(to)));
+        }
         let from = self.value(inner, None);
+        // `1 as f64`: an integer literal a float holds exactly.
+        if let Some(n) = int_literal(inner)
+            && to.is_float()
+            && n <= if to == Type::F32 { 1 << 24 } else { 1 << 53 }
+        {
+            return to;
+        }
         if matches!(from, Type::Error | Type::Never) || to == Type::Error {
             return to;
         }
@@ -187,7 +200,11 @@ impl Checker {
         // A type parameter bounded by `Num` or `Float` is a number at every
         // instance, so it casts like one.
         if (self.numeric(&from) && self.numeric(&to)) || char_cast {
-            return to;
+            // Only where nothing can be lost (E0469 names the methods).
+            return match self.lossless_cast(&from, &to, expr.span) {
+                true => to,
+                false => Type::Error,
+            };
         }
         let unbounded = [&from, &to].into_iter().find_map(|t| match t {
             Type::Param(p) if !self.has_num(p) => Some(p.clone()),
@@ -207,6 +224,15 @@ impl Checker {
             Type::Param(p) => self.has_num(p),
             _ => ty.is_numeric(),
         }
+    }
+}
+
+/// The magnitude of an integer literal, `-` folded in.
+fn int_literal(e: &Expr) -> Option<u64> {
+    match &e.kind {
+        ExprKind::Int(n) => Some(*n),
+        ExprKind::Unary(crate::ast::UnOp::Neg, inner) => int_literal(inner),
+        _ => None,
     }
 }
 
@@ -370,10 +396,15 @@ mod tests {
     #[test]
     fn numeric_casts_are_allowed_and_bool_casts_are_e0408() {
         assert_eq!(
-            let_type("fun main() { let a = 2.5 as i32; }", "a"),
-            Type::I32
+            errors("fun main() { let a = 2.5 as i32; }"),
+            [("E0469", "2.5 as i32")]
         );
-        assert_eq!(let_type("fun main() { let b = 300 as u8; }", "b"), Type::U8);
+        // A literal takes the target type when it fits.
+        assert_eq!(let_type("fun main() { let b = 200 as u8; }", "b"), Type::U8);
+        assert_eq!(
+            errors("fun main() { let b = 300 as u8; }"),
+            [("E0402", "300")]
+        );
         assert_eq!(
             let_type("fun main() { let x: i64 = 1; let c = x as i64; }", "c"),
             Type::I64

@@ -219,7 +219,7 @@ fn callbacks_take_and_give_handles_numbers_and_bools() {
          fun main() {\n\
              let scale = 2.0;\n\
              println(mix(fun(t: Thing, n: i32, x: f64, b: bool): f64 {\n\
-                 if b { (thing_id(t) + n as i64) as f64 * x * scale } else { 0.0 }\n\
+                 if b { (thing_id(t) + n as i64).round<f64>() * x * scale } else { 0.0 }\n\
              }));\n\
              println(maybe(fun(t: Option<Thing>): i64 {\n\
                  match t { .Some(x) => thing_id(x), .None => 7 }\n\

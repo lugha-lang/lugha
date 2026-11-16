@@ -1,0 +1,15 @@
+error[E0403]: expected i64, found string
+  --> tests/programs/generics/type_arguments/e0403.la:5:25
+  |
+5 |     let n = first<i64>(["a"]);
+  |                         ^^^ expected i64
+
+error[E0451]: `f64` isn't `Ord`: floats have `<` but no order of their own
+  --> tests/programs/generics/type_arguments/e0403.la:6:13
+  |
+6 |     let o = ordered<f64>(1.0, 2.0);
+  |             ^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = help: sort them with `xs.sort_by(f64.total_order)`, IEEE 754's total order
+
+For more about E0403 and E0451, run `lughac explain <code>`.

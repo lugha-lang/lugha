@@ -29,7 +29,7 @@ impl Checker {
             name: name.clone(),
             span: callee.span,
         };
-        Some(self.construct((call, call.span), RESULT, &variant, args, expect))
+        Some(self.construct((call, call.span, None), RESULT, &variant, args, expect))
     }
 
     /// True while checking the prelude, which may declare the built-in names.

@@ -168,11 +168,22 @@ mod tests {
 
     #[test]
     fn numeric_type_parameters_cast_both_ways() {
-        ok("fun mean<T: Num>(xs: T[]): T { let mut s: T = 0; for x of xs { s += x; } s / xs.len as T }
-            fun back<T: Num>(x: T): f64 = x as f64;
-            fun across<T: Num, U: Float>(x: T): U = x as U;
-            fun same<T: Float>(x: T): T = x as T;
-            fun main() { let m = mean([1, 2]); let b = back(2.5); let a: f32 = across(3); let s = same(1.5); }");
+        ok("fun widest<T: Float>(x: T): f64 = x as f64;
+            fun from_f32<T: Float>(x: f32): T = x as T;
+            fun same<T: Num>(x: T): T = x as T;
+            fun main() { let b = widest(2.5); let a: f64 = from_f32(1.5); let s = same(1); }");
+        // Lossless at some instances only: E0469.
+        for (src, cast) in [
+            ("fun f<T: Num>(n: i64): T = n as T;", "n as T"),
+            ("fun f<T: Num>(x: T): f64 = x as f64;", "x as f64"),
+            ("fun f<T: Num, U: Float>(x: T): U = x as U;", "x as U"),
+        ] {
+            assert_eq!(
+                errors(&format!("{src}\nfun main() {{}}")),
+                [("E0469", cast)],
+                "{src}"
+            );
+        }
         for (src, cast) in [
             ("fun f<T>(n: i64): T = n as T;", "n as T"),
             ("fun f<T: Eq>(n: i64): T = n as T;", "n as T"),

@@ -102,13 +102,30 @@ mod tests {
     }
 
     #[test]
-    fn every_numeric_pair_casts() {
-        let types = ["i32", "i64", "u8", "u32", "u64", "f32", "f64"];
+    fn numeric_pairs_cast_only_without_loss() {
+        let types = [
+            "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "f32", "f64",
+        ];
+        let widens = |from: &str, to: &str| {
+            let rank = |t: &str| types.iter().position(|x| *x == t).expect("listed");
+            let bits = |t: &str| t[1..].parse::<u32>().expect("a width");
+            match (&from[..1], &to[..1]) {
+                _ if from == to => true,
+                ("i", "i") | ("u", "u") => rank(to) > rank(from),
+                ("u", "i") => bits(to) > bits(from),
+                ("i" | "u", "f") => bits(from) <= if to == "f32" { 16 } else { 32 },
+                ("f", "f") => to == "f64",
+                _ => false,
+            }
+        };
         for from in types {
             for to in types {
-                ok(&format!(
-                    "fun main() {{ let a: {from} = 1 as {from}; let b = a as {to}; }}"
-                ));
+                let body = format!("let a = 1 as {from}; let b = a as {to};");
+                if widens(from, to) {
+                    ok(&format!("fun main() {{ {body} }}"));
+                } else {
+                    assert_eq!(codes(&body), ["E0469"], "{from} as {to}");
+                }
             }
         }
         assert_eq!(codes("let b = true as u32;"), ["E0408"]);
@@ -176,7 +193,8 @@ mod tests {
         assert_eq!(ty("let c = 'a';", "c"), Type::Char);
         assert_eq!(ty("let b = 'a' < 'b';", "b"), Type::Bool);
         assert_eq!(ty("let n = 'a' as u32;", "n"), Type::U32);
-        assert_eq!(ty("let c = 97 as char;", "c"), Type::Char);
+        assert_eq!(ty("let c = 97 as u8 as char;", "c"), Type::Char);
+        assert_eq!(codes("let n = 97; let c = n as char;"), ["E0469"]);
         assert_eq!(ty("let c = 'a'.to_upper();", "c"), Type::Char);
         assert_eq!(
             ty("let o = char_from(65);", "o"),

@@ -29,6 +29,19 @@ fn strength(e: &Expr) -> u8 {
 }
 
 impl Printer<'_> {
+    /// `e`'s written type arguments, `<i64, _>`, or nothing.
+    fn type_args(&self, e: &Expr) -> String {
+        let Some(written) = &e.type_args else {
+            return String::new();
+        };
+        let args: Vec<String> = written
+            .args
+            .iter()
+            .map(|a| a.as_ref().map_or("_".to_string(), |t| self.ty(t)))
+            .collect();
+        format!("<{}>", args.join(", "))
+    }
+
     /// An expression where a whole one stands: a value, an argument.
     pub(super) fn expr(&mut self, e: &Expr) -> Doc {
         match &e.kind {
@@ -37,8 +50,8 @@ impl Printer<'_> {
             | ExprKind::Char(_)
             | ExprKind::Str(_)
             | ExprKind::Bool(_)
-            | ExprKind::Name(_)
             | ExprKind::Interp(_) => text(self.text(e.span)),
+            ExprKind::Name(name) => text(format!("{name}{}", self.type_args(e))),
             ExprKind::Format(call) => {
                 let mut items = vec![text(self.text(call.template_span))];
                 items.extend(self.exprs(&call.args));
@@ -121,7 +134,8 @@ impl Printer<'_> {
             }
             ExprKind::Field(base, member) => {
                 let base = self.operand(base, POSTFIX);
-                concat(vec![base, text("."), text(self.ident(member))])
+                let member = format!("{}{}", self.ident(member), self.type_args(e));
+                concat(vec![base, text("."), text(member)])
             }
             ExprKind::StructLit(lit) => {
                 let mut name = match &lit.module {
@@ -129,6 +143,7 @@ impl Printer<'_> {
                     None => String::new(),
                 };
                 name.push_str(&self.ident(&lit.name));
+                name.push_str(&self.type_args(e));
                 let fields: Vec<Doc> = self.allowing(|p| {
                     let mut docs: Vec<Doc> = lit
                         .fields

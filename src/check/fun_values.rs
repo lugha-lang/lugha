@@ -52,12 +52,14 @@ impl Checker {
         ty: Type,
         expect: Option<&Expect>,
     ) -> Type {
+        let name = key.rsplit('.').next().unwrap_or(key);
+        let written = self.written(at, name, generics);
         if generics.is_empty() {
             // A std function used as a value is compiled only if listed.
             self.used(at, key, &[]);
             return ty;
         }
-        match self.infer(at, generics, Default::default(), Some((&ty, expect)), &[]) {
+        match self.infer(at, generics, written, Some((&ty, expect)), &[]) {
             Some(args) => {
                 self.used(at, key, &args);
                 subst(&ty, generics, &args)
