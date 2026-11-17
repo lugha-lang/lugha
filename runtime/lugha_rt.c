@@ -57,6 +57,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unwind.h>
 
 /* A Lugha string: length, then the bytes and a terminating NUL. */
 typedef struct {
@@ -113,6 +114,9 @@ static int utf8_encode(uint32_t code, char *out);
 /* Ends the program after a panic, or only the running actor (see
  * actors.c); `text` is what followed "panic: ". */
 static void panic_end(const char *text, size_t len);
+/* Unwinds the running task's stack after a panic (unwind.c), then
+ * `panic_end`; never returns. */
+static void panic_unwind(const char *text, size_t len);
 /* What a counted object's visit does with what it holds: let go of it (the
  * object is being freed), or mark it shared (it crossed to another task). */
 #define RC_RELEASE 0
@@ -146,13 +150,13 @@ static void die(const char *message) {
 }
 
 /* Prints `panic: <text>` (program data, so never a format string), then
- * ends the program or the running actor. */
+ * unwinds the running task and ends the program or the running actor. */
 static void panic_with(const char *text, size_t len) {
     fflush(stdout);
     fputs("panic: ", stderr);
     fwrite(text, 1, len, stderr);
     fputc('\n', stderr);
-    panic_end(text, len);
+    panic_unwind(text, len);
 }
 
 /* `panic_with` for a message built from a format. */

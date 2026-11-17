@@ -301,7 +301,12 @@ impl<'ctx> Lowerer<'ctx> {
                 .build_call(signature.function, &values, "call")
                 .expect(POSITIONED),
         };
-        self.rc_release_claims(claims);
+        let instruction = match site.try_as_basic_value() {
+            ValueKind::Basic(v) => inkwell::values::BasicValue::as_instruction_value(&v)
+                .expect("a call is an instruction"),
+            ValueKind::Instruction(i) => i,
+        };
+        self.rc_release_claims(instruction, claims);
         self.write_outs();
         Ok(match (site.try_as_basic_value(), &signature.ret) {
             (ValueKind::Basic(result), Some(ret))

@@ -303,7 +303,8 @@ fn uses_of<'ctx>(
                 // (from -O2's inlining) by them: merged with another here,
                 // its markers would no longer cover every use.
                 InstructionOpcode::Call if lifetime_marker(user) => return None,
-                InstructionOpcode::Call => {}
+                // An `invoke` passes a slot as a call does.
+                InstructionOpcode::Call | InstructionOpcode::Invoke => {}
                 // Stored *to*, not stored as a value somewhere.
                 InstructionOpcode::Store => {
                     let value = user.get_operand(0).and_then(|o| o.value())?;

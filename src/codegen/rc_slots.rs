@@ -25,7 +25,7 @@ use crate::check::Type;
 pub(super) struct Statement<'ctx> {
     /// Where it starts: after this instruction of this block (or at the
     /// block's start).
-    start: (BasicBlock<'ctx>, Option<InstructionValue<'ctx>>),
+    pub(super) start: (BasicBlock<'ctx>, Option<InstructionValue<'ctx>>),
     /// The temporaries it made, released at its end.
     pub(super) temps: Vec<usize>,
     /// Every slot it made, emptied at its start.
@@ -47,7 +47,7 @@ pub(super) struct RcSlots<'ctx> {
     all: Vec<(PointerValue<'ctx>, Type)>,
     /// Parameters an owning instance keeps: released when it returns,
     /// holding the argument from the start.
-    params: Vec<(PointerValue<'ctx>, Type)>,
+    pub(super) params: Vec<(PointerValue<'ctx>, Type)>,
     /// The statements being lowered, innermost last.
     pub(super) statements: Vec<Statement<'ctx>>,
     /// Temporaries made outside any statement (a function's tail), emptied
@@ -55,7 +55,7 @@ pub(super) struct RcSlots<'ctx> {
     pub(super) outside: Vec<usize>,
     /// Per block being lowered (in step with the `defer` lists), its owned
     /// locals.
-    blocks: Vec<Vec<usize>>,
+    pub(super) blocks: Vec<Vec<usize>>,
     /// The expression whose value was last put in a temporary, and where:
     /// a store of that very value takes it instead of retaining it.
     pub(super) last: Option<(ExprId, PointerValue<'ctx>)>,
@@ -273,6 +273,9 @@ impl<'ctx> Lowerer<'ctx> {
     /// `rc_statement_end`, its temporaries released at the start of `also`
     /// too: a pattern's test may bind some names, then fail, and jump there.
     pub(super) fn rc_statement_end_also(&mut self, also: Option<BasicBlock<'ctx>>) {
+        if let Some(start) = self.rc_slots.statements.last().map(|s| s.start) {
+            self.unwind_statement(start);
+        }
         let Some(statement) = self.rc_slots.statements.pop() else {
             return;
         };
@@ -429,6 +432,7 @@ impl<'ctx> Lowerer<'ctx> {
         function: FunctionValue<'ctx>,
         outer: RcSlots<'ctx>,
     ) {
+        self.unwind_function();
         let slots = std::mem::replace(&mut self.rc_slots, outer);
         if slots.outside.is_empty() {
             return;

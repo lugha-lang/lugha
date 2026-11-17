@@ -56,6 +56,10 @@ pub(super) struct Lowerer<'ctx> {
     pub(super) borrowing_arms: HashSet<crate::span::Span>,
     /// True while an arm whose bindings borrow is binding them.
     pub(super) borrowing: bool,
+    /// The landing pads made so far (`codegen::unwind`).
+    pub(super) pads: super::unwind::Pads<'ctx>,
+    /// A failure lowering a pad's `defer`s, reported when lowering ends.
+    pub(super) pad_error: Option<CodegenError>,
     /// While a direct call's arguments are lowered, the fresh ones it will
     /// release once it returns; `None` otherwise.
     pub(super) claims: Option<Vec<super::rc_temps::Claim<'ctx>>>,
@@ -243,6 +247,8 @@ pub(super) fn lower<'ctx>(
         borrowing_arms: checked.borrowing_arms.clone(),
         borrowing: false,
         claims: None,
+        pads: Default::default(),
+        pad_error: None,
         keeps: checked.keeps.clone(),
         owning_instances: HashMap::new(),
         owning: false,
@@ -355,6 +361,11 @@ pub(super) fn lower<'ctx>(
     super::sret::results_through_pointers(context, &lowerer.module);
     // Struct values split into their fields.
     super::split::split_structs(context, &lowerer.module);
+    if let Some(e) = lowerer.pad_error.take() {
+        return Err(e);
+    }
+    // Calls with cleanup to run on a panic become invokes of their pads.
+    lowerer.invokes();
     // Stack probes; the caller shares slots, before or
     // after optimising (`codegen::frames`).
     super::frames::probe_stacks(context, &lowerer.module);
@@ -391,6 +402,16 @@ impl<'ctx> Lowerer<'ctx> {
             .builder
             .build_call(user_main, &args, "result")
             .expect(POSITIONED);
+        // A panic in `main` lets go of its arguments too, once unwound.
+        let saved = self.function.replace(main);
+        let instruction = match call.try_as_basic_value() {
+            ValueKind::Basic(v) => inkwell::values::BasicValue::as_instruction_value(&v)
+                .expect("a call is an instruction"),
+            ValueKind::Instruction(i) => i,
+        };
+        let entry_args = args.clone();
+        self.unwind_entry(instruction, |this| this.rc_after_entry(params, &entry_args));
+        self.function = saved;
         self.rc_after_entry(params, &args);
         let code = match call.try_as_basic_value() {
             ValueKind::Basic(value) => value.into_int_value(),

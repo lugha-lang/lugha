@@ -42,6 +42,16 @@ impl<'ctx> Lowerer<'ctx> {
         self.rc_slots.outside.retain(|&i| i != index);
     }
 
+    /// True if leaving the function now would release anything: a
+    /// temporary, a local or an owned parameter.
+    pub(super) fn rc_holds_anything(&self) -> bool {
+        let slots = &self.rc_slots;
+        slots.statements.iter().any(|s| !s.temps.is_empty())
+            || !slots.outside.is_empty()
+            || slots.blocks.iter().any(|b| !b.is_empty())
+            || !slots.params.is_empty()
+    }
+
     /// The temporary the argument `id`'s value was just put in, made in
     /// the current block, claimed so the call can release it.
     pub(super) fn rc_claim(
@@ -71,16 +81,41 @@ impl<'ctx> Lowerer<'ctx> {
     /// is released here instead of with its statement, and its temporary
     /// goes. In another block (an argument branched), they stay as made.
     /// Last first: a later argument's range starts after an earlier one's.
-    pub(super) fn rc_release_claims(&mut self, claims: Vec<Claim<'ctx>>) {
+    ///
+    /// `call` is the call they were passed to: if it unwinds, its own pad
+    /// lets go of them (`codegen::unwind`).
+    pub(super) fn rc_release_claims(
+        &mut self,
+        call: InstructionValue<'ctx>,
+        claims: Vec<Claim<'ctx>>,
+    ) {
+        let mut released = Vec::new();
         for claim in claims.into_iter().rev() {
             if claim.made.1 != self.current_block() {
                 continue;
             }
             self.rc_dissolve(claim.slot, claim.made);
-            match claim.at {
-                Some(at) => self.rc_value_at(at, &claim.ty, super::rc::RcOp::Release),
-                None => self.rc_release(claim.value, &claim.ty),
-            }
+            let what = (claim.at, claim.value, claim.ty);
+            self.rc_let_go_claimed(&what);
+            released.push(what);
+        }
+        if !released.is_empty() {
+            self.unwind_claimed(call, |this| {
+                for what in &released {
+                    this.rc_let_go_claimed(what);
+                }
+            });
+        }
+    }
+
+    /// Lets go of a claimed argument: from its slot, or its value.
+    fn rc_let_go_claimed(
+        &mut self,
+        (at, value, ty): &(Option<PointerValue<'ctx>>, BasicValueEnum<'ctx>, Type),
+    ) {
+        match at {
+            Some(at) => self.rc_value_at(*at, ty, super::rc::RcOp::Release),
+            None => self.rc_release(*value, ty),
         }
     }
 }

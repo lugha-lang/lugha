@@ -1,6 +1,6 @@
 ## FEATURE: Unwinding: a panic runs the pending `defer`s and releases what every frame of its task holds, through unwind tables; a panic in an actor ends the actor after unwinding, one anywhere else ends the program after unwinding its own task; milestone 194.
 
-**Status:** proposed 2026-11-17.
+**Status:** approved 2026-11-17.
 
 ## OBJECTIVE
 ```

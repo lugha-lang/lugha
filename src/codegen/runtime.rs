@@ -200,6 +200,9 @@ impl<'ctx> Lowerer<'ctx> {
                 }
             }
             ("panic", Some((_, message))) => {
+                // The text is owned: the statement holds it, so unwinding
+                // lets go of it.
+                self.rc_temporary(None, message, &Type::String);
                 // Inside a `@caller_location` function, its caller's place.
                 self.panic_located(message, call.span.start);
                 Ok(Value::Never)

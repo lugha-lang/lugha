@@ -139,7 +139,8 @@ pub(super) fn compile(
     }
     // Optimized: every program's allocation, strings, maps and channels
     // run through this code.
-    let flags = vec![std::ffi::OsString::from("-O2")];
+    // Unwind tables: a panic unwinds through the runtime's own frames.
+    let flags = vec![std::ffi::OsString::from("-O2"), "-funwind-tables".into()];
     let compile = |extra: &[std::ffi::OsString]| {
         let all: Vec<std::ffi::OsString> = flags.iter().chain(extra).cloned().collect();
         run(cache.cc(), &source.0, &all, &object, openssl)

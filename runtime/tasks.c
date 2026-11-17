@@ -51,6 +51,8 @@ struct Fiber {
     void *code;
     void *env;
     LughaTask *task;
+    /* True while a panic unwinds this fiber's stack. */
+    bool unwinding;
     /* Run queue, and the list of every live fiber. */
     Fiber *next;
     Fiber *prev_live;
@@ -119,9 +121,13 @@ __asm__(".text\n"
         ".globl lugha_rt_task_boot\n"
         ".type lugha_rt_task_boot, @function\n"
         "lugha_rt_task_boot:\n"
+        /* The fiber's outermost frame: unwinding stops here. */
+        "    .cfi_startproc\n"
+        "    .cfi_undefined rip\n"
         "    movq %r12, %rdi\n"
         "    call lugha_rt_task_fiber_main\n"
         "    ud2\n"
+        "    .cfi_endproc\n"
         ".size lugha_rt_task_boot, .-lugha_rt_task_boot\n");
 #elif defined(__aarch64__)
 /* The same for AArch64: AAPCS64's callee-saved
@@ -168,9 +174,13 @@ __asm__(".text\n"
         ".globl lugha_rt_task_boot\n"
         ".type lugha_rt_task_boot, %function\n"
         "lugha_rt_task_boot:\n"
+        /* The fiber's outermost frame: unwinding stops here. */
+        "    .cfi_startproc\n"
+        "    .cfi_undefined x30\n"
         "    mov x0, x19\n"
         "    bl lugha_rt_task_fiber_main\n"
         "    brk #0\n"
+        "    .cfi_endproc\n"
         ".size lugha_rt_task_boot, .-lugha_rt_task_boot\n");
 #else
 #error "green threads need a stack switch for this architecture (x86-64 and AArch64 have one)"
