@@ -34,7 +34,7 @@ impl Fs for $Fs {
  * the kernel (`openat2`, `RESOLVE_BENEATH`); `read_only` refuses writing
  * before any system call.
  */
-struct $Dir { h: CPtr, read_only: bool }
+struct $Dir { h: $Resource, read_only: bool }
 
 impl Dir for $Dir {
     fun dir(self, path: string): Result<Dir, string> {
@@ -116,7 +116,7 @@ impl $Dir {
 }
 
 /** A file opened beneath folder `h` in `mode` 0 (reading), 1 (creating) or 2 (appending). */
-fun $opened(h: CPtr, path: string, mode: i64): Result<File, string> {
+fun $opened(h: $Resource, path: string, mode: i64): Result<File, string> {
     let fd = $os.dir_file(h, path, mode)?;
     Ok($File { fd: Ref.new(fd), writing: mode != 0, buf: Ref.new([]), pos: Ref.new(0), line: Ref.new(0) })
 }

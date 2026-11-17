@@ -72,11 +72,7 @@ impl<'ctx> Lowerer<'ctx> {
                     .context
                     .i64_type()
                     .const_int(self.element_size(payload), false);
-                let drop = if self.rc() {
-                    self.rc_box_drop(payload)
-                } else {
-                    None
-                };
+                let drop = self.rc_box_drop(payload);
                 let heap = self.new_object(size, drop, "boxed");
                 self.store_element(heap, payload, value);
                 self.builder.build_store(address, heap).expect(POSITIONED);
@@ -104,9 +100,9 @@ mod tests {
             start[..start.find("\n}").unwrap()].to_string()
         };
         assert!(
-            body("one").contains("call ptr @lugha_rt_alloc(i64 24)"),
+            body("one").contains("call ptr @lugha_rt_rc_alloc(i64 24,"),
             "{ir}"
         );
-        assert!(!body("none").contains("lugha_rt_alloc"), "{ir}");
+        assert!(!body("none").contains("lugha_rt_rc_alloc"), "{ir}");
     }
 }

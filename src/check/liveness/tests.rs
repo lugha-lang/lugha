@@ -280,3 +280,23 @@ fn the_last_statement_leaves_its_locals_to_the_block_end() {
     let src = "fun f(console: Console) { let xs = [1]; console.println(xs.len); }\nfun main() {}";
     assert_eq!(released(src), Vec::<(&str, Vec<String>)>::new());
 }
+
+#[test]
+fn an_arm_borrows_only_when_it_leaves_the_matched_local_alone() {
+    let src = "enum B { Full(i64[]), Empty }\n\
+               fun f(b: B): i64 = match b { .Full(xs) => xs.len, .Empty => 0 };\n\
+               fun g(): i64 { let mut b = B.Full([1]); match b { .Full(xs) => { b = B.Empty; xs.len } .Empty => 0 } }\n\
+               fun main() {}";
+    let checked = ok(src);
+    let bodies: Vec<&str> = {
+        let mut spans: Vec<_> = checked
+            .borrowing_arms
+            .iter()
+            .filter(|s| s.end <= src.len())
+            .collect();
+        spans.sort_by_key(|s| s.start);
+        spans.iter().map(|s| &src[s.start..s.end]).collect()
+    };
+    // `f`'s arms leave `b` alone; `g`'s first arm reassigns it.
+    assert_eq!(bodies, vec!["xs.len", "0", "0"]);
+}

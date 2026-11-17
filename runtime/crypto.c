@@ -6,7 +6,7 @@
  * `std.crypto` (they link -lcrypto); every other program never sees it.
  *
  * Programs never see an OpenSSL object: digests, keys and signatures cross
- * as byte arrays, a running hash as a collected object whose finalizer frees
+ * as byte arrays, a running hash as a counted object whose last holder frees
  * its `EVP_MD_CTX`. Every `EVP_PKEY` and `EVP_MD_CTX` is freed, and
  * OpenSSL's error queue read or cleared, on every path. Lengths are checked
  * here too, though `std.crypto` checks them first.
@@ -14,7 +14,7 @@
  * Secrets: derived keys are wiped from their buffer with `OPENSSL_cleanse`,
  * and OpenSSL clears its key objects when they are freed. Random secrets
  * come from the program's `Entropy`, not from here.
- * The bytes handed to Lugha live in collected memory, which isn't wiped.
+ * The bytes handed to Lugha are ordinary objects, which aren't wiped.
  */
 #include <openssl/crypto.h>
 #include <openssl/err.h>
@@ -81,17 +81,18 @@ LughaArray *lugha_rt_crypto_sha256(const LughaArray *data) {
     return bytes_of(md, CRYPTO_DIGEST);
 }
 
-/* A running SHA-256, in collected memory; its context is OpenSSL's. */
+/* A running SHA-256, a counted object; its context is OpenSSL's. */
 typedef struct {
     EVP_MD_CTX *ctx;
 } CryptoHasher;
 
-/* The collector's finalizer: the hasher is unreachable, so its context goes. */
-static void crypto_hasher_free(void *obj, void *data) {
-    (void)data;
+/* A hasher's visit: freeing it frees its context. */
+static void crypto_hasher_visit(void *obj, int64_t op) {
     CryptoHasher *h = obj;
-    EVP_MD_CTX_free(h->ctx);
-    h->ctx = NULL;
+    if (op == RC_RELEASE) {
+        EVP_MD_CTX_free(h->ctx);
+        h->ctx = NULL;
+    }
 }
 
 static void crypto_hasher_start(CryptoHasher *h) {
@@ -102,15 +103,11 @@ static void crypto_hasher_start(CryptoHasher *h) {
 
 /* `$os.crypto_sha256_new()`: an empty running hash. */
 void *lugha_rt_crypto_sha256_new(void) {
-    CryptoHasher *h = GC_MALLOC(sizeof *h);
-    if (h == NULL) {
-        die("panic: out of memory\n");
-    }
+    CryptoHasher *h = lugha_rt_rc_alloc((int64_t)sizeof *h, crypto_hasher_visit);
     h->ctx = EVP_MD_CTX_new();
     if (h->ctx == NULL) {
         crypto_panic();
     }
-    GC_register_finalizer(h, crypto_hasher_free, NULL, NULL, NULL);
     crypto_hasher_start(h);
     return h;
 }
@@ -241,7 +238,7 @@ int32_t lugha_rt_crypto_hkdf(const LughaArray *key, const LughaArray *salt,
     EVP_KDF_CTX *ctx = kdf == NULL ? NULL : EVP_KDF_CTX_new(kdf);
     // The context holds its own reference to the algorithm.
     EVP_KDF_free(kdf);
-    // OpenSSL's buffer rather than the collector's, so it can be wiped
+    // OpenSSL's buffer rather than a Lugha object, so it can be wiped
     // (`OPENSSL_clear_free`) once copied out.
     unsigned char *okm = ctx == NULL ? NULL : OPENSSL_malloc((size_t)length);
     OSSL_PARAM params[] = {
@@ -311,7 +308,7 @@ int32_t lugha_rt_crypto_seal(const LughaArray *key, const LughaArray *nonce,
         return net_error(error, wrong);
     }
     ERR_clear_error();
-    // Ciphertext and tag aren't secret: collected memory is fine.
+    // Ciphertext and tag aren't secret: an ordinary object is fine.
     unsigned char *sealed = lugha_rt_alloc(plain->len + CRYPTO_TAG);
     EVP_CIPHER_CTX *ctx = crypto_aead(key, nonce, 1);
     int n = 0;
@@ -343,7 +340,7 @@ int32_t lugha_rt_crypto_open(const LughaArray *key, const LughaArray *nonce,
     }
     ERR_clear_error();
     int64_t len = sealed->len - CRYPTO_TAG;
-    // OpenSSL's buffer rather than the collector's: plaintext from a
+    // OpenSSL's buffer rather than a Lugha object: plaintext from a
     // forged input must never reach Lugha, so it is wiped on every path.
     unsigned char *plain = OPENSSL_malloc((size_t)(len > 0 ? len : 1));
     unsigned char tag[CRYPTO_TAG];

@@ -1,5 +1,5 @@
 //! The per-call costs of growable stacks and preemption, simulated for
-//! measuring only (`LUGHA_MEMORY=rc` with `LUGHA_CALL_COSTS=1`): a stack
+//! measuring only (`LUGHA_CALL_COSTS=1`): a stack
 //! check at every function's entry, and the countdown to the next
 //! scheduling point at entries and loop back-edges, in every program, with
 //! tasks or without.
@@ -10,13 +10,12 @@ use inkwell::IntPredicate;
 use inkwell::intrinsics::Intrinsic;
 use inkwell::module::Linkage;
 
-use super::Memory;
 use super::lower::{Lowerer, POSITIONED};
 
 impl<'ctx> Lowerer<'ctx> {
     /// True when the per-call costs are simulated.
     pub(super) fn call_costs(&self) -> bool {
-        self.memory == Memory::RcCallCosts
+        self.costs.0
     }
 
     /// At a function's entry, when the costs are simulated: this frame's

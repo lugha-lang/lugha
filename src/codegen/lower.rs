@@ -24,9 +24,10 @@ pub(super) const POSITIONED: &str = "builder is positioned in a block";
 pub(super) struct Lowerer<'ctx> {
     /// The platform: how extern structs cross to C depends on it.
     pub(super) target: super::Target,
-    /// Boehm's collector, or the reference-counting prototype.
-    pub(super) memory: super::Memory,
-    /// Under reference counting, the slots the function being lowered releases.
+    /// Whether the per-call costs of growable stacks and preemption are
+    /// simulated (`LUGHA_CALL_COSTS=1`).
+    pub(super) costs: super::CallCosts,
+    /// The slots the function being lowered releases.
     pub(super) rc_slots: super::rc_slots::RcSlots<'ctx>,
     /// Closure environment drops made so far, for their names.
     pub(super) rc_envs: usize,
@@ -51,6 +52,13 @@ pub(super) struct Lowerer<'ctx> {
     pub(super) hands: HashSet<ExprId>,
     /// Per statement, the `let` locals nothing mentions after it.
     pub(super) dead_after: HashMap<crate::span::Span, Vec<String>>,
+    /// The bodies of `match` arms whose bindings borrow (by span).
+    pub(super) borrowing_arms: HashSet<crate::span::Span>,
+    /// True while an arm whose bindings borrow is binding them.
+    pub(super) borrowing: bool,
+    /// While a direct call's arguments are lowered, the fresh ones it will
+    /// release once it returns; `None` otherwise.
+    pub(super) claims: Option<Vec<super::rc_temps::Claim<'ctx>>>,
     pub(super) keeps: HashMap<String, Vec<bool>>,
     /// Each keeping function's owning instance, by its ordinary one.
     pub(super) owning_instances:
@@ -214,14 +222,11 @@ pub(super) fn lower<'ctx>(
     context: &'ctx Context,
     units: &[Unit],
     checked: &Checked,
-    (sources, target, memory): (&[ModuleSource], super::Target, super::Memory),
+    (sources, target, costs): (&[ModuleSource], super::Target, super::CallCosts),
 ) -> Result<Module<'ctx>, CodegenError> {
-    if let Some(what) = super::rc::rc_unsupported(checked).filter(|_| memory != super::Memory::Gc) {
-        return Err(CodegenError::Unsupported(what));
-    }
     let mut lowerer = Lowerer {
         target,
-        memory,
+        costs,
         rc_slots: Default::default(),
         rc_envs: 0,
         context,
@@ -235,6 +240,9 @@ pub(super) fn lower<'ctx>(
         param_hands: checked.param_hands.clone(),
         hands: checked.hands.clone(),
         dead_after: checked.dead_after.clone(),
+        borrowing_arms: checked.borrowing_arms.clone(),
+        borrowing: false,
+        claims: None,
         keeps: checked.keeps.clone(),
         owning_instances: HashMap::new(),
         owning: false,

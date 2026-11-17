@@ -147,8 +147,8 @@ Rapidkoi draws its windows with GTK and keeps its data in SQLite.
 - **It is young.** Lugha changes as I learn what works. A new version can break programs written
   for the last one. There are only a few libraries so far.
 - **It runs on Linux.** It works best on x86-64 computers. It can also build programs for ARM64.
-- **It has a garbage collector.** Lugha frees memory for you. This is easier, but it uses more
-  memory than freeing it by hand.
+- **It counts references.** Lugha frees memory for you as soon as nothing holds it. Values that
+  hold each other in a loop through `Ref` boxes are never freed yet.
 - **The safety checks are always on.** Every sum and every array index is checked, even in a fast
   (`-O2`) build. This costs a little speed.
 

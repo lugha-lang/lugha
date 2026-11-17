@@ -39,22 +39,14 @@ LANGS = {
         "tool": "cargo",
         "build": lambda src, out: [str(LUGHAC), "build", str(src), "-O0", "-o", str(out)],
     },
-    # The reference-counting prototype, at -O2, against the collector above.
-    "lugha-rc": {
-        "ext": "la",
-        "tool": "cargo",
-        "build": lambda src, out: [
-            str(LUGHAC), "build", str(src), "-O2", "--memory=rc", "-o", str(out),
-        ],
-    },
-    # The prototype with the per-call costs later phases add simulated: a
+    # The per-call costs of growable stacks and preemption simulated: a
     # stack check and the scheduling countdown in every function.
-    "lugha-rc-calls": {
+    "lugha-calls": {
         "ext": "la",
         "tool": "cargo",
         "build": lambda src, out: [
             "env", "LUGHA_CALL_COSTS=1",
-            str(LUGHAC), "build", str(src), "-O2", "--memory=rc", "-o", str(out),
+            str(LUGHAC), "build", str(src), "-O2", "-o", str(out),
         ],
     },
     "c": {

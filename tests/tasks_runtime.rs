@@ -1,6 +1,6 @@
-//! The green-thread runtime through a C harness built
-//! against `lugha_rt.c`: scheduling order, what a switch keeps, sleeping,
-//! channels, `select`, the collector scanning suspended stacks, preemption,
+//! The green-thread runtime through a C harness built against
+//! `lugha_rt.c`: scheduling order, what a switch keeps, sleeping, channels,
+//! `select`, objects a suspended thread holds staying its own, preemption,
 //! and the panics (deadlock, closed channels, stack overflow).
 
 use std::path::PathBuf;
@@ -9,7 +9,6 @@ use std::sync::OnceLock;
 
 /// The harness: each case is one argument (`harness join`).
 const HARNESS: &str = r#"#include <fenv.h>
-#include <gc.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,6 +16,7 @@ const HARNESS: &str = r#"#include <fenv.h>
 
 void lugha_rt_init(int32_t argc, char **argv);
 void *lugha_rt_alloc(int64_t size);
+void lugha_rt_rc_release(void *object);
 void *lugha_rt_task_spawn(void (*entry)(void *, void *, void *), void *code, void *env, int64_t size);
 void *lugha_rt_task_join(void *task);
 void lugha_rt_task_yield(void);
@@ -48,10 +48,16 @@ static void *new_counter(void) { int64_t *state = lugha_rt_alloc(8); return lugh
 static void *num(int64_t n) { int64_t *p = lugha_rt_alloc(8); *p = n; return p; }
 
 typedef int64_t (*Fn)(void *env);
+/* As generated code does, the thread gets a counted environment, which it
+ * lets go of when it ends: here a box holding `env`. */
 static void entry(void *code, void *env, void *result) {
-    *(int64_t *)result = ((Fn)code)(env);
+    *(int64_t *)result = ((Fn)code)(*(void **)env);
 }
-static void *spawn(Fn f, void *env) { return lugha_rt_task_spawn(entry, (void *)f, env, 8); }
+static void *spawn(Fn f, void *env) {
+    void **boxed = lugha_rt_alloc(sizeof(void *));
+    *boxed = env;
+    return lugha_rt_task_spawn(entry, (void *)f, boxed, 8);
+}
 static int64_t join(void *t) { return *(int64_t *)lugha_rt_task_join(t); }
 
 static int64_t square(void *env) { int64_t n = (int64_t)(intptr_t)env; return n * n; }
@@ -88,7 +94,7 @@ static int64_t deep(void *env) { (void)env; return recurse(100000000); }
 static int64_t keeper(void *env) {
     (void)env;
     int64_t **cell = lugha_rt_alloc(sizeof(int64_t *) * 64);
-    for (int i = 0; i < 64; i++) { cell[i] = lugha_rt_alloc(1024); *cell[i] = i; }
+    for (int i = 0; i < 64; i++) { cell[i] = lugha_rt_alloc(16); *cell[i] = i; }
     lugha_rt_task_yield();
     int64_t sum = 0;
     for (int i = 0; i < 64; i++) sum += *cell[i];
@@ -96,8 +102,13 @@ static int64_t keeper(void *env) {
 }
 static int64_t churn(void *env) {
     (void)env;
-    for (int i = 0; i < 2000; i++) memset(lugha_rt_alloc(4096), 0xff, 4096);
-    GC_gcollect();
+    /* Small blocks freed and made again: a block the keeper still holds
+     * must never be handed out. */
+    for (int i = 0; i < 2000; i++) {
+        void *p = lugha_rt_alloc(16);
+        memset(p, 0xff, 16);
+        lugha_rt_rc_release(p);
+    }
     return 0;
 }
 static int64_t spin(void *env) {
@@ -209,13 +220,10 @@ int main(int argc, char **argv) {
 }
 "#;
 
-/// Builds the runtime and the harness once for every test, with the
-/// bundled collector.
+/// Builds the runtime and the harness once for every test.
 fn harness() -> &'static PathBuf {
     static BUILT: OnceLock<PathBuf> = OnceLock::new();
-    static GC: OnceLock<lugha::link::gc::Bundled> = OnceLock::new();
     BUILT.get_or_init(|| {
-        let gc = GC.get_or_init(|| lugha::link::gc::bundled().expect("the collector compiles"));
         let dir = std::env::temp_dir().join(format!("lugha-tasks-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("temp dir is writable");
         std::fs::write(dir.join("lugha_rt.c"), lugha::link::RUNTIME_SOURCE).expect("writable");
@@ -225,11 +233,9 @@ fn harness() -> &'static PathBuf {
         // holds the runtime to that, and GCC's -O2 flow analysis warns on
         // code unrelated to green threads.
         let out = Command::new("cc")
-            .args(["-std=c11", "-O2", "-isystem"])
-            .arg(&gc.include)
+            .args(["-std=c11", "-O2"])
             .arg(dir.join("harness.c"))
             .arg(dir.join("lugha_rt.c"))
-            .arg(&gc.object)
             .args(["-lm", "-o"])
             .arg(&exe)
             .output()
@@ -344,7 +350,7 @@ try 0
 }
 
 #[test]
-fn suspended_stacks_keep_their_objects_alive() {
+fn a_suspended_thread_keeps_its_objects() {
     prints(
         "gc", "2016
 ",

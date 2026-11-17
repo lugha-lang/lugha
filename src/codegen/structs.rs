@@ -171,9 +171,9 @@ impl<'ctx> Lowerer<'ctx> {
             .get_struct_type(&ty.to_string())
             .expect("declared before lowering");
         let mut aggregate = start.unwrap_or_else(|| struct_type.get_undef());
-        // Under reference counting the base's own value of each written
+        // The base's own value of each written
         // field is let go of: the written one replaces it.
-        if start.is_some() && self.rc() {
+        if start.is_some() {
             let fields = self.structs[&ty.to_string()].clone();
             for (index, _) in &values {
                 let field_ty = &fields[*index as usize].1;

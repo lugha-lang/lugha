@@ -1,5 +1,5 @@
 //! Closures in codegen: a closure literal
-//! copies its captures into one GC environment, written once, and its body
+//! copies its captures into one counted environment, written once, and its body
 //! becomes `lugha_closure_<enclosing>.<n>`, which takes that environment
 //! first, like every function value's code.
 
@@ -83,21 +83,15 @@ impl<'ctx> Lowerer<'ctx> {
         captured: &[Local<'ctx>],
     ) -> PointerValue<'ctx> {
         let size = layout.size_of().expect("an environment is sized");
-        let drop = if self.rc() {
+        let drop = {
             let types: Vec<Type> = captured.iter().map(|l| l.ty.clone()).collect();
             self.rc_env_drop(layout, &types, false)
-        } else {
-            None
         };
         let env = self.new_object(size, drop, "env");
         for (i, (name, local)) in names.iter().zip(captured).enumerate() {
             let value = self.load(local, name);
             // A copy, as at any copy site: the closure may outlive the local.
-            let value = if local.ty.is_deep(&self.structs) || self.rc() {
-                self.deep_copy(value, &local.ty)
-            } else {
-                value
-            };
+            let value = self.deep_copy(value, &local.ty);
             let index = u32::try_from(i).expect("capture count fits in u32");
             let at = self
                 .builder
@@ -236,7 +230,7 @@ mod tests {
         );
         let main = &ir[ir.find("define void @lugha_fn_main()").unwrap()..];
         assert_eq!(
-            main.matches("call ptr @lugha_rt_alloc").count(),
+            main.matches("call ptr @lugha_rt_rc_alloc").count(),
             1,
             "{main}"
         );

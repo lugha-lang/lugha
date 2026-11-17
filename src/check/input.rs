@@ -34,6 +34,11 @@ pub(super) const INPUT: [&str; 14] = [
 /// no module declares.
 pub const CPTR: &str = "CPtr";
 
+/// A resource the runtime made and frees when its last holder goes (a
+/// folder's descriptor, a running hash): counted, unlike `CPtr`. Only the
+/// prelude and std name it.
+pub const RESOURCE: &str = "$Resource";
+
 /// The prelude function behind an intrinsic written in Lugha.
 pub fn prelude_helper(intrinsic: &str) -> Option<&'static str> {
     Some(match intrinsic {

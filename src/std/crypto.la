@@ -63,7 +63,7 @@ public fun sha256(bytes: u8[]): u8[] = $os.crypto_sha256(bytes);
  * one running hash. Nothing needs closing.
  */
 public struct Sha256 {
-    state: CPtr,
+    state: $Resource,
 }
 
 impl Sha256 {

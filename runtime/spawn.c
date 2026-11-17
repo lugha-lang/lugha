@@ -26,7 +26,6 @@ static char *new_stack(void) {
  * joiners, and never comes back. */
 static void fiber_exit(Fiber *self);
 
-#ifdef LUGHA_RC
 /* The visit of a `Task`: what its result holds, once it has one; its
  * result's block goes with it. */
 static void rc_task_visit(void *object, int64_t op) {
@@ -39,16 +38,12 @@ static void rc_task_visit(void *object, int64_t op) {
     }
 }
 
-/* Under reference counting, generated code gives a new task its result's
- * visit (none when the result holds nothing counted). */
+/* Generated code gives a new task its result's visit (none when the result holds nothing counted). */
 void lugha_rt_rc_task_setup(LughaTask *task, RcVisit result_visit) {
     task->result_visit = result_visit;
 }
-#endif
 
-#ifdef LUGHA_RC
-/* When the entry returns, under reference counting: every unfinished
- * thread stops, so what it holds as a thread (its call's environment, its
+/* When the entry returns, every unfinished thread stops, so what it holds as a thread (its call's environment, its
  * task, an actor's handle) is let go of. What only its stack holds stays:
  * stopping doesn't unwind. */
 void lugha_rt_rc_stop_threads(void) {
@@ -65,7 +60,6 @@ void lugha_rt_rc_stop_threads(void) {
         f->task = NULL;
     }
 }
-#endif
 
 /* The fiber `lugha_rt_task_spawn` made last, for actors.c to mark. */
 static Fiber *last_spawned;
@@ -81,11 +75,9 @@ __attribute__((used, visibility("hidden"))) void lugha_rt_task_fiber_main(Fiber 
 static void fiber_exit(Fiber *self) {
     LughaTask *task = self->task;
     task->done = 1;
-#ifdef LUGHA_RC
     /* The call's environment was the fiber's to let go of. */
     lugha_rt_rc_release(self->env);
     self->env = NULL;
-#endif
     for (Fiber *j = task->joiners; j != NULL;) {
         Fiber *after = j->wait_next;
         wake(j, 0);
@@ -101,10 +93,8 @@ static void fiber_exit(Fiber *self) {
         self->next_live->prev_live = self->prev_live;
     }
     live_count--;
-#ifdef LUGHA_RC
     /* Its joiners hold the task themselves now. */
     lugha_rt_rc_release(task);
-#endif
     zombie = self;
     schedule();
     die("panic: internal error: a finished green thread ran again\n");
@@ -116,21 +106,13 @@ LughaTask *lugha_rt_task_spawn(void (*entry)(void *, void *, void *), void *code
                                int64_t result_size) {
     ensure_started();
     LughaTask *task = lugha_rt_alloc((int64_t)sizeof(LughaTask));
-#ifdef LUGHA_RC
     /* The result's block is the task's own, freed with it. The new
      * fiber holds the task until it ends, and two tasks hold it now. */
     task->result = lugha_rc_internal((size_t)(result_size < 1 ? 1 : result_size));
     lugha_rt_rc_set_drop(task, rc_task_visit);
     lugha_rt_rc_retain(task);
     lugha_rt_rc_mark(task);
-#else
-    task->result = lugha_rt_alloc(result_size < 1 ? 1 : result_size);
-#endif
-    Fiber *f = GC_MALLOC_UNCOLLECTABLE(sizeof(Fiber));
-    if (f == NULL) {
-        die("panic: out of memory\n");
-    }
-    memset(f, 0, sizeof *f);
+    Fiber *f = lugha_rc_internal(sizeof(Fiber));
     f->map = new_stack();
     f->top = f->map + FIBER_GUARD + FIBER_STACK;
     f->entry = entry;

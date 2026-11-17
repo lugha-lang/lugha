@@ -8,12 +8,10 @@
  *
  * Each green thread is a `Fiber`: its own `mmap`'d stack (1 MiB, guard pages
  * below) and the stack pointer saved while it is switched out. `main` is a
- * fiber too, on the program's own stack. Fibers are allocated uncollectable,
- * so the collector scans them as roots, and `push_fiber_stacks` hands it
- * every switched-out stack; the running one is the collector's "the stack",
- * moved with `GC_set_stackbottom` on each switch.
+ * fiber too, on the program's own stack. A fiber is the runtime's own
+ * memory, freed once another fiber runs after it ends.
  *
- * A `Task<T>` value is a `LughaTask`, a GC object holding the result; a
+ * A `Task<T>` value is a `LughaTask`, a counted object holding the result; a
  * `Chan<T>` is a `LughaChan`. Values cross channels as `elem` bytes in
  * element layout, already copied by generated code.
  *
@@ -31,16 +29,14 @@
 
 typedef struct Fiber Fiber;
 
-/* A `Task<T>` (GC object): what `join` reads. */
+/* A `Task<T>` (a counted object): what `join` reads. */
 typedef struct {
     void *result;
     int32_t done;
     /* Fibers waiting in `join`, linked through `wait_next`. */
     Fiber *joiners;
-#ifdef LUGHA_RC
     /* What the result holds, for releasing and marking it. */
     RcVisit result_visit;
-#endif
 } LughaTask;
 
 struct Fiber {
@@ -85,7 +81,6 @@ static int64_t live_count;
 static Fiber *zombie;
 static char *spare[SPARE_STACKS];
 static int spare_count;
-static GC_push_other_roots_proc next_push;
 
 void lugha_rt_task_swap(void **save, void *load);
 void lugha_rt_task_boot(void);
@@ -187,34 +182,16 @@ static int64_t now_ns(void) {
     return (int64_t)t.tv_sec * 1000000000 + t.tv_nsec;
 }
 
-/* Hands the collector every switched-out stack: from its saved stack
- * pointer, where its registers are, to its top. */
-static void GC_CALLBACK push_fiber_stacks(void) {
-    for (Fiber *f = live; f != NULL; f = f->next_live) {
-        if (f != current && f->sp != NULL) {
-            GC_push_all_eager(f->sp, f->top);
-        }
-    }
-    if (next_push != NULL) {
-        next_push();
-    }
-}
-
 /* `main` becomes a fiber the first time anything here runs. */
 static void ensure_started(void) {
     if (current != NULL) {
         return;
     }
-    struct GC_stack_base base;
-    GC_get_my_stackbottom(&base);
-    main_fiber.top = base.mem_base;
     main_fiber.wake_at = -1;
     main_fiber.fired = 0;
     current = &main_fiber;
     live = &main_fiber;
     live_count = 1;
-    next_push = GC_get_push_other_roots();
-    GC_set_push_other_roots(push_fiber_stacks);
 }
 
 static void make_ready(Fiber *f) {
@@ -294,13 +271,7 @@ static void reap(void) {
     } else {
         munmap(dead->map, FIBER_GUARD + FIBER_STACK);
     }
-    GC_FREE(dead);
-}
-
-static void *set_bottom(void *top) {
-    struct GC_stack_base base = {.mem_base = top};
-    GC_set_stackbottom(NULL, &base);
-    return NULL;
+    free(dead);
 }
 
 static void switch_to(Fiber *next) {
@@ -309,7 +280,6 @@ static void switch_to(Fiber *next) {
         return;
     }
     current = next;
-    GC_call_with_alloc_lock(set_bottom, next->top);
     green_guard_low = next->map == NULL ? 0 : (uintptr_t)next->map;
     green_guard_high = next->map == NULL ? 0 : (uintptr_t)next->map + FIBER_GUARD;
     lugha_rt_task_swap(&prev->sp, next->sp);

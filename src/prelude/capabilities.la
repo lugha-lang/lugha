@@ -128,7 +128,7 @@ interface Dir {
 /**
  * An open file, from a `Dir`'s `open` (reading), `create` or `append`
  * (writing), never both. Every copy is the same stream. Close what you open:
- * the collector never closes a file. Reads and writes block the whole
+ * a file is never closed for you. Reads and writes block the whole
  * program while they run: quick for files on a disk, but a FIFO or a
  * terminal stalls the other green threads too. A writing file used to read
  * is `Err("not open for reading")`, the reverse `Err("not open for

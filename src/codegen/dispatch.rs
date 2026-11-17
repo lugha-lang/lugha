@@ -103,13 +103,9 @@ impl<'ctx> Lowerer<'ctx> {
                     .expect(POSITIONED)
             }
             .into_struct_value();
-            // Under reference counting a box with other holders is copied
+            // A box with other holders is copied
             // before the method writes it.
-            if self.rc() {
-                self.rc_own_box(pair, (address, &place_ty, element))
-            } else {
-                pair
-            }
+            self.rc_own_box(pair, (address, &place_ty, element))
         } else {
             early.expect("a `self` receiver was read before the arguments")
         };
@@ -177,18 +173,13 @@ mod tests {
     }
 
     #[test]
-    fn copies_go_through_the_tables_copy_slot() {
+    fn a_copy_holds_the_box_instead_of_copying_it() {
         let ir = ir(&format!(
             "{SHAPES}fun main(console: Console) {{ let a: Shape = Circle {{ r: 1.0 }}; let b = a; console.println(a.area() + b.area()); }}"
         ));
-        assert!(body(&ir, "main").contains("@lugha_copy_5Shape("), "{ir}");
-        let copy = body(&ir, "main");
-        assert!(!copy.is_empty());
-        let helper = &ir[ir.find("@lugha_copy_5Shape(").unwrap()..];
-        assert!(
-            helper.contains("call ptr %"),
-            "the copy slot is called: {ir}"
-        );
+        let main = body(&ir, "main");
+        assert!(main.contains("call void @lugha_rc_inc("), "{ir}");
+        assert!(!main.contains("@lugha_copy_5Shape("), "{ir}");
     }
 
     #[test]

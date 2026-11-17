@@ -75,7 +75,7 @@ impl<'ctx> Lowerer<'ctx> {
         ty: &Type,
         to: usize,
     ) -> BasicValueEnum<'ctx> {
-        if self.defers_pending(to) && self.rc() {
+        if self.defers_pending(to) {
             // One more holder, released with the statement's temporaries.
             self.rc_retain(value, ty);
             self.rc_temporary(None, value, ty);

@@ -28,7 +28,7 @@ pub enum Type {
     Bool,
     /// Immutable UTF-8 text.
     String,
-    /// `T[]`: a fixed-length array on the GC heap.
+    /// `T[]`: a fixed-length array on the heap.
     Array(Box<Type>),
     /// A user-declared struct, by key, with its type arguments (empty
     /// unless it is generic).

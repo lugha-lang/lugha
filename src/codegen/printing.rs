@@ -35,7 +35,7 @@ impl<'ctx> Lowerer<'ctx> {
         value: BasicValueEnum<'ctx>,
     ) -> (Type, BasicValueEnum<'ctx>) {
         if plain(&ty) || matches!(ty, Type::Never | Type::Error) {
-            // Under reference counting the text is owned, as made text is.
+            // The text is owned, as made text is.
             if ty == Type::String {
                 self.rc_hold_string(value);
             }
@@ -67,7 +67,7 @@ impl<'ctx> Lowerer<'ctx> {
     }
 
     /// A value's debug form: strings and chars quoted. Always a new
-    /// string or a constant one, so under reference counting it is owned.
+    /// string or a constant one, so it is owned.
     pub(super) fn part(&mut self, value: BasicValueEnum<'ctx>, ty: &Type) -> BasicValueEnum<'ctx> {
         match ty {
             Type::String => {
@@ -99,25 +99,20 @@ impl<'ctx> Lowerer<'ctx> {
         b: BasicValueEnum<'ctx>,
     ) -> BasicValueEnum<'ctx> {
         let joined = self.concat(a, b);
-        if self.rc() {
-            self.rc_pointer(a.into_pointer_value(), false);
-            self.rc_pointer(b.into_pointer_value(), false);
-        }
+        self.rc_pointer(a.into_pointer_value(), false);
+        self.rc_pointer(b.into_pointer_value(), false);
+
         joined
     }
 
-    /// One more holder of the string `value`, under reference counting.
+    /// One more holder of the string `value`.
     pub(super) fn rc_hold_string(&mut self, value: BasicValueEnum<'ctx>) {
-        if self.rc() {
-            self.rc_pointer(value.into_pointer_value(), true);
-        }
+        self.rc_pointer(value.into_pointer_value(), true);
     }
 
-    /// Lets go of the owned string `value`, under reference counting.
+    /// Lets go of the owned string `value`.
     pub(super) fn rc_drop_string(&mut self, value: BasicValueEnum<'ctx>) {
-        if self.rc() {
-            self.rc_pointer(value.into_pointer_value(), false);
-        }
+        self.rc_pointer(value.into_pointer_value(), false);
     }
 
     pub(super) fn concat(

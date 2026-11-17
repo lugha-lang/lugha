@@ -15,7 +15,7 @@
  * 1.2 is the oldest version spoken. Connections by key (tls_keys.c) verify
  * the peer's raw public key against a list instead, over TLS 1.3 only.
  *
- * OpenSSL's objects live outside the collector: `malloc`ed here and by
+ * OpenSSL's objects aren't counted: `malloc`ed here and by
  * OpenSSL, freed by `tls_free` and `tls_free_context`. Lugha holds them as
  * opaque `i64` handles and never passes one after freeing it. C keeps no
  * Lugha array: bytes are copied in and out.

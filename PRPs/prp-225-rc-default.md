@@ -1,6 +1,6 @@
 ## FEATURE: Reference counting becomes the only memory model: the Boehm collector, `--memory` and the collector's code paths are removed, and what the prototype left uncovered (C callbacks, folder and hasher handles, `-O0` frame size) is covered; milestone 193.
 
-**Status:** proposed 2026-11-17.
+**Status:** approved 2026-11-17.
 
 ## OBJECTIVE
 ```
@@ -101,3 +101,9 @@ Every end-to-end program prints what it printed under the collector, except `int
 - [ ] Every covered program runs the same, and frees everything.
 - [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
 - [ ] Every `pub` item documented; spec, CLAUDE.md, CHANGELOG and bench updated.
+
+## CHANGES DURING THE BUILD
+- **Smaller frames under counting (approved mid-build):** `popover_depth.la` needed more than temporaries sharing slots.
+  - A temporary taken over in the block that made it is removed whole: its slot, its store and its release.
+  - A `match` arm's bindings borrow from the matched value when it is a plain local or parameter that nothing in the arm mentions, so it outlives the arm. Otherwise they take a holder, flat matches included. Before, a flat match's bindings never did, and an arm that reassigned the matched variable read freed memory (found while building).
+  - A fresh argument is released right after its call when nothing else in the statement reads it.

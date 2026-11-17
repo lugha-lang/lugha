@@ -16,19 +16,11 @@ use super::{CodegenError, ModuleSource, SourceInfo, Target, frames, lower};
 use crate::ast::Program;
 use crate::check::{Checked, Unit};
 
-/// How a program's memory is managed: Boehm's tracing collector (the
-/// default), or the reference-counting prototype (`--memory=rc`), which
-/// counts every heap object's holders and frees it when the last one goes.
+/// Whether every function also pays the per-call costs of growable stacks
+/// and preemption (a stack check, the scheduling countdown), simulated for
+/// measuring them (`LUGHA_CALL_COSTS=1`); never for programs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Memory {
-    #[default]
-    Gc,
-    Rc,
-    /// `Rc` with the per-call costs of growable stacks and preemption (a
-    /// stack check, the scheduling countdown) simulated in every function:
-    /// for measuring them, never for programs.
-    RcCallCosts,
-}
+pub struct CallCosts(pub bool);
 
 /// Optimisation level for the LLVM pass pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -103,10 +95,10 @@ pub fn emit_ir_with(
     units: &[Unit],
     checked: &Checked,
     sources: &[ModuleSource],
-    (target, memory): (Target, Memory),
+    (target, costs): (Target, CallCosts),
 ) -> Result<String, CodegenError> {
     let context = Context::create();
-    let module = lower::lower(&context, units, checked, (sources, target, memory))?;
+    let module = lower::lower(&context, units, checked, (sources, target, costs))?;
     frames::share_all_slots(&module);
     Ok(module.print_to_string().to_string())
 }
@@ -123,7 +115,7 @@ pub fn emit_ir_for(
     sources: &[ModuleSource],
     target: Target,
 ) -> Result<String, CodegenError> {
-    emit_ir_with(units, checked, sources, (target, Memory::Gc))
+    emit_ir_with(units, checked, sources, (target, CallCosts::default()))
 }
 
 /// A one-file program's source at offset 0.
@@ -162,7 +154,7 @@ pub fn emit_object(
         checked,
         &[single(source)],
         opt,
-        (cpu, target, Memory::Gc),
+        (cpu, target, CallCosts::default()),
         path,
     )
 }
@@ -177,11 +169,11 @@ pub fn emit_object_modules(
     checked: &Checked,
     sources: &[ModuleSource],
     opt: OptLevel,
-    (cpu, target, memory): (Cpu, Target, Memory),
+    (cpu, target, costs): (Cpu, Target, CallCosts),
     path: &Path,
 ) -> Result<(), CodegenError> {
     let context = Context::create();
-    let module = lower::lower(&context, units, checked, (sources, target, memory))?;
+    let module = lower::lower(&context, units, checked, (sources, target, costs))?;
     let machine = target_machine(opt, cpu, target)?;
     module.set_triple(&machine.get_triple());
     module.set_data_layout(&machine.get_target_data().get_data_layout());

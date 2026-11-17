@@ -1,5 +1,5 @@
-//! The `lughac` binary's choice of machine and toolchain: CPU levels, targets, the collector
-//! linked into every program, and `$LUGHA_CC`.
+//! The `lughac` binary's choice of machine and toolchain: CPU levels,
+//! targets, no collector linked into a program, and `$LUGHA_CC`.
 
 use std::process::Command;
 
@@ -38,7 +38,7 @@ fn cpu_chooses_the_level_and_an_unknown_one_is_exit_2() {
 }
 
 #[test]
-fn programs_carry_the_collector_and_need_no_libgc() {
+fn programs_link_no_collector() {
     let dir = TempDir::with(&[("arith.la", ARITH.as_bytes())]);
     let out = lughac(&dir.0, &["build", "arith.la"]);
     assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
@@ -49,8 +49,20 @@ fn programs_carry_the_collector_and_need_no_libgc() {
         "the program links libgc.so"
     );
     assert!(
-        binary.windows(8).any(|w| w == b"GC_init\0"),
-        "the collector is linked in"
+        !binary.windows(8).any(|w| w == b"GC_init\0"),
+        "a collector is linked in"
+    );
+}
+
+#[test]
+fn there_is_no_memory_model_to_choose() {
+    let dir = TempDir::with(&[("arith.la", ARITH.as_bytes())]);
+    let out = lughac(&dir.0, &["build", "arith.la", "--memory=rc"]);
+    assert_eq!(out.status.code(), Some(2), "{}", text(&out.stderr));
+    assert!(
+        text(&out.stderr).contains("--memory"),
+        "{}",
+        text(&out.stderr)
     );
 }
 

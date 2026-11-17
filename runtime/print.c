@@ -234,7 +234,7 @@ LughaString *lugha_rt_str_quote(const LughaString *s) {
 
 /* Boxes being printed, innermost last: printing a box
  * that is already on the stack would never end, so it prints as `Ref(…)`.
- * The stack lives in GC memory, which Boehm scans through this root. */
+ * The stack is the runtime's own memory; the boxes are only compared. */
 static void **show_stack = NULL;
 static int64_t show_len = 0;
 static int64_t show_cap = 0;

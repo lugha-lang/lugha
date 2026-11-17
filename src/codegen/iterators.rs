@@ -48,7 +48,7 @@ impl<'ctx> Lowerer<'ctx> {
         let hidden = if plan.is_none() {
             let value = self.value_for_store(iter, &ty)?;
             let slot = self.entry_alloca(&ty, "iter");
-            // Under reference counting the loop's statement owns it.
+            // The loop's statement owns it.
             self.rc_statement_slot(slot, &ty);
             self.builder.build_store(slot, value).expect(POSITIONED);
             Some(slot)
@@ -77,7 +77,7 @@ impl<'ctx> Lowerer<'ctx> {
         };
         let result = self.call_next(&ty, &info, slot, &option);
         let stepped = self.entry_alloca(&option, "stepped");
-        if self.rc() && self.counted(&option) {
+        if self.counted(&option) {
             // Each step's result is held until the next step replaces it.
             self.rc_statement_slot(stepped, &option);
             self.rc_replace(stepped, result, &option);
@@ -105,8 +105,8 @@ impl<'ctx> Lowerer<'ctx> {
         let local = self.entry_alloca(&element, &var.name);
         self.builder.build_store(local, item).expect(POSITIONED);
         // The payload belongs to this iteration alone, like a moved value;
-        // under reference counting the step's result holds it.
-        let borrowed = self.rc();
+        // the step's result holds it.
+        let borrowed = true;
         self.scopes.declare(
             &var.name,
             Local {

@@ -21,11 +21,7 @@ impl<'ctx> Lowerer<'ctx> {
             Some(to) => self.converted(expr, &to),
             None => self.unconverted(expr),
         }?;
-        Ok(if self.rc() {
-            self.rc_settle(expr, value)
-        } else {
-            value
-        })
+        Ok(self.rc_settle(expr, value))
     }
 
     /// Lowers an expression at its own type.
@@ -371,8 +367,10 @@ mod tests {
 
     #[test]
     fn short_circuit_joins_with_a_phi() {
-        let ir = ir("fun main() { let b = true && false; let c = b || true; }");
-        assert_eq!(ir.matches("phi i1").count(), 2, "{ir}");
+        let ir = ir("fun main() { let b = false; let c = b || true; }");
+        let main = &ir[ir.find("define void @lugha_fn_main(").expect("main")..];
+        let main = &main[..main.find("\n}").expect("a body ends")];
+        assert_eq!(main.matches("phi i1").count(), 1, "{ir}");
     }
 
     #[test]

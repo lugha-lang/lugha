@@ -1,4 +1,4 @@
-//! Who releases what under reference counting: temporaries, owned locals,
+//! Who releases what: temporaries, owned locals,
 //! and every exit of a function.
 //!
 //! A fresh value (a call's result, a literal, a concatenation) goes into a
@@ -22,15 +22,23 @@ use crate::ast::ExprId;
 use crate::check::Type;
 
 /// A statement being lowered.
-struct Statement<'ctx> {
+pub(super) struct Statement<'ctx> {
     /// Where it starts: after this instruction of this block (or at the
     /// block's start).
     start: (BasicBlock<'ctx>, Option<InstructionValue<'ctx>>),
     /// The temporaries it made, released at its end.
-    temps: Vec<usize>,
+    pub(super) temps: Vec<usize>,
     /// Every slot it made, emptied at its start.
-    made: Vec<usize>,
+    pub(super) made: Vec<usize>,
 }
+
+/// A temporary's index, block, the instruction before it and its store.
+pub(super) type Made<'ctx> = (
+    usize,
+    BasicBlock<'ctx>,
+    Option<InstructionValue<'ctx>>,
+    InstructionValue<'ctx>,
+);
 
 /// The slots of the function being lowered.
 #[derive(Default)]
@@ -41,16 +49,18 @@ pub(super) struct RcSlots<'ctx> {
     /// holding the argument from the start.
     params: Vec<(PointerValue<'ctx>, Type)>,
     /// The statements being lowered, innermost last.
-    statements: Vec<Statement<'ctx>>,
+    pub(super) statements: Vec<Statement<'ctx>>,
     /// Temporaries made outside any statement (a function's tail), emptied
     /// at its entry and released when it returns.
-    outside: Vec<usize>,
+    pub(super) outside: Vec<usize>,
     /// Per block being lowered (in step with the `defer` lists), its owned
     /// locals.
     blocks: Vec<Vec<usize>>,
     /// The expression whose value was last put in a temporary, and where:
     /// a store of that very value takes it instead of retaining it.
-    last: Option<(ExprId, PointerValue<'ctx>)>,
+    pub(super) last: Option<(ExprId, PointerValue<'ctx>)>,
+    /// That temporary as made, so a take in its block removes it whole.
+    pub(super) made: Option<Made<'ctx>>,
     /// True while a `let` pattern binds: its bindings belong to the block,
     /// not the statement.
     let_pattern: bool,
@@ -87,11 +97,7 @@ impl<'ctx> Lowerer<'ctx> {
 
     /// Releases what `slot` holds and empties it.
     fn rc_empty(&mut self, slot: PointerValue<'ctx>, ty: &Type) {
-        let held = self
-            .builder
-            .build_load(llvm_type(self.context, ty), slot, "held")
-            .expect(POSITIONED);
-        self.rc_release(held, ty);
+        self.rc_value_at(slot, ty, super::rc::RcOp::Release);
         self.builder
             .build_store(slot, llvm_type(self.context, ty).const_zero())
             .expect(POSITIONED);
@@ -105,10 +111,14 @@ impl<'ctx> Lowerer<'ctx> {
         value: BasicValueEnum<'ctx>,
         ty: &Type,
     ) {
+        let block = self.current_block();
+        let before = block.get_last_instruction();
         let (slot, index) = self.rc_slot(ty, "temp");
-        self.builder.build_store(slot, value).expect(POSITIONED);
+        let store = self.builder.build_store(slot, value).expect(POSITIONED);
         self.rc_temp_of_statement(index);
         self.rc_slots.last = id.map(|id| (id, slot));
+        self.rc_slots.made =
+            (self.current_block() == block).then_some((index, block, before, store));
     }
 
     /// A slot for a loop's result, a temporary of the statement holding
@@ -120,9 +130,9 @@ impl<'ctx> Lowerer<'ctx> {
     }
 
     /// Makes `slot` a temporary of the statement being lowered, emptied
-    /// here, under reference counting when `ty` is counted.
+    /// here, when `ty` is counted.
     pub(super) fn rc_statement_slot(&mut self, slot: PointerValue<'ctx>, ty: &Type) {
-        if self.rc() && self.counted(ty) {
+        if self.counted(ty) {
             self.rc_result_slot(slot, ty);
         }
     }
@@ -141,7 +151,7 @@ impl<'ctx> Lowerer<'ctx> {
     /// One more holder of `value` until the statement ends, under reference
     /// counting: for a value whose place may let go of it meanwhile.
     pub(super) fn rc_keep(&mut self, value: BasicValueEnum<'ctx>, ty: &Type) {
-        if self.rc() && self.counted(ty) {
+        if self.counted(ty) {
             self.rc_retain(value, ty);
             self.rc_temporary(None, value, ty);
         }
@@ -152,17 +162,28 @@ impl<'ctx> Lowerer<'ctx> {
     /// would a fresh value's temporary.
     pub(super) fn rc_result_ready(&mut self, id: ExprId, slot: PointerValue<'ctx>) {
         self.rc_slots.last = Some((id, slot));
+        self.rc_slots.made = None;
     }
 
     /// Forgets which value was last put in a temporary.
     pub(super) fn rc_forget_last(&mut self) {
         self.rc_slots.last = None;
+        self.rc_slots.made = None;
     }
 
     /// Takes over the temporary holding `id`'s value, if the value just
     /// lowered for it is one: its slot is emptied and the caller owns it.
     pub(super) fn rc_take(&mut self, id: ExprId, ty: &Type) -> bool {
+        let made = self.rc_slots.made.take();
         match self.rc_slots.last.take() {
+            // Taken in the block that made it: nothing else reached the
+            // slot, so the temporary goes altogether.
+            Some((last, slot))
+                if last == id && made.is_some_and(|m| m.1 == self.current_block()) =>
+            {
+                self.rc_dissolve(slot, made.expect("checked"));
+                true
+            }
             Some((last, slot)) if last == id => {
                 self.builder
                     .build_store(slot, llvm_type(self.context, ty).const_zero())
@@ -215,7 +236,7 @@ impl<'ctx> Lowerer<'ctx> {
 
     /// A `let` local now owns `slot`: released when its block ends.
     pub(super) fn rc_own_local(&mut self, slot: PointerValue<'ctx>, ty: &Type) {
-        if !self.rc() || !self.counted(ty) {
+        if !self.counted(ty) {
             return;
         }
         let index = self.rc_record(slot, ty);
@@ -227,16 +248,13 @@ impl<'ctx> Lowerer<'ctx> {
     /// A parameter an owning instance keeps now owns `slot`: what is left
     /// in it is released when the function returns.
     pub(super) fn rc_own_param(&mut self, slot: PointerValue<'ctx>, ty: &Type) {
-        if self.rc() && self.counted(ty) {
+        if self.counted(ty) {
             self.rc_slots.params.push((slot, ty.clone()));
         }
     }
 
     /// Starts a statement's slots, where the builder is now.
     pub(super) fn rc_statement_start(&mut self) {
-        if !self.rc() {
-            return;
-        }
         let block = self.current_block();
         let start = (block, block.get_last_instruction());
         self.rc_slots.statements.push(Statement {
@@ -255,9 +273,6 @@ impl<'ctx> Lowerer<'ctx> {
     /// `rc_statement_end`, its temporaries released at the start of `also`
     /// too: a pattern's test may bind some names, then fail, and jump there.
     pub(super) fn rc_statement_end_also(&mut self, also: Option<BasicBlock<'ctx>>) {
-        if !self.rc() {
-            return;
-        }
         let Some(statement) = self.rc_slots.statements.pop() else {
             return;
         };
@@ -308,9 +323,6 @@ impl<'ctx> Lowerer<'ctx> {
     /// Releases the temporaries of the statements from depth `to` up,
     /// innermost first, for a jump out of them.
     pub(super) fn rc_leave_statements(&mut self, to: usize) {
-        if !self.rc() {
-            return;
-        }
         let leaving: Vec<usize> = self.rc_slots.statements
             [to.min(self.rc_slots.statements.len())..]
             .iter()
@@ -327,9 +339,6 @@ impl<'ctx> Lowerer<'ctx> {
     /// made outside any, every block's locals and the kept parameters are
     /// released. A `return` value already holds its own.
     pub(super) fn rc_exit_function(&mut self) {
-        if !self.rc() {
-            return;
-        }
         self.rc_leave_statements(0);
         let outside = self.rc_slots.outside.clone();
         for index in outside.into_iter().rev() {
@@ -361,9 +370,6 @@ impl<'ctx> Lowerer<'ctx> {
     /// Releases the owned locals of the block being lowered that nothing
     /// mentions after the statement at `span`, which just ended.
     pub(super) fn rc_let_go_after(&mut self, span: crate::span::Span) {
-        if !self.rc() {
-            return;
-        }
         let Some(names) = self.dead_after.get(&span).cloned() else {
             return;
         };
@@ -399,9 +405,6 @@ impl<'ctx> Lowerer<'ctx> {
     /// Releases the owned locals of the blocks from depth `to` up, innermost
     /// first, for a jump out of them.
     pub(super) fn rc_leave_blocks(&mut self, to: usize) {
-        if !self.rc() {
-            return;
-        }
         let leaving: Vec<usize> = self.rc_slots.blocks[to..]
             .iter()
             .rev()
@@ -427,7 +430,7 @@ impl<'ctx> Lowerer<'ctx> {
         outer: RcSlots<'ctx>,
     ) {
         let slots = std::mem::replace(&mut self.rc_slots, outer);
-        if !self.rc() || slots.outside.is_empty() {
+        if slots.outside.is_empty() {
             return;
         }
         let entry = function
@@ -449,7 +452,7 @@ impl<'ctx> Lowerer<'ctx> {
         }
     }
 
-    /// After the entry returns, under reference counting: its arguments
+    /// After the entry returns: its arguments
     /// and every constant are released, so the report at exit counts only
     /// what the program lost.
     pub(super) fn rc_after_entry(
@@ -457,9 +460,6 @@ impl<'ctx> Lowerer<'ctx> {
         params: &[Type],
         args: &[inkwell::values::BasicMetadataValueEnum<'ctx>],
     ) {
-        if !self.rc() {
-            return;
-        }
         let stop = self.runtime("lugha_rt_rc_stop_threads", &[], None);
         self.builder.build_call(stop, &[], "").expect(POSITIONED);
         for (arg, ty) in args.iter().zip(params) {

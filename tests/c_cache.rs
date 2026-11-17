@@ -1,7 +1,6 @@
 //! The C object cache end to end: builds
 //! through `lughac` with `$LUGHA_CACHE` in a temporary folder and a `cc`
-//! on `PATH` that logs each call and runs the real one. The bundled
-//! collector is compiled once like the runtime.
+//! on `PATH` that logs each call and runs the real one.
 
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
@@ -123,17 +122,8 @@ fn a_second_build_compiles_no_c() {
         "{}",
         String::from_utf8_lossy(&first.stderr)
     );
-    assert_eq!(
-        compiles.len(),
-        3,
-        "the shim, the collector and the runtime: {compiles:?}"
-    );
-    assert_eq!(
-        compiles.iter().filter(|c| c.contains("extra/gc.c")).count(),
-        1,
-        "{compiles:?}"
-    );
-    assert_eq!(p.entries().len(), 3);
+    assert_eq!(compiles.len(), 2, "the shim and the runtime: {compiles:?}");
+    assert_eq!(p.entries().len(), 2);
     let (second, compiles) = p.run();
     assert_eq!(stdout(&second), "42\n");
     assert_eq!(compiles, Vec::<String>::new());
@@ -181,7 +171,7 @@ fn a_damaged_entry_recompiles_and_the_program_still_runs() {
         "{}",
         String::from_utf8_lossy(&out.stderr)
     );
-    assert_eq!(compiles.len(), 3, "the collector too: {compiles:?}");
+    assert_eq!(compiles.len(), 2, "the shim and the runtime: {compiles:?}");
     let (_, compiles) = p.run();
     assert_eq!(compiles, Vec::<String>::new());
 }
@@ -200,7 +190,7 @@ fn a_cache_that_cant_be_written_still_builds() {
             "{}",
             String::from_utf8_lossy(&out.stderr)
         );
-        assert_eq!(compiles.len(), 3, "nothing cached: {compiles:?}");
+        assert_eq!(compiles.len(), 2, "nothing cached: {compiles:?}");
     }
 }
 
@@ -225,47 +215,13 @@ fn a_tls_program_has_its_own_runtime_entry_and_e0332_still_shows() {
         1,
         "only the TLS runtime; the shim's entry is reused: {compiles:?}"
     );
-    assert_eq!(
-        p.entries().len(),
-        4,
-        "plain runtime, TLS runtime, shim, collector"
-    );
+    assert_eq!(p.entries().len(), 3, "plain runtime, TLS runtime, shim");
     // The TLS runtime's compile failing for OpenSSL's headers is E0332.
     let fresh = p.0.join("fresh");
     let (out, _) = p.run_with("tls.la", &fresh, &[("FAIL_OPENSSL", "1")]);
     let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
     assert!(stderr.contains("E0332"), "{stderr}");
     assert_eq!(out.status.code(), Some(1));
-}
-
-#[test]
-fn the_collectors_sources_are_restored_when_changed() {
-    let p = Project::new();
-    p.run();
-    // Each version's sources sit in one folder under `<cache>/gc/`.
-    let folders: Vec<PathBuf> = std::fs::read_dir(p.0.join("cache/gc"))
-        .expect("the collector's sources are in the cache")
-        .filter_map(|e| e.ok())
-        .map(|e| e.path())
-        .collect();
-    assert_eq!(folders.len(), 1, "{folders:?}");
-    let header = folders[0].join("include/gc.h");
-    std::fs::write(&header, "#error tampered\n").unwrap();
-    let (out, compiles) = p.run();
-    assert_eq!(
-        stdout(&out),
-        "42\n",
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    assert!(
-        compiles.is_empty(),
-        "restored byte for byte, so no recompile: {compiles:?}"
-    );
-    assert_ne!(
-        std::fs::read_to_string(&header).unwrap(),
-        "#error tampered\n"
-    );
 }
 
 /// A compiler wrapper at `bin/<name>` that logs its arguments to
@@ -306,13 +262,13 @@ fn lugha_cc_runs_every_compile_and_the_link_and_keys_the_cache() {
         .lines()
         .filter(|l| l.starts_with("extra-word -c "))
         .count();
-    assert_eq!(compiles, 3, "shim, collector, runtime: {log}");
+    assert_eq!(compiles, 2, "shim, runtime: {log}");
     assert!(
         log.lines()
             .any(|l| l.contains(" -o ") && !l.contains(" -c ")),
         "the link: {log}"
     );
-    // Another compiler recompiles all three; the first one's entries stay.
+    // Another compiler recompiles both; the first one's entries stay.
     let second = wrapper(&p, "second");
     p.run_with("main.la", &cache, &[("LUGHA_CC", &second)]);
     let log = std::fs::read_to_string(p.0.join("second.log")).unwrap();
@@ -320,7 +276,7 @@ fn lugha_cc_runs_every_compile_and_the_link_and_keys_the_cache() {
         log.lines()
             .filter(|l| l.starts_with("extra-word -c "))
             .count(),
-        3,
+        2,
         "{log}"
     );
     let _ = std::fs::remove_file(p.0.join("first.log"));

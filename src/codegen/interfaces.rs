@@ -10,7 +10,7 @@ use inkwell::types::StructType;
 use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue, StructValue};
 
 use super::CodegenError;
-use super::copy::{aliasing, mangle};
+use super::copy::mangle;
 use super::instances::instance_name;
 use super::lower::{Lowerer, POSITIONED};
 use super::methods::key as method_key;
@@ -48,29 +48,11 @@ impl<'ctx> Lowerer<'ctx> {
             Value::Val(value) => value,
             other => return Ok(other),
         };
-        // The box owns its value, as a variable would, so a value read from a
-        // place is copied into it.
-        let copies = aliasing(expr) && !self.moved(expr.id);
-        // Under reference counting the box takes a fresh value over and
-        // holds any other.
-        let value = if self.rc() {
-            if !self.fresh_unconverted(expr) {
-                self.rc_retain(value, &ty);
-            }
-            value
-        } else if copies {
-            self.deep_copy(value, &ty)
-        } else {
-            value
-        };
+        // The box takes a fresh value over and holds any other.
+        if !self.fresh_unconverted(expr) {
+            self.rc_retain(value, &ty);
+        }
         Ok(Value::Val(self.box_as(value, &ty, to)))
-    }
-
-    /// True if `expr`'s value may come from an existing place, so a copy
-    /// site copies it. A conversion's value is a fresh box, already holding
-    /// its own copy.
-    pub(super) fn aliased(&self, expr: &Expr) -> bool {
-        !self.conversions.contains_key(&expr.id) && aliasing(expr)
     }
 
     /// `{ table, box }`.
@@ -91,17 +73,13 @@ impl<'ctx> Lowerer<'ctx> {
             .into_struct_value()
     }
 
-    /// A new GC allocation holding `value` of type `ty`.
+    /// A new counted object holding `value` of type `ty`.
     pub(super) fn new_box(&mut self, ty: &Type, value: BasicValueEnum<'ctx>) -> PointerValue<'ctx> {
         let size = self
             .context
             .i64_type()
             .const_int(self.element_size(ty), false);
-        let drop = if self.rc() {
-            self.rc_box_drop(ty)
-        } else {
-            None
-        };
+        let drop = self.rc_box_drop(ty);
         let heap = self.new_object(size, drop, "box");
         self.store_element(heap, ty, value);
         heap
@@ -290,12 +268,12 @@ pub(super) mod tests {
     }
 
     #[test]
-    fn conversion_boxes_through_the_gc() {
+    fn conversion_boxes_on_the_heap() {
         let ir = ir(&format!(
             "{SHAPES}fun main() {{ let a: Shape = Circle {{ r: 1.0 }}; }}"
         ));
         let main = body(&ir, "main");
-        assert!(main.contains("call ptr @lugha_rt_alloc(i64 8)"), "{ir}");
+        assert!(main.contains("call ptr @lugha_rt_rc_alloc(i64 8,"), "{ir}");
         assert!(!ir.contains("malloc"), "{ir}");
     }
 

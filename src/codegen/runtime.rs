@@ -260,7 +260,7 @@ mod tests {
         let ir = ir("fun main() { let s = \"hey\"; let t = \"hey\"; }");
         assert!(
             ir.contains(
-                "private unnamed_addr constant { i64, [4 x i8] } { i64 3, [4 x i8] c\"hey\\00\" }"
+                "private unnamed_addr constant { ptr, i64, i64, [4 x i8] } { ptr null, i64 -9223372036854775808, i64 3, [4 x i8] c\"hey\\00\" }"
             ),
             "{ir}"
         );
@@ -286,7 +286,9 @@ mod tests {
     fn panic_passes_its_location_and_main_initialises_the_runtime() {
         let ir = ir("fun main() {\n    panic(\"boom\");\n}");
         assert!(
-            ir.contains("@lugha_rt_panic(ptr @str, ptr @file, i64 2, i64 5)"),
+            ir.contains(
+                "@lugha_rt_panic(ptr getelementptr (i8, ptr @str, i64 16), ptr @file, i64 2, i64 5)"
+            ),
             "{ir}"
         );
         let main = &ir[ir.find("define i32 @main(i32 %0, ptr %1)").unwrap()..];

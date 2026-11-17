@@ -67,7 +67,7 @@ impl<'ctx> Lowerer<'ctx> {
         }
     }
 
-    /// Lowers `expr` for a store of type `ty` under reference counting: the
+    /// Lowers `expr` for a store of type `ty`: the
     /// store owns the result, taking over a fresh value's temporary, moving
     /// an owned local on its last use, or else adding a holder.
     pub(super) fn rc_value_for_store(

@@ -40,7 +40,8 @@ pub fn os_op(callee: &Expr) -> Option<&str> {
 /// (names as bytes, checked as UTF-8 in Lugha), sockets and TLS.
 pub fn os_signature(op: &str) -> Option<(Vec<Type>, Type)> {
     let bytes = || Type::Array(Box::new(Type::U8));
-    let cptr = || Type::Handle(super::input::CPTR.to_string());
+    // Folders and hashers are the runtime's counted resources.
+    let cptr = || Type::Handle(super::input::RESOURCE.to_string());
     let result = |t: Type| Type::Enum(super::results::RESULT.to_string(), vec![t, Type::String]);
     Some(match op {
         "seed" => (Vec::new(), Type::U64),
@@ -160,14 +161,11 @@ pub fn os_signature(op: &str) -> Option<(Vec<Type>, Type)> {
         "tls_incoming" => (vec![Type::I64, bytes()], Type::Unit),
         "tls_incoming_end" | "tls_free" | "tls_free_context" => (vec![Type::I64], Type::Unit),
         // `std.crypto`: bytes in, bytes out; a running
-        // hash as an opaque `CPtr`; flags as `i64`.
+        // hash as a counted resource; flags as `i64`.
         "crypto_sha256" => (vec![bytes()], bytes()),
-        "crypto_sha256_new" => (Vec::new(), Type::Handle(super::input::CPTR.to_string())),
-        "crypto_sha256_update" => (
-            vec![Type::Handle(super::input::CPTR.to_string()), bytes()],
-            Type::Unit,
-        ),
-        "crypto_sha256_finish" => (vec![Type::Handle(super::input::CPTR.to_string())], bytes()),
+        "crypto_sha256_new" => (Vec::new(), cptr()),
+        "crypto_sha256_update" => (vec![cptr(), bytes()], Type::Unit),
+        "crypto_sha256_finish" => (vec![cptr()], bytes()),
         "crypto_ed25519_public" => (vec![bytes()], result(bytes())),
         "crypto_ed25519_sign" => (vec![bytes(), bytes()], result(bytes())),
         "crypto_ed25519_verify" => (vec![bytes(), bytes(), bytes()], Type::I64),
@@ -357,7 +355,7 @@ mod tests {
         let bytes = Type::Array(Box::new(Type::U8));
         let result = |t: Type| Type::Enum(crate::check::RESULT.to_string(), vec![t, Type::String]);
         let sig = |op: &str| super::os_signature(op).expect("a built-in");
-        let cptr = Type::Handle(crate::check::input::CPTR.to_string());
+        let cptr = Type::Handle(crate::check::input::RESOURCE.to_string());
         assert_eq!(
             sig("dir_file"),
             (vec![cptr, Type::String, Type::I64], result(Type::I64))

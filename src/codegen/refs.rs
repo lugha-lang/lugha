@@ -1,5 +1,5 @@
 //! Shared boxes in codegen: a
-//! `Ref<T>` is a pointer to one GC object holding a `T` in element layout.
+//! `Ref<T>` is a pointer to one counted object holding a `T` in element layout.
 //! Copying a `Ref` copies the pointer. `get` hands out a copy of the
 //! contents and `set` stores one, so a box is a single holder of whatever
 //! it contains, which keeps copy-on-write sound.
@@ -28,11 +28,7 @@ impl<'ctx> Lowerer<'ctx> {
             .context
             .i64_type()
             .const_int(self.element_size(&inner).max(1), false);
-        let drop = if self.rc() {
-            self.rc_box_drop(&inner)
-        } else {
-            None
-        };
+        let drop = self.rc_box_drop(&inner);
         let box_ptr = self.new_object(size, drop, "box");
         self.store_element(box_ptr, &inner, value);
         Ok(box_ptr.into())
@@ -54,12 +50,10 @@ impl<'ctx> Lowerer<'ctx> {
             "get" => Value::Val(self.ref_contents(box_ptr, inner)),
             "set" => {
                 let value = self.value_for_store(&args[0], inner)?;
-                // Under reference counting the box lets go of what it held.
-                let old = self.rc().then(|| self.load_element(box_ptr, inner));
+                // The box lets go of what it held.
+                let old = self.load_element(box_ptr, inner);
                 self.store_element(box_ptr, inner, value);
-                if let Some(old) = old {
-                    self.rc_release(old, inner);
-                }
+                self.rc_release(old, inner);
                 Value::Void
             }
             "update" => {
@@ -74,13 +68,12 @@ impl<'ctx> Lowerer<'ctx> {
                     unreachable!("checked: `update`'s function returns the contents' type")
                 };
                 // A fresh result: stored as is, as any call's result is.
-                // Under reference counting, the box's old contents and the
+                // The box's old contents and the
                 // hold `ref_contents` added for the call are both let go of.
                 self.store_element(box_ptr, inner, next);
-                if self.rc() {
-                    self.rc_release(current, inner);
-                    self.rc_release(current, inner);
-                }
+                self.rc_release(current, inner);
+                self.rc_release(current, inner);
+
                 Value::Void
             }
             "is" => {

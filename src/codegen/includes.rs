@@ -28,8 +28,8 @@ impl<'ctx> Lowerer<'ctx> {
         let len = included.bytes.len() as u64;
         let header = [
             i64_type.const_int(len, false).into(),
-            // The capacity, marked shared (`codegen::cow`).
-            i64_type.const_int(len | 1 << 63, false).into(),
+            // Full; an immortal count makes any write clone it first.
+            i64_type.const_int(len, false).into(),
             self.context.const_string(&included.bytes, false).into(),
         ];
         let header = self.immortal_header(header.to_vec());

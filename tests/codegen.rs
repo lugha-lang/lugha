@@ -81,7 +81,7 @@ fn emit(src: &str, opt: OptLevel, cpu: Cpu, object: &Path) {
         &checked,
         &sources,
         opt,
-        (cpu, Target::default(), codegen::Memory::Gc),
+        (cpu, Target::default(), codegen::CallCosts::default()),
         object,
     )
     .unwrap_or_else(|e| panic!("{src}: {e}"));
@@ -246,11 +246,8 @@ fn runtime_compiles_without_warnings() {
     let dir = TempDir::new();
     let source = dir.0.join("lugha_rt.c");
     std::fs::write(&source, lugha::link::RUNTIME_SOURCE).expect("temp dir is writable");
-    // The bundled collector's headers, as lughac passes them.
-    let gc = lugha::link::gc::bundled().expect("the collector compiles");
     let out = Command::new("cc")
-        .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c", "-isystem"])
-        .arg(&gc.include)
+        .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
         .arg(&source)
         .arg("-o")
         .arg(dir.0.join("lugha_rt.o"))

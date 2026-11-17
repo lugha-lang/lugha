@@ -70,9 +70,11 @@ mod patterns;
 mod places;
 mod printing;
 mod rc;
+mod rc_at;
 mod rc_objects;
 mod rc_sites;
 mod rc_slots;
+mod rc_temps;
 mod rebuild;
 mod refs;
 mod results;
@@ -95,7 +97,7 @@ mod upcast;
 mod value;
 
 pub use self::emit::{
-    Cpu, Memory, OptLevel, emit_ir, emit_ir_for, emit_ir_modules, emit_ir_with, emit_object,
+    CallCosts, Cpu, OptLevel, emit_ir, emit_ir_for, emit_ir_modules, emit_ir_with, emit_object,
     emit_object_modules,
 };
 pub use self::targets::Target;
@@ -146,9 +148,6 @@ pub enum CodegenError {
     /// LLVM could not set up the target, run passes, or write the object file.
     #[error("could not emit object code: {0}")]
     Emit(String),
-    /// The program uses what reference counting doesn't count yet.
-    #[error("--memory=rc doesn't support {0} yet")]
-    Unsupported(&'static str),
 }
 
 #[cfg(test)]
@@ -160,21 +159,21 @@ pub(crate) mod test_util {
     /// the prelude as every program has it (`==` on a struct comes from
     /// it).
     pub fn ir(src: &str) -> String {
-        ir_in(src, super::Memory::Gc)
+        ir_in(src, super::CallCosts(false))
     }
 
     /// `ir`, lowered for reference counting.
     pub fn ir_rc(src: &str) -> String {
-        ir_in(src, super::Memory::Rc)
+        ir_in(src, super::CallCosts(false))
     }
 
     /// `ir`, lowered for reference counting with the simulated per-call
     /// costs.
     pub fn ir_calls(src: &str) -> String {
-        ir_in(src, super::Memory::RcCallCosts)
+        ir_in(src, super::CallCosts(true))
     }
 
-    fn ir_in(src: &str, memory: super::Memory) -> String {
+    fn ir_in(src: &str, costs: super::CallCosts) -> String {
         let (tokens, _) = lexer::lex(src).expect("test source lexes");
         let (mut program, _) = parser::parse(&tokens).expect("test source parses");
         crate::modules::impls::name_impls(&mut program, "");
@@ -221,7 +220,7 @@ pub(crate) mod test_util {
             &units,
             &checked,
             &sources,
-            (super::Target::default(), memory),
+            (super::Target::default(), costs),
         )
         .unwrap_or_else(|e| panic!("{src:?}: {e}"))
     }

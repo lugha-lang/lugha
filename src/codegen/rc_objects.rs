@@ -1,4 +1,4 @@
-//! Counted objects under reference counting: the visit each one carries
+//! Counted objects: the visit each one carries
 //! (what releases or marks its contents), the header constants
 //! carry, and whether an array has other holders.
 
@@ -156,9 +156,6 @@ impl<'ctx> Lowerer<'ctx> {
         &self,
         fields: Vec<BasicValueEnum<'ctx>>,
     ) -> Vec<BasicValueEnum<'ctx>> {
-        if !self.rc() {
-            return fields;
-        }
         let ptr = self.context.ptr_type(AddressSpace::default());
         let immortal = self.context.i64_type().const_int(i64::MIN as u64, false);
         [ptr.const_null().into(), immortal.into()]
@@ -173,9 +170,6 @@ impl<'ctx> Lowerer<'ctx> {
         global: inkwell::values::GlobalValue<'ctx>,
     ) -> PointerValue<'ctx> {
         let start = global.as_pointer_value();
-        if !self.rc() {
-            return start;
-        }
         let i8_type = self.context.i8_type();
         let header = self.context.i64_type().const_int(16, false);
         // Sixteen bytes in: the header's two words.
@@ -210,16 +204,15 @@ impl<'ctx> Lowerer<'ctx> {
             .expect(POSITIONED)
     }
 
-    /// A new object of `size` bytes, zeroed. Under reference counting it is
-    /// held once and carries `drop`, set in the same call; under the
-    /// collector `drop` is ignored.
+    /// A new object of `size` bytes, zeroed, held once, carrying `drop`
+    /// (what releases its contents when it is freed).
     pub(super) fn new_object(
         &mut self,
         size: inkwell::values::IntValue<'ctx>,
         drop: Option<FunctionValue<'ctx>>,
         name: &str,
     ) -> PointerValue<'ctx> {
-        let site = if self.rc() {
+        let site = {
             let alloc = self.runtime(
                 "lugha_rt_rc_alloc",
                 &[Type::I64, Type::String],
@@ -229,11 +222,6 @@ impl<'ctx> Lowerer<'ctx> {
             let drop = drop.map_or(ptr.const_null(), |d| d.as_global_value().as_pointer_value());
             self.builder
                 .build_call(alloc, &[size.into(), drop.into()], name)
-                .expect(POSITIONED)
-        } else {
-            let alloc = self.runtime("lugha_rt_alloc", &[Type::I64], Some(Type::String));
-            self.builder
-                .build_call(alloc, &[size.into()], name)
                 .expect(POSITIONED)
         };
         match site.try_as_basic_value() {

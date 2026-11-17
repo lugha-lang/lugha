@@ -1,10 +1,7 @@
-//! Value semantics: deep copies wherever a value is copied.
-//!
-//! A value whose type holds arrays is copied when it is read from an existing
-//! place and stored into another: `let`, assignment, literal elements, and
-//! `return`/tail of a parameter or `for … of` variable. Fresh values and call
-//! arguments are never copied; returning an owned local moves it. Strings are
-//! shared — they are immutable.
+//! Value semantics: a value read from a place and stored into another
+//! (`let`, assignment, literal elements, `return`) gets one more holder
+//! rather than a copy; arrays are copied on their first write while shared
+//! (`codegen::cow`). Fresh values are taken over and last uses move.
 
 use inkwell::module::Linkage;
 use inkwell::types::BasicType;
@@ -15,85 +12,41 @@ use super::heap::element_of;
 use super::interfaces::length_prefixed;
 use super::lower::{Lowerer, POSITIONED};
 use super::value::llvm_type;
-use crate::ast::{Expr, ExprKind};
+use crate::ast::Expr;
 use crate::check::Type;
 
 impl<'ctx> Lowerer<'ctx> {
-    /// Lowers `expr` for storing into a place, copying it if it was read from
-    /// one that is still in use; a last use moves.
+    /// Lowers `expr` for storing into a place, which holds the result: a
+    /// fresh value's temporary is taken over, a last use moves, and any
+    /// other value gets one more holder.
     pub(super) fn value_for_store(
         &mut self,
         expr: &Expr,
         ty: &Type,
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
-        if self.rc() {
-            return self.rc_value_for_store(expr, ty);
-        }
-        let value = self.get(expr, ty)?;
-        let copies = self.aliased(expr) && !self.moved(expr.id);
-        Ok(if ty.is_deep(&self.structs) && copies {
-            self.deep_copy(value, ty)
-        } else {
-            value
-        })
+        self.rc_value_for_store(expr, ty)
     }
 
-    /// Lowers a `return` value or function tail: copied unless it is a place
-    /// rooted in an owned local, which simply moves.
+    /// Lowers a `return` value or function tail, which the caller holds: an
+    /// owned local moves out, anything else not fresh gets a holder.
     pub(super) fn value_for_return(
         &mut self,
         expr: &Expr,
         ty: &Type,
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
-        if self.rc() {
-            return self.rc_value_for_return(expr, ty);
-        }
-        let value = self.get(expr, ty)?;
-        let moves = root(expr)
-            // `None` is a constructor, not a local.
-            .and_then(|name| self.scopes.find(name))
-            .is_some_and(|local| !local.borrowed);
-        // A kept parameter returned on its last use, in the owning instance.
-        let moves = moves || self.moved(expr.id);
-        Ok(if ty.is_deep(&self.structs) && aliasing(expr) && !moves {
-            self.deep_copy(value, ty)
-        } else {
-            value
-        })
+        self.rc_value_for_return(expr, ty)
     }
 
-    /// A copy of `value` at a copy site. Arrays are copy-on-write:
-    /// the array is marked shared and the pointer kept, and the first
-    /// write clones it (`codegen::cow`). A struct holding arrays is copied with
-    /// each of its arrays marked, through `lugha_copy_<type>`; an interface
-    /// value's box is copied the same way. Anything else is copied by
-    /// storing it.
+    /// A copy of `value` at a copy site: one more holder of everything it
+    /// holds. Arrays are copy-on-write: the first write to one with other
+    /// holders clones it (`codegen::cow`).
     pub(super) fn deep_copy(
         &mut self,
         value: BasicValueEnum<'ctx>,
         ty: &Type,
     ) -> BasicValueEnum<'ctx> {
-        // Under reference counting a copy is one more holder.
-        if self.rc() {
-            self.rc_retain(value, ty);
-            return value;
-        }
-        if !ty.is_deep(&self.structs) {
-            return value;
-        }
-        if let Type::Array(_) = ty {
-            self.mark_shared(value.into_pointer_value());
-            return value;
-        }
-        let copy = self.copy_function(ty);
-        let call = self
-            .builder
-            .build_call(copy, &[value.into()], "copy")
-            .expect(POSITIONED);
-        match call.try_as_basic_value() {
-            ValueKind::Basic(result) => result,
-            ValueKind::Instruction(_) => unreachable!("copy functions return the copy"),
-        }
+        self.rc_retain(value, ty);
+        value
     }
 
     /// A one-level clone of an array of arrays or of structs holding arrays,
@@ -214,28 +167,6 @@ impl<'ctx> Lowerer<'ctx> {
     }
 }
 
-/// True if `expr`'s value may come from an existing place, looking through
-/// `if` and block tails.
-pub(super) fn aliasing(expr: &Expr) -> bool {
-    match &expr.kind {
-        ExprKind::Name(_) | ExprKind::Field(..) | ExprKind::Index(..) => true,
-        ExprKind::If { then, else_, .. } => {
-            then.tail.as_deref().is_some_and(aliasing) || else_.as_deref().is_some_and(aliasing)
-        }
-        ExprKind::Block(block) => block.tail.as_deref().is_some_and(aliasing),
-        _ => false,
-    }
-}
-
-/// The variable at the root of a plain place.
-fn root(expr: &Expr) -> Option<&str> {
-    match &expr.kind {
-        ExprKind::Name(name) => Some(name),
-        ExprKind::Field(base, _) | ExprKind::Index(base, _, _) => root(base),
-        _ => None,
-    }
-}
-
 /// A type in a `lugha_copy_`/`lugha_eq_` symbol: `i64[][]` → `i64_arr_arr`,
 /// `Point[]` → `5Point_arr`, `Stack<i64>` → `10Stack<i64>`. Length-prefixed names
 /// can't be confused with the suffixes or primitive names.
@@ -269,12 +200,15 @@ mod tests {
     #[test]
     fn copy_sites_share_and_writes_clone() {
         // The later reads keep `xs` and `g` alive, so these are copies, not
-        // moves: copy-on-write marks them shared instead of copying.
+        // moves: each adds a holder instead of copying.
         let ir = ir(
             "fun main(console: Console) { let xs = [1, 2]; let ys = xs; let g = [[1]]; let mut h = g; h[0][0] = 2; console.println(xs[0] + g[0][0]); }",
         );
         let main = body(&ir, "main");
-        assert!(main.contains("or i64 %cap"), "copies mark: {ir}");
+        assert!(
+            main.contains("call void @lugha_rc_inc("),
+            "copies hold: {ir}"
+        );
         // Writing `h` clones it one level, through the helper.
         assert!(
             ir.contains("define internal ptr @lugha_copy_i64_arr_arr(ptr"),
@@ -287,8 +221,8 @@ mod tests {
     fn returning_a_parameter_shares_but_a_local_moves() {
         let src = "fun p(a: i64[]): i64[] = a;\nfun l(): i64[] { let a = [1]; a }\nfun main() { let x = p([1]); let y = l(); }";
         let ir = ir(src);
-        assert!(body(&ir, "p").contains("or i64 %cap"), "{ir}");
-        assert!(!body(&ir, "l").contains("or i64 %cap"), "{ir}");
+        assert!(body(&ir, "p").contains("@lugha_rc_inc("), "{ir}");
+        assert!(!body(&ir, "l").contains("@lugha_rc_inc("), "{ir}");
     }
 
     #[test]
@@ -300,46 +234,42 @@ mod tests {
     }
 
     #[test]
-    fn structs_holding_arrays_copy_through_helpers() {
+    fn structs_holding_arrays_are_held_through_glue() {
         let src = "struct Wrap { data: i64[] }\nstruct P { x: i64 }\n\
                    fun main(console: Console) { let w = Wrap { data: [1] }; let w2 = w; let p = P { x: 1 }; let q = p; console.println(w.data[0]); }";
         let ir = ir(src);
         assert!(
-            ir.contains("define internal void @lugha_copy_4Wrap(ptr sret(%Wrap) %result, ptr"),
+            body(&ir, "main").contains("call void @lugha_rc_retain_at_4Wrap("),
             "{ir}"
         );
         assert!(
-            body(&ir, "main").contains("call void @lugha_copy_4Wrap(ptr sret(%Wrap)"),
-            "{ir}"
-        );
-        assert!(
-            !ir.contains("lugha_copy_1P"),
+            !ir.contains("lugha_rc_retain_at_1P"),
             "plain structs copy by store: {ir}"
         );
     }
 
     #[test]
-    fn recursive_copy_helpers_are_generated_once() {
+    fn recursive_glue_is_generated_once() {
         let src = "struct Node { value: i64, kids: Node[] }\n\
                    fun main() { let n = Node { value: 1, kids: [] }; let m = n; let o = n; }";
         let ir = ir(src);
         assert_eq!(
-            ir.matches("define internal void @lugha_copy_4Node(")
+            ir.matches("define internal void @lugha_rc_retain_at_4Node(")
                 .count(),
             1,
             "{ir}"
         );
-        // `kids` is only marked shared: no array helper until something writes.
+        // `kids` only gets a holder: no clone until something writes.
         assert!(!ir.contains("@lugha_copy_4Node_arr("), "{ir}");
     }
 
     #[test]
     fn a_dead_source_moves_and_a_live_one_shares() {
         let dead = ir("fun f() { let xs = [1, 2]; let ys = xs; }\nfun main() {}");
-        assert!(!body(&dead, "f").contains("or i64 %cap"), "{dead}");
+        assert!(!body(&dead, "f").contains("@lugha_rc_inc("), "{dead}");
         let live = ir(
             "fun f(console: Console) { let xs = [1, 2]; let ys = xs; console.println(xs[0]); }\nfun main() {}",
         );
-        assert!(body(&live, "f").contains("or i64 %cap"), "{live}");
+        assert!(body(&live, "f").contains("@lugha_rc_inc("), "{live}");
     }
 }

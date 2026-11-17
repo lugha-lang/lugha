@@ -396,7 +396,7 @@ impl<'ctx> Lowerer<'ctx> {
         ty: &Type,
         kept: bool,
     ) -> Result<inkwell::values::PointerValue<'ctx>, CodegenError> {
-        let value = if kept && self.rc() {
+        let value = if kept {
             self.rc_handed(base, ty)?
         } else {
             let value = self.get(base, ty)?;

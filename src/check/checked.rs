@@ -30,6 +30,8 @@ pub struct Checked {
     /// Per statement, the `let` locals of its block nothing mentions after
     /// it: reference counting lets their values go there.
     pub dead_after: HashMap<crate::span::Span, Vec<String>>,
+    /// The bodies (by span) of `match` arms whose bindings borrow.
+    pub borrowing_arms: HashSet<crate::span::Span>,
     /// Which parameters each function or method keeps, by key, receiver
     /// first for a method; only keys keeping one.
     pub keeps: HashMap<String, Vec<bool>>,

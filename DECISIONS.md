@@ -2292,6 +2292,8 @@ Printing sites and `==` reach a type's own plain `show`/`eq` too (`show_instance
 - Two misses are follow-ups, not reasons for plan B. wordfreq's memory (120 MB against 83) comes from per-object headers on very short strings: short strings stored inline is a separate decision. fib with every new per-call cost (+39%) is the stack check and countdown, which either model pays: they shape how growable stacks and preemption are built, and the targets for fib (within 3%) and the countdown (at most 5%) are revisited there.
 - A value returned from inside `for … of mut` through a type's `index` is its own copy and doesn't see the element handed back later (`interfaces/read_modify_write/loops.la` changes with the switch).
 
+**Built:** milestone 193 (PRP-225): the collector removed. `match` arms borrow their bindings from a matched local nothing in the arm mentions; otherwise bindings hold their values.
+
 **Why:** every target counting can affect is met or nearly met; it is faster than the collector on wordfreq and channels, uses a third less memory on binarytrees, and pauses a quarter as long; and copy-on-write by count, marking on send, `Weak` and `Pinned` all build on it.
 
 ## OPEN — Requires human input before implementation

@@ -218,18 +218,17 @@ impl<'ctx> Lowerer<'ctx> {
         // A local's slot holds its value as is; fields and elements are
         // stored in element layout (`bool` as `i8`).
         let (address, ty, element) = self.place_commit(place, &plan);
-        if self.rc() {
-            // The place lets go of what it held.
-            let old = if element {
-                self.load_element(address, &ty)
-            } else {
-                let llvm = super::value::llvm_type(self.context, &ty);
-                self.builder
-                    .build_load(llvm, address, "old")
-                    .expect(POSITIONED)
-            };
-            self.rc_release(old, &ty);
-        }
+        // The place lets go of what it held.
+        let old = if element {
+            self.load_element(address, &ty)
+        } else {
+            let llvm = super::value::llvm_type(self.context, &ty);
+            self.builder
+                .build_load(llvm, address, "old")
+                .expect(POSITIONED)
+        };
+        self.rc_release(old, &ty);
+
         if element {
             self.store_element(address, &ty, new);
         } else {

@@ -1,6 +1,6 @@
 //! Tests of reference counting in codegen (`rc.rs`).
 
-use crate::codegen::test_util::{ir, ir_rc};
+use crate::codegen::test_util::ir_rc;
 
 /// The definition of `lugha_fn_<name>`, up to its closing brace.
 fn body<'a>(ir: &'a str, name: &str) -> &'a str {
@@ -66,14 +66,6 @@ fn a_recursive_enum_is_counted_through_its_box() {
     let ir = ir_rc("enum L { Nil, Cons(i64, L) }\nfun main() { let l = L.Cons(1, L.Nil); }");
     assert!(ir.contains("@lugha_rc_release_1L("), "{ir}");
     assert!(ir.contains("@lugha_rc_drop_box_1L"), "{ir}");
-}
-
-#[test]
-fn without_the_flag_nothing_is_counted() {
-    let ir = ir(
-        "fun main(console: Console) { let xs = [\"a\"]; let ys = xs; console.println(ys.len); }",
-    );
-    assert!(!ir.contains("lugha_rc_"), "{ir}");
 }
 
 #[test]

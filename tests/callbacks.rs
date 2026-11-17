@@ -25,10 +25,16 @@ impl Case {
     }
 
     fn lughac(&self, args: &[&str]) -> Output {
+        self.lughac_with(args, ("HOME", self.0.to_str().expect("a UTF-8 temp path")))
+    }
+
+    /// `lughac` with one more variable in its environment.
+    fn lughac_with(&self, args: &[&str], (key, value): (&str, &str)) -> Output {
         Command::new(env!("CARGO_BIN_EXE_lughac"))
             .args(args)
             .current_dir(&self.0)
             .env("HOME", &self.0)
+            .env(key, value)
             .output()
             .expect("lughac runs")
     }
@@ -136,16 +142,15 @@ fn named_functions_and_capture_free_closures_need_no_data() {
     .runs("14\n33\n1\n");
 }
 
-/// Keeps callbacks with their user data, calls them later, forces collections.
-const REGISTRY: &str = "void GC_gcollect(void);\n\
-    typedef void (*cb_t)(long, void *);\n\
+/// Keeps callbacks with their user data and calls them later.
+const REGISTRY: &str = "typedef void (*cb_t)(long, void *);\n\
     static cb_t cbs[8];\n\
     static void *datas[8];\n\
     static void (*rels[8])(void *);\n\
     static int count, released;\n\
     long reg(cb_t f, void *d, void (*rel)(void *)) { cbs[count] = f; datas[count] = d; rels[count] = rel; return count++; }\n\
     void fire(long i, long x) { cbs[i](x, datas[i]); }\n\
-    void fire_all(long x) { GC_gcollect(); for (int i = 0; i < count; i++) if (cbs[i]) cbs[i](x, datas[i]); }\n\
+    void fire_all(long x) { for (int i = 0; i < count; i++) if (cbs[i]) cbs[i](x, datas[i]); }\n\
     void drop(long i) { rels[i](datas[i]); cbs[i] = 0; released++; }\n\
     long released_count(void) { return released; }\n";
 
@@ -153,8 +158,7 @@ const REGISTRY_EXTERNS: &str = "extern fun reg(f: fun(i64, data), user: data, re
     extern fun fire(i: i64, x: i64);\n\
     extern fun fire_all(x: i64);\n\
     extern fun drop(i: i64);\n\
-    extern fun released_count(): i64;\n\
-    extern \"GC_gcollect\" fun collect();\n";
+    extern fun released_count(): i64;\n";
 
 #[test]
 fn closures_keep_their_captures_while_c_holds_them() {
@@ -169,12 +173,10 @@ fn closures_keep_their_captures_while_c_holds_them() {
                  let ia = reg(counter(console, \"a\", a));\n\
                  let ib = reg(fun(x: i64) { b.update(fun(t) = t - x); console.println(\"b: {b.get()}\"); });\n\
                  churn();\n\
-                 collect();\n\
                  fire(ia, 5);\n\
                  fire(ib, 1);\n\
                  fire_all(2);\n\
                  churn();\n\
-                 collect();\n\
                  fire(ia, 1);\n\
                  console.println(a.get());\n\
                  console.println(b.get());\n\
@@ -186,7 +188,7 @@ fn closures_keep_their_captures_while_c_holds_them() {
 
 #[test]
 fn release_frees_a_callback_c_drops() {
-    Case::new(
+    let case = Case::new(
         &[
             REGISTRY_EXTERNS,
             "\
@@ -196,16 +198,23 @@ fn release_frees_a_callback_c_drops() {
                  let second = reg(fun(x: i64) { console.println(\"second {x}\"); });\n\
                  fire(first, 3);\n\
                  drop(first);\n\
-                 collect();\n\
                  fire_all(4);\n\
+                 drop(second);\n\
                  console.println(released_count());\n\
                  console.println(seen.get());\n\
              }\n",
         ]
         .concat(),
         REGISTRY,
-    )
-    .runs("second 4\n1\n3\n");
+    );
+    case.runs("second 4\n2\n3\n");
+    // Released by C, each closure's environment is freed.
+    let out = case.lughac_with(&["run", "main.la"], ("LUGHA_RC_REPORT", "1"));
+    assert!(
+        text(&out.stderr).trim_end().ends_with(" 0 live"),
+        "{}",
+        text(&out.stderr)
+    );
 }
 
 #[test]

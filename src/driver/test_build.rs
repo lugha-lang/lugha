@@ -98,7 +98,7 @@ pub(super) fn build_group(
                 OptLevel::O0,
                 cpu,
                 Target::default(),
-                super::cli::memory_from_env(),
+                super::cli::call_costs_from_env(),
             ),
             exe,
         )
@@ -193,7 +193,7 @@ fn build(file: &Path, exe: &Path, cpu: Cpu) -> Result<Vec<Listed>, Failure> {
                 OptLevel::O0,
                 cpu,
                 Target::default(),
-                super::cli::memory_from_env(),
+                super::cli::call_costs_from_env(),
             ),
             exe,
         )?;

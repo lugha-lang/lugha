@@ -79,11 +79,12 @@ mod tests {
         let ir = ir("fun main() { let mut a = [1]; let mut b = [2, 3]; swap(a, b); }");
         let body = main_body(&ir);
         let swap = &body[body.find("%swap = load ptr").expect("a is loaded")..];
-        let swap = &swap[..swap.find("ret void").expect("main returns")];
+        // Up to the block's end, which lets go of `a` and `b`.
+        let swap = &swap[..swap.find("%held").expect("main's block ends")];
         assert_eq!(swap.matches("load ptr").count(), 2, "{ir}");
         assert_eq!(swap.matches("store ptr").count(), 2, "{ir}");
         assert!(
-            !swap.contains("memcpy") && !swap.contains("lugha_rt_alloc") && !swap.contains("call"),
+            !swap.contains("memcpy") && !swap.contains("lugha_rt_rc_alloc"),
             "{ir}"
         );
     }

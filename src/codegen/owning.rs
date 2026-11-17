@@ -45,11 +45,11 @@ impl<'ctx> Lowerer<'ctx> {
             .map(|(slot, &k)| {
                 k && match slot.checked_sub(usize::from(receiver)) {
                     None => true,
-                    // Under reference counting, any parameter holding counted
+                    // Any parameter holding counted
                     // objects: handing over its count saves a copy on write.
-                    Some(i) => params.get(i).is_some_and(|t| {
-                        t.is_deep(&self.structs) || (self.rc() && self.counted(t))
-                    }),
+                    Some(i) => params
+                        .get(i)
+                        .is_some_and(|t| t.is_deep(&self.structs) || (self.counted(t))),
                 }
             })
             .collect();
@@ -136,7 +136,7 @@ impl<'ctx> Lowerer<'ctx> {
                 continue;
             }
             let kept = kept.get(i).copied().unwrap_or(false);
-            let value = if kept && self.rc() {
+            let value = if kept {
                 self.rc_handed(arg, ty)?
             } else {
                 let value = self.get(arg, ty)?;
@@ -196,11 +196,15 @@ mod tests {
             2,
             "{main}"
         );
-        // Handed over once (no copy), protected once (`bag` is read after).
-        assert_eq!(main.matches("@lugha_copy_3Bag").count(), 1, "{main}");
-        // The owning instance moves its parameter; the ordinary one copies it.
-        assert!(!body(&ir, "\"lugha_fn_insert.$own\"").contains("lugha_copy_"));
-        assert!(body(&ir, "lugha_fn_insert").contains("lugha_copy_3Bag"));
+        // Handed over once, held once more (`bag` is read after).
+        assert_eq!(
+            main.matches("@lugha_rc_retain_at_3Bag(").count(),
+            1,
+            "{main}"
+        );
+        // The owning instance moves its parameter; the ordinary one holds it.
+        assert!(!body(&ir, "\"lugha_fn_insert.$own\"").contains("lugha_rc_retain_at_3Bag("));
+        assert!(body(&ir, "lugha_fn_insert").contains("lugha_rc_retain_at_3Bag("));
     }
 
     #[test]

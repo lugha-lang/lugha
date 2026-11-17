@@ -1,7 +1,7 @@
 //! Linux on ARM64: programs from
 //! `tests/programs/` built with `--target aarch64-unknown-linux-gnu` and run
 //! under `qemu-aarch64` match their expectation files, green threads,
-//! actors, panics and the collector included; and `extern struct`s cross to
+//! actors, panics and counting included; and `extern struct`s cross to
 //! C by value as AAPCS64 passes them, against C compiled by
 //! `aarch64-linux-gnu-gcc`. Without `aarch64-linux-gnu-gcc` and `qemu-aarch64` each test
 //! prints a note and passes, as on a machine that can't build for ARM.

@@ -65,12 +65,11 @@ impl<'ctx> Lowerer<'ctx> {
         }
         self.scopes.pop();
         let pair = pair?.into_struct_value();
-        // Under reference counting the closure, and what its arguments
+        // The closure, and what its arguments
         // reach, cross to the new task: marked shared, its holder the task's.
-        if self.rc() {
-            let fun = Type::Fun(Vec::new(), result.clone());
-            self.rc_mark(pair.into(), &fun);
-        }
+        let fun = Type::Fun(Vec::new(), result.clone());
+        self.rc_mark(pair.into(), &fun);
+
         let entry = self.task_entry(&result);
         let code = self
             .builder
@@ -104,24 +103,23 @@ impl<'ctx> Lowerer<'ctx> {
             unreachable!("lugha_rt_task_spawn returns the task")
         };
         debug_assert!(task.get_type() == ptr.into());
-        if self.rc() {
-            let visit = match *result {
-                Type::Unit | Type::Never => None,
-                ref ty => self.rc_box_drop(ty),
-            };
-            let visit = match visit {
-                Some(f) => f.as_global_value().as_pointer_value(),
-                None => ptr.const_null(),
-            };
-            let setup = self.runtime(
-                "lugha_rt_rc_task_setup",
-                &[Type::String, Type::String],
-                None,
-            );
-            self.builder
-                .build_call(setup, &[task.into(), visit.into()], "")
-                .expect(POSITIONED);
-        }
+        let visit = match *result {
+            Type::Unit | Type::Never => None,
+            ref ty => self.rc_box_drop(ty),
+        };
+        let visit = match visit {
+            Some(f) => f.as_global_value().as_pointer_value(),
+            None => ptr.const_null(),
+        };
+        let setup = self.runtime(
+            "lugha_rt_rc_task_setup",
+            &[Type::String, Type::String],
+            None,
+        );
+        self.builder
+            .build_call(setup, &[task.into(), visit.into()], "")
+            .expect(POSITIONED);
+
         Ok(task)
     }
 
@@ -211,9 +209,8 @@ impl<'ctx> Lowerer<'ctx> {
         // A copy site: joining again gives another copy. Under reference
         // counting the result crosses back from the task: marked shared.
         let value = self.load_element(at.into_pointer_value(), result);
-        if self.rc() {
-            self.rc_mark(value, result);
-        }
+        self.rc_mark(value, result);
+
         Ok(Value::Val(self.deep_copy(value, result)))
     }
 

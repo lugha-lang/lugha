@@ -86,9 +86,9 @@ impl<'ctx> Lowerer<'ctx> {
 
         self.scopes.push();
         let first = u32::from(receiver.is_some());
-        // Under reference counting an owning instance owns what it keeps:
+        // An owning instance owns what it keeps:
         // released when it returns unless it moved it on.
-        let kept = match (self.rc() && self.owning, self.kept_of(signature.function)) {
+        let kept = match (self.owning, self.kept_of(signature.function)) {
             (true, Some(kept)) => kept,
             _ => Vec::new(),
         };
@@ -252,6 +252,7 @@ impl<'ctx> Lowerer<'ctx> {
                 (None, _) => Value::Void,
             });
         }
+        let mut claims = Vec::new();
         let values = match &plan {
             Some(plan) => self
                 .callback_arguments(args, &signature.params, plan)?
@@ -270,6 +271,15 @@ impl<'ctx> Lowerer<'ctx> {
                     ValueKind::Basic(result) => Value::Val(result),
                     ValueKind::Instruction(_) => Value::Void,
                 });
+            }
+            // Fresh arguments of a Lugha function are let go of as soon as
+            // it returns.
+            None if !signature.is_extern => {
+                // A call among the arguments claims its own.
+                let outer = self.claims.replace(Vec::new());
+                let values = self.arguments(args, &signature.params, false);
+                claims = std::mem::replace(&mut self.claims, outer).unwrap_or_default();
+                values?
             }
             None => self.arguments(args, &signature.params, signature.is_extern)?,
         };
@@ -291,6 +301,7 @@ impl<'ctx> Lowerer<'ctx> {
                 .build_call(signature.function, &values, "call")
                 .expect(POSITIONED),
         };
+        self.rc_release_claims(claims);
         self.write_outs();
         Ok(match (site.try_as_basic_value(), &signature.ret) {
             (ValueKind::Basic(result), Some(ret))
@@ -340,6 +351,10 @@ impl<'ctx> Lowerer<'ctx> {
                 continue;
             }
             let value = self.get(arg, ty)?;
+            let mut claim = match self.claims {
+                Some(_) => self.rc_claim(arg.id, value, ty),
+                None => None,
+            };
             let value = if is_extern && *ty == Type::String {
                 self.c_string(value)
             } else if is_extern && is_nullable_handle(ty) {
@@ -348,10 +363,16 @@ impl<'ctx> Lowerer<'ctx> {
                 // Passed as a pointer to caller storage, never copied.
                 let slot = self.entry_alloca(ty, "arg");
                 self.builder.build_store(slot, value).expect(POSITIONED);
+                if let Some(claim) = claim.as_mut() {
+                    claim.at = Some(slot);
+                }
                 slot.into()
             } else {
                 value
             };
+            if let (Some(claims), Some(claim)) = (self.claims.as_mut(), claim) {
+                claims.push(claim);
+            }
             values.push(value.into());
         }
         Ok(values)

@@ -121,7 +121,12 @@ where
             options,
         } => {
             let target = target.map_or(Target::default(), Into::into);
-            let code = (options.opt, options.cpu(), target, options.memory());
+            let code = (
+                options.opt,
+                options.cpu(),
+                target,
+                cli::call_costs_from_env(),
+            );
             build::build(
                 &mut out,
                 file,
@@ -142,7 +147,7 @@ where
                     options.opt,
                     options.cpu(),
                     Target::default(),
-                    options.memory(),
+                    cli::call_costs_from_env(),
                 ),
                 args,
             )

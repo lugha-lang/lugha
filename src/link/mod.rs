@@ -1,9 +1,9 @@
 //! Linking — turns object files into an executable with the system C
 //! compiler, compiling the runtime in the same step.
 //!
-//! Runs `cc <objects> <runtime.o> <gc.o> -lm -o <output>` directly, never through a
-//! shell. The runtime's files under `runtime/` and the collector's (`gc`) are embedded,
-//! so linking works from any directory with no install layout.
+//! Runs `cc <objects> <runtime.o> -lm -o <output>` directly, never through a
+//! shell. The runtime's files under `runtime/` are embedded, so linking
+//! works from any directory with no install layout.
 //!
 //! The `[link]` tables of `lugha.toml` add C
 //! files, compiled first (`c_files`), and folders and libraries after
@@ -12,7 +12,6 @@
 pub mod c_files;
 pub mod compiler;
 mod errors;
-pub mod gc;
 pub mod inputs;
 mod object_cache;
 pub mod pkg_config;
@@ -233,14 +232,9 @@ pub fn link_with(
     // Compiled C objects are kept between builds.
     let cache = object_cache::Cache::open(cc);
     let shims = c_files::compile(&plan.c_files, temp, &cache)?;
-    let variant = (plan.tls.is_some(), plan.crypto.is_some(), plan.rc);
-    let gc = gc::compile(&cache)?;
-    let runtime = runtime::compile(variant, &cache, plan.tls.or(plan.crypto), &gc.include)?;
-    // Reference counting links no collector (its headers stay on the path).
-    let linked: Vec<&Path> = match plan.rc {
-        true => vec![runtime.path.as_path()],
-        false => vec![runtime.path.as_path(), gc.object.as_path()],
-    };
+    let variant = (plan.tls.is_some(), plan.crypto.is_some());
+    let runtime = runtime::compile(variant, &cache, plan.tls.or(plan.crypto))?;
+    let linked: Vec<&Path> = vec![runtime.path.as_path()];
     let result = cache
         .cc()
         .command()
@@ -272,7 +266,7 @@ pub fn link_with(
     }
 }
 
-/// `cc`'s arguments: objects, C objects, the runtime and the collector, `-lm`, the
+/// `cc`'s arguments: objects, C objects, the runtime, `-lm`, the
 /// plan's folders and libraries, the output. Libraries go after every
 /// object, as a static link needs.
 fn args(
@@ -324,20 +318,17 @@ mod tests {
     }
 
     #[test]
-    fn a_build_without_link_tables_links_the_runtime_and_collector() {
+    fn a_build_without_link_tables_links_the_runtime() {
         use std::path::Path;
         let plan = super::Plan::default();
         let args = super::args(
             &[Path::new("prog.o")],
             &[],
-            &[Path::new("/t/rt.o"), Path::new("/t/gc.o")],
+            &[Path::new("/t/rt.o")],
             &plan,
             Path::new("out"),
         );
-        assert_eq!(
-            strings(&args),
-            ["prog.o", "/t/rt.o", "/t/gc.o", "-lm", "-o", "out"]
-        );
+        assert_eq!(strings(&args), ["prog.o", "/t/rt.o", "-lm", "-o", "out"]);
     }
 
     #[test]
@@ -361,15 +352,13 @@ mod tests {
         let args = super::args(
             &objects,
             &shims,
-            &[Path::new("/t/rt.o"), Path::new("/t/gc.o")],
+            &[Path::new("/t/rt.o")],
             &plan,
             Path::new("out"),
         );
         assert_eq!(
             strings(&args),
-            [
-                "prog.o", "/t/c0.o", "/t/rt.o", "/t/gc.o", "-lm", "-lz", "-o", "out"
-            ]
+            ["prog.o", "/t/c0.o", "/t/rt.o", "-lm", "-lz", "-o", "out"]
         );
     }
 

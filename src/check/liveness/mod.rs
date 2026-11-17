@@ -58,6 +58,10 @@ pub(super) struct Liveness {
     /// Per statement, the `let` locals of its block that nothing mentions
     /// after it: their values can go when it ends.
     pub dead_after: HashMap<Span, Vec<String>>,
+    /// The bodies (by span) of `match` arms whose bindings can borrow:
+    /// the matched value is a plain local nothing in the arm mentions, so
+    /// it outlives the arm unchanged.
+    pub borrowing_arms: HashSet<Span>,
 }
 
 /// One function's parameters while it is walked.

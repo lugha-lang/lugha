@@ -1,6 +1,6 @@
 /*
- * rc_alloc.c — part of lugha_rt.c: the blocks reference counting's objects
- * live in (`--memory=rc`). Most objects are small and short-lived, so a
+ * rc_alloc.c — part of lugha_rt.c: the blocks counted objects live in.
+ * Most objects are small and short-lived, so a
  * freed block goes back on a list of blocks its size, and the next object
  * that size takes it, without a trip through malloc.
  *
@@ -16,9 +16,8 @@
  *   are plain globals.
  *
  * A fragment, not compiled on its own: joined after the core (lugha_rt.c),
- * before rc.c, and compiled only with `-DLUGHA_RC`.
+ * before rc.c.
  */
-#ifdef LUGHA_RC
 
 #define RC_CHUNK ((uintptr_t)1 << 16)
 #define RC_SMALL 272
@@ -156,4 +155,3 @@ static void rc_block_free(void *block) {
     free(block);
 }
 
-#endif

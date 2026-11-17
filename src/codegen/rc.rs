@@ -1,4 +1,4 @@
-//! Reference counting in codegen (`--memory=rc`): which values hold counted
+//! Reference counting in codegen: which values hold counted
 //! objects, adding and taking away holders, and the functions that do it
 //! per type.
 //!
@@ -16,7 +16,6 @@ use inkwell::attributes::{Attribute, AttributeLoc};
 use inkwell::module::Linkage;
 use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue};
 
-use super::Memory;
 use super::copy::mangle;
 use super::enums::variants;
 use super::lower::{Lowerer, POSITIONED};
@@ -39,6 +38,7 @@ fn counted_in(ty: &Type, structs: &Structs, enums: &Enums, path: &mut Vec<String
         | Type::Chan(_)
         | Type::Task(_)
         | Type::Actor(_) => true,
+        Type::Handle(key) => key == crate::check::RESOURCE,
         Type::Struct(..) | Type::Enum(..) | Type::Option(_) => {
             let name = ty.to_string();
             // A type leading back to itself does so through a box on the
@@ -60,12 +60,6 @@ fn counted_in(ty: &Type, structs: &Structs, enums: &Enums, path: &mut Vec<String
         }
         _ => false,
     }
-}
-
-/// What in `checked` the reference-counting prototype doesn't count yet,
-/// if anything: C callbacks, which need a pinned count.
-pub(super) fn rc_unsupported(checked: &crate::check::Checked) -> Option<&'static str> {
-    (!checked.c_params.is_empty()).then_some("C callbacks")
 }
 
 /// What a count operation does to the counted objects a value holds.
@@ -90,18 +84,13 @@ pub(super) fn pointer_counted(ty: &Type) -> bool {
             | Type::Chan(_)
             | Type::Task(_)
             | Type::Actor(_)
-    )
+    ) || matches!(ty, Type::Handle(k) if k == crate::check::RESOURCE)
 }
 
 /// Bit 62 of a count: shared between tasks, its count changed atomically.
 pub(super) const SHARED: u64 = 1 << 62;
 
 impl<'ctx> Lowerer<'ctx> {
-    /// True when building under reference counting.
-    pub(super) fn rc(&self) -> bool {
-        matches!(self.memory, Memory::Rc | Memory::RcCallCosts)
-    }
-
     /// True if `ty`'s values hold counted objects.
     pub(super) fn counted(&self, ty: &Type) -> bool {
         counted(ty, &self.structs, &self.enums)
@@ -109,6 +98,22 @@ impl<'ctx> Lowerer<'ctx> {
 
     /// Adds a holder to every counted object `value` holds.
     pub(super) fn rc_retain(&mut self, value: BasicValueEnum<'ctx>, ty: &Type) {
+        // A struct or enum just loaded, nothing emitted since: retained
+        // where it lies, so the whole value needn't be passed (and, at
+        // `-O0`, copied onto the stack).
+        if matches!(ty, Type::Struct(..) | Type::Enum(..) | Type::Option(_))
+            && let Some(load) = inkwell::values::BasicValue::as_instruction_value(&value)
+            && load.get_opcode() == inkwell::values::InstructionOpcode::Load
+            && self
+                .builder
+                .get_insert_block()
+                .and_then(|b| b.get_last_instruction())
+                == Some(load)
+            && let Some(inkwell::values::Operand::Value(address)) = load.get_operand(0)
+        {
+            self.rc_value_at(address.into_pointer_value(), ty, RcOp::Retain);
+            return;
+        }
         self.rc_value(value, ty, RcOp::Retain);
     }
 
@@ -332,54 +337,11 @@ impl<'ctx> Lowerer<'ctx> {
         function
     }
 
-    /// An enum's counted payloads, by its tag: an indirect payload is a
-    /// pointer to a counted box, any other read where it lies.
+    /// An enum's counted payloads, by its tag, through a slot holding it.
     fn rc_variants(&mut self, value: BasicValueEnum<'ctx>, ty: &Type, op: RcOp) {
         let slot = self.entry_alloca(ty, "variant");
         self.builder.build_store(slot, value).expect(POSITIONED);
-        let tag = self.tag(ty, slot);
-        let done = self.append("variants.done");
-        let mut cases = Vec::new();
-        for (index, (_, payloads)) in variants(ty, &self.enums).into_iter().enumerate() {
-            if !payloads.iter().any(|p| self.counted(p)) {
-                continue;
-            }
-            let block = self.append("variant");
-            let index = u64::try_from(index).expect("variant count fits");
-            cases.push((
-                self.context.i32_type().const_int(index, false),
-                block,
-                payloads,
-            ));
-        }
-        let switch_cases: Vec<_> = cases.iter().map(|(v, b, _)| (*v, *b)).collect();
-        self.builder
-            .build_switch(tag, done, &switch_cases)
-            .expect(POSITIONED);
-        for (_, block, payloads) in cases {
-            self.builder.position_at_end(block);
-            for (index, payload) in payloads.iter().enumerate() {
-                if !self.counted(payload) {
-                    continue;
-                }
-                let index = u32::try_from(index).expect("payload count fits");
-                let address = self.payload_address(ty, slot, &payloads, index);
-                if self.indirect(ty, payload) {
-                    let ptr = self.context.ptr_type(AddressSpace::default());
-                    let boxed = self
-                        .builder
-                        .build_load(ptr, address, "boxed")
-                        .expect(POSITIONED)
-                        .into_pointer_value();
-                    self.rc_pointer_op(boxed, op);
-                } else {
-                    let part = self.load_element(address, payload);
-                    self.rc_value(part, payload, op);
-                }
-            }
-            self.branch(done);
-        }
-        self.builder.position_at_end(done);
+        self.rc_variants_at(slot, ty, op);
     }
 
     /// Runs `body` positioned in `function`'s new entry block, with a

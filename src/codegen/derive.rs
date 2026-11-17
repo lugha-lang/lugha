@@ -244,12 +244,11 @@ impl<'ctx> Lowerer<'ctx> {
                 .build_conditional_branch(failed, bad, good)
                 .expect(POSITIONED);
             self.builder.position_at_end(bad);
-            // Under reference counting the fields made so far are let go of.
-            if self.rc() {
-                for (value, (_, made)) in values.iter().zip(fields) {
-                    self.rc_release(*value, made);
-                }
+            // The fields made so far are let go of.
+            for (value, (_, made)) in values.iter().zip(fields) {
+                self.rc_release(*value, made);
             }
+
             let e = self.load_payload(&ty, held, std::slice::from_ref(&error), 0, &error);
             let failure = fail(e, self);
             self.builder.build_store(slot, failure).expect(POSITIONED);

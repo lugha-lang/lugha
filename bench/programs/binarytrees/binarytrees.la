@@ -1,5 +1,5 @@
 // binarytrees: builds and walks many short-lived binary trees and one
-// long-lived one. Stresses allocation and the Boehm GC: every node is a
+// long-lived one. Stresses allocation and freeing: every node is a
 // separate heap object, as in every other language's version.
 
 enum Tree {

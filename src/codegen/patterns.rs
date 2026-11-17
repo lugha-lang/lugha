@@ -66,9 +66,9 @@ impl<'ctx> Lowerer<'ctx> {
         let rty = self.ty(expr);
         let result = (!matches!(rty, Type::Unit | Type::Never))
             .then(|| self.entry_alloca(&rty, "match.value"));
-        // Under reference counting the result slot owns the arm's value, so
+        // The result slot owns the arm's value, so
         // each arm's own temporaries and bindings end with it.
-        let counted = self.rc() && self.counted(&rty);
+        let counted = self.counted(&rty);
         if let (Some(result), true) = (result, counted) {
             self.rc_result_slot(result, &rty);
         }
@@ -78,7 +78,9 @@ impl<'ctx> Lowerer<'ctx> {
             let next = self.append("arm.next");
             self.rc_statement_start();
             self.scopes.push();
+            self.borrowing = self.borrowing_arms.contains(&arm.body.span);
             self.test(&arm.pattern, subject, &sty, next, true);
+            self.borrowing = false;
             if let Some(guard) = &arm.guard {
                 let pass = self.get(guard, &Type::Bool)?.into_int_value();
                 self.or_next(pass, next, "arm.body");
@@ -233,8 +235,9 @@ impl<'ctx> Lowerer<'ctx> {
         ty: &Type,
         borrowed: bool,
     ) {
-        // Under reference counting a binding is a holder of its own.
-        if self.rc() && self.counted(ty) {
+        // A binding is a holder of its own, unless its arm borrows from a
+        // matched value that outlives it.
+        if self.counted(ty) && !(borrowed && self.borrowing) {
             let ptr = match self.scopes.in_innermost(&name.name) {
                 Some(local) => {
                     self.rc_rebind(local.ptr, value, ty);

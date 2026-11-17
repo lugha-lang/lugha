@@ -45,6 +45,21 @@ impl Walk<'_> {
         self.last_mentions(block);
     }
 
+    /// Records the arms of a match on `scrutinee` that never mention it,
+    /// when it is a plain local.
+    fn borrowing(&mut self, scrutinee: &Expr, arms: &[crate::ast::Arm]) {
+        let Some(mention) = self.mentions.get(&scrutinee.id) else {
+            return;
+        };
+        let at = self.positions.get(&mention.decl);
+        for arm in arms {
+            let inside = |p: &usize| arm.span.start <= *p && *p < arm.span.end;
+            if !at.is_some_and(|ps| ps.iter().any(inside)) {
+                self.out.borrowing_arms.insert(arm.body.span);
+            }
+        }
+    }
+
     /// Records, for each `let` local `block` declares, the statement of
     /// `block` holding its last mention (its own `let` if it has none),
     /// when later statements or a tail follow that one. A mention in a
@@ -295,6 +310,7 @@ impl Walk<'_> {
             }
             ExprKind::Try(e) => self.expr(e),
             ExprKind::Match(scrutinee, arms) => {
+                self.borrowing(scrutinee, arms);
                 self.expr(scrutinee);
                 arms.iter().for_each(|arm| self.expr(&arm.body));
             }

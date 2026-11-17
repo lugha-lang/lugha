@@ -2,7 +2,7 @@
 //! its methods ordinary methods (`lugha_fn_Counter.add`). Each method a
 //! handle calls gets a handler `lugha_actor_Counter.add(state, args,
 //! result)`, which the actor's green thread runs: it reads the arguments
-//! from a GC block (element layout, one field each), calls the method on the
+//! from a counted block (element layout, one field each), calls the method on the
 //! state and stores the result. A call on a handle copies its arguments into
 //! such a block and goes through `lugha_rt_actor_call` (waits) or
 //! `lugha_rt_actor_cast` (doesn't).
@@ -22,7 +22,7 @@ use crate::check::Type;
 
 impl<'ctx> Lowerer<'ctx> {
     /// `spawn Counter { … }` or `spawn Counter.new(…)`: the state, made by
-    /// the spawning thread, moved to the GC heap and handed to a new actor.
+    /// the spawning thread, moved to a counted block and handed to a new actor.
     pub(super) fn spawn_actor(
         &mut self,
         key: &str,
@@ -31,13 +31,11 @@ impl<'ctx> Lowerer<'ctx> {
         let state_type = Type::Struct(key.to_string(), Vec::new());
         let state = self.get(operand, &state_type)?;
         let size = self.element_size(&state_type).max(1);
-        // Under reference counting the block holds the state, and the
+        // The block holds the state, and the
         // actor the block.
-        let drop = if self.rc() {
+        let drop = {
             self.rc_retain(state, &state_type);
             self.rc_box_drop(&state_type)
-        } else {
-            None
         };
         let size = self.context.i64_type().const_int(size, false);
         let block = self.new_object(size, drop, "state");
@@ -87,12 +85,8 @@ impl<'ctx> Lowerer<'ctx> {
         let block = match layout {
             Some(layout) => {
                 let size = layout.size_of().expect("argument blocks are sized");
-                // Under reference counting the block holds the arguments.
-                let drop = if self.rc() {
-                    self.rc_env_drop(layout, &params, true)
-                } else {
-                    None
-                };
+                // The block holds the arguments.
+                let drop = self.rc_env_drop(layout, &params, true);
                 let block = self.new_object(size, drop, "args");
                 for (i, (arg, ty)) in (0u32..).zip(args.iter().zip(&params)) {
                     let value = self.value_for_store(arg, ty)?;
@@ -103,9 +97,8 @@ impl<'ctx> Lowerer<'ctx> {
                     self.store_element(at, ty, value);
                 }
                 // It crosses to the actor: marked shared.
-                if self.rc() {
-                    self.rc_pointer_op(block, super::rc::RcOp::Mark);
-                }
+                self.rc_pointer_op(block, super::rc::RcOp::Mark);
+
                 block
             }
             None => self.context.ptr_type(Default::default()).const_null(),
@@ -129,12 +122,11 @@ impl<'ctx> Lowerer<'ctx> {
                 ];
                 let result = self.call_rt("lugha_rt_actor_call", &values, true);
                 let value = self.load_element(result.into_pointer_value(), &ret);
-                // Under reference counting the result is the caller's now,
+                // The result is the caller's now,
                 // crossed back from the actor; its block is freed.
-                if self.rc() {
-                    self.rc_mark(value, &ret);
-                    self.call_rt("lugha_rt_rc_block_done", &[result], false);
-                }
+                self.rc_mark(value, &ret);
+                self.call_rt("lugha_rt_rc_block_done", &[result], false);
+
                 Ok(Value::Val(value))
             }
             None => {

@@ -44,15 +44,14 @@ impl<'ctx> Lowerer<'ctx> {
         let mut values = vec![cap, size.into()];
         values.extend(self.location(call.span.start));
         let chan = self.call_runtime("lugha_rt_chan_new", &values, true);
-        // Under reference counting the channel releases what it buffers.
-        if self.rc() {
-            let ptr = self.context.ptr_type(Default::default());
-            let visit = match self.rc_box_drop(&element) {
-                Some(f) => f.as_global_value().as_pointer_value(),
-                None => ptr.const_null(),
-            };
-            self.call_runtime("lugha_rt_rc_chan_setup", &[chan, visit.into()], false);
-        }
+        // The channel releases what it buffers.
+        let ptr = self.context.ptr_type(Default::default());
+        let visit = match self.rc_box_drop(&element) {
+            Some(f) => f.as_global_value().as_pointer_value(),
+            None => ptr.const_null(),
+        };
+        self.call_runtime("lugha_rt_rc_chan_setup", &[chan, visit.into()], false);
+
         Ok(chan)
     }
 
@@ -160,9 +159,8 @@ impl<'ctx> Lowerer<'ctx> {
         let chosen = self
             .call_runtime("lugha_rt_task_select", &values, true)
             .into_int_value();
-        if self.rc() {
-            self.rc_unsent(arms, chosen, &answers);
-        }
+        self.rc_unsent(arms, chosen, &answers);
+
         self.select_arms(expr, arms, (chosen, (table, table_type), &answers))
     }
 
@@ -209,14 +207,14 @@ impl<'ctx> Lowerer<'ctx> {
                 let ok = self.case_ok(table, *answer);
                 let value = self.received(ok, *data, element);
                 let ptr = self.entry_alloca(&option, &binding.name);
-                // Under reference counting the received value is the
+                // The received value is the
                 // statement's, released with it.
                 self.rc_statement_slot(ptr, &option);
                 self.builder.build_store(ptr, value).expect(POSITIONED);
                 let local = Local {
                     ptr,
                     ty: option.clone(),
-                    borrowed: self.rc(),
+                    borrowed: true,
                 };
                 self.scopes.declare(&binding.name, local);
             }
@@ -263,8 +261,8 @@ impl<'ctx> Lowerer<'ctx> {
                 let ExprKind::Call(_, args) = &call.kind else {
                     unreachable!("the parser checked the arm")
                 };
-                // Its slot too: under reference counting, a send that
-                // doesn't fire lets go of its value.
+                // Its slot too: a send that doesn't fire lets go of its
+                // value.
                 let data = self.element_value(&args[0], element)?;
                 (1, data, Some(data))
             }
@@ -292,7 +290,7 @@ impl<'ctx> Lowerer<'ctx> {
         Ok(slot)
     }
 
-    /// Under reference counting, after `select` picked `chosen`: each send
+    /// After `select` picked `chosen`: each send
     /// arm it didn't pick lets go of the value it prepared.
     fn rc_unsent(
         &mut self,
@@ -386,10 +384,9 @@ impl<'ctx> Lowerer<'ctx> {
         element: &Type,
     ) -> Result<PointerValue<'ctx>, CodegenError> {
         let value = self.value_for_store(value, element)?;
-        // Under reference counting it crosses to another task: marked shared.
-        if self.rc() {
-            self.rc_mark(value, element);
-        }
+        // It crosses to another task: marked shared.
+        self.rc_mark(value, element);
+
         let slot = self.element_slot(element);
         self.store_element(slot, element, value);
         Ok(slot)

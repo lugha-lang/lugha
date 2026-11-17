@@ -1,8 +1,8 @@
 /*
  * lugha_rt.c — the Lugha runtime library.
  *
- * Linked into every program. Provides heap allocation through the Boehm
- * collector, panics, and the printing and formatting behind the `print`,
+ * Linked into every program. Provides heap allocation with reference
+ * counting (rc_alloc.c, rc.c), panics, and the printing and formatting behind the `print`,
  * `println` and `to_string` intrinsics. All output goes through C's `stdout`
  * so it interleaves with libc calls in program order.
  *
@@ -28,36 +28,6 @@
 #include <netinet/in.h>
 #include <net/if.h>
 #include <ifaddrs.h>
-#ifdef LUGHA_RC
-/* The reference-counting prototype (`--memory=rc`): no collector. The
- * runtime's own calls to it become plain allocation (zeroed, as the
- * collector's was) and no-ops; rc.c counts the objects programs hold. */
-struct GC_stack_base {
-    void *mem_base;
-};
-typedef void (*GC_push_other_roots_proc)(void);
-void *lugha_rc_internal(size_t size);
-#define GC_CALLBACK
-#define GC_INIT() ((void)0)
-#define GC_malloc(n) lugha_rc_internal(n)
-#define GC_MALLOC(n) lugha_rc_internal(n)
-#define GC_MALLOC_ATOMIC(n) lugha_rc_internal(n)
-#define GC_MALLOC_UNCOLLECTABLE(n) lugha_rc_internal(n)
-#define GC_FREE(p) free(p)
-#define GC_register_finalizer(p, f, d, of, od) ((void)(f))
-#define GC_gcollect() ((void)0)
-#define GC_invoke_finalizers() 0
-#define GC_push_all_eager(a, b) ((void)0)
-#define GC_get_my_stackbottom(b) ((b)->mem_base = NULL)
-#define GC_get_push_other_roots() ((GC_push_other_roots_proc)0)
-#define GC_set_push_other_roots(p) ((void)(p))
-#define GC_set_stackbottom(t, b) ((void)(b))
-#define GC_call_with_alloc_lock(f, a) ((void)(f), (void)(a))
-#else
-/* bdwgc's own layout: lughac passes `-isystem` its include folder. */
-#include <gc.h>
-#include <gc_mark.h>
-#endif
 #include <poll.h>
 #include <pthread.h>
 #include <signal.h>
@@ -143,8 +113,13 @@ static int utf8_encode(uint32_t code, char *out);
 /* Ends the program after a panic, or only the running actor (see
  * actors.c); `text` is what followed "panic: ". */
 static void panic_end(const char *text, size_t len);
-#ifdef LUGHA_RC
+/* What a counted object's visit does with what it holds: let go of it (the
+ * object is being freed), or mark it shared (it crossed to another task). */
+#define RC_RELEASE 0
+#define RC_MARK 1
 static void lugha_rc_start(void);
+void *lugha_rt_rc_alloc(int64_t size, void (*visit)(void *, int64_t));
+void lugha_rt_rc_retain(void *object);
 void lugha_rt_rc_free(void *object);
 void lugha_rt_rc_mark(void *object);
 void lugha_rt_rc_release(void *object);
@@ -152,7 +127,6 @@ void (*lugha_rt_rc_drop_of(const void *object))(void *, int64_t);
 void lugha_rt_rc_set_drop(void *object, void (*visit)(void *, int64_t));
 void lugha_rt_rc_drop_pointers(void *object, int64_t op);
 void *lugha_rc_internal(size_t size);
-#endif
 
 /* The C `main`'s arguments, for `args()`. */
 static int32_t program_argc;
@@ -161,12 +135,8 @@ static char **program_argv;
 void lugha_rt_init(int32_t argc, char **argv) {
     program_argc = argc;
     program_argv = argv;
-    GC_INIT();
-    /* After GC_INIT: Boehm may use signals while it starts up. */
     install_stack_overflow_handler();
-#ifdef LUGHA_RC
     lugha_rc_start();
-#endif
 }
 
 static void die(const char *message) {
@@ -198,82 +168,48 @@ __attribute__((format(printf, 1, 2))) static void panic_format(const char *forma
     panic_with(text, (size_t)len);
 }
 
-#ifndef LUGHA_RC
-/* Reference counting's own is in rc.c, with a count before the object. */
-void *lugha_rt_alloc(int64_t size) {
-    void *memory = GC_malloc((size_t)size);
-    if (memory == NULL) {
-        die("panic: out of memory\n");
-    }
-    return memory;
-}
-#endif
 
-/* Scratch memory the runtime lets go of itself (`rt_scratch_done`): the
- * collector's under Boehm, freed at once under reference counting. */
+/* Scratch memory the runtime lets go of itself (`rt_scratch_done`),
+ * zeroed. */
 static void *rt_scratch(int64_t size) {
-#ifdef LUGHA_RC
     return lugha_rc_internal((size_t)size);
-#else
-    return lugha_rt_alloc(size);
-#endif
 }
 
 static void rt_scratch_done(void *memory) {
-#ifdef LUGHA_RC
     free(memory);
-#else
-    (void)memory;
-#endif
 }
 
 /* Lets go of `object`, a counted object the runtime made and won't hand
- * to the program (an error message no one asked for): released under
- * reference counting, left to the collector under Boehm. */
+ * to the program (an error message no one asked for). */
 static void rt_let_go(void *object) {
-#ifdef LUGHA_RC
     lugha_rt_rc_release(object);
-#else
-    (void)object;
-#endif
 }
 
-/* Marks `array`, made here, as holding strings or arrays: under reference
- * counting, freeing it releases them. */
+/* Marks `array`, made here, as holding strings or arrays: freeing it
+ * releases them. */
 static void rt_holds_pointers(LughaArray *array) {
-#ifdef LUGHA_RC
     lugha_rt_rc_set_drop(array, lugha_rt_rc_drop_pointers);
-#else
-    (void)array;
-#endif
 }
 
 /* A copy of `array` with room for at least one more element: capacity
- * doubles, starting at 4. The old object is left to the GC (freed at once
- * under reference counting); its single owner switches to the copy. */
+ * doubles, starting at 4. The old object is freed at once; its single
+ * holder switches to the copy. */
 LughaArray *lugha_rt_array_grow(const LughaArray *array, int64_t elem_size) {
-    /* The top bit of `cap` is the shared flag. Arrays are made unique
-     * before they grow, so it should be clear, but a set flag would read as
-     * a negative capacity and shrink the array: mask it. */
-    int64_t old_cap = array->cap & INT64_MAX;
+    int64_t old_cap = array->cap;
     int64_t cap = old_cap < 2 ? 4 : old_cap * 2;
     /* `()` elements take no bytes: only the length grows. */
     if (elem_size > 0 && cap > (INT64_MAX - (int64_t)sizeof(LughaArray)) / elem_size) {
         die("panic: out of memory\n");
     }
     LughaArray *grown = lugha_rt_alloc((int64_t)sizeof(LughaArray) + cap * elem_size);
-#ifdef LUGHA_RC
     lugha_rt_rc_set_drop(grown, lugha_rt_rc_drop_of(array));
-#endif
     grown->len = array->len;
     grown->cap = cap;
     memcpy(grown->elems, array->elems, (size_t)(array->len * elem_size));
-#ifdef LUGHA_RC
     /* The elements moved to `grown`; the old block, unique since codegen
      * made it so before growing, goes without dropping them. */
     lugha_rt_rc_set_drop((void *)array, NULL);
     lugha_rt_rc_release((void *)array);
-#endif
     return grown;
 }
 

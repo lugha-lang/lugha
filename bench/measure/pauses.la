@@ -1,12 +1,10 @@
-// pauses: the longest stop in steady work, under either memory model.
+// pauses: the longest stop in steady work.
 // 256 trees stay alive and each round replaces one, so every round
 // builds, reads and drops the same amount. A round normally takes well
 // under a millisecond; one the clock sees take 2 ms or more was stopped by
-// memory management: the collector marking what is alive, or reference
-// counting freeing a large structure at once.
+// memory management: freeing a large structure at once.
 //
-// lughac run bench/measure/pauses.la 20000          (the collector)
-// LUGHA_MEMORY=rc lughac run bench/measure/pauses.la 20000
+// lughac run -O2 bench/measure/pauses.la 20000
 
 enum Tree {
     Leaf,

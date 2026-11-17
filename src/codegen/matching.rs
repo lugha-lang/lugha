@@ -29,9 +29,9 @@ impl<'ctx> Lowerer<'ctx> {
         let rty = self.ty(expr);
         let result = (!matches!(rty, Type::Unit | Type::Never))
             .then(|| self.entry_alloca(&rty, "match.value"));
-        // Under reference counting the result slot owns the arm's value, so
+        // The result slot owns the arm's value, so
         // each arm's own temporaries end with it.
-        let counted = self.rc() && self.counted(&rty);
+        let counted = self.counted(&rty);
         if let (Some(result), true) = (result, counted) {
             self.rc_result_slot(result, &rty);
         }
@@ -86,7 +86,9 @@ impl<'ctx> Lowerer<'ctx> {
             self.scopes.push();
             if let (Some(slot), PatternKind::Variant(name, Some(slots))) = (slot, &arm.pattern.kind)
             {
+                self.borrowing = self.borrowing_arms.contains(&arm.body.span);
                 self.bind_payloads(&sty, slot, &name.name, slots);
+                self.borrowing = false;
             }
             self.rc_forget_last();
             let value = self.expr(&arm.body)?;
@@ -168,7 +170,8 @@ impl<'ctx> Lowerer<'ctx> {
         self.branch(default);
     }
 
-    /// Binds each named payload of `variant` as a borrowed local.
+    /// Binds each named payload of `variant` as a borrowed local, holding
+    /// its value unless the arm borrows.
     fn bind_payloads(
         &mut self,
         sty: &Type,
@@ -193,8 +196,15 @@ impl<'ctx> Lowerer<'ctx> {
                     .into_pointer_value();
             }
             let value = self.load_element(address, ty);
-            let local = self.entry_alloca(ty, &name.name);
-            self.builder.build_store(local, value).expect(POSITIONED);
+            // A binding holds its value unless the matched value outlives
+            // the arm unchanged.
+            let local = if self.counted(ty) && !self.borrowing {
+                self.rc_binding(value, ty, &name.name)
+            } else {
+                let local = self.entry_alloca(ty, &name.name);
+                self.builder.build_store(local, value).expect(POSITIONED);
+                local
+            };
             self.scopes.declare(
                 &name.name,
                 Local {
@@ -267,9 +277,17 @@ mod tests {
     fn enum_values_share_payloads_and_constructions_copy_places() {
         let src = "enum J { B(i64[]), I }\nfun main() { let xs = [1]; let a = J.B(xs); let b = a; debug(xs[0]); }";
         let ir = ir(src);
-        // `xs` is used later, so building the variant shares it (marks it
-        // rather than copying it); `let b = a` copies nothing more.
-        assert_eq!(ir.matches("or i64 %cap").count(), 1, "{ir}");
+        // `xs` is used later, so building the variant holds it rather than
+        // copying it.
+        assert!(
+            body_of_main(&ir).contains("call void @lugha_rc_inc("),
+            "{ir}"
+        );
         assert!(!ir.contains("call void @llvm.memcpy"), "{ir}");
+    }
+
+    fn body_of_main(ir: &str) -> &str {
+        let at = ir.find("define void @lugha_fn_main(").expect("main");
+        &ir[at..at + ir[at..].find("\n}").expect("a body ends")]
     }
 }

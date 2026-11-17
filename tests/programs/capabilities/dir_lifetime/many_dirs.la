@@ -1,0 +1,19 @@
+// A folder's descriptor is closed when its last `Dir` goes: opening and
+// dropping 5000 folders, more than a process's usual limit of 1024 open
+// descriptors, works, and every `Dir` is freed (`tests/leaks.rs`), its
+// descriptor with it.
+
+fun main(console: Console, fs: Fs) {
+    let mut opened = 0;
+    for _ in 0..5000 {
+        match fs.dir(".") {
+            .Ok(d) => {
+                if d.exists(".") {
+                    opened += 1;
+                }
+            }
+            .Err(e) => console.println(e),
+        }
+    }
+    console.println(opened);
+}

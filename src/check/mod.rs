@@ -149,6 +149,7 @@ pub use hashing::hash_op;
 pub use iface_tables::{InterfaceMethod, InterfaceShape};
 pub use impls::{ImplEntry, Impls, find as find_impl};
 pub use includes::{Included, MAX_INCLUDE};
+pub use input::RESOURCE;
 pub use input::prelude_helper;
 pub use instances::{Instance, lazy_key};
 pub use iterators::Iteration;

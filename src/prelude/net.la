@@ -8,8 +8,8 @@
  * Waiting to accept, connect, read, write, send or receive pauses only the
  * green thread that waits: the others keep running, so one program serves
  * many connections on its one OS thread. Name lookup (`example.com:80`)
- * does block the thread while it runs. Close what you open: the collector
- * never closes a socket. Listen on `127.0.0.1` unless other machines should
+ * does block the thread while it runs. Close what you open: a socket is
+ * never closed for you. Listen on `127.0.0.1` unless other machines should
  * reach the program. A fake implements the methods without a body.
  */
 interface Net {

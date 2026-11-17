@@ -1,15 +1,12 @@
 //! Copy-on-write arrays.
 //!
-//! A copy site doesn't copy an array: it sets the array's *shared* flag
-//! (the top bit of its header's `cap` word) and shares the pointer. Before
-//! anything writes into an array, `own` checks the flag; a shared array is
-//! cloned one level deep (its own elements copied, any arrays inside them
-//! marked shared in turn) and the clone is stored back into the slot that
-//! held it. The flag is sticky, so no reference counts are needed: an
-//! object once shared stays marked, and its other holders clone it if they
-//! ever write. Programs behave exactly as with eager copies.
+//! A copy site doesn't copy an array: it adds a holder. Before anything
+//! writes into an array, `own` checks its count; an array with other
+//! holders (or a constant, which no write may touch) is cloned one level
+//! deep, its elements each getting one more holder, and the clone is
+//! stored back into the slot that held it, which lets go of the original.
+//! Programs behave exactly as with eager copies.
 
-use inkwell::IntPredicate;
 use inkwell::values::PointerValue;
 
 use super::heap::element_of;
@@ -17,51 +14,6 @@ use super::lower::{Lowerer, POSITIONED};
 use crate::check::Type;
 
 impl<'ctx> Lowerer<'ctx> {
-    /// Marks `array` shared: from now on, whoever writes to it copies it first.
-    pub(super) fn mark_shared(&self, array: PointerValue<'ctx>) {
-        let i64_type = self.context.i64_type();
-        let at = self.capacity_address(array);
-        let cap = self
-            .builder
-            .build_load(i64_type, at, "cap")
-            .expect(POSITIONED)
-            .into_int_value();
-        let shared_bit = i64_type.const_int(1 << 63, false);
-        let marked = self
-            .builder
-            .build_or(cap, shared_bit, "shared")
-            .expect(POSITIONED);
-        // An included `u8[]` is read-only and born shared: a store to
-        // an array already marked goes to a sink instead. Only programs with
-        // includes pay for the select.
-        let at = if self.includes.is_empty() {
-            at
-        } else {
-            let was = self
-                .builder
-                .build_int_compare(IntPredicate::EQ, cap, marked, "was_shared")
-                .expect(POSITIONED);
-            let sink = self.cow_sink().as_pointer_value();
-            self.builder
-                .build_select(was, sink, at, "mark_at")
-                .expect(POSITIONED)
-                .into_pointer_value()
-        };
-        self.builder.build_store(at, marked).expect(POSITIONED);
-    }
-
-    /// `lugha_cow_sink`, a private word no one reads.
-    fn cow_sink(&self) -> inkwell::values::GlobalValue<'ctx> {
-        const SINK: &str = "lugha_cow_sink";
-        self.module.get_global(SINK).unwrap_or_else(|| {
-            let i64_type = self.context.i64_type();
-            let global = self.module.add_global(i64_type, None, SINK);
-            global.set_initializer(&i64_type.const_zero());
-            global.set_linkage(inkwell::module::Linkage::Private);
-            global
-        })
-    }
-
     /// The array in `slot` (an array of type `ty`), made unique first: if it
     /// is shared, a one-level clone is stored back into `slot`.
     pub(super) fn own(&mut self, slot: PointerValue<'ctx>, ty: &Type) -> PointerValue<'ctx> {
@@ -81,20 +33,7 @@ impl<'ctx> Lowerer<'ctx> {
             .build_load(ptr, slot, "array")
             .expect(POSITIONED)
             .into_pointer_value();
-        let i64_type = self.context.i64_type();
-        let shared = if self.rc() {
-            self.rc_shared(array)
-        } else {
-            let cap = self
-                .builder
-                .build_load(i64_type, self.capacity_address(array), "cap")
-                .expect(POSITIONED)
-                .into_int_value();
-            // The flag is the sign bit, so "shared" is "cap < 0".
-            self.builder
-                .build_int_compare(IntPredicate::SLT, cap, i64_type.const_zero(), "is_shared")
-                .expect(POSITIONED)
-        };
+        let shared = self.rc_shared(array);
         let from = self.builder.get_insert_block().expect(POSITIONED);
         let (clone, done) = (
             self.append(&format!("{label}.clone")),
@@ -120,9 +59,7 @@ impl<'ctx> Lowerer<'ctx> {
         let copy = self.clone_array(array, ty);
         self.builder.build_store(slot, copy).expect(POSITIONED);
         // The slot holds the clone now, not the array.
-        if self.rc() {
-            self.rc_pointer(array, false);
-        }
+        self.rc_pointer(array, false);
         let cloned = self.builder.get_insert_block().expect(POSITIONED);
         self.branch(done);
         self.builder.position_at_end(done);
@@ -131,12 +68,11 @@ impl<'ctx> Lowerer<'ctx> {
         phi.as_basic_value().into_pointer_value()
     }
 
-    /// A new, unshared array with `array`'s elements: plain elements by one
-    /// `memcpy`, elements holding arrays each shared (so the arrays inside
-    /// are marked, now that two arrays hold them).
+    /// A new array with `array`'s elements: plain elements by one `memcpy`,
+    /// elements holding counted values each with one more holder.
     fn clone_array(&mut self, array: PointerValue<'ctx>, ty: &Type) -> PointerValue<'ctx> {
         let element = element_of(ty);
-        if element.is_deep(&self.structs) || (self.rc() && self.counted(&element)) {
+        if element.is_deep(&self.structs) || self.counted(&element) {
             self.clone_deep(array, ty)
         } else {
             self.clone_flat(array, &element)
@@ -149,11 +85,11 @@ mod tests {
     use crate::codegen::test_util::ir;
 
     #[test]
-    fn a_copy_marks_instead_of_copying() {
+    fn a_copy_holds_instead_of_copying() {
         let ir = ir("fun main() { let xs = [1, 2]; let ys = xs; let n = xs[0] + ys[0]; }");
         let main = &ir[ir.find("define void @lugha_fn_main").unwrap()..];
         let main = &main[..main.find("\n}").unwrap()];
-        assert!(main.contains("or i64 %cap"), "{main}");
+        assert!(main.contains("call void @lugha_rc_inc("), "{main}");
         assert!(!main.contains("llvm.memcpy"), "{main}");
     }
 

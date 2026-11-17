@@ -12,11 +12,9 @@
  * syncing) are in dir_names.c, joined right after.
  *
  * Descriptors are close-on-exec, so a started program inherits none. A
- * `Dir`'s descriptor lives in a small collected object and is closed by a
- * finalizer when the last `Dir` holding it is gone. Since that waits for a
- * collection, opening anything that fails for want of descriptors
- * (`EMFILE`) first collects, closing every unreachable folder, and tries
- * once more; and the working folder's `Dir` is opened once and kept.
+ * `Dir`'s descriptor lives in a small counted object and is closed when the
+ * last `Dir` holding it is gone. The working folder's `Dir` is opened once
+ * and kept until exit.
  *
  * A fragment, not compiled on its own: joined after the core (lugha_rt.c),
  * whose includes (`<linux/openat2.h>`, `<sys/syscall.h>`) it relies on, and
@@ -33,38 +31,20 @@ static const char DIR_OUTSIDE[] = "path leads outside the folder";
 /* How often a lookup that raced a rename (`EAGAIN`) is tried again. */
 enum { DIR_RETRIES = 8 };
 
-static void dir_finalize(void *object, void *unused) {
-    (void)unused;
+/* A `Dir` object's visit: freeing it closes its descriptor. */
+static void dir_visit(void *object, int64_t op) {
     LughaDir *d = object;
-    if (d->fd >= 0) {
+    if (op == RC_RELEASE && d->fd >= 0) {
         close(d->fd);
         d->fd = -1;
     }
 }
 
-/* A collected `Dir` object owning `fd`, closed when it is collected. */
+/* A counted `Dir` object owning `fd`, closed when its last holder goes. */
 static LughaDir *dir_wrap(int fd) {
-    // Atomic: the object holds no pointers for the collector to follow.
-    LughaDir *d = GC_MALLOC_ATOMIC(sizeof *d);
-    if (d == NULL) {
-        die("panic: out of memory\n");
-    }
+    LughaDir *d = lugha_rt_rc_alloc((int64_t)sizeof *d, dir_visit);
     d->fd = fd;
-    GC_register_finalizer(d, dir_finalize, NULL, NULL, NULL);
     return d;
-}
-
-/* After an open failed with `EMFILE`: collects, so the finalizers close the
- * descriptors of folders nothing reaches any more; true when one more try
- * is worth it. */
-static bool dir_reclaim(bool *tried) {
-    if (errno != EMFILE || *tried) {
-        return false;
-    }
-    *tried = true;
-    GC_gcollect();
-    GC_invoke_finalizers();
-    return true;
 }
 
 /* `path` opened beneath `dirfd` with `flags` (and `mode` when it creates):
@@ -75,14 +55,12 @@ static int dir_resolve(int dirfd, const char *path, int flags, mode_t mode) {
     how.flags = (uint64_t)(flags | O_CLOEXEC);
     how.mode = (flags & O_CREAT) ? (uint64_t)mode : 0;
     how.resolve = RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS;
-    bool reclaimed = false;
     for (int tries = 0;; tries++) {
         long fd = syscall(SYS_openat2, dirfd, path, &how, sizeof how);
         if (fd >= 0) {
             return (int)fd;
         }
-        if (errno == EINTR || (errno == EAGAIN && tries < DIR_RETRIES) ||
-            dir_reclaim(&reclaimed)) {
+        if (errno == EINTR || (errno == EAGAIN && tries < DIR_RETRIES)) {
             continue;
         }
         return -1;
@@ -129,18 +107,21 @@ static int dir_open_beneath(const void *dir, const LughaString *path, int flags,
 /* `path` opened as a folder handle (`O_PATH | O_DIRECTORY`) from the
  * working folder with ordinary resolution: -1 with `errno` set. */
 static int dir_open_plain(const char *path) {
-    bool reclaimed = false;
     for (;;) {
         int fd = open(path, O_PATH | O_DIRECTORY | O_CLOEXEC);
-        if (fd >= 0 || (errno != EINTR && !dir_reclaim(&reclaimed))) {
+        if (fd >= 0 || errno != EINTR) {
             return fd;
         }
     }
 }
 
-/* The working folder's `Dir`, opened at the first `fs.cwd()` and kept: a
- * static the collector scans, so it is never finalized. */
+/* The working folder's `Dir`, opened at the first `fs.cwd()` and held
+ * here until exit, when the runtime lets go of it. */
 static LughaDir *dir_working;
+
+static void dir_working_done(void) {
+    lugha_rt_rc_release(dir_working);
+}
 
 /* `$os.dir_cwd()`: the working folder, confined like any `Dir`. */
 int32_t lugha_rt_dir_cwd(void **out, LughaString **error) {
@@ -150,7 +131,11 @@ int32_t lugha_rt_dir_cwd(void **out, LughaString **error) {
             return fs_fail(error, strerror(errno));
         }
         dir_working = dir_wrap(fd);
+        // Registered after the report at exit, so it runs before it.
+        atexit(dir_working_done);
     }
+    // The caller gets a holder of its own.
+    lugha_rt_rc_retain(dir_working);
     *out = dir_working;
     return 1;
 }
@@ -318,11 +303,9 @@ int32_t lugha_rt_dir_list(void *dir, const LughaString *path, LughaArray **out,
     int failed = errno;
     closedir(listing);
     if (failed != 0) {
-#ifdef LUGHA_RC
         for (int64_t i = 0; i < len; i++) {
             lugha_rt_rc_release(names[i]);
         }
-#endif
         rt_scratch_done(names);
         return fs_fail(error, strerror(failed));
     }

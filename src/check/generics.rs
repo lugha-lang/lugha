@@ -182,6 +182,9 @@ impl Checker {
         if name == super::input::CPTR && self.named_type(&self.key(name)).is_none() {
             return Type::Handle(super::input::CPTR.to_string());
         }
+        if name == super::input::RESOURCE {
+            return Type::Handle(super::input::RESOURCE.to_string());
+        }
         // Markers of extern signatures, unless a module names a type so.
         if matches!(name, "data" | "release") && self.named_type(&self.key(name)).is_none() {
             self.report(errors::marker_outside(name, span));

@@ -1,6 +1,6 @@
 /*
- * rc.c — part of lugha_rt.c: the reference-counting prototype
- * (`--memory=rc`). Every object `lugha_rt_alloc` makes has a 16-byte
+ * rc.c — part of lugha_rt.c: reference counting, how every program's
+ * memory is managed. Every object `lugha_rt_alloc` makes has a 16-byte
  * header just before it: the function that releases what the object holds
  * (`NULL` for one holding no counted values), then its count. The pointer
  * programs hold still points at the object, so no layout changes, and
@@ -18,10 +18,9 @@
  * size, count and first bytes), keeping freed ones as tombstones to tell
  * them apart.
  *
- * A fragment, not compiled on its own: joined after the core (lugha_rt.c),
- * and compiled only with `-DLUGHA_RC`.
+ * A fragment, not compiled on its own: joined after the core (lugha_rt.c)
+ * and rc_alloc.c.
  */
-#ifdef LUGHA_RC
 
 #define RC_IMMORTAL INT64_MIN
 #define RC_FREED (INT64_MIN + 0x5EED)
@@ -92,11 +91,6 @@ void *lugha_rc_internal(size_t size) {
     }
     return memory;
 }
-
-/* What a visit does with what an object holds: let go of it (the object is
- * being freed), or mark it shared (the object crossed to another task). */
-#define RC_RELEASE 0
-#define RC_MARK 1
 
 /* Visits what a counted object holds, for one operation. */
 typedef void (*RcVisit)(void *object, int64_t op);
@@ -281,4 +275,3 @@ void lugha_rt_rc_retain(void *object) {
     }
 }
 
-#endif

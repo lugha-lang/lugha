@@ -71,11 +71,7 @@ impl<'ctx> Lowerer<'ctx> {
                 param
             };
             // Stored as a function body stores a parameter: deep values copied.
-            let value = if payload.is_deep(&self.structs) || self.rc() {
-                self.deep_copy(value, payload)
-            } else {
-                value
-            };
+            let value = self.deep_copy(value, payload);
             values.push(value);
         }
         let built = self.construct_values(ty, variant, values);

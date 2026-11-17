@@ -15,7 +15,7 @@ use super::source::Source;
 use super::update;
 use crate::ast;
 use crate::check::{self, Checked};
-use crate::codegen::{self, CodegenError, Cpu, Memory, OptLevel, Target};
+use crate::codegen::{self, CallCosts, CodegenError, Cpu, OptLevel, Target};
 use crate::diagnostic::{Diagnostic, Severity};
 use crate::link;
 use crate::modules::fetch::Mode;
@@ -278,9 +278,9 @@ fn prelude_failure(source: &Source, errors: &[Diagnostic]) -> Failure {
 }
 
 /// The program's LLVM IR for `target`, for `--emit=ir`.
-pub(super) fn ir(front: &Front, (target, memory): (Target, Memory)) -> Result<String, Failure> {
+pub(super) fn ir(front: &Front, (target, costs): (Target, CallCosts)) -> Result<String, Failure> {
     let units = units(&front.modules);
-    codegen::emit_ir_with(&units, checked(front), &sources(front), (target, memory))
+    codegen::emit_ir_with(&units, checked(front), &sources(front), (target, costs))
         .map_err(|e| codegen_failure(&front.source, e))
 }
 
@@ -289,7 +289,7 @@ pub(super) fn ir(front: &Front, (target, memory): (Target, Memory)) -> Result<St
 /// failures come before codegen's work.
 pub(super) fn build(
     front: &Front,
-    (opt, cpu, target, memory): (OptLevel, Cpu, Target, Memory),
+    (opt, cpu, target, costs): (OptLevel, Cpu, Target, CallCosts),
     exe: &Path,
 ) -> Result<(), Failure> {
     // `debug(x)` is for development: an optimized build is a release.
@@ -314,7 +314,6 @@ pub(super) fn build(
         .map_err(|e| Failure::Program(front.source.clone(), vec![e.diagnostic()]))?;
     plan.tls = std_import(&front.modules, "tls", &["tls", "http"]);
     plan.crypto = std_import(&front.modules, "crypto", &["crypto"]);
-    plan.rc = memory != Memory::Gc;
     let temp = TempDir::new().map_err(|e| internal(&front.source, temp_error(e)))?;
     let object = temp.path.join("prog.o");
     codegen::emit_object_modules(
@@ -322,7 +321,7 @@ pub(super) fn build(
         checked(front),
         &sources(front),
         opt,
-        (cpu, target, memory),
+        (cpu, target, costs),
         &object,
     )
     .map_err(|e| codegen_failure(&front.source, e))?;
@@ -364,7 +363,7 @@ fn std_import(modules: &[Module], module: &str, via: &[&str]) -> Option<crate::s
 /// Returns the program's exit code, or 128 + N if signal N killed it, as a shell reports it.
 pub(super) fn run(
     front: &Front,
-    code: (OptLevel, Cpu, Target, Memory),
+    code: (OptLevel, Cpu, Target, CallCosts),
     args: &[String],
 ) -> Result<u8, Failure> {
     let temp = TempDir::new().map_err(|e| internal(&front.source, temp_error(e)))?;

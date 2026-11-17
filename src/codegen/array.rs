@@ -1,7 +1,7 @@
 //! Arrays in codegen: allocation, list and repeat literals, and
 //! `for x of xs`.
 //!
-//! An array is a pointer to `{ i64 len, T elems[len] }` on the GC heap;
+//! An array is a pointer to `{ i64 len, T elems[len] }` on the heap;
 //! element sizes and storage live in `codegen::heap`.
 
 use inkwell::IntPredicate;
@@ -28,11 +28,7 @@ impl<'ctx> Lowerer<'ctx> {
             .builder
             .build_int_add(data, i64_type.const_int(ARRAY_HEADER, false), "bytes")
             .expect(POSITIONED);
-        let drop = if self.rc() {
-            self.rc_array_drop(element)
-        } else {
-            None
-        };
+        let drop = self.rc_array_drop(element);
         let array = self.new_object(bytes, drop, "array");
         self.builder.build_store(array, len).expect(POSITIONED);
         // A new array is full: `cap == len`.
@@ -123,16 +119,9 @@ impl<'ctx> Lowerer<'ctx> {
             .expect(POSITIONED);
         self.panic_if(negative, "negative array length", expr.span.start);
         let array = self.new_array(count, &element);
-        let (deep, size) = (
-            element.is_deep(&self.structs) || self.rc(),
-            self.element_size(&element),
-        );
+        let size = self.element_size(&element);
         self.count_loop(count, |this, i| {
-            let fill = if deep {
-                this.deep_copy(value, &element)
-            } else {
-                value
-            };
+            let fill = this.deep_copy(value, &element);
             let address = this.element_address(array, i, size);
             this.store_element(address, &element, fill);
             Ok(())
@@ -176,7 +165,7 @@ impl<'ctx> Lowerer<'ctx> {
             }
             None => {
                 let array = self.get(iter, &array_type)?;
-                // Under reference counting the loop holds the array: the
+                // The loop holds the array: the
                 // body may let go of the place it came from.
                 self.rc_keep(array, &array_type);
                 array.into_pointer_value()
@@ -287,7 +276,7 @@ mod tests {
             "fun f(t: bool) { let xs: i32[] = [1, 2, 3]; let b = [t]; let x = b[0]; }\nfun main() {}",
         );
         assert!(
-            ir.contains("@lugha_rt_alloc(i64 28)"),
+            ir.contains("@lugha_rt_rc_alloc(i64 28, ptr null)"),
             "16 + 3 * 4 bytes: {ir}"
         );
         assert_eq!(

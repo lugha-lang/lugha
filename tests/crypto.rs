@@ -1,7 +1,7 @@
 //! `std.crypto` end to end: the FIPS 180-4
 //! SHA-256 examples and RFC 8032's Ed25519 test vectors, bit for bit,
 //! through Lugha programs; random bytes, constant-time equality, every
-//! rejection, and abandoned hashers freed by the collector.
+//! rejection, and dropped hashers freed with their last holder.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -232,8 +232,8 @@ fun main(console: Console, entropy: Entropy) {
 
 #[test]
 fn abandoned_hashers_are_freed() {
-    // Each hasher holds an OpenSSL context outside the collector; without
-    // the finalizer, 300 000 of them would hold well over 50 MB.
+    // Each hasher holds an OpenSSL context; without freeing it with the
+    // hasher, 300 000 of them would hold well over 50 MB.
     let out = run("fun rss_kb(fs: Fs): i64 {
     let status = fs.dir(\"/proc/self\").unwrap().read_file(\"status\").unwrap_or(\"\");
     for line of status.lines() {

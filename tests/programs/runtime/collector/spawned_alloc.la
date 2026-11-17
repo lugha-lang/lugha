@@ -1,6 +1,5 @@
-// Two green threads allocate while `main` waits: the
-// bundled collector clears only a little stack below each, so a 1 MiB
-// green thread's stack doesn't overflow.
+// Two green threads allocate while `main` waits: what each makes is
+// counted and freed on its own 1 MiB stack, which never overflows.
 fun fill(n: i64): i64 {
     let mut xs: i64[] = [];
     for i in 0..n {

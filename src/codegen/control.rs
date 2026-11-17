@@ -28,7 +28,7 @@ pub(super) struct Loop<'ctx> {
     pub label: Option<String>,
     /// A `loop`'s result slot and type, which `break value` stores into.
     pub result: Option<(PointerValue<'ctx>, Type)>,
-    /// How many statements enclosed the loop: under reference counting a
+    /// How many statements enclosed the loop: a
     /// jump releases the temporaries of those inside it.
     pub statements: usize,
 }
@@ -74,7 +74,7 @@ impl<'ctx> Lowerer<'ctx> {
         // The tail is computed, then the block's defers run.
         let depth = self.defers.len() - 1;
         let value = match (value, &block.tail) {
-            (Value::Val(v), Some(tail)) if self.rc() && !returns => {
+            (Value::Val(v), Some(tail)) if !returns => {
                 Value::Val(self.rc_outlive_block(v, &self.ty(tail)))
             }
             (Value::Val(v), Some(tail)) => Value::Val(self.hold(v, &self.ty(tail), depth)),
@@ -109,10 +109,10 @@ impl<'ctx> Lowerer<'ctx> {
             return Ok(Value::Void);
         };
         let else_block = self.append("if.else");
-        // Under reference counting a slot owns the `if`'s value, as a
+        // A slot owns the `if`'s value, as a
         // `match`'s does, so a fresh value in either branch moves through.
         let ty = self.ty(expr);
-        let owned = (self.rc() && self.counted(&ty)).then(|| {
+        let owned = (self.counted(&ty)).then(|| {
             let slot = self.entry_alloca(&ty, "if.value");
             self.rc_result_slot(slot, &ty);
             slot
@@ -321,7 +321,6 @@ impl<'ctx> Lowerer<'ctx> {
             ty => Some((self.entry_alloca(ty, "loop.value"), ty.clone())),
         };
         if let Some((slot, ty)) = &result
-            && self.rc()
             && self.counted(ty)
         {
             self.rc_result_slot(*slot, ty);
