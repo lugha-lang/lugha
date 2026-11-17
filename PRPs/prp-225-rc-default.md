@@ -1,6 +1,6 @@
 ## FEATURE: Reference counting becomes the only memory model: the Boehm collector, `--memory` and the collector's code paths are removed, and what the prototype left uncovered (C callbacks, folder and hasher handles, `-O0` frame size) is covered; milestone 193.
 
-**Status:** approved 2026-11-17.
+**Status:** built 2026-11-17, awaiting review.
 
 ## OBJECTIVE
 ```
@@ -107,3 +107,10 @@ Every end-to-end program prints what it printed under the collector, except `int
   - A temporary taken over in the block that made it is removed whole: its slot, its store and its release.
   - A `match` arm's bindings borrow from the matched value when it is a plain local or parameter that nothing in the arm mentions, so it outlives the arm. Otherwise they take a holder, flat matches included. Before, a flat match's bindings never did, and an arm that reassigned the matched variable read freed memory (found while building).
   - A fresh argument is released right after its call when nothing else in the statement reads it.
+  - Releasing a slot, and retaining a struct or enum just loaded, read only its counted fields where it lies (`codegen/rc_at.rs`): passing a whole 1 KB value to its release glue took a stack copy of it at `-O0` on every release. `walk` went from 31.6 KB to 11.7 KB a frame (9.5 KB under the collector).
+- **Callbacks don't mark their environment shared:** C calls a callback on the thread that registered it, and every task runs on that one OS thread.
+- **The working folder's `Dir`** is held by the runtime and let go of at exit, so the leak report counts only what programs lose.
+- **`--lib` tests that checked the collector's IR** (the shared flag, copy helpers, `lugha_rt_alloc`) now check counting's equivalents; a few check the by-address glue.
+- **Other tests:** `tests/callbacks.rs` no longer forces collections and checks that released closures are freed; `tests/tasks_runtime.rs`'s harness passes counted environments, as generated code does, and its suspended-thread case reuses freed blocks; `tests/c_cache.rs` counts two compiles, not three; `tests/cli_toolchain.rs` checks no collector is linked and that `--memory` is unknown.
+- **`tests/programs/runtime/collector/`** keeps its name (milestone 131's row points at it); its comment no longer mentions the collector.
+- **Targeted runs:** `--lib`, `programs`, `leaks`, `codegen`, `spec`, `comments`, `bench`, `callbacks`, `tasks_runtime`, `c_cache`, `cli_toolchain`, `crypto`, `arm`; CI the rest.
