@@ -2284,16 +2284,19 @@ Printing sites and `==` reach a type's own plain `show`/`eq` too (`show_instance
 
 **Why:** rapidkoi's devices find each other on the local network by announcing a tag over multicast, on mDNS's port or their own.
 
+### 223. Memory model: reference counting — milestones 190–192 (PRP-222 to PRP-224)
+
+**Decision:** chosen by the user (2026-11-17), after the prototype's measurements (`bench/RESULTS.md`, 2026-11-17): reference counting replaces the Boehm collector. Plan B, a heap per task with tracing collection, is not built.
+- Next: `--memory=rc` becomes the default and Boehm goes, with what the prototype leaves uncovered (C callbacks, `Ref` cycles, panicking actors) placed against the phases that cover them.
+- **Plan B stays the named fallback** if parallel binarytrees misses its target badly once the multi-threaded runtime exists: contended atomic counts are the one cost the prototype, on one OS thread, couldn't measure.
+- Two misses are follow-ups, not reasons for plan B. wordfreq's memory (120 MB against 83) comes from per-object headers on very short strings: short strings stored inline is a separate decision. fib with every new per-call cost (+39%) is the stack check and countdown, which either model pays: they shape how growable stacks and preemption are built, and the targets for fib (within 3%) and the countdown (at most 5%) are revisited there.
+- A value returned from inside `for … of mut` through a type's `index` is its own copy and doesn't see the element handed back later (`interfaces/read_modify_write/loops.la` changes with the switch).
+
+**Why:** every target counting can affect is met or nearly met; it is faster than the collector on wordfreq and channels, uses a third less memory on binarytrees, and pauses a quarter as long; and copy-on-write by count, marking on send, `Weak` and `Pinned` all build on it.
+
 ## OPEN — Requires human input before implementation
 
-### Memory model: reference counting or plan B (2026-11-17)
-
-The memory prototype (milestones 190–192) is measured against the performance targets; `bench/RESULTS.md`'s entry of 2026-11-17 has every number and the write-up.
-
-- **Reference counting** (recommended): every target it can affect is met or nearly met; wordfreq's memory (120 MB against 83) misses because of per-object headers on two million short strings, which short strings stored inline would fix. If chosen, the next PRP makes `--memory=rc` the default, removes Boehm, and settles what stays uncovered (C callbacks, `Ref` cycles, panicking actors) against the phases that cover them.
-- **Plan B**, a heap per task with tracing collection: the prototype is removed and plan B is built and measured.
-
-Blocks: unwinding (phase 4) and everything after it, whose cleanup paths depend on the answer.
+None.
 
 ---
 
