@@ -1,0 +1,2 @@
+panic: first at tests/programs/control/unwinding/in_defer.la:10:5
+panic: cleanup failed at tests/programs/control/unwinding/in_defer.la:8:9

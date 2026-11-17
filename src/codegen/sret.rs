@@ -118,7 +118,7 @@ fn rewrite_call<'ctx>(
     let new = builder
         .build_indirect_call(new_type, callee, &values, "")
         .expect(POSITIONED);
-    super::unwind::carry_pad(context, call, new);
+    super::invoke::carry_pad(context, call, new);
     new.add_attribute(AttributeLoc::Param(0), sret(context, ty));
     // The call's own attributes on its arguments move one place along.
     for (i, _) in args.iter().enumerate() {

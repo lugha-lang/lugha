@@ -165,7 +165,7 @@ fn rewrite_call<'ctx>(
     let new = builder
         .build_indirect_call(new_fn_type, callee, &args, "")
         .expect(POSITIONED);
-    super::unwind::carry_pad(context, call, new);
+    super::invoke::carry_pad(context, call, new);
     for (i, start) in starts.iter().enumerate() {
         if split_type(fn_type.get_param_types()[i]).is_none() {
             for attribute in site.attributes(AttributeLoc::Param(i as u32)) {

@@ -1,7 +1,8 @@
 //! Every end-to-end program under `tests/programs/` that runs, with freed
 //! objects kept as tombstones (`LUGHA_RC_POISON=1`, so touching one panics)
 //! and the count report at exit: it must print what it always prints, exit
-//! the same way, and, when it ends normally, have freed everything it made.
+//! the same way, and have freed everything it made, panicking or not: a
+//! panic unwinds its task, letting go of what each frame held.
 
 mod support;
 
@@ -20,10 +21,51 @@ const KNOWN: &[(&str, &str)] = &[
         "types/shared_boxes/linked.la",
         "a doubly linked list of boxes is a cycle",
     ),
-    // A panicking actor's stack isn't unwound: what its frames held stays.
+    // A panic while unwinding ends the program at once.
     (
-        "concurrency/actors/supervisor.la",
-        "a panic doesn't unwind yet",
+        "control/unwinding/in_defer.la",
+        "a panic in a defer ends the program unwound halfway",
+    ),
+    // A spawned task's panic ends the program once that task has unwound;
+    // `main` and the other tasks, waiting, aren't.
+    (
+        "control/unwinding/spawned.la",
+        "a spawned task's panic leaves main as it was",
+    ),
+    (
+        "concurrency/green_threads/panic_in_thread.la",
+        "a spawned task's panic leaves main as it was",
+    ),
+    // A deadlock ends the program with every task still waiting.
+    (
+        "concurrency/actors/deadlock.la",
+        "the waiting tasks aren't unwound",
+    ),
+    (
+        "concurrency/green_threads/deadlock.la",
+        "the waiting tasks aren't unwound",
+    ),
+    // Running out of stack, or a fault in C, ends the program from a signal
+    // handler: nothing unwinds, and no report is printed.
+    (
+        "collections/growable_arrays/stack_overflow.la",
+        "a stack overflow doesn't unwind",
+    ),
+    (
+        "concurrency/green_threads/overflow.la",
+        "a stack overflow doesn't unwind",
+    ),
+    (
+        "runtime/small_frames/big_frame_overflow.la",
+        "a stack overflow doesn't unwind",
+    ),
+    (
+        "runtime/small_frames/green_big_frame_overflow.la",
+        "a stack overflow doesn't unwind",
+    ),
+    (
+        "collections/growable_arrays/segv_from_c.la",
+        "a fault in C ends the program from its signal handler",
     ),
 ];
 
@@ -136,10 +178,9 @@ fn split_report(outcome: Outcome) -> (Outcome, Option<String>) {
     (outcome, report)
 }
 
-/// A program ending normally must have freed everything: its report says
-/// `0 live`. One that panics ends with what it held.
+/// A program must have freed everything: its report says `0 live`.
 fn leaks(case: &Case, report: Option<&str>) -> Vec<Mismatch> {
-    let Mode::Run { exit: 0, .. } = case.mode else {
+    let Mode::Run { .. } = case.mode else {
         return Vec::new();
     };
     match report {

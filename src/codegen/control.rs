@@ -68,6 +68,17 @@ impl<'ctx> Lowerer<'ctx> {
                 self.rc_statement_end();
                 Value::Val(value?)
             }
+            // A function body's other tail (`()` or never finishing) is a
+            // statement too, so a panic in it runs the body's defers.
+            Some(tail) if returns => {
+                self.rc_statement_start();
+                let value = self.expr(tail);
+                self.rc_statement_end();
+                match value? {
+                    Value::Never => Value::Never,
+                    _ => Value::Void,
+                }
+            }
             Some(tail) => self.expr(tail)?,
             None => Value::Void,
         };

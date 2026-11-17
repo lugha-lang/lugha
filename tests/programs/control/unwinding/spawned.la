@@ -1,0 +1,13 @@
+// A panic in a spawned task unwinds that task, running its defers, then
+// ends the program.
+
+fun work(console: Console): i64 {
+    defer console.println("work cleaned up");
+    panic("work failed")
+}
+
+fun main(console: Console) {
+    defer console.println("main isn't unwound");
+    let t = spawn work(console);
+    console.println(t.join());
+}

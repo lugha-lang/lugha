@@ -1,6 +1,6 @@
-// A panic ends the program without running defers.
+// A panic runs the pending defers as it unwinds, after its message.
 fun main(console: Console) {
-    defer console.println("not printed");
+    defer console.println("printed while unwinding");
     console.println("before");
     panic("stop");
 }

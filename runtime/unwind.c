@@ -63,6 +63,13 @@ static void panic_free(_Unwind_Reason_Code reason, struct _Unwind_Exception *exc
     (void)exception;
 }
 
+/* A panic reached a Lugha function C called (a callback): it never
+ * unwinds into C, whose state it can't know, so the program ends here. */
+void lugha_rt_unwound_to_c(void) {
+    fflush(stdout);
+    exit(101);
+}
+
 static void panic_unwind(const char *text, size_t len) {
     bool *unwinding = unwinding_flag();
     if (*unwinding) {

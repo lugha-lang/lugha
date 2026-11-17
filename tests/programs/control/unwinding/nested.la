@@ -1,0 +1,25 @@
+// A panic runs every pending `defer`, innermost first, in every frame on
+// its way out: blocks, calls, loops. One not reached yet (`second`, for
+// the call that panics) doesn't run.
+
+fun inner(console: Console, n: i64): i64 {
+    defer console.println("inner {n}");
+    if n > 1 {
+        let xs: i64[] = [];
+        return xs[n];
+    }
+    defer console.println("second {n}");
+    n
+}
+
+fun main(console: Console) {
+    defer console.println("main");
+    for i in 0..3 {
+        defer console.println("iteration {i}");
+        {
+            defer console.println("block {i}");
+            console.println(inner(console, i));
+        }
+    }
+    defer console.println("never");
+}

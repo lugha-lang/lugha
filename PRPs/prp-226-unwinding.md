@@ -1,6 +1,6 @@
 ## FEATURE: Unwinding: a panic runs the pending `defer`s and releases what every frame of its task holds, through unwind tables; a panic in an actor ends the actor after unwinding, one anywhere else ends the program after unwinding its own task; milestone 194.
 
-**Status:** approved 2026-11-17.
+**Status:** built 2026-11-18, awaiting review.
 
 ## OBJECTIVE
 ```
@@ -91,3 +91,17 @@ The message comes first, then each pending `defer` runs, innermost first, and ev
 - [ ] Benchmarks within PRF-01/02 of milestone 193's numbers; recorded with binary sizes.
 - [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
 - [ ] Every `pub` item documented; spec, CLAUDE.md, CHANGELOG updated.
+
+## CHANGES DURING THE BUILD
+- **No change to the link line:** `cc` already links libgcc's unwinder (`libgcc_s`) into every C program, so nothing was added. The runtime is compiled with `-funwind-tables`, and the green-thread boot routines (x86-64 and ARM64) carry CFI marking them outermost.
+- **`exit` no longer exists** (it is E0471), so the `exit` rule and its test went.
+- **Where pads come from:** each statement's end tags the calls made in it (only in blocks the statement made: a block made earlier can lie after its first one) with metadata naming its pad; after the passes that rewrite calls (which carry the metadata over) a new pass, `codegen/invoke.rs`, turns them into `invoke`s. So the struct-result and parameter-splitting passes never see an `invoke`; slot sharing learned it reads a slot as a call does.
+- **A pad is two blocks:** an entry with the `landingpad` and the statement's cleanup, shared, which `resume`s with the entry's value. A call that releases its fresh arguments itself on return gets its own entry releasing them first, so its arguments aren't lost when the callee panics; the slots those calls save stay saved (`popover_depth.la` at 600 levels still fits).
+- **What a pad's code registers stays the pad's:** a hand-back or `defer` lowered in a pad registers slots; they are dropped from the statement's lists afterwards, or a `continue` would release slots only the pad writes (found by `loops.la`).
+- **A function body's `()` or never-finishing tail is a statement,** so a panic there runs the body's `defer`s (found by a spawned task's `defer`).
+- **Releases on the panic path:** the `panic` intrinsic's message and a missing map key's `Err` are held by their statement, so unwinding lets go of them.
+- **Callbacks:** a callback's entry gives its calls a pad ending the program (`lugha_rt_unwound_to_c`), so a panic unwinds the callback's frames and never C's.
+- **Leak test:** panicking programs are checked too. Known: a panic inside a `defer`, spawned-task panics and deadlocks (other tasks aren't unwound), stack overflows and a C fault (no report).
+- **Measured:** binarytrees +5%, the rest unchanged; binaries 5–12% larger (RESULTS.md).
+- **Split:** the conversion pass is its own file (`codegen/invoke.rs`), and `c_main`'s pad goes through `unwind_entry`, keeping `unwind.rs` and `lower.rs` under 500 lines.
+

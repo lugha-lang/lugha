@@ -1,5 +1,7 @@
 # `defer`: cleanup at scope exit
 
+**Replaced in part (v18, milestone 194, PRP-226):** a panic now unwinds and runs pending `defer`s; the no-unwinding design below no longer holds.
+
 **Decided and built:** decision 214, PRP-182, milestone 151 (every recommendation below was taken, except that `defer` is a reserved keyword, not a contextual word). Design note, 2026-10-31, written for the session that implements it. It records the problem, what other languages do, and a recommended design. Nothing here is decided yet: the discovery (one question at a time, `PRPs/DISCOVERY.md`) settles each choice, then a PRP. DECISIONS.md lists it under OPEN.
 
 ## The problem

@@ -257,6 +257,7 @@ impl<'ctx> Lowerer<'ctx> {
     pub(super) fn rc_statement_start(&mut self) {
         let block = self.current_block();
         let start = (block, block.get_last_instruction());
+        self.unwind_begins(start);
         self.rc_slots.statements.push(Statement {
             start,
             temps: Vec::new(),

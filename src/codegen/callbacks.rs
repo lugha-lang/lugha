@@ -313,6 +313,7 @@ impl<'ctx> Lowerer<'ctx> {
                 Value::Void | Value::Never => None,
             };
             self.c_sig_return(sig, sret, result);
+            self.unwind_stops_here();
             self.function = saved_function;
             if let Some(block) = saved_block {
                 self.builder.position_at_end(block);
@@ -328,6 +329,7 @@ impl<'ctx> Lowerer<'ctx> {
             Value::Void | Value::Never => self.builder.build_return(None),
         }
         .expect(POSITIONED);
+        self.unwind_stops_here();
         self.function = saved_function;
         if let Some(block) = saved_block {
             self.builder.position_at_end(block);

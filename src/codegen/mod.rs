@@ -52,6 +52,7 @@ mod instances;
 mod int_checked;
 mod int_methods;
 mod interfaces;
+mod invoke;
 mod io;
 mod iterators;
 mod located;
@@ -159,19 +160,31 @@ pub(crate) mod test_util {
     /// The IR for `src`, which must lex, parse, type-check and lower, with
     /// the prelude as every program has it (`==` on a struct comes from
     /// it).
+    /// Calls that unwind to a landing pad (`invoke`) read as plain calls:
+    /// tests check what is called, `ir_raw` how.
     pub fn ir(src: &str) -> String {
-        ir_in(src, super::CallCosts(false))
+        calls(ir_in(src, super::CallCosts(false)))
     }
 
-    /// `ir`, lowered for reference counting.
+    /// `ir` (counting is how every program is lowered).
     pub fn ir_rc(src: &str) -> String {
+        ir(src)
+    }
+
+    /// `ir`, with the simulated per-call costs.
+    pub fn ir_calls(src: &str) -> String {
+        calls(ir_in(src, super::CallCosts(true)))
+    }
+
+    /// The IR for `src` exactly as lowered, invokes and all.
+    pub fn ir_raw(src: &str) -> String {
         ir_in(src, super::CallCosts(false))
     }
 
-    /// `ir`, lowered for reference counting with the simulated per-call
-    /// costs.
-    pub fn ir_calls(src: &str) -> String {
-        ir_in(src, super::CallCosts(true))
+    /// `ir` with every `invoke` written as a `call`.
+    fn calls(ir: String) -> String {
+        ir.replace(" invoke ", " call ")
+            .replace("= invoke ", "= call ")
     }
 
     fn ir_in(src: &str, costs: super::CallCosts) -> String {

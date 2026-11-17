@@ -24,7 +24,10 @@ fn struct_ops(text: &str) -> Vec<&str> {
             let l = l.trim();
             // Overflow intrinsics' `{ iN, i1 }` results are read as LLVM expects.
             let overflow = l.contains("extractvalue { i") && l.contains(", i1 }");
+            // A landing pad's exception and selector, as LLVM gives them.
+            let unwinding = l.contains("{ ptr, i32 }");
             !overflow
+                && !unwinding
                 && (l.contains("insertvalue ")
                     || l.contains("extractvalue ")
                     || l.contains(" = load %")

@@ -1,0 +1,26 @@
+// A panicking actor unwinds its handler, running its defers; `join` reports
+// the panic as before, and the program goes on.
+
+actor Worker {
+    done: i64,
+    fun run(self, console: Console, fail: bool) {
+        defer console.println("handler cleaned up");
+        let names = ["a" + "b"];
+        if fail {
+            panic("worker failed with {names.len} name");
+        }
+        console.println("worked");
+    }
+}
+
+fun main(console: Console) {
+    let w = spawn Worker { done: 0 };
+    w.run(console, false);
+    w.run(console, true);
+    w.stop();
+    match w.join() {
+        .None => console.println("finished"),
+        .Some(why) => console.println("joined after: {why}"),
+    }
+    console.println("main goes on");
+}

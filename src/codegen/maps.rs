@@ -97,6 +97,9 @@ impl<'ctx> Lowerer<'ctx> {
         self.builder.position_at_end(fail);
         let (_, errors) = self.variant(&result, "Err");
         let message = self.load_payload(&result, slot, &errors, 0, &errors[0]);
+        // The statement holds the `Err` (its message with it): unwinding
+        // lets go of it.
+        self.rc_temporary(None, found, &result);
         self.call_panic(message, at);
         self.builder.position_at_end(pass);
         self.load_payload(&result, slot, &payloads, 0, &payloads[0])

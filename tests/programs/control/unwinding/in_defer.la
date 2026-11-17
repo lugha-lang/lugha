@@ -1,0 +1,11 @@
+// A panic while unwinding ends the program at once: both messages print,
+// and the defers still pending don't run.
+
+fun main(console: Console) {
+    defer console.println("outer, not run");
+    defer {
+        console.println("cleaning up");
+        panic("cleanup failed");
+    };
+    panic("first");
+}

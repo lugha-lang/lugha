@@ -403,15 +403,7 @@ impl<'ctx> Lowerer<'ctx> {
             .build_call(user_main, &args, "result")
             .expect(POSITIONED);
         // A panic in `main` lets go of its arguments too, once unwound.
-        let saved = self.function.replace(main);
-        let instruction = match call.try_as_basic_value() {
-            ValueKind::Basic(v) => inkwell::values::BasicValue::as_instruction_value(&v)
-                .expect("a call is an instruction"),
-            ValueKind::Instruction(i) => i,
-        };
-        let entry_args = args.clone();
-        self.unwind_entry(instruction, |this| this.rc_after_entry(params, &entry_args));
-        self.function = saved;
+        self.unwind_entry((main, call), |this| this.rc_after_entry(params, &args));
         self.rc_after_entry(params, &args);
         let code = match call.try_as_basic_value() {
             ValueKind::Basic(value) => value.into_int_value(),

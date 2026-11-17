@@ -293,3 +293,31 @@ fn bad_callback_programs_are_rejected_with_their_codes() {
     .rejects(&["E0436"]);
     assert!(stderr.contains("has no `data`"), "{stderr}");
 }
+
+#[test]
+fn a_panic_in_a_callback_unwinds_to_it_and_ends_the_program() {
+    let case = Case::new(
+        &[
+            REGISTRY_EXTERNS,
+            "\
+             fun main(console: Console) {\n\
+                 defer console.println(\"main isn't unwound\");\n\
+                 let i = reg(fun(x: i64) {\n\
+                     defer console.println(\"callback cleaned up\");\n\
+                     panic(\"callback failed\");\n\
+                 });\n\
+                 fire(i, 1);\n\
+             }\n",
+        ]
+        .concat(),
+        REGISTRY,
+    );
+    let out = case.lughac(&["run", "main.la"]);
+    assert_eq!(out.status.code(), Some(101), "{}", text(&out.stderr));
+    assert_eq!(text(&out.stdout), "callback cleaned up\n");
+    assert!(
+        text(&out.stderr).contains("panic: callback failed"),
+        "{}",
+        text(&out.stderr)
+    );
+}

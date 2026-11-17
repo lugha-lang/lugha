@@ -11,25 +11,21 @@
 //! the function's own. Only calls with something to clean up get one, and
 //! never a call that can't unwind: an LLVM intrinsic, a count operation,
 //! or C a library compiled, which a panic never unwinds through. Once the
-//! passes that rewrite calls have run, `invokes` turns every call carrying
-//! a pad into an `invoke` of it, splitting its block after it.
+//! passes that rewrite calls have run, `invokes` (`codegen::invoke`) turns
+//! every call carrying a pad into an `invoke` of it.
 
 use std::collections::{HashMap, HashSet};
 
-use inkwell::attributes::{Attribute, AttributeLoc};
 use inkwell::basic_block::BasicBlock;
-use inkwell::context::Context;
 use inkwell::module::Linkage;
-use inkwell::types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum};
 use inkwell::values::{
-    BasicValue, BasicValueEnum, CallSiteValue, FunctionValue, InstructionOpcode, InstructionValue,
-    PhiValue, ValueKind,
+    CallSiteValue, FunctionValue, InstructionOpcode, InstructionValue, PhiValue,
 };
 
 use super::lower::{Lowerer, POSITIONED};
 
 /// The metadata a call carries naming its landing pad, by index.
-const PAD_KIND: &str = "lugha.unwind";
+pub(super) const PAD_KIND: &str = "lugha.unwind";
 
 /// The personality every Lugha function with a landing pad uses: libgcc's,
 /// for frames that only clean up.
@@ -51,11 +47,22 @@ pub(super) struct Pads<'ctx> {
     inside: HashSet<BasicBlock<'ctx>>,
     /// Cleanups made ahead of their statement's end, by its start.
     cleanups: HashMap<Start<'ctx>, (BasicBlock<'ctx>, PhiValue<'ctx>)>,
+    /// The function's last block when each statement started, by its
+    /// start: blocks up to it were made before the statement, and may
+    /// follow its first block yet belong to an enclosing one.
+    last_before: HashMap<Start<'ctx>, Option<BasicBlock<'ctx>>>,
     /// True while a pad's cleanup is lowered: its own calls get no pad.
     lowering: bool,
 }
 
 impl<'ctx> Lowerer<'ctx> {
+    /// A statement starts at `start`: which blocks are its own is known
+    /// from what was there already.
+    pub(super) fn unwind_begins(&mut self, start: Start<'ctx>) {
+        let last = self.function.and_then(|f| f.get_last_basic_block());
+        self.pads.last_before.insert(start, last);
+    }
+
     /// At the end of the statement that started at `start`: its calls
     /// still without a pad get one running what a `return` here would.
     pub(super) fn unwind_statement(&mut self, start: Start<'ctx>) {
@@ -128,9 +135,10 @@ impl<'ctx> Lowerer<'ctx> {
     /// its end, where the runtime ends the program.
     pub(super) fn unwind_entry(
         &mut self,
-        call: InstructionValue<'ctx>,
+        (main, call): (FunctionValue<'ctx>, CallSiteValue<'ctx>),
         cleanup: impl FnOnce(&mut Self),
     ) {
+        let saved = self.function.replace(main);
         let (block, landed) = self.cleanup_block();
         self.in_pad(block, |this| {
             cleanup(this);
@@ -139,7 +147,31 @@ impl<'ctx> Lowerer<'ctx> {
                 .expect(POSITIONED);
         });
         let pad = self.pad_entry((block, landed), |_| {});
-        self.give_pad(call, pad);
+        self.give_pad(super::invoke::instruction(call), pad);
+        self.function = saved;
+    }
+
+    /// In a function C calls (a callback's entry): a panic never unwinds
+    /// into C, so every call here that may unwind gets a pad ending the
+    /// program instead.
+    pub(super) fn unwind_stops_here(&mut self) {
+        let Some(entry) = self.function.and_then(|f| f.get_first_basic_block()) else {
+            return;
+        };
+        let calls = self.unpadded_calls((entry, None));
+        if calls.is_empty() {
+            return;
+        }
+        let (block, landed) = self.cleanup_block();
+        self.in_pad(block, |this| {
+            let end = this.runtime("lugha_rt_unwound_to_c", &[], None);
+            this.builder.build_call(end, &[], "").expect(POSITIONED);
+            this.builder.build_unreachable().expect(POSITIONED);
+        });
+        let pad = self.pad_entry((block, landed), |_| {});
+        for call in calls {
+            self.give_pad(call, pad);
+        }
     }
 
     /// The calls from `start` on (that instruction's block after it, then
@@ -147,12 +179,29 @@ impl<'ctx> Lowerer<'ctx> {
     /// yet, outside the pads' own blocks.
     fn unpadded_calls(&self, (block, after): Start<'ctx>) -> Vec<InstructionValue<'ctx>> {
         let kind = self.context.get_kind_id(PAD_KIND);
+        // Blocks made before the statement aren't its own, wherever they lie;
+        // a function's own start (no entry recorded) owns them all. Kept,
+        // not removed: statements starting at one place share the entry.
+        let mut skip_until = self
+            .pads
+            .last_before
+            .get(&(block, after))
+            .copied()
+            .flatten();
+        if skip_until == Some(block) {
+            skip_until = None;
+        }
         let mut calls = Vec::new();
         let mut next_block = Some(block);
         let mut first = true;
         while let Some(b) = next_block {
             next_block = b.get_next_basic_block();
-            if self.pads.inside.contains(&b) {
+            let earlier = !first && skip_until.is_some();
+            if skip_until == Some(b) {
+                skip_until = None;
+            }
+            if earlier || self.pads.inside.contains(&b) {
+                first = false;
                 continue;
             }
             let mut next = match (first, after) {
@@ -180,9 +229,28 @@ impl<'ctx> Lowerer<'ctx> {
         let back = self.builder.get_insert_block();
         let before = function.get_last_basic_block();
         self.builder.position_at_end(block);
+        // What the pad's code registers to release (a hand-back's slots, a
+        // `defer`'s) is released by the pad itself: no other way out of the
+        // statement may release slots only the pad writes. They stay among
+        // the slots emptied at the statement's start.
+        let temps: Vec<usize> = self
+            .rc_slots
+            .statements
+            .iter()
+            .map(|s| s.temps.len())
+            .collect();
+        let outside = self.rc_slots.outside.len();
+        let blocks: Vec<usize> = self.rc_slots.blocks.iter().map(Vec::len).collect();
         let was = std::mem::replace(&mut self.pads.lowering, true);
         body(self);
         self.pads.lowering = was;
+        for (statement, n) in self.rc_slots.statements.iter_mut().zip(temps) {
+            statement.temps.truncate(n);
+        }
+        self.rc_slots.outside.truncate(outside);
+        for (block, n) in self.rc_slots.blocks.iter_mut().zip(blocks) {
+            block.truncate(n);
+        }
         let mut made = before.and_then(|b| b.get_next_basic_block());
         while let Some(b) = made {
             self.pads.inside.insert(b);
@@ -279,67 +347,6 @@ impl<'ctx> Lowerer<'ctx> {
                 .add_function(PERSONALITY, ty, Some(Linkage::External))
         })
     }
-
-    /// Turns every call carrying a pad into an `invoke` of it, and gives
-    /// every function unwind tables. Run after the passes that rewrite
-    /// calls, before slots are shared, which follows the unwind edges.
-    pub(super) fn invokes(&self) {
-        let kind = self.context.get_kind_id(PAD_KIND);
-        let uwtable = self
-            .context
-            .create_enum_attribute(Attribute::get_named_enum_kind_id("uwtable"), 2);
-        for function in self.module.get_functions() {
-            if function.count_basic_blocks() == 0 {
-                continue;
-            }
-            function.add_attribute(AttributeLoc::Function, uwtable);
-            let mut calls = Vec::new();
-            for block in function.get_basic_block_iter() {
-                // The passes rebuilding definitions don't carry it over.
-                if block
-                    .get_first_instruction()
-                    .is_some_and(|i| i.get_opcode() == InstructionOpcode::LandingPad)
-                {
-                    function.set_personality_function(self.personality());
-                }
-                for i in block.get_instructions() {
-                    if i.get_opcode() == InstructionOpcode::Call
-                        && let Some(pad) = pad_of(i, kind)
-                    {
-                        calls.push((i, pad));
-                    }
-                }
-            }
-            for (call, pad) in calls {
-                invoke(self.context, call, self.pads.blocks[pad]);
-            }
-        }
-    }
-}
-
-/// Gives `to`, a call rebuilt from `from`, `from`'s landing pad if it has
-/// one: the passes rewriting calls keep them.
-pub(super) fn carry_pad<'ctx>(
-    context: &'ctx Context,
-    from: InstructionValue<'ctx>,
-    to: CallSiteValue<'ctx>,
-) {
-    let kind = context.get_kind_id(PAD_KIND);
-    let Some(node) = from.get_metadata(kind) else {
-        return;
-    };
-    let to = match to.try_as_basic_value() {
-        ValueKind::Basic(v) => v.as_instruction_value().expect("a call is an instruction"),
-        ValueKind::Instruction(i) => i,
-    };
-    to.set_metadata(node, kind).expect("a call takes metadata");
-}
-
-/// The pad index `call` carries, if any.
-fn pad_of(call: InstructionValue<'_>, kind: u32) -> Option<usize> {
-    let node = call.get_metadata(kind)?;
-    let index = node.get_node_values()?.first()?.into_int_value();
-    usize::try_from(index.get_zero_extended_constant()?).ok()
 }
 
 /// True if a panic may unwind out of `call`: not an LLVM intrinsic, a
@@ -363,99 +370,6 @@ fn unwinds(call: InstructionValue<'_>) -> bool {
     name.starts_with("lugha_") && name != "lugha_rt_alloc"
 }
 
-/// Replaces `call` with an `invoke` unwinding to `pad`, its block split
-/// after it: what followed moves to a new block, which successors' phis
-/// now come from.
-fn invoke<'ctx>(context: &'ctx Context, call: InstructionValue<'ctx>, pad: BasicBlock<'ctx>) {
-    let block = call.get_parent().expect("a call is in a block");
-    let rest = context.insert_basic_block_after(block, "unwound.not");
-    let builder = context.create_builder();
-    builder.position_at_end(rest);
-    let mut next = call.get_next_instruction();
-    while let Some(i) = next {
-        next = i.get_next_instruction();
-        i.remove_from_basic_block();
-        builder.insert_instruction(&i, None);
-    }
-    for successor in super::split_leaves::successors(rest) {
-        repoint_phis(context, successor, block, rest);
-    }
-    let site = CallSiteValue::try_from(call).expect("a call");
-    let count = call.get_num_operands() - 1;
-    let args: Vec<BasicValueEnum<'ctx>> = (0..count)
-        .map(|i| {
-            call.get_operand(i)
-                .and_then(|o| o.value())
-                .expect("a call's arguments are values")
-        })
-        .collect();
-    builder.position_at_end(block);
-    let invoked = match site.get_called_fn_value() {
-        Some(function) => builder
-            .build_direct_invoke(function, &args, rest, pad, "")
-            .expect(POSITIONED),
-        None => {
-            let callee = call
-                .get_operand(count)
-                .and_then(|o| o.value())
-                .expect("a call's callee is a value")
-                .into_pointer_value();
-            let params: Vec<BasicMetadataTypeEnum> =
-                args.iter().map(|a| a.get_type().into()).collect();
-            let ty = match BasicTypeEnum::try_from(call.get_type()) {
-                Ok(ret) => ret.fn_type(&params, false),
-                Err(_) => context.void_type().fn_type(&params, false),
-            };
-            builder
-                .build_indirect_invoke(ty, callee, &args, rest, pad, "")
-                .expect(POSITIONED)
-        }
-    };
-    invoked.set_call_convention(site.get_call_convention());
-    for loc in std::iter::once(AttributeLoc::Function)
-        .chain(std::iter::once(AttributeLoc::Return))
-        .chain((0..count).map(AttributeLoc::Param))
-    {
-        for attribute in site.attributes(loc) {
-            invoked.add_attribute(loc, attribute);
-        }
-    }
-    let invoked = match invoked.try_as_basic_value() {
-        ValueKind::Basic(v) => v
-            .as_instruction_value()
-            .expect("an invoke is an instruction"),
-        ValueKind::Instruction(i) => i,
-    };
-    call.replace_all_uses_with(&invoked);
-    call.erase_from_basic_block();
-}
-
-/// `block`'s phis taking a value from `from` take it from `to` instead.
-fn repoint_phis<'ctx>(
-    context: &'ctx Context,
-    block: BasicBlock<'ctx>,
-    from: BasicBlock<'ctx>,
-    to: BasicBlock<'ctx>,
-) {
-    let builder = context.create_builder();
-    let phis: Vec<_> = block
-        .get_instructions()
-        .take_while(|i| i.get_opcode() == InstructionOpcode::Phi)
-        .collect();
-    for old in phis {
-        let phi = inkwell::values::PhiValue::try_from(old).expect("a phi");
-        let incoming: Vec<_> = (0..phi.count_incoming())
-            .filter_map(|n| phi.get_incoming(n))
-            .map(|(v, b)| (v, if b == from { to } else { b }))
-            .collect();
-        builder.position_before(&old);
-        let new = builder
-            .build_phi(phi.as_basic_value().get_type(), "")
-            .expect(POSITIONED);
-        for (v, b) in &incoming {
-            new.add_incoming(&[(v, *b)]);
-        }
-        old.replace_all_uses_with(&new.as_instruction());
-        old.erase_from_basic_block();
-    }
-}
+#[cfg(test)]
+#[path = "unwind_tests.rs"]
+mod tests;

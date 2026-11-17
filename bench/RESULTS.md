@@ -285,3 +285,16 @@ The Draft's baseline is 2026-10-31 (binarytrees 1.114 s / 70.3 MB, wordfreq 0.55
 ### Recommendation
 
 **Reference counting.** Every target it can affect is met or nearly met, except wordfreq's memory, and that miss comes from per-object headers on very small strings, which a tracing heap would also pay for in some form. It is faster than the collector on wordfreq and chanping, uses a third less memory on binarytrees, and its pauses are a quarter of the collector's at their longest. Plan B would need its own allocator and a scan of every task's stack to reach numbers the prototype already has. The two follow-ups are separate decisions: short strings stored inline (for PRF-03), and how stack checks and the countdown are placed (for PRF-06 and PRF-09).
+
+## 2026-11-18, unwinding
+
+Landing pads (a panic runs `defer`s and releases while unwinding). The machine was busy, so the compiler before and after were compared directly: each binary built from `main` and from the branch, run alternately, fastest of 5, `-O2`.
+
+| benchmark | before | after | size before | size after |
+|---|---|---|---|---|
+| binarytrees | 0.77 s | 0.81 s | 101.6 KB | 106.5 KB |
+| fib | 0.56 s | 0.57 s | 97.3 KB | 102.2 KB |
+| wordfreq | 0.40 s | 0.39 s | 114.5 KB | 127.7 KB |
+| nbody | 0.67 s | 0.67 s | 106.0 KB | 111.0 KB |
+
+`fib` has no landing pads, so its code is unchanged; binarytrees' `make` holds counted values across its calls, which now unwind to pads (+5%). Binaries grow 5–12% with the unwind tables and pads.
