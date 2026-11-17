@@ -54,8 +54,13 @@ impl Checker {
             "$prelude.Hasher",
             "$prelude.ProcessOutput",
             "$prelude.NetInterface",
+            super::scopes::SCOPE,
+            super::scopes::FAILURE,
+            super::scopes::STOPPED,
+            super::scopes::REASON,
         ] {
-            if key.strip_prefix("$prelude.") == Some(name) && self.structs.contains_key(key) {
+            let declared = self.structs.contains_key(key) || self.enums.contains_key(key);
+            if key.strip_prefix("$prelude.") == Some(name) && declared {
                 return Some(key.to_string());
             }
         }

@@ -1,0 +1,24 @@
+// `t.cancel(why)` stops a task: its `join` gives `.Cancelled(.Requested(why))`,
+// and the scope, which nothing failed, is `Ok`.
+fun spin(console: Console): i64 {
+    defer console.println("spin: stopped");
+    let mut i = 0;
+    loop {
+        i += 1;
+    }
+}
+
+fun main(console: Console) {
+    let r = scope s {
+        let t = s.spawn(spin(console));
+        t.cancel("enough");
+        match t.join() {
+            .Ok(_) => console.println("?"),
+            .Err(.Cancelled(.Requested(why))) => console.println("requested: {why}"),
+            .Err(e) => console.println("other: {e}"),
+        }
+        t.name("spinner");
+        2
+    };
+    console.println(r.debug());
+}

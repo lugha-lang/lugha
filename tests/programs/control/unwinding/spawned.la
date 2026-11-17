@@ -1,13 +1,14 @@
-// A panic in a spawned task unwinds that task, running its defers, then
-// ends the program.
+// A panic in a root-scope task unwinds that task, running its defers,
+// and fails the root scope: `main`, waiting in `join`, is cancelled and
+// unwinds too, then the program ends.
 
 fun work(console: Console): i64 {
     defer console.println("work cleaned up");
     panic("work failed")
 }
 
-fun main(console: Console) {
-    defer console.println("main isn't unwound");
-    let t = spawn work(console);
-    console.println(t.join());
+fun main(console: Console, root: Scope) {
+    defer console.println("main unwound");
+    let t = root.spawn(work(console));
+    console.println(t.join().unwrap());
 }

@@ -9,9 +9,9 @@ fun words(n: i64): string[] {
     out
 }
 
-fun main(console: Console) {
-    let t = spawn words(3);
+fun main(console: Console, root: Scope) {
+    let t = root.spawn(words(3));
     task.yield_now();
-    let u = spawn words(2);
-    console.println(u.join().debug());
+    let u = root.spawn(words(2));
+    console.println(u.join().unwrap().debug());
 }

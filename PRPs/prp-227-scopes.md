@@ -1,6 +1,6 @@
 ## FEATURE: Scopes and cancellation, the core of structured concurrency: `scope s { … }`, `s.spawn(f(x))` in place of bare `spawn`, all-or-nothing failure, invisible cancellation at safe points, task handles' `join()`, `cancel` and `name`, and `main`'s root scope; milestone 195.
 
-**Status:** proposed 2026-11-18.
+**Status:** approved 2026-11-18.
 
 ## OBJECTIVE
 ```
@@ -103,8 +103,8 @@ A task fails its scope, not the program; the scope cancels the others, waits for
 - Several OS threads: tasks stay on one thread until phase 6.
 
 ## TESTS
-- [ ] Checker unit tests: `scope`'s type; `s.spawn` only takes a call; bare `spawn f()` is E0211; every second-class misuse (return, field, array, capture by an escaping closure, send) has its error.
-- [ ] `tests/programs/concurrency/scopes/` (new):
+- [x] Checker unit tests: `scope`'s type; `s.spawn` only takes a call; bare `spawn f()` is E0211; every second-class misuse (return, field, array, capture by an escaping closure, send) has its error.
+- [x] `tests/programs/concurrency/scopes/` (new):
   - a scope's value and `Ok`;
   - a task's panic failing its scope and cancelling a busy sibling (its `defer` runs);
   - a task's `Err` as `Failure.Error`;
@@ -116,11 +116,11 @@ A task fails its scope, not the program; the scope cancels the others, waits for
   - a task waiting on a channel when cancelled;
   - `main`'s root scope waiting at exit;
   - a root-scope task's panic ending the program with 101.
-- [ ] `tests/leaks.rs`: every scope program frees everything, cancelled tasks included; drop now-fixed entries from its known list (spawned-task panics, deadlock cases) where scopes unwind the waiting tasks.
-- [ ] Every rewritten program prints what it did, `join()` results aside.
-- [ ] Targeted runs: `--lib`, `programs`, `leaks`, `codegen`, `tasks_runtime`, `spec`, `http`, `net`, `comments`, `explain`.
+- [x] `tests/leaks.rs`: every scope program frees everything, cancelled tasks included; drop now-fixed entries from its known list (spawned-task panics, deadlock cases) where scopes unwind the waiting tasks.
+- [x] Every rewritten program prints what it did, `join()` results aside.
+- [x] Targeted runs: `--lib`, `programs`, `leaks`, `codegen`, `tasks_runtime`, `spec`, `http`, `net`, `comments`, `explain`.
 
 ## ACCEPTANCE
-- [ ] No task outlives the scope that started it; failures reach their scope; cancelled tasks unwind and free what they hold.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
-- [ ] Every `pub` item documented; spec, CHANGELOG, error pages, CLAUDE.md's known issues updated.
+- [x] No task outlives the scope that started it; failures reach their scope; cancelled tasks unwind and free what they hold.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
+- [x] Every `pub` item documented; spec, CHANGELOG, error pages, CLAUDE.md's known issues updated.

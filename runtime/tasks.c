@@ -29,6 +29,15 @@
 
 typedef struct Fiber Fiber;
 
+/* A panic or cancellation being unwound (unwind.c): what a scope catching
+ * it reads. */
+typedef struct Panic {
+    struct _Unwind_Exception exception;
+    bool cancel;
+    char *text;
+    size_t len;
+} Panic;
+
 /* A `Task<T>` (a counted object): what `join` reads. */
 typedef struct {
     void *result;
@@ -37,6 +46,20 @@ typedef struct {
     Fiber *joiners;
     /* What the result holds, for releasing and marking it. */
     RcVisit result_visit;
+    /* The fiber running it, until it ends; and how it ended (scopes.c):
+     * `TASK_OK`, `TASK_CANCELLED`, `TASK_FAILED` or `TASK_PANICKED`, with
+     * the cancellation's reason and text, the error (an `Error` value's
+     * table and box) or the panic's message. */
+    Fiber *fiber;
+    int32_t outcome;
+    int32_t reason;
+    LughaString *text;
+    void *error_table;
+    void *error_box;
+    /* Its name, for reports: `t.name(…)`, or the called function's. */
+    LughaString *name;
+    /* The next task of its scope. */
+    void *scope_next;
 } LughaTask;
 
 struct Fiber {
@@ -51,8 +74,21 @@ struct Fiber {
     void *code;
     void *env;
     LughaTask *task;
-    /* True while a panic unwinds this fiber's stack. */
+    /* True while a panic or a cancellation unwinds this fiber's stack. */
     bool unwinding;
+    /* The scope that started it (scopes.c), and the innermost scope whose
+     * body it runs, or NULL. */
+    void *started_in;
+    void *scopes;
+    /* Cancelled with this reason (`REASON_*`, 0 for none) and text, by this
+     * scope (NULL: by its own scope, or by `cancel`); noticed at its next
+     * safe point. A wait that may be cut short says so first. */
+    int32_t cancelled;
+    LughaString *cancel_text;
+    void *cancelled_by;
+    bool cancellable;
+    /* The panic or cancellation unwinding it, until caught or done. */
+    Panic *in_flight;
     /* Run queue, and the list of every live fiber. */
     Fiber *next;
     Fiber *prev_live;
@@ -68,7 +104,7 @@ struct Fiber {
     void *actor;
 };
 
-enum { WAITING = -1, TIMED_OUT = -2, DEFAULT_ARM = -1 };
+enum { WAITING = -1, TIMED_OUT = -2, DEFAULT_ARM = -1, CANCELLED = -3 };
 
 int64_t lugha_rt_task_budget = TASK_BUDGET;
 
@@ -250,6 +286,10 @@ static void add_sleeper(Fiber *f, int64_t deadline) {
 
 /* Wakes a waiting fiber for `why` (a case index, or TIMED_OUT). */
 static void wake(Fiber *f, int64_t why) {
+    // Woken already (cancelled while waiting): queued once is enough.
+    if (f->fired != WAITING) {
+        return;
+    }
     f->fired = why;
     unsleep(f);
     make_ready(f);

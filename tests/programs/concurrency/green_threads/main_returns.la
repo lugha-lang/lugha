@@ -1,14 +1,14 @@
-// When `main` returns the program ends, as in Go: unfinished threads stop.
+// When `main` returns, the program waits for the root scope's tasks.
 import std.task;
 
-fun forever() {
-    while true {
+fun later(console: Console) {
+    for i in 0..3 {
         task.yield_now();
     }
+    console.println("task done");
 }
 
-fun main(console: Console) {
-    spawn forever();
-    task.yield_now();
+fun main(console: Console, root: Scope) {
+    root.spawn(later(console));
     console.println("main done");
 }

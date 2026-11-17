@@ -10,7 +10,7 @@ use crate::span::Span;
 
 /// The capabilities `main` may take, each with the prelude function that
 /// makes the real one.
-pub const ENTRY_CAPABILITIES: [(&str, &str); 7] = [
+pub const ENTRY_CAPABILITIES: [(&str, &str); 8] = [
     ("$prelude.Console", "$prelude.$console"),
     ("$prelude.Fs", "$prelude.$fs"),
     ("$prelude.Clock", "$prelude.$clock"),
@@ -18,13 +18,14 @@ pub const ENTRY_CAPABILITIES: [(&str, &str); 7] = [
     ("$prelude.Proc", "$prelude.$proc"),
     ("$prelude.Entropy", "$prelude.$entropy"),
     ("$prelude.Net", "$prelude.$net"),
+    ("$prelude.Scope", "$prelude.$root_scope"),
 ];
 
 /// What a test may take: each capability, the prelude function making a
 /// plain test's (`None`: only an integration test may take it), and the one
 /// making an integration test's. A plain test's are safe stand-ins: a fresh
 /// folder, a fixed clock, an empty environment, seeded randomness, loopback.
-pub const TEST_CAPABILITIES: [(&str, Option<&str>, &str); 8] = [
+pub const TEST_CAPABILITIES: [(&str, Option<&str>, &str); 9] = [
     (
         "$prelude.Console",
         Some("$prelude.$console"),
@@ -49,6 +50,11 @@ pub const TEST_CAPABILITIES: [(&str, Option<&str>, &str); 8] = [
     ("$prelude.Net", Some("$prelude.$test_net"), "$prelude.$net"),
     ("$prelude.Fs", None, "$prelude.$fs"),
     ("$prelude.Proc", None, "$prelude.$proc"),
+    (
+        "$prelude.Scope",
+        Some("$prelude.$root_scope"),
+        "$prelude.$root_scope",
+    ),
 ];
 
 /// Whose entry point is being built: `main`'s, or a test's.
@@ -128,7 +134,10 @@ impl Checker {
         for p in params {
             let supplied = match p {
                 Type::Array(element) => entry == Entry::Main && **element == Type::String,
-                Type::Interface(key, args) => args.is_empty() && maker(key, entry).is_some(),
+                // The capabilities, and the root scope's handle.
+                Type::Interface(key, args) | Type::Struct(key, args) => {
+                    args.is_empty() && maker(key, entry).is_some()
+                }
                 Type::Error => true,
                 _ => false,
             };
@@ -146,7 +155,7 @@ impl Checker {
         };
         let saved = std::mem::replace(&mut self.owner, owner.to_string());
         for p in params {
-            if let Type::Interface(key, _) = p
+            if let Type::Interface(key, _) | Type::Struct(key, _) = p
                 && let Some(make) = maker(key, entry)
             {
                 self.used(&anchor, make, &[]);

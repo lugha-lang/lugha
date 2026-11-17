@@ -2,7 +2,7 @@
 // nothing the receiver got. Tasks and channels print as what they are.
 struct Point { x: i64, y: i64 }
 
-fun main(console: Console) {
+fun main(console: Console, root: Scope) {
     let c: Chan<i64[]> = Chan.buffered(1);
     let mut xs = [1, 2, 3];
     c.send(xs);
@@ -13,8 +13,8 @@ fun main(console: Console) {
     p.send(Point { x: 1, y: 2 });
     let got = p.recv().unwrap();
     console.println("{got.x} {got.y}");
-    let t = spawn fun(): Point { Point { x: 3, y: 4 } }();
-    let q = t.join();
+    let t = root.spawn(fun(): Point { Point { x: 3, y: 4 } }());
+    let q = t.join().unwrap();
     console.println("{q.x} {q.y}");
     console.println(t.debug());
     console.println(c.debug());

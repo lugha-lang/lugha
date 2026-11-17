@@ -26,7 +26,7 @@ pub use self::inputs::{Plan, PlanError};
 
 /// The runtime's source files, in the order they are joined: the core first,
 /// since it holds every `#include`, then the fragments that rely on it.
-pub const RUNTIME_PARTS: [(&str, &str); 29] = [
+pub const RUNTIME_PARTS: [(&str, &str); 30] = [
     ("lugha_rt.c", include_str!("../../runtime/lugha_rt.c")),
     ("stack.c", include_str!("../../runtime/stack.c")),
     ("print.c", include_str!("../../runtime/print.c")),
@@ -49,6 +49,7 @@ pub const RUNTIME_PARTS: [(&str, &str); 29] = [
     ("cstr.c", include_str!("../../runtime/cstr.c")),
     ("tasks.c", include_str!("../../runtime/tasks.c")),
     ("spawn.c", include_str!("../../runtime/spawn.c")),
+    ("scopes.c", include_str!("../../runtime/scopes.c")),
     ("chans.c", include_str!("../../runtime/chans.c")),
     ("actors.c", include_str!("../../runtime/actors.c")),
     ("unwind.c", include_str!("../../runtime/unwind.c")),
@@ -59,7 +60,7 @@ pub const RUNTIME_PARTS: [(&str, &str); 29] = [
 ];
 
 /// Every runtime function codegen may call; `lugha_rt.c` defines them all.
-pub const RUNTIME_SYMBOLS: [&str; 110] = [
+pub const RUNTIME_SYMBOLS: [&str; 124] = [
     "lugha_rt_init",
     "lugha_rt_read_line",
     "lugha_rt_eprint",
@@ -170,6 +171,20 @@ pub const RUNTIME_SYMBOLS: [&str; 110] = [
     "lugha_rt_dir_path",
     "lugha_rt_lockdown",
     "lugha_rt_unwound_to_c",
+    "lugha_rt_scope_enter",
+    "lugha_rt_scope_root",
+    "lugha_rt_task_spawn_in",
+    "lugha_rt_scope_end",
+    "lugha_rt_scope_leave",
+    "lugha_rt_scope_caught",
+    "lugha_rt_scope_exit",
+    "lugha_rt_task_failed",
+    "lugha_rt_cancel_point",
+    "lugha_rt_task_join_status",
+    "lugha_rt_task_cancel",
+    "lugha_rt_task_name",
+    "lugha_rt_scope_root_finish",
+    "lugha_rt_scope_root_unwound",
 ];
 
 /// The C runtime linked into every program: [`RUNTIME_PARTS`] joined in order,
@@ -197,6 +212,7 @@ pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/cstr.c"),
     include_str!("../../runtime/tasks.c"),
     include_str!("../../runtime/spawn.c"),
+    include_str!("../../runtime/scopes.c"),
     include_str!("../../runtime/chans.c"),
     include_str!("../../runtime/actors.c"),
     include_str!("../../runtime/unwind.c"),

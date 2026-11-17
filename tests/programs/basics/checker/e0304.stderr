@@ -1,4 +1,4 @@
-error[E0304]: `main` takes only `string[]` and the capabilities (`Console`, `Fs`, `Clock`, `Env`, `Proc`, `Entropy`, `Net`), each at most once, and returns `()` or `i32`
+error[E0304]: `main` takes only `string[]`, the capabilities (`Console`, `Fs`, `Clock`, `Env`, `Proc`, `Entropy`, `Net`) and the root `Scope`, each at most once, and returns `()` or `i32`
   --> tests/programs/basics/checker/e0304.la:1:5
   |
 1 | fun main(argc: i32): i32 {

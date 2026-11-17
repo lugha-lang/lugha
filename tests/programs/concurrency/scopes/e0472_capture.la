@@ -1,0 +1,9 @@
+fun work(n: i64): i64 = n;
+
+fun keep(s: Scope): Scope = s;
+
+fun main() {
+    let r = scope s {
+        let f = fun() { s.spawn(work(1)); };
+    };
+}

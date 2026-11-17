@@ -17,14 +17,17 @@ fun build(seed: i64): i64 {
     sum
 }
 
+fun add_build(seed: i64, total: Ref<i64>) {
+    let sum = build(seed);
+    total.update(fun(n: i64): i64 = n + sum);
+}
+
 fun main(console: Console) {
-    let mut tasks: Task<i64>[] = [];
-    for s in 0..50 {
-        tasks.push(spawn build(s));
-    }
-    let mut total = 0;
-    for t of tasks {
-        total += t.join();
-    }
-    console.println(total);
+    let total = Ref.new(0);
+    let built = scope s {
+        for seed in 0..50 {
+            s.spawn(add_build(seed, total));
+        }
+    };
+    console.println("{total.get()} {built.is_ok()}");
 }

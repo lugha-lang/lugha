@@ -198,6 +198,7 @@ static int32_t recv_now(LughaChan *c, void *out) {
 void lugha_rt_chan_send(LughaChan *c, const void *value, const char *file, int64_t line,
                         int64_t col) {
     ensure_started();
+    lugha_rt_cancel_point();
     if (can_send(c)) {
         send_now(c, value, file, line, col);
         return;
@@ -205,7 +206,12 @@ void lugha_rt_chan_send(LughaChan *c, const void *value, const char *file, int64
     int32_t ok = 1;
     Waiter w = {.fiber = current, .data = (void *)value, .ok = &ok, .index = 0};
     enqueue(&c->sendq, &w);
-    block();
+    current->cancellable = true;
+    int64_t fired = block();
+    if (fired == CANCELLED) {
+        unqueue(&c->sendq, current);
+    }
+    woke(fired);
     if (!ok) {
         chan_panic("send on a closed channel", file, line, col);
     }
@@ -214,13 +220,19 @@ void lugha_rt_chan_send(LughaChan *c, const void *value, const char *file, int64
 /* `c.recv()`: 1 and the value in `out`, or 0 once closed and empty. */
 int32_t lugha_rt_chan_recv(LughaChan *c, void *out) {
     ensure_started();
+    lugha_rt_cancel_point();
     if (can_recv(c)) {
         return recv_now(c, out);
     }
     int32_t ok = 0;
     Waiter w = {.fiber = current, .data = out, .ok = &ok, .index = 0};
     enqueue(&c->recvq, &w);
-    block();
+    current->cancellable = true;
+    int64_t fired = block();
+    if (fired == CANCELLED) {
+        unqueue(&c->recvq, current);
+    }
+    woke(fired);
     return ok;
 }
 
@@ -265,6 +277,7 @@ static uint64_t pick(uint64_t n) {
 int64_t lugha_rt_task_select(LughaCase *cases, int64_t n, int64_t timeout_ms, int32_t has_default,
                              const char *file, int64_t line, int64_t col) {
     ensure_started();
+    lugha_rt_cancel_point();
     int64_t ready = 0;
     for (int64_t i = 0; i < n; i++) {
         LughaChan *c = cases[i].chan;
@@ -307,11 +320,13 @@ int64_t lugha_rt_task_select(LughaCase *cases, int64_t n, int64_t timeout_ms, in
         int64_t ns = timeout_ms > INT64_MAX / 4000000 ? INT64_MAX / 4 : timeout_ms * 1000000;
         add_sleeper(current, now_ns() + ns);
     }
+    current->cancellable = true;
     int64_t fired = block();
     for (int64_t i = 0; i < n; i++) {
         unqueue(&cases[i].chan->recvq, current);
         unqueue(&cases[i].chan->sendq, current);
     }
+    woke(fired);
     if (fired >= 0 && cases[fired].kind == 1 && !cases[fired].ok) {
         chan_panic("send on a closed channel", file, line, col);
     }

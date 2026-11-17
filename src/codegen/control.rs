@@ -83,6 +83,7 @@ impl<'ctx> Lowerer<'ctx> {
             None => Value::Void,
         };
         // The tail is computed, then the block's defers run.
+        self.scope_body_tail();
         let depth = self.defers.len() - 1;
         let value = match (value, &block.tail) {
             (Value::Val(v), Some(tail)) if !returns => {
@@ -91,6 +92,7 @@ impl<'ctx> Lowerer<'ctx> {
             (Value::Val(v), Some(tail)) => Value::Val(self.hold(v, &self.ty(tail), depth)),
             (value, _) => value,
         };
+        self.pads.block_end = true;
         self.run_defers(depth)?;
         self.rc_block_end();
         self.defers.pop();

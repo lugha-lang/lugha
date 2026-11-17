@@ -26,16 +26,6 @@ const KNOWN: &[(&str, &str)] = &[
         "control/unwinding/in_defer.la",
         "a panic in a defer ends the program unwound halfway",
     ),
-    // A spawned task's panic ends the program once that task has unwound;
-    // `main` and the other tasks, waiting, aren't.
-    (
-        "control/unwinding/spawned.la",
-        "a spawned task's panic leaves main as it was",
-    ),
-    (
-        "concurrency/green_threads/panic_in_thread.la",
-        "a spawned task's panic leaves main as it was",
-    ),
     // A deadlock ends the program with every task still waiting.
     (
         "concurrency/actors/deadlock.la",

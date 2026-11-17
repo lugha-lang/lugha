@@ -4,7 +4,7 @@ struct Doc { title: string, lines: string[], tags: Map<string, i64> }
 
 fun summary(d: Doc): string = "{d.title}: {d.lines.len} lines, {d.tags.len} tags";
 
-fun main(console: Console) {
+fun main(console: Console, root: Scope) {
     let mut lines: string[] = [];
     for i in 0..5 {
         lines.push("line {i}");
@@ -12,14 +12,14 @@ fun main(console: Console) {
     let doc = Doc { title: "notes", lines: lines, tags: Map { "a": 1, "b": 2 } };
     let to_worker: Chan<Doc> = Chan.new();
     let back: Chan<string[]> = Chan.new();
-    let worker = spawn fun(): string {
+    let worker = root.spawn(fun(): string {
         let d = to_worker.recv().unwrap();
         back.send(d.lines);
         summary(d)
-    }();
+    }());
     to_worker.send(doc);
     let mut got = back.recv().unwrap();
     got.push("added by main");
-    console.println(worker.join());
+    console.println(worker.join().unwrap());
     console.println("{got.len} {got[5]} {doc.lines.len}");
 }

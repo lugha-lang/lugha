@@ -1,0 +1,9 @@
+error[E0472]: a scope or task handle can't be stored in a value
+  --> tests/programs/concurrency/scopes/e0472_array.la:5:18
+  |
+5 |         let ts = [s.spawn(work(1))];
+  |                  ^^^^^^^^^^^^^^^^^^
+  |
+  = help: a handle is passed as an argument, and nothing else: keep it a local, and finish the tasks inside the scope that started them
+
+For more about E0472, run `lughac explain E0472`.

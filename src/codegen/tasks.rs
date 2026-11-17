@@ -20,10 +20,12 @@ use crate::ast::{Expr, ExprKind, spawned_call};
 use crate::check::Type;
 
 impl<'ctx> Lowerer<'ctx> {
-    /// `spawn call`: a new green thread, its `Task` handle the value.
+    /// `s.spawn(call)`: a new green thread started in scope `s`, its
+    /// `Task` handle the value; `spawn Counter { … }`, an actor.
     pub(super) fn spawn(
         &mut self,
         expr: &Expr,
+        scope: Option<&Expr>,
         closure: &Expr,
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
         // `spawn Counter { … }` starts an actor.
@@ -35,6 +37,15 @@ impl<'ctx> Lowerer<'ctx> {
         };
         let ExprKind::Closure(c) = &closure.kind else {
             unreachable!("the parser wraps a spawned call in a closure")
+        };
+        let scope = match scope {
+            Some(s) => {
+                let handle = self.get(s, &self.ty(s))?.into_struct_value();
+                self.builder
+                    .build_extract_value(handle, 0, "scope")
+                    .expect("a scope has 1 field")
+            }
+            None => unreachable!("the parser starts a task only in a scope"),
         };
         self.scopes.push();
         let mut hidden = Vec::new();
@@ -85,11 +96,18 @@ impl<'ctx> Lowerer<'ctx> {
         };
         let ptr = self.context.ptr_type(Default::default());
         let spawn = self.runtime(
-            "lugha_rt_task_spawn",
-            &[Type::String, Type::String, Type::String, Type::I64],
+            "lugha_rt_task_spawn_in",
+            &[
+                Type::String,
+                Type::String,
+                Type::String,
+                Type::String,
+                Type::I64,
+            ],
             Some(Type::String),
         );
         let args = [
+            scope.into(),
             entry.as_global_value().as_pointer_value().into(),
             code.into(),
             env.into(),
@@ -100,7 +118,7 @@ impl<'ctx> Lowerer<'ctx> {
             .build_call(spawn, &args, "task")
             .expect(POSITIONED);
         let ValueKind::Basic(task) = site.try_as_basic_value() else {
-            unreachable!("lugha_rt_task_spawn returns the task")
+            unreachable!("lugha_rt_task_spawn_in returns the task")
         };
         debug_assert!(task.get_type() == ptr.into());
         let visit = match *result {
@@ -180,38 +198,13 @@ impl<'ctx> Lowerer<'ctx> {
         };
         if let Value::Val(value) = self.call_pair(pair, (&[], &ret), Vec::new()) {
             self.store_element(param(2).into_pointer_value(), &ret, value);
+            self.report_failure(entry, &ret, value);
         }
         self.builder.build_return(None).expect(POSITIONED);
         if let Some(block) = saved_block {
             self.builder.position_at_end(block);
         }
         entry
-    }
-
-    /// `t.join()`: waits for the task, then a copy of its result.
-    pub(super) fn task_method(&mut self, base: &Expr) -> Result<Value<'ctx>, CodegenError> {
-        let ty = self.ty(base);
-        let Type::Task(result) = &ty else {
-            unreachable!("checked: `join` has a `Task` receiver")
-        };
-        let task = self.get(base, &ty)?;
-        let join = self.runtime("lugha_rt_task_join", &[Type::String], Some(Type::String));
-        let site = self
-            .builder
-            .build_call(join, &[task.into()], "result")
-            .expect(POSITIONED);
-        let ValueKind::Basic(at) = site.try_as_basic_value() else {
-            unreachable!("lugha_rt_task_join returns the result's address")
-        };
-        if matches!(**result, Type::Unit | Type::Never) {
-            return Ok(Value::Void);
-        }
-        // A copy site: joining again gives another copy. Under reference
-        // counting the result crosses back from the task: marked shared.
-        let value = self.load_element(at.into_pointer_value(), result);
-        self.rc_mark(value, result);
-
-        Ok(Value::Val(self.deep_copy(value, result)))
     }
 
     /// `$os.sleep(ms)` and `$os.yield()` in `std.task`.
@@ -328,22 +321,23 @@ mod tests {
     #[test]
     fn spawn_starts_an_entry_that_calls_the_closure() {
         let ir = ir("fun work(n: i64): i64 = n * n;
-            fun main() { let t = spawn work(3); let n = t.join(); }");
+            fun main() { let _ = scope s { let t = s.spawn(work(3)); let n = t.join(); }; }");
         assert!(
             ir.contains("define internal void @lugha_task_main.0(ptr"),
             "{ir}"
         );
         assert!(
-            ir.contains("call ptr @lugha_rt_task_spawn(ptr @lugha_task_main.0"),
+            ir.contains("@lugha_rt_task_spawn_in(ptr %")
+                && ir.contains("ptr @lugha_task_main.0, ptr @lugha_closure_main.0"),
             "{ir}"
         );
-        assert!(ir.contains("call ptr @lugha_rt_task_join("), "{ir}");
+        assert!(ir.contains("@lugha_rt_task_join_status("), "{ir}");
     }
 
     #[test]
     fn arguments_are_evaluated_by_the_spawning_thread() {
         let ir = ir("fun next(): i64 = 1;\nfun work(n: i64): i64 = n;
-            fun main() { let t = spawn work(next()); }");
+            fun main() { let _ = scope s { let t = s.spawn(work(next())); }; }");
         let main = &ir[ir.find("define void @lugha_fn_main()").unwrap()..];
         let main = &main[..main.find("\n}\n").unwrap()];
         assert!(main.contains("call i64 @lugha_fn_next()"), "{main}");
@@ -358,8 +352,9 @@ mod tests {
     fn only_programs_that_spawn_count_down() {
         let plain = ir("fun main() { let mut i = 0; while i < 3 { i += 1; } }");
         assert!(!plain.contains("lugha_rt_task_budget"), "{plain}");
-        let spawning =
-            ir("fun f() {}\nfun main() { spawn f(); let mut i = 0; while i < 3 { i += 1; } }");
+        let spawning = ir(
+            "fun f() {}\nfun main() { let _ = scope s { s.spawn(f()); }; let mut i = 0; while i < 3 { i += 1; } }",
+        );
         assert!(
             spawning.contains("call void @lugha_rt_task_preempt()"),
             "{spawning}"

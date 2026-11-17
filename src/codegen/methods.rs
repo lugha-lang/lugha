@@ -273,7 +273,7 @@ impl<'ctx> Lowerer<'ctx> {
         }
         // `t.join()` and a channel's methods.
         if let Type::Task(_) = base_type {
-            return self.task_method(base).map(Some);
+            return self.task_method(call, base, &name.name, args).map(Some);
         }
         if let Type::Chan(_) = base_type {
             return self.chan_method(call, base, &name.name, args).map(Some);

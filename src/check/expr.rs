@@ -55,6 +55,7 @@ impl Checker {
         // An actor's state is made only inside the actor or for `spawn`.
         self.state_outside(expr, &ty);
         self.record(expr, ty.clone());
+        self.second_class(expr.span, &ty);
         // Where an interface is expected, the value becomes one.
         self.convert(expr, ty, expect)
     }
@@ -104,6 +105,9 @@ impl Checker {
                     self.hover.define(expr.span, local.span);
                     // A capture is never moved from: the closure may run again.
                     let captured = self.note_capture(name);
+                    if captured {
+                        self.captured_handle(&local.ty, expr.span);
+                    }
                     let mention = liveness::Mention {
                         decl: local.span,
                         binding: if captured {
@@ -205,7 +209,10 @@ impl Checker {
             ExprKind::Array(elements) => self.array_literal(expr, elements, expect),
             ExprKind::Tuple(elements) => self.tuple_literal(elements, expect),
             ExprKind::Repeat(value, count) => self.repeat(value, count, expect),
-            ExprKind::Spawn(closure) => self.spawn(closure, expect),
+            ExprKind::Spawn(scope, closure) => {
+                self.spawn_in(expr, scope.as_deref(), closure, expect)
+            }
+            ExprKind::Scope(scope) => self.scope_expr(scope, expect),
             ExprKind::Select(arms) => self.select(expr, arms, expect),
             ExprKind::Int(_) | ExprKind::Float(_) => unreachable!("literals are matched first"),
         }

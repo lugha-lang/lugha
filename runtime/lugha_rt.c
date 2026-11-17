@@ -117,6 +117,9 @@ static void panic_end(const char *text, size_t len);
 /* Unwinds the running task's stack after a panic (unwind.c), then
  * `panic_end`; never returns. */
 static void panic_unwind(const char *text, size_t len);
+static bool panic_caught(void);
+struct Panic;
+static void resume_unwind(struct Panic *panic);
 /* What a counted object's visit does with what it holds: let go of it (the
  * object is being freed), or mark it shared (it crossed to another task). */
 #define RC_RELEASE 0
@@ -152,10 +155,13 @@ static void die(const char *message) {
 /* Prints `panic: <text>` (program data, so never a format string), then
  * unwinds the running task and ends the program or the running actor. */
 static void panic_with(const char *text, size_t len) {
-    fflush(stdout);
-    fputs("panic: ", stderr);
-    fwrite(text, 1, len, stderr);
-    fputc('\n', stderr);
+    // A scope that catches it makes it a value instead.
+    if (!panic_caught()) {
+        fflush(stdout);
+        fputs("panic: ", stderr);
+        fwrite(text, 1, len, stderr);
+        fputc('\n', stderr);
+    }
     panic_unwind(text, len);
 }
 

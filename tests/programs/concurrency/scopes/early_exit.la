@@ -1,0 +1,48 @@
+// Leaving a scope's body early, by `return`, `?`, `break` or
+// `continue`, cancels its tasks with `.Parent` and waits for them before
+// the body's `defer`s run.
+fun spin(console: Console, name: string): i64 {
+    defer console.println("{name}: stopped");
+    let mut i = 0;
+    loop {
+        i += 1;
+    }
+}
+
+fun early(console: Console): i64 {
+    let r = scope s {
+        defer console.println("early: body's defer");
+        s.spawn(spin(console, "early task"));
+        return 5;
+    };
+    console.println("never");
+    0
+}
+
+fun tried(console: Console): Result<i64, Error> {
+    let n = scope s {
+        s.spawn(spin(console, "tried task"));
+        let e: Result<i64, string> = Err("bad input");
+        e?
+    }?;
+    Ok(n)
+}
+
+fun main(console: Console) {
+    console.println(early(console));
+    match tried(console) {
+        .Ok(n) => console.println(n),
+        .Err(e) => console.println("tried: {e}"),
+    }
+    // `continue` and `break` leave it early too.
+    for i in 0..3 {
+        let r = scope s {
+            s.spawn(spin(console, "loop task {i}"));
+            if i < 1 {
+                continue;
+            }
+            break;
+        };
+    }
+    console.println("after the loop");
+}

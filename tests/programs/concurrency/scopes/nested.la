@@ -1,0 +1,30 @@
+// A panic in an inner scope's body stops at that scope: the inner task is
+// cancelled, the outer task runs on, and the outer scope is `Ok`.
+import std.task;
+
+fun spin(console: Console, name: string): i64 {
+    defer console.println("{name}: stopped");
+    let mut i = 0;
+    loop {
+        i += 1;
+    }
+}
+
+fun later(console: Console): i64 {
+    task.sleep(5);
+    console.println("outer task done");
+    1
+}
+
+fun main(console: Console) {
+    let r = scope outer {
+        let t = outer.spawn(later(console));
+        let inner = scope inner {
+            inner.spawn(spin(console, "inner task"));
+            panic("inner boom")
+        };
+        console.println("inner ok: {inner.is_ok()}");
+        t.join().unwrap() + 2
+    };
+    console.println(r.debug());
+}

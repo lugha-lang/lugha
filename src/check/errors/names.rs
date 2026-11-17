@@ -37,7 +37,7 @@ pub(in crate::check) fn missing_main() -> Diagnostic {
 pub(in crate::check) fn bad_main(span: Span) -> Diagnostic {
     Diagnostic::error(
         "E0304",
-        "`main` takes only `string[]` and the capabilities (`Console`, `Fs`, `Clock`, `Env`, `Proc`, `Entropy`, `Net`), each at most once, and returns `()` or `i32`",
+        "`main` takes only `string[]`, the capabilities (`Console`, `Fs`, `Clock`, `Env`, `Proc`, `Entropy`, `Net`) and the root `Scope`, each at most once, and returns `()` or `i32`",
         span,
     )
     .with_help("for example `fun main(args: string[], console: Console): i32`")

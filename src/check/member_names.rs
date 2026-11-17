@@ -32,4 +32,6 @@ pub(super) const CANDIDATES: [&str; 25] = [
 ];
 
 /// More helper names, kept apart so each list stays readable.
-pub(super) const MORE_CANDIDATES: [&str; 5] = ["send", "recv", "try_recv", "close", "to_bits"];
+pub(super) const MORE_CANDIDATES: [&str; 7] = [
+    "send", "recv", "try_recv", "close", "to_bits", "cancel", "name",
+];

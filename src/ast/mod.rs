@@ -12,7 +12,7 @@ mod types;
 
 pub use expr::{
     BinOp, Closure, Collection, Expr, ExprId, ExprKind, FormatCall, FormatText, IfLet, Part,
-    SelectArm, SelectKind, StructLiteral, TypeArgs, UnOp, spawned_call,
+    ScopeExpr, SelectArm, SelectKind, StructLiteral, TypeArgs, UnOp, spawned_call,
 };
 pub use header::{
     Bound, Field, Import, ImportItem, InterfaceDecl, InterfaceItem, TypeParam, Visibility,

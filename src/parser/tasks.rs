@@ -1,29 +1,71 @@
-//! Green-thread syntax: `spawn call`, and `select { … }`
-//! with its four kinds of arm. A `spawn`'s call is wrapped in a closure with
-//! no parameters here, so the checker and codegen treat what the new thread
-//! runs as any closure body.
+//! Task syntax: `scope s { … }`, `s.spawn(call)`, `spawn Actor { … }`,
+//! and `select { … }` with its four kinds of arm. A spawned call is
+//! wrapped in a closure with no parameters here, so the checker and
+//! codegen treat what the new thread runs as any closure body.
 
 use super::{PResult, Parser, Reported};
-use crate::ast::{Block, Closure, Expr, ExprKind, Ident, SelectArm, SelectKind};
+use crate::ast::{Block, Closure, Expr, ExprKind, Ident, ScopeExpr, SelectArm, SelectKind};
 use crate::diagnostic::Diagnostic;
 use crate::lexer::TokenKind;
 use crate::span::Span;
 
 impl Parser<'_> {
-    /// `spawn call`, at `spawn`: the call in a closure with no parameters.
+    /// `spawn Actor { … }` or `spawn Actor.new(…)`, at `spawn`: the
+    /// operand in a closure with no parameters. Whether a call starts an
+    /// actor is the checker's to say: a task starts in a scope.
     pub(super) fn spawn_expr(&mut self) -> PResult<Expr> {
         let start = self.bump().start;
         let call = self.nested(|p| p.postfix())?;
-        // A call runs in a new green thread; an actor's literal starts the
-        // actor.
-        if !matches!(call.kind, ExprKind::Call(..) | ExprKind::StructLit(_)) {
-            let message = "`spawn` needs a call, or an actor to start";
-            let help = "write the call the new thread runs, `spawn work(x)`, call a \
-                        closure on the spot, `spawn fun() { … }()`, or start an actor: \
-                        `spawn Counter { count: 0 }`";
+        if !matches!(call.kind, ExprKind::StructLit(_) | ExprKind::Call(..)) {
+            let message = "`spawn` needs an actor's state or the call making it";
+            let help = "write `spawn Counter { count: 0 }`; a task starts in a scope: \
+                        `scope s { s.spawn(work(x)) }`";
             let d = Diagnostic::error("E0211", message, call.span).with_help(help);
             return Err(self.error(d));
         }
+        let closure = self.spawned(call);
+        Ok(self.mk(start, ExprKind::Spawn(None, Box::new(closure))))
+    }
+
+    /// `.spawn(call)` after `scope`, at the `.`: the call in a closure,
+    /// started in that scope.
+    pub(super) fn scoped_spawn(&mut self, start: usize, scope: Expr) -> PResult<Expr> {
+        self.bump();
+        self.bump();
+        let open = self.expect(&TokenKind::LParen)?;
+        let call = self.expr()?;
+        self.close(open, &TokenKind::RParen)?;
+        if !matches!(call.kind, ExprKind::Call(..)) {
+            let message = "`spawn` needs the call the new task runs";
+            let help = "write the call, `s.spawn(work(x))`, or call a closure on the spot: \
+                        `s.spawn(fun() { … }())`";
+            let d = Diagnostic::error("E0211", message, call.span).with_help(help);
+            return Err(self.error(d));
+        }
+        let closure = self.spawned(call);
+        Ok(self.mk(
+            start,
+            ExprKind::Spawn(Some(Box::new(scope)), Box::new(closure)),
+        ))
+    }
+
+    /// `scope name { body }`, at `scope`.
+    pub(super) fn scope_expr(&mut self, start: usize) -> PResult<Expr> {
+        self.bump();
+        let TokenKind::Ident(name) = self.peek().clone() else {
+            unreachable!("checked by the caller: `scope` then a name")
+        };
+        let name = Ident {
+            name,
+            span: self.bump(),
+        };
+        let body = self.block()?;
+        Ok(self.mk(start, ExprKind::Scope(Box::new(ScopeExpr { name, body }))))
+    }
+
+    /// `call` wrapped in a closure with no parameters, covering exactly
+    /// the call, so it never claims more source than what was written.
+    fn spawned(&mut self, call: Expr) -> Expr {
         let span = call.span;
         let body = Block {
             stmts: Vec::new(),
@@ -35,10 +77,7 @@ impl Parser<'_> {
             ret: None,
             body,
         };
-        // The closure covers exactly the call, so it never claims more
-        // source than what was written.
-        let closure = self.mk(span.start, ExprKind::Closure(Box::new(closure)));
-        Ok(self.mk(start, ExprKind::Spawn(Box::new(closure))))
+        self.mk(span.start, ExprKind::Closure(Box::new(closure)))
     }
 
     /// `select { arm, … }`, at `select`: arms end with `,` unless their
@@ -160,6 +199,27 @@ mod tests {
         assert_eq!(
             body("let t = spawn work(3);"),
             "(block (let t (spawn (call work 3))))"
+        );
+    }
+
+    #[test]
+    fn scopes_and_their_spawns() {
+        assert_eq!(
+            expr("scope s { s.spawn(f(1)) }"),
+            "(scope s (block (spawn s (call f 1))))"
+        );
+        assert_eq!(
+            expr("root.spawn(m.f(x)).join()"),
+            "(call (. (spawn root (call (. m f) x)) join))"
+        );
+        // `scope` is a name everywhere else.
+        assert_eq!(
+            body("let scope = 1; scope + 1"),
+            "(block (let scope 1) (+ scope 1))"
+        );
+        assert_eq!(
+            errors("fun t() { scope s { s.spawn(f); } }"),
+            [("E0211", "f")]
         );
     }
 

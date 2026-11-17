@@ -6,7 +6,7 @@ fun later(c: Chan<string>, ms: i64, text: string) {
     c.send(text);
 }
 
-fun main(console: Console) {
+fun main(console: Console, root: Scope) {
     let a: Chan<string> = Chan.new();
     let b: Chan<i64> = Chan.buffered(1);
     // Nothing is ready: `default`.
@@ -27,7 +27,7 @@ fun main(console: Console) {
         after(20) => console.println("timed out"),
     }
     // A sender arrives while waiting.
-    spawn later(a, 5, "late hello");
+    root.spawn(later(a, 5, "late hello"));
     select {
         m = a.recv() => match m {
             .Some(text) => console.println(text),

@@ -73,7 +73,7 @@ fn values_crossing_to_another_task_are_marked_shared() {
     let ir = ir_rc(
         "fun work(xs: string[]): string[] = xs;\n\
          fun main() { let c: Chan<string[]> = Chan.buffered(1); c.send([\"a\"]); \
-         let t = spawn work([\"b\"]); let r = t.join(); }",
+         let _ = scope s { let t = s.spawn(work([\"b\"])); let r = t.join(); }; }",
     );
     let main = body(&ir, "main");
     // The send, the spawned call's environment and the joined result.

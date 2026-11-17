@@ -8,9 +8,9 @@ fun say(console: Console, name: string) {
     }
 }
 
-fun main(console: Console) {
-    let a = spawn say(console, "a");
-    let b = spawn say(console, "b");
-    a.join();
-    b.join();
+fun main(console: Console, root: Scope) {
+    let a = root.spawn(say(console, "a"));
+    let b = root.spawn(say(console, "b"));
+    a.join().unwrap();
+    b.join().unwrap();
 }

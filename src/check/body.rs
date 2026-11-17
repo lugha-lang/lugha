@@ -26,6 +26,10 @@ impl Checker {
         ret: Type,
         receiver: Option<Type>,
     ) {
+        // The prelude makes the root scope's handle.
+        if let Some(written) = f.ret.as_ref().filter(|_| !self.in_prelude()) {
+            self.returned_handle(&ret, written.span);
+        }
         self.ret = ret.clone();
         self.scopes.clear();
         self.changes.clear();

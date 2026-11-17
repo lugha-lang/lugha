@@ -1,0 +1,17 @@
+error[E0472]: a scope or task handle can't be returned
+  --> tests/programs/concurrency/scopes/e0472_capture.la:3:21
+  |
+3 | fun keep(s: Scope): Scope = s;
+  |                     ^^^^^
+  |
+  = help: a handle is passed as an argument, and nothing else: keep it a local, and finish the tasks inside the scope that started them
+
+error[E0472]: a scope or task handle can't be captured by a closure or sent to another task
+  --> tests/programs/concurrency/scopes/e0472_capture.la:7:25
+  |
+7 |         let f = fun() { s.spawn(work(1)); };
+  |                         ^
+  |
+  = help: a handle is passed as an argument, and nothing else: keep it a local, and finish the tasks inside the scope that started them
+
+For more about E0472, run `lughac explain E0472`.

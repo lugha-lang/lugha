@@ -1,0 +1,18 @@
+// At its body's end a scope waits for its tasks, then runs the body's
+// `defer`s: a resource the body opened outlives every task using it.
+import std.task;
+
+fun work(console: Console, ms: i64) {
+    task.sleep(ms);
+    console.println("task {ms} done");
+}
+
+fun main(console: Console) {
+    let r = scope s {
+        defer console.println("body's defer");
+        s.spawn(work(console, 20));
+        s.spawn(work(console, 10));
+        console.println("body done");
+    };
+    console.println(r.is_ok());
+}

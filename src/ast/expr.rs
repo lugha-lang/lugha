@@ -122,11 +122,23 @@ pub enum ExprKind {
     },
     /// `match scrutinee { arms }`.
     Match(Box<Expr>, Vec<Arm>),
-    /// `spawn call`: the call, wrapped by the parser in a closure
-    /// with no parameters, which the new green thread runs. Boxed: rare.
-    Spawn(Box<Expr>),
+    /// `s.spawn(call)` (the scope `s` first), or `spawn Actor { … }`
+    /// (none): the call or literal, wrapped by the parser in a closure with
+    /// no parameters, which the new green thread runs. Boxed: rare.
+    Spawn(Option<Box<Expr>>, Box<Expr>),
+    /// `scope s { body }`: a block whose tasks, started through `s`, all
+    /// finish before it does.
+    Scope(Box<ScopeExpr>),
     /// `select { arms }`.
     Select(Vec<SelectArm>),
+}
+
+/// `scope name { body }`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScopeExpr {
+    /// The scope's handle, `s` in `s.spawn(…)`.
+    pub name: Ident,
+    pub body: Block,
 }
 
 /// Prefix operators.

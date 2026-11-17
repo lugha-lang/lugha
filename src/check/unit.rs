@@ -49,8 +49,7 @@ mod tests {
                 console.println(us.debug());\n\
                 console.println(\"{u.debug()} {o.debug()}\");\n\
                 let c: Chan<()> = Chan.new();\n\
-                let t: Task<()> = spawn log(\"t\");\n\
-                let r: () = t.join();\n\
+                let done = scope s { let t: Task<()> = s.spawn(log(\"t\")); let r: Result<(), Stopped> = t.join(); };\n\
                 let m: Map<string, ()> = Map { \"a\": () };\n\
             }");
         assert_eq!(let_type("fun main() { let x = (); }", "x"), Type::Unit);

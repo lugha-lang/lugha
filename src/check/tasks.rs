@@ -84,6 +84,9 @@ impl Checker {
             }
             self.report(errors::spawn_changes_copy(span));
         }
+        if let Type::Fun(_, ret) = &ty {
+            self.task_error(call, ret);
+        }
         match ty {
             Type::Fun(_, ret) if *ret == Type::Never => Type::Task(Box::new(Type::Unit)),
             Type::Fun(_, ret) => Type::Task(ret),
@@ -127,20 +130,36 @@ mod tests {
 
     const WORK: &str = "fun work(n: i64): i64 = n * n;\n";
 
+    /// `Result<V, Stopped>`, what joining a task giving `V` gives.
+    fn joined(v: Type) -> Type {
+        let stopped = Type::Enum("$prelude.Stopped".into(), Vec::new());
+        Type::Enum("$prelude.Result".into(), vec![v, stopped])
+    }
+
     #[test]
     fn spawn_gives_a_task_of_the_calls_result() {
-        let src = format!("{WORK}fun main() {{ let t = spawn work(3); let n = t.join(); }}");
+        let src = format!(
+            "{WORK}fun main() {{ let _ = scope s {{ let t = s.spawn(work(3)); let n = t.join(); }}; }}"
+        );
         assert_eq!(let_type(&src, "t"), Type::Task(Box::new(Type::I64)));
-        assert_eq!(let_type(&src, "n"), Type::I64);
-        let void = "fun log(console: Console, s: string) { console.println(s); }\nfun main(console: Console) { let t = spawn log(console, \"x\"); t.join(); }";
+        assert_eq!(let_type(&src, "n"), joined(Type::I64));
+        let void = "fun log(console: Console, s: string) { console.println(s); }\nfun main(console: Console) { let _ = scope s { let t = s.spawn(log(console, \"x\")); let _ = t.join(); }; }";
         assert_eq!(let_type(void, "t"), Type::Task(Box::new(Type::Unit)));
         ok(
-            "fun main() { let k = 2; let t = spawn fun(): i64 { k * 10 }(); let n: i64 = t.join(); }",
+            "fun main() { let k = 2; let _ = scope s { let t = s.spawn(fun(): i64 { k * 10 }()); let n = t.join(); }; }",
         );
-        ok("fun main(console: Console) { let t: Task = spawn console.println(\"hi\"); t.join(); }");
+        ok(
+            "fun main(console: Console) { let _ = scope s { let t: Task = s.spawn(console.println(\"hi\")); let _ = t.join(); }; }",
+        );
         ok(&format!(
-            "{WORK}fun main() {{ let t: Task<i64> = spawn work(1); }}"
+            "{WORK}fun main() {{ let _ = scope s {{ let t: Task<i64> = s.spawn(work(1)); }}; }}"
         ));
+    }
+
+    #[test]
+    fn joining_a_task_returning_a_result_gives_its_ok_value() {
+        let src = "fun get(): Result<i64, string> = Ok(1);\nfun main() { let _ = scope s { let n = s.spawn(get()).join(); }; }";
+        assert_eq!(let_type(src, "n"), joined(Type::I64));
     }
 
     #[test]
@@ -149,57 +168,55 @@ mod tests {
             impl P { fun area(self): i64 = self.x; fun make(): P = P { x: 1 }; }
             fun main() {
                 let p = P.make();
-                let a = spawn p.area();
-                let b = spawn P.make();
-                let c = Ref.new(0);
-                let d = spawn fun() { c.update(fun(n: i64): i64 = n + 1); }();
-                let fs = [fun(): i64 = 1];
-                let e = spawn fs[0]();
+                let _ = scope s {
+                    let a = s.spawn(p.area());
+                    let b = s.spawn(P.make());
+                    let c = Ref.new(0);
+                    let d = s.spawn(fun() { c.update(fun(n: i64): i64 = n + 1); }());
+                    let fs = [fun(): i64 = 1];
+                    let e = s.spawn(fs[0]());
+                };
             }");
     }
 
     #[test]
     fn the_callee_types_the_arguments() {
         ok(
-            "fun f(x: u8) {}\nfun main() { spawn f(1); let t: Task<u8> = spawn fun(): u8 { 2 }(); }",
+            "fun f(x: u8) {}\nfun main() { let _ = scope s { s.spawn(f(1)); let t: Task<u8> = s.spawn(fun(): u8 { 2 }()); }; }",
         );
     }
 
     #[test]
     fn joining_a_plain_task_gives_unit() {
-        assert_eq!(
-            crate::check::test_util::warnings(
-                "fun main(console: Console) { let t = spawn console.println(1); let x = t.join(); }"
-            ),
-            [("W0106", "x")]
-        );
+        let src = "fun main(console: Console) { let _ = scope s { let x = s.spawn(console.println(1)).join(); }; }";
+        assert_eq!(let_type(src, "x"), joined(Type::Unit));
     }
 
     #[test]
     fn tasks_are_not_eq() {
-        let src = format!("{WORK}fun main() {{ let t = spawn work(1); let b = t == t; }}");
-        assert_eq!(errors(&src), [("E0404", "t == t")]);
         let src = format!(
-            "{WORK}fun same<T: Eq>(a: T, b: T): bool = a == b;\nfun main() {{ let t = spawn work(1); let b = same(t, t); }}"
+            "{WORK}fun main() {{ let _ = scope s {{ let t = s.spawn(work(1)); let b = t == t; }}; }}"
         );
-        assert_eq!(errors(&src)[0].0, "E0419");
+        assert_eq!(errors(&src), [("E0404", "t == t")]);
     }
 
     #[test]
     fn spawning_a_change_to_a_copy_is_e0438() {
         assert_eq!(
-            errors("fun main() { let mut xs = [1]; spawn xs.push(2); }"),
+            errors("fun main() { let mut xs = [1]; let _ = scope s { s.spawn(xs.push(2)); }; }"),
             [("E0438", "xs.push(2)")]
         );
         assert_eq!(
             errors(
                 "struct P { x: i64 }\nimpl P { fun bump(mut self) { self.x += 1; } }
-                fun main() { let mut p = P { x: 1 }; spawn p.bump(); }"
+                fun main() { let mut p = P { x: 1 }; let _ = scope s { s.spawn(p.bump()); }; }"
             ),
             [("E0438", "p.bump()")]
         );
         assert_eq!(
-            errors("fun main() { let mut a = 1; let mut b = 2; spawn swap(a, b); }"),
+            errors(
+                "fun main() { let mut a = 1; let mut b = 2; let _ = scope s { s.spawn(swap(a, b)); }; }"
+            ),
             [("E0438", "swap(a, b)")]
         );
     }

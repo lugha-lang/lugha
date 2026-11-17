@@ -106,6 +106,11 @@ impl Parser<'_> {
                     self.close(open, &TokenKind::RBracket)?;
                     ExprKind::Index(Box::new(expr), open, Box::new(index))
                 }
+                // `s.spawn(call)`: `spawn` names no member.
+                TokenKind::Dot if self.peek_at(1) == &TokenKind::Spawn => {
+                    expr = self.scoped_spawn(start, expr)?;
+                    continue;
+                }
                 TokenKind::Dot => match self.member(start, expr)? {
                     Ok(literal) => {
                         expr = literal;

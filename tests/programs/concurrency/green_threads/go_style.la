@@ -1,15 +1,15 @@
 // Go's `go func() { … }()`: a closure literal called on the spot.
-fun main(console: Console) {
+fun main(console: Console, root: Scope) {
     let k = 2;
     let counter = Ref.new(0);
-    let t = spawn fun(): i64 {
+    let t = root.spawn(fun(): i64 {
         counter.update(fun(n: i64): i64 = n + 1);
         k * 10
-    }();
-    let u = spawn fun() {
+    }());
+    let u = root.spawn(fun() {
         counter.update(fun(n: i64): i64 = n + 1);
-    }();
-    console.println(t.join());
-    u.join();
+    }());
+    console.println(t.join().unwrap());
+    u.join().unwrap();
     console.println(counter.get());
 }

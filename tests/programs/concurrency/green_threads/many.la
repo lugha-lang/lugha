@@ -1,14 +1,14 @@
-// Ten thousand green threads, each with its own stack.
-fun one(): i64 = 1;
+// Ten thousand green threads in one scope, each with its own stack.
+fun one(total: Ref<i64>) {
+    total.update(fun(n: i64): i64 = n + 1);
+}
 
 fun main(console: Console) {
-    let mut tasks: Task<i64>[] = [];
-    for i in 0..10000 {
-        tasks.push(spawn one());
-    }
-    let mut sum = 0;
-    for t of tasks {
-        sum += t.join();
-    }
-    console.println(sum);
+    let total = Ref.new(0);
+    let all = scope s {
+        for i in 0..10000 {
+            s.spawn(one(total));
+        }
+    };
+    console.println("{total.get()} {all.is_ok()}");
 }

@@ -23,7 +23,7 @@ struct Tick {
     done: (),
 }
 
-fun main(console: Console) {
+fun main(console: Console, root: Scope) {
     console.println(both(console, "a", "b").debug());
     console.println(both(console, "a", "").debug());
     let u: () = log(console, "hi");
@@ -39,8 +39,8 @@ fun main(console: Console) {
     let done: Chan<()> = Chan.buffered(1);
     done.send(());
     console.println(done.recv().debug());
-    let task: Task<()> = spawn log(console, "from a task");
-    let r: () = task.join();
+    let task: Task<()> = root.spawn(log(console, "from a task"));
+    let r: () = task.join().unwrap();
     console.println(r.debug());
     let seen: Map<string, ()> = Map { "x": () };
     console.println(seen.has("x"));

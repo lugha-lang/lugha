@@ -1,0 +1,14 @@
+// `main` may take the root scope: when `main` returns, the program waits
+// for its tasks.
+import std.task;
+
+fun later(console: Console, n: i64) {
+    task.sleep(n);
+    console.println("root task {n} done");
+}
+
+fun main(console: Console, root: Scope) {
+    root.spawn(later(console, 10));
+    root.spawn(later(console, 5));
+    console.println("main done");
+}

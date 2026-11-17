@@ -25,6 +25,9 @@ static char *new_stack(void) {
 /* Where a new fiber starts: runs its call, stores the result, wakes its
  * joiners, and never comes back. */
 static void fiber_exit(Fiber *self);
+static void scope_task_done(Fiber *f);
+static void woke(int64_t fired);
+void lugha_rt_cancel_point(void);
 
 /* The visit of a `Task`: what its result holds, once it has one; its
  * result's block goes with it. */
@@ -32,6 +35,15 @@ static void rc_task_visit(void *object, int64_t op) {
     LughaTask *task = object;
     if (task->done && task->result_visit != NULL) {
         task->result_visit(task->result, op);
+    }
+    // How it stopped and its name: a message or reason, an error's box.
+    void *own[] = {task->text, task->error_box, task->name};
+    for (size_t i = 0; i < sizeof own / sizeof own[0]; i++) {
+        if (op == RC_MARK) {
+            lugha_rt_rc_mark(own[i]);
+        } else {
+            lugha_rt_rc_release(own[i]);
+        }
     }
     if (op == RC_RELEASE) {
         free(task->result);
@@ -74,6 +86,7 @@ __attribute__((used, visibility("hidden"))) void lugha_rt_task_fiber_main(Fiber 
  * next fiber runs; never returns. An actor's panic ends its fiber here too. */
 static void fiber_exit(Fiber *self) {
     LughaTask *task = self->task;
+    scope_task_done(self);
     task->done = 1;
     /* The call's environment was the fiber's to let go of. */
     lugha_rt_rc_release(self->env);
@@ -166,6 +179,7 @@ void *lugha_rt_task_join(LughaTask *task) {
 /* `task.yield_now()`: lets every ready thread run first. */
 void lugha_rt_task_yield(void) {
     ensure_started();
+    lugha_rt_cancel_point();
     wake_due_sleepers();
     poll_ready_sockets();
     if (ready_head == NULL) {
@@ -173,6 +187,7 @@ void lugha_rt_task_yield(void) {
     }
     make_ready(current);
     schedule();
+    lugha_rt_cancel_point();
 }
 
 /* `task.sleep(ms)`: pauses this thread; others run. */
@@ -183,13 +198,16 @@ void lugha_rt_task_sleep(int64_t ms) {
         return;
     }
     int64_t ns = ms > INT64_MAX / 1000000 ? INT64_MAX / 2 : ms * 1000000;
+    lugha_rt_cancel_point();
     add_sleeper(current, now_ns() + ns);
-    block();
+    current->cancellable = true;
+    woke(block());
 }
 
 /* Called by generated code when its countdown reaches zero. */
 void lugha_rt_task_preempt(void) {
     lugha_rt_task_budget = TASK_BUDGET;
+    lugha_rt_cancel_point();
     if (live_count > 1) {
         lugha_rt_task_yield();
     }

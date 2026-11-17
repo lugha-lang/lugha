@@ -9,8 +9,8 @@ interface Grow { fun grow(self, mut n: i64); }
 struct G {}
 impl Grow for G { fun grow(self, n: i64) {} }
 
-fun main() {
+fun main(root: Scope) {
     let mut x = 1;
-    let t = spawn bump(mut x);
+    let t = root.spawn(bump(mut x));
     let f = bump;
 }

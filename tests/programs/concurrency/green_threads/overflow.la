@@ -3,7 +3,7 @@ fun down(n: i64): i64 {
     if n == 0 { 0 } else { down(n - 1) + 1 }
 }
 
-fun main(console: Console) {
-    let t = spawn down(100000000);
-    console.println(t.join());
+fun main(console: Console, root: Scope) {
+    let t = root.spawn(down(100000000));
+    console.println(t.join().unwrap());
 }

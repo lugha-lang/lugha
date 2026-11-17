@@ -79,6 +79,13 @@ impl Parser<'_> {
     /// whose frame is on every nesting level's stack (E0206's limit).
     #[inline(never)]
     fn ident_primary(&mut self, start: usize, name: String) -> PResult<Expr> {
+        // `scope s { … }`: `scope` is a word only where it starts one.
+        if name == "scope"
+            && matches!(self.peek_at(1), TokenKind::Ident(_))
+            && self.peek_at(2) == &TokenKind::LBrace
+        {
+            return self.scope_expr(start);
+        }
         // `name: loop { … }` as a value.
         if self.label_ahead() && self.peek_at(2) == &TokenKind::Loop {
             return self.labelled_loop(start);

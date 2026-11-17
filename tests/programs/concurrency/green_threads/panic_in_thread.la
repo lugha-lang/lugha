@@ -1,11 +1,12 @@
-// A panic in any green thread ends the whole program.
+// A panic in a root-scope task fails the root scope, which ends the
+// program: `main`, waiting in `join`, is cancelled.
 fun boom() {
     panic("boom");
 }
 
-fun main(console: Console) {
-    let t = spawn boom();
+fun main(console: Console, root: Scope) {
+    let t = root.spawn(boom());
     console.println("before");
-    t.join();
+    t.join().unwrap();
     console.println("never printed");
 }

@@ -174,10 +174,10 @@ fun try(net: Net, console: Console, addr: string, opts: tls.Options) {
     }
 }
 
-fun listening(fs: Fs, net: Net, cert: string, key: string): string {
+fun listening(s: Scope, fs: Fs, net: Net, cert: string, key: string): string {
     let l = tls.listen(net, \"127.0.0.1:0\", pem(fs, cert), pem(fs, key)).unwrap();
     let addr = l.addr();
-    spawn serve(l);
+    s.spawn(serve(l));
     addr
 }
 ";
@@ -187,21 +187,25 @@ fn a_verified_connection_carries_bytes_and_bad_certificates_are_refused() {
     let Some(case) = Case::new(&format!(
         "import std.tls;\n\n/** A PEM file's text, empty when it can't be read. */\nfun pem(fs: Fs, name: string): string = fs.cwd().read_file(name).unwrap_or(\"\");\n\n{SERVE}
 fun main(console: Console, net: Net, fs: Fs) {{
-    let good = listening(fs, net, \"cert.pem\", \"key.pem\");
-    try(net, console, good, trusting(fs));
-    let port = good.split(\":\")[1];
-    try(net, console, \"localhost:{{port}}\", trusting(fs));
-    try(net, console, good, tls.options());
-    try(net, console, listening(fs, net, \"self.pem\", \"self.key\"), trusting(fs));
-    let trust_self = tls.Options {{ ca_pem: pem(fs, \"self.pem\"), ..tls.options() }};
-    try(net, console, listening(fs, net, \"self.pem\", \"self.key\"), trust_self);
-    try(net, console, listening(fs, net, \"old.pem\", \"key.pem\"), trusting(fs));
-    try(net, console, listening(fs, net, \"other.pem\", \"key.pem\"), trusting(fs));
-    console.println(tls.listen(net, \"127.0.0.1:0\", pem(fs, \"cert.pem\"), pem(fs, \"missing.pem\")).is_err());
-    let plain = net.listen(\"127.0.0.1:0\").unwrap();
-    let plain_addr = plain.addr();
-    spawn refuse(plain);
-    console.println(tls.connect_with(net, plain_addr, trusting(fs)).is_err());
+    let servers = scope s {{
+        let good = listening(s, fs, net, \"cert.pem\", \"key.pem\");
+        try(net, console, good, trusting(fs));
+        let port = good.split(\":\")[1];
+        try(net, console, \"localhost:{{port}}\", trusting(fs));
+        try(net, console, good, tls.options());
+        try(net, console, listening(s, fs, net, \"self.pem\", \"self.key\"), trusting(fs));
+        let trust_self = tls.Options {{ ca_pem: pem(fs, \"self.pem\"), ..tls.options() }};
+        try(net, console, listening(s, fs, net, \"self.pem\", \"self.key\"), trust_self);
+        try(net, console, listening(s, fs, net, \"old.pem\", \"key.pem\"), trusting(fs));
+        try(net, console, listening(s, fs, net, \"other.pem\", \"key.pem\"), trusting(fs));
+        console.println(tls.listen(net, \"127.0.0.1:0\", pem(fs, \"cert.pem\"), pem(fs, \"missing.pem\")).is_err());
+        let plain = net.listen(\"127.0.0.1:0\").unwrap();
+        let plain_addr = plain.addr();
+        s.spawn(refuse(plain));
+        console.println(tls.connect_with(net, plain_addr, trusting(fs)).is_err());
+        // Leaving early cancels the servers, which never end.
+        return;
+    }};
 }}
 
 fun refuse(l: Listener) {{
@@ -238,11 +242,12 @@ fun server(fs: Fs, net: Net, addr: string) {
     http.serve_tls(net, addr, pem(fs, \"cert.pem\"), pem(fs, \"key.pem\"), handle).unwrap();
 }
 
-fun main(console: Console, net: Net, fs: Fs) {
+fun main(console: Console, net: Net, fs: Fs, root: Scope) {
     let probe = tls.listen(net, \"127.0.0.1:0\", pem(fs, \"cert.pem\"), pem(fs, \"key.pem\")).unwrap();
     let addr = probe.addr();
     probe.close();
-    spawn server(fs, net, addr);
+    let serving = root.spawn(server(fs, net, addr));
+    defer serving.cancel(\"done\");
     task.yield_now();
     let port = addr.split(\":\")[1];
     let opts = tls.Options { ca_pem: pem(fs, \"ca.pem\"), ..tls.options() };
@@ -295,11 +300,12 @@ fun fetch(fs: Fs, net: Net, console: Console, url: string, body: i64, ca_file: s
     }
 }
 
-fun main(console: Console, clock: Clock, net: Net, fs: Fs) {
+fun main(console: Console, clock: Clock, net: Net, fs: Fs, root: Scope) {
     let probe = tls.listen(net, \"127.0.0.1:0\", pem(fs, \"cert.pem\"), pem(fs, \"key.pem\")).unwrap();
     let addr = probe.addr();
     probe.close();
-    spawn server(fs, net, addr);
+    let serving = root.spawn(server(fs, net, addr));
+    defer serving.cancel(\"done\");
     task.yield_now();
     let url = \"https://localhost:{addr.split(\":\")[1]}/app.rkb\";
     fetch(fs, net, console, url, 33554432, \"ca.pem\");
@@ -308,7 +314,8 @@ fun main(console: Console, clock: Clock, net: Net, fs: Fs) {
 
     let quiet = tls.listen(net, \"127.0.0.1:0\", pem(fs, \"cert.pem\"), pem(fs, \"key.pem\")).unwrap();
     let port = quiet.addr().split(\":\")[1];
-    spawn silent(quiet);
+    let quiet_task = root.spawn(silent(quiet));
+    defer quiet_task.cancel(\"done\");
     let mut limits = http.limits();
     limits.timeout_ms = 60000;
     let opts = tls.Options { ca_pem: pem(fs, \"ca.pem\"), timeout_ms: 200, address: \"\" };
@@ -353,11 +360,12 @@ fun fetch(fs: Fs, net: Net, console: Console, url: string, address: string) {
     }
 }
 
-fun main(console: Console, net: Net, fs: Fs) {
+fun main(console: Console, net: Net, fs: Fs, root: Scope) {
     let probe = tls.listen(net, \"127.0.0.1:0\", pem(fs, \"cert.pem\"), pem(fs, \"key.pem\")).unwrap();
     let addr = probe.addr();
     probe.close();
-    spawn server(fs, net, addr);
+    let serving = root.spawn(server(fs, net, addr));
+    defer serving.cancel(\"done\");
     task.yield_now();
     let port = addr.split(\":\")[1];
     fetch(fs, net, console, \"https://localhost:{port}/a\", \"127.0.0.1\");

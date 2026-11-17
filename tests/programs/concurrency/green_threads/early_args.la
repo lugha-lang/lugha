@@ -8,8 +8,8 @@ fun show(console: Console, n: i64, m: i64) {
     console.println("running with {n} {m}");
 }
 
-fun main(console: Console) {
-    let t = spawn show(console, next(console, "first"), next(console, "second"));
+fun main(console: Console, root: Scope) {
+    let t = root.spawn(show(console, next(console, "first"), next(console, "second")));
     console.println("spawned");
-    t.join();
+    t.join().unwrap();
 }

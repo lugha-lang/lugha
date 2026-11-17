@@ -55,6 +55,8 @@ pub fn os_signature(op: &str) -> Option<(Vec<Type>, Type)> {
         // A `Dir`: its folder as an opaque handle, every path opened beneath
         // it (`runtime/dir.c`).
         "dir_cwd" => (Vec::new(), result(cptr())),
+        // The root scope's record.
+        "scope_root" => (Vec::new(), Type::Handle(super::input::CPTR.to_string())),
         "dir_open" => (vec![Type::String], result(cptr())),
         "dir_sub" => (vec![cptr(), Type::String], result(cptr())),
         "dir_read_bytes" => (vec![cptr(), Type::String], result(bytes())),

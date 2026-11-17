@@ -14,14 +14,12 @@ fun customer(account: Account, times: i64) {
 
 fun main(console: Console) {
     let account = spawn Account { balance: 0 };
-    let mut tasks: Task[] = [];
-    for c in 0..10 {
-        tasks.push(spawn customer(account, 100));
-    }
-    for t of tasks {
-        t.join();
-    }
-    console.println(account.total());
+    let deposits = scope s {
+        for c in 0..10 {
+            s.spawn(customer(account, 100));
+        }
+    };
+    console.println("{account.total()} {deposits.is_ok()}");
     account.stop();
     console.println(account.join().debug());
 }

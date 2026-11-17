@@ -1,0 +1,7 @@
+fun work(n: i64): i64 = n;
+
+fun main() {
+    let r = scope s {
+        let ts = [s.spawn(work(1))];
+    };
+}

@@ -25,7 +25,8 @@ pub(super) fn builtin(receiver: &Type, name: &str) -> Option<Method> {
         (Type::Ref(_), "is") => (vec![receiver.clone()], Type::Bool, false),
         // A task's result, and a channel's API besides `Chan.new` and
         // `Chan.buffered`; plain `self`, as for boxes.
-        (Type::Task(inner), "join") => (Vec::new(), (**inner).clone(), false),
+        (Type::Task(inner), "join") => (Vec::new(), super::scopes::joined(inner), false),
+        (Type::Task(_), "cancel" | "name") => (vec![Type::String], Type::Unit, false),
         (Type::Chan(inner), "send") => (vec![(**inner).clone()], Type::Unit, false),
         (Type::Chan(inner), "recv" | "try_recv") => {
             (Vec::new(), Type::Option(inner.clone()), false)

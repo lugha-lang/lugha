@@ -1,0 +1,21 @@
+// A task waiting on a channel when its scope fails is woken and unwinds.
+fun waits(console: Console, c: Chan<i64>): i64 {
+    defer console.println("waiter: stopped");
+    match c.recv() {
+        .Some(n) => n,
+        .None => 0,
+    }
+}
+
+fun fails(): i64 {
+    panic("no sender")
+}
+
+fun main(console: Console) {
+    let c: Chan<i64> = Chan.new();
+    let r = scope s {
+        s.spawn(waits(console, c));
+        s.spawn(fails());
+    };
+    console.println(r.is_err());
+}

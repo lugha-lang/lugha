@@ -44,18 +44,33 @@ impl<'ctx> Lowerer<'ctx> {
     /// Lowers the statements deferred in the blocks from depth `to` up,
     /// innermost first and last first, leaving them pending: code after an
     /// exit is dead, and the block's own end still runs them.
+    /// A scope's body left on the way waits for the scope's tasks before
+    /// the body's own `defer`s run.
     pub(in crate::codegen) fn run_defers(&mut self, to: usize) -> Result<(), CodegenError> {
-        let mut pending = Vec::new();
-        for block in self.defers[to..].iter().rev() {
-            for d in block.iter().rev() {
-                pending.push((d.stmt.clone(), d.scopes.clone()));
+        let left = self.scopes_left(to);
+        let end = std::mem::take(&mut self.pads.block_end);
+        let mut next = left.len();
+        for depth in (to..self.defers.len()).rev() {
+            // Into the next scope's body, once out of the one inside it.
+            while next > 0
+                && left[next - 1].0 <= depth
+                && left.get(next).is_none_or(|inner| depth < inner.0)
+            {
+                let (body, rec) = left[next - 1];
+                self.scope_left(rec, end && body == to);
+                next -= 1;
             }
-        }
-        for (stmt, scopes) in pending {
-            let saved = std::mem::replace(&mut self.scopes, scopes);
-            let lowered = self.stmt(&stmt);
-            self.scopes = saved;
-            lowered?;
+            let pending: Vec<_> = self.defers[depth]
+                .iter()
+                .rev()
+                .map(|d| (d.stmt.clone(), d.scopes.clone()))
+                .collect();
+            for (stmt, scopes) in pending {
+                let saved = std::mem::replace(&mut self.scopes, scopes);
+                let lowered = self.stmt(&stmt);
+                self.scopes = saved;
+                lowered?;
+            }
         }
         // Leaving the function's own block is leaving the function.
         if to == 0 {

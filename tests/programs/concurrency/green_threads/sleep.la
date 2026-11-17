@@ -6,11 +6,11 @@ fun nap(console: Console, ms: i64) {
     console.println("woke after {ms}");
 }
 
-fun main(console: Console) {
-    let a = spawn nap(console, 30);
-    let b = spawn nap(console, 10);
-    let c = spawn nap(console, 20);
-    a.join();
-    b.join();
-    c.join();
+fun main(console: Console, root: Scope) {
+    let a = root.spawn(nap(console, 30));
+    let b = root.spawn(nap(console, 10));
+    let c = root.spawn(nap(console, 20));
+    a.join().unwrap();
+    b.join().unwrap();
+    c.join().unwrap();
 }

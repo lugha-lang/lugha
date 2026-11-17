@@ -232,7 +232,16 @@ impl<'ctx> Lowerer<'ctx> {
                     self.scan_read(scan, &arm.body);
                 }
             }
-            ExprKind::Spawn(closure) => self.scan_read(scan, closure),
+            ExprKind::Spawn(scope, closure) => {
+                if let Some(scope) = scope {
+                    self.scan_read(scan, scope);
+                }
+                self.scan_read(scan, closure);
+            }
+            ExprKind::Scope(scope) => {
+                scan.bind(&scope.name.name);
+                self.block_scan(scan, &scope.body);
+            }
             ExprKind::Select(arms) => {
                 for arm in arms {
                     match &arm.kind {

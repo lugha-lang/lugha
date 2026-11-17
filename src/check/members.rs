@@ -460,7 +460,7 @@ fun main() { }
             assert!(chan.contains(&name.to_string()), "{name} in {chan:?}");
         }
         let task = names(&value_members(&partial, &Type::Task(Box::new(Type::I64))));
-        assert_eq!(task, ["debug", "join"]);
+        assert_eq!(task, ["cancel", "debug", "join", "name"]);
     }
 
     #[test]

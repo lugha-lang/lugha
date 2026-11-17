@@ -1,0 +1,26 @@
+// A root-scope task's panic cancels the other tasks and `main`, which
+// unwind running their `defer`s; then the program ends with 101.
+fun spin(console: Console): i64 {
+    defer console.println("spinner stopped");
+    let mut i = 0;
+    loop {
+        i += 1;
+    }
+}
+
+fun boom(n: i64): i64 {
+    if n > 0 {
+        panic("root task failed")
+    }
+    n
+}
+
+fun main(console: Console, root: Scope) {
+    defer console.println("main's defer");
+    root.spawn(spin(console));
+    root.spawn(boom(1));
+    let mut i = 0;
+    loop {
+        i += 1;
+    }
+}

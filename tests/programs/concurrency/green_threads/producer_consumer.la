@@ -8,9 +8,9 @@ fun produce(console: Console, out: Chan<string>, count: i64) {
     out.close();
 }
 
-fun main(console: Console) {
+fun main(console: Console, root: Scope) {
     let c: Chan<string> = Chan.buffered(2);
-    spawn produce(console, c, 5);
+    root.spawn(produce(console, c, 5));
     while let .Some(item) = c.recv() {
         console.println("got {item}");
     }

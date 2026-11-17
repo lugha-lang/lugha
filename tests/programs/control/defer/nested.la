@@ -5,7 +5,7 @@ fun work(console: Console, n: i64): i64 {
     n * 2
 }
 
-fun main(console: Console) {
+fun main(console: Console, root: Scope) {
     defer {
         defer console.println("outer last");
         console.println("outer first");
@@ -15,8 +15,8 @@ fun main(console: Console) {
         x + 1
     };
     console.println(f(1));
-    let t = spawn work(console, 21);
-    console.println(t.join());
+    let t = root.spawn(work(console, 21));
+    console.println(t.join().unwrap());
     defer {
         let mut i = 0;
         while true {

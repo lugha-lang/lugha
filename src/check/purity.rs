@@ -286,7 +286,7 @@ mod tests {
         for (body, reason) in [
             ("debug(\"hi\"); 1", "`f` calls `debug`, which prints"),
             (
-                "let t = spawn g(); t.join()",
+                "let r = scope s { s.spawn(g()); }; 1",
                 "`f` calls `spawn`, which starts a task",
             ),
             (

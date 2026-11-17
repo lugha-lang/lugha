@@ -32,7 +32,7 @@ pub(super) const PAD_KIND: &str = "lugha.unwind";
 const PERSONALITY: &str = "__gcc_personality_v0";
 
 /// Where a statement starts, naming its cleanup.
-type Start<'ctx> = (BasicBlock<'ctx>, Option<InstructionValue<'ctx>>);
+pub(super) type Start<'ctx> = (BasicBlock<'ctx>, Option<InstructionValue<'ctx>>);
 
 /// The landing pads made so far, and every block lowered inside one.
 ///
@@ -52,7 +52,11 @@ pub(super) struct Pads<'ctx> {
     /// follow its first block yet belong to an enclosing one.
     last_before: HashMap<Start<'ctx>, Option<BasicBlock<'ctx>>>,
     /// True while a pad's cleanup is lowered: its own calls get no pad.
-    lowering: bool,
+    pub(super) lowering: bool,
+    /// The scopes whose bodies are being lowered, innermost last.
+    pub(super) catches: Vec<super::task_scopes::Catch<'ctx>>,
+    /// True while a block's own end runs its `defer`s.
+    pub(super) block_end: bool,
 }
 
 impl<'ctx> Lowerer<'ctx> {
@@ -71,7 +75,9 @@ impl<'ctx> Lowerer<'ctx> {
         }
         let calls = self.unpadded_calls(start);
         let early = self.pads.cleanups.remove(&start);
-        let pending = self.defers_pending(0) || self.rc_holds_anything();
+        // Inside a scope's body, every call's unwind is caught.
+        let pending =
+            self.defers_pending(0) || self.rc_holds_anything() || !self.pads.catches.is_empty();
         if early.is_none() && (calls.is_empty() || !pending) {
             return;
         }
@@ -108,9 +114,10 @@ impl<'ctx> Lowerer<'ctx> {
         if self.pads.lowering {
             return;
         }
-        let start = match self.rc_slots.statements.last() {
-            Some(statement) => statement.start,
-            None => {
+        let start = match (self.scope_start(), self.rc_slots.statements.last()) {
+            (Some(start), _) => start,
+            (None, Some(statement)) => statement.start,
+            (None, None) => {
                 let function = self.function.expect("calls are made inside a function");
                 (
                     function.get_first_basic_block().expect("an entry block"),
@@ -275,9 +282,13 @@ impl<'ctx> Lowerer<'ctx> {
     }
 
     /// Lowers the cleanup into `block`: the pending `defer`s and the
-    /// frame's releases, as a `return` here, then `resume`.
+    /// frame's releases, as a `return` here, then `resume`; inside a
+    /// scope's body, only the body's, then on past it.
     fn fill_cleanup(&mut self, block: BasicBlock<'ctx>, landed: PhiValue<'ctx>) {
         self.in_pad(block, |this| {
+            if this.scope_cleanup() {
+                return;
+            }
             if let Err(e) = this.run_defers(0) {
                 // Lowered at every other exit already, so a failure there
                 // would have stopped the build first; kept for the end.

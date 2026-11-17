@@ -32,7 +32,7 @@ fun shape(): Shape = Square { side: 2.0 };
 
 fun double(n: i64): i64 = n * 2;
 
-fun main(console: Console) {
+fun main(console: Console, root: Scope) {
     console.println(1.5.debug());
     console.println('\n'.debug());
     console.println("tab\there \"q\"".debug());
@@ -56,8 +56,8 @@ fun main(console: Console) {
     // A `Display` type's debug form is still its structure.
     let l = Label { text: "hi" };
     console.println("{l} {l.debug()} {to_string(l)}");
-    let t = spawn double(2);
+    let t = root.spawn(double(2));
     let c: Chan<i64> = Chan.new();
     console.println("{t.debug()} {c.debug()}");
-    console.println(t.join());
+    console.println(t.join().unwrap());
 }

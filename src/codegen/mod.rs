@@ -90,6 +90,8 @@ mod stmt;
 mod structs;
 mod swap;
 mod targets;
+mod task_handles;
+mod task_scopes;
 mod tasks;
 mod test_main;
 mod through_index;

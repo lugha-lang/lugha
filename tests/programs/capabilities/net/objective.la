@@ -1,7 +1,7 @@
 // The objective: listening, connecting and name lookup through a `Net`.
-fun main(console: Console, net: Net): i32 {
+fun main(console: Console, net: Net, root: Scope): i32 {
     let server = net.listen("127.0.0.1:0").unwrap();
-    spawn serve_one(server);
+    root.spawn(serve_one(server));
     let c = net.connect(server.addr()).unwrap();
     let w = c.write("ping".to_bytes());
     console.println(string_from_utf8(c.read(16).unwrap()).unwrap());

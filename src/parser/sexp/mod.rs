@@ -248,7 +248,15 @@ fn bare(expr: &Expr) -> String {
                 .collect();
             format!("(match {}{arms})", self::expr(scrutinee))
         }
-        ExprKind::Spawn(closure) => format!("(spawn {})", self::expr(spawned_call(closure))),
+        ExprKind::Spawn(None, closure) => {
+            format!("(spawn {})", self::expr(spawned_call(closure)))
+        }
+        ExprKind::Spawn(Some(scope), closure) => format!(
+            "(spawn {} {})",
+            self::expr(scope),
+            self::expr(spawned_call(closure))
+        ),
+        ExprKind::Scope(scope) => format!("(scope {} {})", scope.name.name, block(&scope.body)),
         ExprKind::Select(arms) => {
             let arms: String = arms.iter().map(|a| format!(" {}", select_arm(a))).collect();
             format!("(select{arms})")

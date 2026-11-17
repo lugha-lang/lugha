@@ -80,11 +80,11 @@ fn a_timeout_parks_only_its_green_thread() {
     c.send(1);
 }
 
-fun main(console: Console, net: Net) {
+fun main(console: Console, net: Net, root: Scope) {
     let u = net.udp_bind(\"127.0.0.1:0\").unwrap();
     u.set_timeout(200);
     let c: Chan<i64> = Chan.new();
-    spawn tick(c);
+    root.spawn(tick(c));
     console.println(u.recv_from(100).debug());
     console.println(c.recv().debug());
 }");

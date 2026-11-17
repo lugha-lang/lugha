@@ -129,8 +129,9 @@ impl Response {
 }
 
 /**
- * Serves forever: each connection gets its own green thread, each request a
- * call of `handler`. Returns only when it can't listen.
+ * Serves forever: each connection gets its own task, each request a call
+ * of `handler`. Returns only when it can't listen, or when a connection
+ * panics: the others are cancelled first.
  * @param net the network to connect or listen through
  * @param addr host:port, `127.0.0.1:8080` for this machine only
  * @param handler makes a response for each request
@@ -147,12 +148,7 @@ public fun serve(net: Net, addr: string, handler: fun(Request): Response): Resul
  */
 public fun serve_with(net: Net, addr: string, limits: Limits, handler: fun(Request): Response): Result<(), string> {
     let listener = net.listen(addr)?;
-    while true {
-        if let .Ok(conn) = listener.accept() {
-            spawn connection(conn, limits, handler);
-        }
-    }
-    Ok(())
+    serve_on(fun(): Result<Conn, string> = listener.accept(), limits, handler)
 }
 
 /**
@@ -179,12 +175,25 @@ public fun serve_tls(net: Net, addr: string, cert_pem: string, key_pem: string, 
 public fun serve_tls_with(net: Net, addr: string, cert_pem: string, key_pem: string, limits: Limits, handler: fun(Request): Response): Result<(), string> {
     let listener = tls.listen(net, addr, cert_pem, key_pem)?;
     listener.set_timeout(limits.timeout_ms);
-    while true {
-        if let .Ok(conn) = listener.accept() {
-            spawn connection(conn, limits, handler);
+    serve_on(fun(): Result<Conn, string> = listener.accept(), limits, handler)
+}
+
+/**
+ * Takes each connection `accept` gives to a task of its own, in one scope:
+ * a connection's panic ends them all, and the error is returned.
+ */
+fun serve_on(accept: fun(): Result<Conn, string>, limits: Limits, handler: fun(Request): Response): Result<(), string> {
+    let served = scope s {
+        while true {
+            if let .Ok(conn) = accept() {
+                s.spawn(connection(conn, limits, handler));
+            }
         }
+    };
+    match served {
+        .Ok(_) => Ok(()),
+        .Err(failure) => Err("a connection failed: {failure}"),
     }
-    Ok(())
 }
 
 

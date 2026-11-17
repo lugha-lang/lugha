@@ -58,10 +58,17 @@ static void idle_wait(void) {
     }
 }
 
+/* `wait_fd`'s answer when the waiting task is cancelled: the caller lets
+ * go of what it holds, then unwinds (`cancel_unwind`). */
+#define WAIT_CANCELLED (-1)
+
 /* Parks this thread until `fd` is ready for `events`: 1, or 0 when
- * `deadline` (monotonic ns; < 0 for none) passes first. */
+ * `deadline` (monotonic ns; < 0 for none) passes first, or WAIT_CANCELLED. */
 static int wait_fd(int fd, uint32_t events, int64_t deadline) {
     ensure_started();
+    if (current->cancelled != REASON_NONE && !current->unwinding) {
+        return WAIT_CANCELLED;
+    }
     if (net_epoll < 0) {
         net_epoll = epoll_create1(EPOLL_CLOEXEC);
         if (net_epoll < 0) {
@@ -77,13 +84,15 @@ static int wait_fd(int fd, uint32_t events, int64_t deadline) {
         add_sleeper(current, deadline);
     }
     net_waiting++;
+    current->cancellable = true;
     int64_t why = block();
+    current->cancellable = false;
     net_waiting--;
-    if (why == TIMED_OUT) {
+    if (why == TIMED_OUT || why == CANCELLED) {
         /* Disarmed, so a late event can't wake this thread again. */
         struct epoll_event off = {.events = 0, .data = {.ptr = NULL}};
         epoll_ctl(net_epoll, EPOLL_CTL_MOD, fd, &off);
-        return 0;
+        return why == CANCELLED ? WAIT_CANCELLED : 0;
     }
     return 1;
 }
@@ -185,7 +194,13 @@ int32_t lugha_rt_net_connect(const LughaString *addr, int64_t timeout_ms, int64_
         int err = connect(s, a->ai_addr, a->ai_addrlen) == 0 ? 0 : errno;
         if (err == EINPROGRESS) {
             socklen_t len = sizeof err;
-            if (!wait_fd(s, EPOLLOUT, deadline)) {
+            int ready = wait_fd(s, EPOLLOUT, deadline);
+            if (ready == WAIT_CANCELLED) {
+                close(s);
+                freeaddrinfo(list);
+                cancel_unwind();
+            }
+            if (!ready) {
                 err = ETIMEDOUT;
             } else if (getsockopt(s, SOL_SOCKET, SO_ERROR, &err, &len) != 0) {
                 err = errno;
@@ -213,7 +228,11 @@ int32_t lugha_rt_net_accept(int64_t fd, int64_t timeout_ms, int64_t *conn, Lugha
             return 1;
         }
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            if (!wait_fd((int)fd, EPOLLIN, deadline)) {
+            int ready = wait_fd((int)fd, EPOLLIN, deadline);
+            if (ready == WAIT_CANCELLED) {
+                cancel_unwind();
+            }
+            if (!ready) {
                 return net_error(error, "timed out");
             }
         } else if (errno != EINTR && errno != ECONNABORTED) {
@@ -239,7 +258,12 @@ int32_t lugha_rt_net_read(int64_t fd, int64_t max, int64_t timeout_ms, LughaArra
             return 1;
         }
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            if (!wait_fd((int)fd, EPOLLIN, deadline)) {
+            int ready = wait_fd((int)fd, EPOLLIN, deadline);
+            if (ready == WAIT_CANCELLED) {
+                rt_scratch_done(buffer);
+                cancel_unwind();
+            }
+            if (!ready) {
                 rt_scratch_done(buffer);
                 return net_error(error, "timed out");
             }
@@ -262,7 +286,11 @@ int32_t lugha_rt_net_write(int64_t fd, const LughaArray *bytes, int64_t timeout_
         if (n >= 0) {
             sent += n;
         } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            if (!wait_fd((int)fd, EPOLLOUT, deadline)) {
+            int ready = wait_fd((int)fd, EPOLLOUT, deadline);
+            if (ready == WAIT_CANCELLED) {
+                cancel_unwind();
+            }
+            if (!ready) {
                 return net_error(error, "timed out");
             }
         } else if (errno != EINTR) {

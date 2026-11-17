@@ -1,0 +1,6 @@
+fun work(): i64 = 1;
+
+fun main() {
+    let x = 1;
+    let t = x.spawn(work());
+}

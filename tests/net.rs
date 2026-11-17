@@ -69,14 +69,16 @@ const ECHO: &str = "fun serve(console: Console, conn: Conn) {
 }
 
 fun accept_all(console: Console, listener: Listener, n: i64) {
-    for _ in 0..n {
-        match listener.accept() {
-            .Ok(conn) => {
-                spawn serve(console, conn);
+    scope s {
+        for _ in 0..n {
+            match listener.accept() {
+                .Ok(conn) => {
+                    s.spawn(serve(console, conn));
+                }
+                .Err(e) => console.eprintln(e),
             }
-            .Err(e) => console.eprintln(e),
         }
-    }
+    }.unwrap();
 }
 ";
 
@@ -84,11 +86,11 @@ fun accept_all(console: Console, listener: Listener, n: i64) {
 fn a_server_and_a_client_talk_in_one_program() {
     Case::new(&format!(
         "{ECHO}
-fun main(console: Console, net: Net) {{
+fun main(console: Console, net: Net, root: Scope) {{
     let listener = net.listen(\"127.0.0.1:0\").unwrap();
     let addr = listener.addr();
     console.println(addr.starts_with(\"127.0.0.1:\"));
-    spawn accept_all(console, listener, 1);
+    root.spawn(accept_all(console, listener, 1));
     let conn = net.connect(addr).unwrap();
     console.println(conn.peer() == addr);
     conn.write(\"hello\".to_bytes()).unwrap();
@@ -126,15 +128,15 @@ fun ticker(ticks: Chan<i64>) {{
     ticks.send(20);
 }}
 
-fun main(console: Console, net: Net) {{
+fun main(console: Console, net: Net, root: Scope) {{
     let listener = net.listen(\"127.0.0.1:0\").unwrap();
     let addr = listener.addr();
-    spawn accept_all(console, listener, 200);
+    root.spawn(accept_all(console, listener, 200));
     let ticks: Chan<i64> = Chan.buffered(1);
-    spawn ticker(ticks);
+    root.spawn(ticker(ticks));
     let done: Chan<i64> = Chan.buffered(200);
     for i in 0..200 {{
-        spawn client(net, addr, i, done);
+        root.spawn(client(net, addr, i, done));
     }}
     let mut ok = 0;
     for _ in 0..200 {{
@@ -158,10 +160,10 @@ fn waits_time_out_and_failures_are_errors() {
     conn.close();
 }
 
-fun main(console: Console, net: Net) {
+fun main(console: Console, net: Net, root: Scope) {
     let listener = net.listen(\"127.0.0.1:0\").unwrap();
     let addr = listener.addr();
-    spawn hold(listener);
+    root.spawn(hold(listener));
     let conn = net.connect(addr).unwrap();
     conn.set_timeout(50);
     console.println(conn.read(10).debug());
@@ -195,11 +197,11 @@ fun main(console: Console, net: Net) {
 fn ipv6_works_where_the_host_has_it() {
     let case = Case::new(&format!(
         "{ECHO}
-fun main(console: Console, net: Net) {{
+fun main(console: Console, net: Net, root: Scope) {{
     match net.listen(\"[::1]:0\") {{
         .Ok(listener) => {{
             let addr = listener.addr();
-            spawn accept_all(console, listener, 1);
+            root.spawn(accept_all(console, listener, 1));
             let conn = net.connect(addr).unwrap();
             conn.write(\"six\".to_bytes()).unwrap();
             console.println(string_from_utf8(conn.read(10).unwrap()).unwrap());
@@ -274,11 +276,11 @@ fn resolve_gives_every_address_once() {
 fn narrowed_networks_hold_on_the_real_loopback() {
     let case = Case::new(&format!(
         "{ECHO}
-fun main(console: Console, net: Net) {{
+fun main(console: Console, net: Net, root: Scope) {{
     let server = net.listen_only(\"127.0.0.1:0\");
     let listener = server.listen(\"127.0.0.1:0\").unwrap();
     let port = listener.addr().split(\":\")[1];
-    spawn accept_all(console, listener, 1);
+    root.spawn(accept_all(console, listener, 1));
     console.println(server.connect(\"127.0.0.1:{{port}}\").is_err());
     let local = net.only(\"localhost:{{port}}\");
     console.println(local.connect(\"localhost:{{port}}\").debug());

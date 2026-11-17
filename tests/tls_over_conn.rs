@@ -34,14 +34,15 @@ impl Conn for Pipe {
     }
 }
 
-/** A network of one TLS server, in this program: no socket anywhere. */
-struct Loopback { cert: string, key: string }
+/** A network of one TLS server, in this program: no socket anywhere. Each
+ * connection's other end goes to the server through `calls`. */
+struct Loopback { calls: Chan<Pipe> }
 
 impl Net for Loopback {
     fun connect_timeout(self, addr: string, ms: i64): Result<Conn, string> {
         let there = Chan<u8[]>.buffered(64);
         let back = Chan<u8[]>.buffered(64);
-        spawn answer(Pipe { inbox: there, outbox: back, closed: Ref.new(false) }, self.cert, self.key);
+        self.calls.send(Pipe { inbox: there, outbox: back, closed: Ref.new(false) });
         Ok(Pipe { inbox: back, outbox: there, closed: Ref.new(false) })
     }
     fun listen(self, addr: string): Result<Listener, string> = Err("loopback only");
@@ -51,7 +52,14 @@ impl Net for Loopback {
     fun interfaces(self): Result<NetInterface[], string> = Ok([]);
 }
 
-/** The server: TLS over its end of the pipe, answering one request. */
+/** The server: each connection in turn, until `calls` closes. */
+fun answering(calls: Chan<Pipe>, cert: string, key: string) {
+    while let .Some(conn) = calls.recv() {
+        answer(conn, cert, key);
+    }
+}
+
+/** One connection: TLS over its end of the pipe, answering one request. */
 fun answer(conn: Conn, cert: string, key: string) {
     match tls.server(conn, cert, key) {
         .Ok(s) => {
@@ -76,10 +84,13 @@ impl Net for Offline {
     fun interfaces(self): Result<NetInterface[], string> = Ok([]);
 }
 
-fun main(console: Console, fs: Fs) {
+fun main(console: Console, fs: Fs, root: Scope) {
     let cert = fs.cwd().read_file("cert.pem").unwrap();
     let key = fs.cwd().read_file("key.pem").unwrap();
-    let net = Loopback { cert: cert, key: key };
+    let calls: Chan<Pipe> = Chan.buffered(1);
+    root.spawn(answering(calls, cert, key));
+    defer calls.close();
+    let net = Loopback { calls: calls };
     let mut opts = tls.options();
     opts.ca_pem = cert;
     let c = tls.connect_with(net, "localhost:443", opts).unwrap();

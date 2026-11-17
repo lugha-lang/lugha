@@ -1,0 +1,29 @@
+// A task's panic fails its scope: the busy sibling is cancelled at its
+// next preemption point and its `defer` runs; the scope is `Err`.
+fun busy(console: Console): i64 {
+    defer console.println("busy: stopped");
+    let mut i = 0;
+    loop {
+        i += 1;
+    }
+}
+
+fun fails(n: i64): i64 {
+    if n > 0 {
+        panic("boom")
+    }
+    n
+}
+
+fun main(console: Console) {
+    let r = scope s {
+        s.spawn(busy(console));
+        s.spawn(fails(1));
+        1
+    };
+    match r {
+        .Ok(n) => console.println("ok {n}"),
+        .Err(.Panic(message)) => console.println("failed: {message.starts_with("boom at ")}"),
+        .Err(.Error(e)) => console.println("error {e}"),
+    }
+}

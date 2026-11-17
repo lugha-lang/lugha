@@ -67,7 +67,10 @@ impl Checker {
             self.check_params(&e.type_params, &[]);
             let mut variants: Vec<(String, Vec<Type>)> = Vec::new();
             for (i, v) in e.variants.iter().enumerate() {
-                let payloads = v.payloads.iter().map(|t| self.resolve(t)).collect();
+                let payloads: Vec<Type> = v.payloads.iter().map(|t| self.resolve(t)).collect();
+                for (ty, written) in payloads.iter().zip(&v.payloads) {
+                    self.stored_handle(ty, written.span);
+                }
                 if let Some(first) = e.variants[..i].iter().find(|w| w.name.name == v.name.name) {
                     let d = errors::duplicate_variant(
                         &v.name.name,

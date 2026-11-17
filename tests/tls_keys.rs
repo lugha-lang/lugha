@@ -104,9 +104,9 @@ fun serve(l: tls.SecureListener) {
     }
 }
 
-fun listening(net: Net, server: Device, accept: u8[][]): tls.SecureListener {
+fun listening(s: Scope, net: Net, server: Device, accept: u8[][]): tls.SecureListener {
     let l = tls.listen_keys(net, \"127.0.0.1:0\", tls.Keys { secret: server.secret, accept: accept }).unwrap();
-    spawn serve(l);
+    s.spawn(serve(l));
     l
 }
 
@@ -130,16 +130,20 @@ fun try(net: Net, console: Console, addr: string, client: Device, server_key: u8
 fn accepted_keys_get_in_and_others_are_refused() {
     Case::new(
         "fun main(console: Console, entropy: Entropy, net: Net) {
-    let (server, a, b, c) = (device(entropy), device(entropy), device(entropy), device(entropy));
-    let l = listening(net, server, [a.key, b.key]);
-    try(net, console, l.addr(), a, server.key);
-    try(net, console, l.addr(), b, server.key);
-    try(net, console, l.addr(), c, server.key);
-    // A client that doesn't accept the server's key stops at connect.
-    try(net, console, l.addr(), a, c.key);
-    // Nobody is accepted by an empty list.
-    let empty = listening(net, server, []);
-    try(net, console, empty.addr(), a, server.key);
+    let servers = scope s {
+        let (server, a, b, c) = (device(entropy), device(entropy), device(entropy), device(entropy));
+        let l = listening(s, net, server, [a.key, b.key]);
+        try(net, console, l.addr(), a, server.key);
+        try(net, console, l.addr(), b, server.key);
+        try(net, console, l.addr(), c, server.key);
+        // A client that doesn't accept the server's key stops at connect.
+        try(net, console, l.addr(), a, c.key);
+        // Nobody is accepted by an empty list.
+        let empty = listening(s, net, server, []);
+        try(net, console, empty.addr(), a, server.key);
+        // Leaving early cancels the servers, which never end.
+        return;
+    };
 }",
     )
     .runs("in\nin\nrefused\nrefused: peer key not accepted\nrefused\n");
@@ -149,15 +153,19 @@ fn accepted_keys_get_in_and_others_are_refused() {
 fn set_accept_changes_who_gets_in_next() {
     Case::new(
         "fun main(console: Console, entropy: Entropy, net: Net) {
-    let (server, a, c) = (device(entropy), device(entropy), device(entropy));
-    let l = listening(net, server, [a.key]);
-    try(net, console, l.addr(), c, server.key);
-    l.set_accept([a.key, c.key]).unwrap();
-    try(net, console, l.addr(), c, server.key);
-    l.set_accept([]).unwrap();
-    try(net, console, l.addr(), a, server.key);
-    l.close();
-    console.println(l.set_accept([]).debug());
+    let servers = scope s {
+        let (server, a, c) = (device(entropy), device(entropy), device(entropy));
+        let l = listening(s, net, server, [a.key]);
+        try(net, console, l.addr(), c, server.key);
+        l.set_accept([a.key, c.key]).unwrap();
+        try(net, console, l.addr(), c, server.key);
+        l.set_accept([]).unwrap();
+        try(net, console, l.addr(), a, server.key);
+        l.close();
+        console.println(l.set_accept([]).debug());
+        // Leaving early cancels the servers, which never end.
+        return;
+    };
 }",
     )
     .runs("refused\nin\nrefused\nErr(\"closed\")\n");
@@ -196,20 +204,24 @@ fn wrong_key_lengths_are_refused() {
 fn certificates_and_keys_do_not_mix() {
     let case = Case::new(
         "fun main(console: Console, entropy: Entropy, net: Net, fs: Fs) {
-    let (server, a) = (device(entropy), device(entropy));
-    // A certificate client at a by-key listener.
-    let by_key = listening(net, server, [a.key]);
-    let trust = tls.Options { ca_pem: pem(fs, \"self.pem\"), ..tls.options() };
-    console.println(tls.connect_with(net, by_key.addr(), trust).is_err());
-    // A by-key client at a certificate listener, which has no list to change.
-    let by_cert = tls.listen(net, \"127.0.0.1:0\", pem(fs, \"self.pem\"), pem(fs, \"self.key\")).unwrap();
-    spawn serve(by_cert);
-    try(net, console, by_cert.addr(), a, server.key);
-    console.println(by_cert.set_accept([a.key]).debug());
-    // A certificate connection has no peer key.
-    let c = tls.connect_with(net, by_cert.addr(), trust).unwrap();
-    console.println(c.peer_key().len);
-    c.close();
+    let servers = scope s {
+        let (server, a) = (device(entropy), device(entropy));
+        // A certificate client at a by-key listener.
+        let by_key = listening(s, net, server, [a.key]);
+        let trust = tls.Options { ca_pem: pem(fs, \"self.pem\"), ..tls.options() };
+        console.println(tls.connect_with(net, by_key.addr(), trust).is_err());
+        // A by-key client at a certificate listener, which has no list to change.
+        let by_cert = tls.listen(net, \"127.0.0.1:0\", pem(fs, \"self.pem\"), pem(fs, \"self.key\")).unwrap();
+        s.spawn(serve(by_cert));
+        try(net, console, by_cert.addr(), a, server.key);
+        console.println(by_cert.set_accept([a.key]).debug());
+        // A certificate connection has no peer key.
+        let c = tls.connect_with(net, by_cert.addr(), trust).unwrap();
+        console.println(c.peer_key().len);
+        c.close();
+        // Leaving early cancels the servers, which never end.
+        return;
+    };
 }",
     );
     if !case.certificate() {

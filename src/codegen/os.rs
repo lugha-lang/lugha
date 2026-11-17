@@ -31,6 +31,7 @@ impl<'ctx> Lowerer<'ctx> {
                 self.net_call(call, op, args)?
             }
             "seed" => self.os_seed(),
+            "scope_root" => self.call_runtime_value("lugha_rt_scope_root", &[], &[]),
             "now_ms" => self.os_now_ms(),
             // `Some(bytes)` of the variable, or `None`.
             "env" => {

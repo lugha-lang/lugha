@@ -19,11 +19,13 @@ fn strength(e: &Expr) -> u8 {
         ExprKind::Closure(_) => CLOSURE,
         ExprKind::Binary(op, ..) => op.level(),
         ExprKind::Cast(..) => CAST,
-        // `spawn` binds like a prefix operator.
-        ExprKind::Unary(..) | ExprKind::Spawn(_) => PREFIX,
-        ExprKind::Call(..) | ExprKind::Index(..) | ExprKind::Field(..) | ExprKind::Try(_) => {
-            POSTFIX
-        }
+        // `spawn Actor { … }` binds like a prefix operator.
+        ExprKind::Unary(..) | ExprKind::Spawn(None, _) => PREFIX,
+        ExprKind::Call(..)
+        | ExprKind::Index(..)
+        | ExprKind::Field(..)
+        | ExprKind::Try(_)
+        | ExprKind::Spawn(Some(_), _) => POSTFIX,
         _ => ATOM,
     }
 }
@@ -198,9 +200,22 @@ impl Printer<'_> {
                 self.block(body, 0),
             ]),
             ExprKind::Match(scrutinee, arms) => self.matching(e, scrutinee, arms),
-            ExprKind::Spawn(closure) => {
+            ExprKind::Spawn(None, closure) => {
                 concat(vec![text("spawn "), self.expr(spawned_call(closure))])
             }
+            ExprKind::Spawn(Some(scope), closure) => {
+                let call = self.allowing(|p| p.expr(spawned_call(closure)));
+                concat(vec![
+                    self.operand(scope, POSTFIX),
+                    text(".spawn("),
+                    call,
+                    text(")"),
+                ])
+            }
+            ExprKind::Scope(scope) => concat(vec![
+                text(format!("scope {} ", scope.name.name)),
+                self.block(&scope.body, 0),
+            ]),
             ExprKind::Select(arms) => self.selecting(e, arms),
         }
     }

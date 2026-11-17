@@ -141,6 +141,7 @@ impl<'ctx> Lowerer<'ctx> {
         let saved_loops = std::mem::take(&mut self.loops);
         // A closure's body is a function of its own: its defers run when it returns.
         let saved_defers = std::mem::take(&mut self.defers);
+        let saved_catches = std::mem::take(&mut self.pads.catches);
         let outer = self.rc_enter_function();
         self.builder
             .position_at_end(self.context.append_basic_block(function, "entry"));
@@ -203,6 +204,7 @@ impl<'ctx> Lowerer<'ctx> {
         self.scopes = saved_scopes;
         self.loops = saved_loops;
         self.defers = saved_defers;
+        self.pads.catches = saved_catches;
         if let Some(block) = saved_block {
             self.builder.position_at_end(block);
         }

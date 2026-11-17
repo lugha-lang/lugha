@@ -24,13 +24,6 @@
 /* Whether the main thread unwinds, before any green thread exists. */
 static bool main_unwinding;
 
-/* The panic being unwound on each fiber, for `panic_end` at the end. */
-typedef struct {
-    struct _Unwind_Exception exception;
-    char *text;
-    size_t len;
-} Panic;
-
 static bool *unwinding_flag(void) {
     return current == NULL ? &main_unwinding : &current->unwinding;
 }
@@ -49,7 +42,17 @@ static _Unwind_Reason_Code panic_stop(int version, _Unwind_Action actions,
         return _URC_NO_REASON;
     }
     Panic *panic = (Panic *)exception;
+    // A task a scope started ends there: cancelled, or failing its scope.
+    if (current != NULL && current->started_in != NULL) {
+        current->in_flight = NULL;
+        scope_task_unwound(panic->cancel, panic->text, panic->len);
+    }
     *unwinding_flag() = false;
+    if (panic->cancel) {
+        // `main`, cancelled because a root-scope task failed.
+        fflush(stdout);
+        exit(101);
+    }
     panic_end(panic->text, panic->len);
     // Only an actor's panic returns from `panic_end`'s caller, and it
     // never does: its fiber ends. Anything else has exited.
@@ -70,7 +73,9 @@ void lugha_rt_unwound_to_c(void) {
     exit(101);
 }
 
-static void panic_unwind(const char *text, size_t len) {
+/* Unwinds the current fiber: a panic with its message, or a cancellation
+ * (silent). A scope catching it takes `in_flight` over. */
+static void start_unwind(bool cancel, const char *text, size_t len) {
     bool *unwinding = unwinding_flag();
     if (*unwinding) {
         exit(101);
@@ -79,11 +84,31 @@ static void panic_unwind(const char *text, size_t len) {
     Panic *panic = lugha_rc_internal(sizeof(Panic));
     panic->exception.exception_class = PANIC_CLASS;
     panic->exception.exception_cleanup = panic_free;
+    panic->cancel = cancel;
     panic->text = lugha_rc_internal(len + 1);
     memcpy(panic->text, text, len);
     panic->len = len;
+    if (current != NULL) {
+        current->in_flight = panic;
+    }
     _Unwind_ForcedUnwind(&panic->exception, panic_stop, NULL);
     // Only if the unwinder couldn't start: end the task as it is.
     panic_end(text, len);
     exit(101);
+}
+
+/* A caught unwind that wasn't the catcher's own goes on outward. */
+static void resume_unwind(Panic *panic) {
+    current->in_flight = panic;
+    _Unwind_ForcedUnwind(&panic->exception, panic_stop, NULL);
+    exit(101);
+}
+
+static void panic_unwind(const char *text, size_t len) {
+    start_unwind(false, text, len);
+}
+
+/* A cancelled task stops: it unwinds as a panic does, silently. */
+static void cancel_unwind(void) {
+    start_unwind(true, "cancelled", 9);
 }

@@ -403,7 +403,8 @@ impl<'ctx> Lowerer<'ctx> {
             .build_call(user_main, &args, "result")
             .expect(POSITIONED);
         // A panic in `main` lets go of its arguments too, once unwound.
-        self.unwind_entry((main, call), |this| this.rc_after_entry(params, &args));
+        self.unwind_entry((main, call), |this| this.main_unwound(params, &args));
+        self.root_scope_finish();
         self.rc_after_entry(params, &args);
         let code = match call.try_as_basic_value() {
             ValueKind::Basic(value) => value.into_int_value(),
@@ -447,7 +448,7 @@ impl<'ctx> Lowerer<'ctx> {
         for param in params {
             let value = match param {
                 Type::Array(_) => self.call_runtime_value("lugha_rt_args", &[], &[]),
-                Type::Interface(key, _) => {
+                Type::Interface(key, _) | Type::Struct(key, _) => {
                     let make = crate::check::maker(key, entry)
                         .expect("checked: an entry takes only capabilities it can be given");
                     let function = self
@@ -468,7 +469,7 @@ impl<'ctx> Lowerer<'ctx> {
                 }
                 _ => unreachable!("checked: `main` takes only what the runtime supplies"),
             };
-            values.push(value.into());
+            values.push(self.entry_passed(param, value));
         }
         values
     }

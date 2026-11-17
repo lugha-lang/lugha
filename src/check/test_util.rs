@@ -134,6 +134,12 @@ fn visit(block: &crate::ast::Block, name: &str, found: &mut Option<u32>) {
             StmtKind::While { body, .. } | StmtKind::For { body, .. } => visit(body, name, found),
             _ => {}
         }
+        // Into a scope's body: `let r = scope s { let t = … };`.
+        if let StmtKind::Let { init, .. } = &stmt.kind
+            && let crate::ast::ExprKind::Scope(scope) = &init.kind
+        {
+            visit(&scope.body, name, found);
+        }
     }
 }
 

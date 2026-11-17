@@ -110,6 +110,7 @@ mod reexports;
 mod refs;
 mod results;
 mod satisfy;
+mod scopes;
 mod select;
 mod self_type;
 mod siblings;

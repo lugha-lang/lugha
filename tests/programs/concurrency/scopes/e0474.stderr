@@ -1,0 +1,9 @@
+error[E0474]: a task starts in a scope
+  --> tests/programs/concurrency/scopes/e0474.la:4:13
+  |
+4 |     let t = spawn work();
+  |             ^^^^^^^^^^^^
+  |
+  = help: start it through a scope's handle, `scope s { s.spawn(work(x)) }`, or through the root scope `main` takes (`root: Scope`); `spawn` alone starts an actor
+
+For more about E0474, run `lughac explain E0474`.

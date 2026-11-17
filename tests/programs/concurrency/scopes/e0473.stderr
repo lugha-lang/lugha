@@ -1,0 +1,9 @@
+error[E0473]: `spawn` needs a scope's handle, not `i64`
+  --> tests/programs/concurrency/scopes/e0473.la:5:13
+  |
+5 |     let t = x.spawn(work());
+  |             ^
+  |
+  = help: start the task in a scope: `scope s { s.spawn(work(x)) }`
+
+For more about E0473, run `lughac explain E0473`.

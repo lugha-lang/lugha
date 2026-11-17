@@ -94,7 +94,12 @@ int32_t lugha_rt_udp_send(int64_t fd, const LughaArray *bytes, const LughaString
             return 1;
         }
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            if (!wait_fd((int)fd, EPOLLOUT, deadline)) {
+            int ready = wait_fd((int)fd, EPOLLOUT, deadline);
+            if (ready == WAIT_CANCELLED) {
+                freeaddrinfo(to);
+                cancel_unwind();
+            }
+            if (!ready) {
                 freeaddrinfo(to);
                 return net_error(error, "timed out");
             }
@@ -146,7 +151,12 @@ int32_t lugha_rt_udp_recv(int64_t fd, int64_t max, int64_t timeout_ms, UdpDatagr
             return 1;
         }
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            if (!wait_fd((int)fd, EPOLLIN, deadline)) {
+            int ready = wait_fd((int)fd, EPOLLIN, deadline);
+            if (ready == WAIT_CANCELLED) {
+                rt_scratch_done(buffer);
+                cancel_unwind();
+            }
+            if (!ready) {
                 rt_scratch_done(buffer);
                 return net_error(error, "timed out");
             }

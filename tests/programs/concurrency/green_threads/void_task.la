@@ -3,9 +3,9 @@ fun greet(console: Console, name: string) {
     console.println("hello, {name}");
 }
 
-fun main(console: Console) {
-    let t: Task = spawn greet(console, "green thread");
+fun main(console: Console, root: Scope) {
+    let t: Task = root.spawn(greet(console, "green thread"));
     console.println("spawned");
-    t.join();
+    t.join().unwrap();
     console.println("joined");
 }

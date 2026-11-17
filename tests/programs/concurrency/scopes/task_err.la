@@ -1,0 +1,24 @@
+// A task returning `Err` fails its scope with that error.
+struct Oops { code: i64 }
+
+impl Display for Oops {
+    fun show(self): string = "oops {self.code}";
+}
+
+impl Error for Oops {}
+
+fun check(n: i64): Result<i64, Oops> = if n > 2 { Err(Oops { code: n }) } else { Ok(n) };
+
+fun main(console: Console) {
+    let fine = scope s {
+        s.spawn(check(1)).join().unwrap()
+    };
+    console.println(fine.debug());
+    let bad = scope s {
+        s.spawn(check(5));
+    };
+    match bad {
+        .Ok(_) => console.println("?"),
+        .Err(f) => console.println("failed: {f}"),
+    }
+}

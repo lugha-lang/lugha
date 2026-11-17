@@ -1,0 +1,4 @@
+inner task: stopped
+inner ok: false
+outer task done
+Ok(3)

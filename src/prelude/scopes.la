@@ -1,0 +1,72 @@
+// Scopes and their tasks: the handle `scope s { … }` names, and the values
+// a scope's failure, a task's end and a cancellation are.
+
+/**
+ * A scope's handle: `scope s { … }` names one, and `s.spawn(work(x))`
+ * starts a task in it. Every task a scope starts finishes before the scope
+ * does. `main` and tests may take the root scope by asking for a `Scope`.
+ * A handle may be passed as an argument, and nothing else: it can't be
+ * returned, stored, sent or captured.
+ */
+struct Scope { $rec: CPtr }
+
+/** The root scope `main` and tests take: its tasks finish before the program does. */
+fun $root_scope(): Scope = Scope { $rec: $os.scope_root() };
+
+/** Why a task was cancelled. */
+enum Reason {
+    /** Another task in its scope failed, or the scope's body did. */
+    SiblingFailed,
+    /** Its scope's body was left early, by `return`, `?` or `break`. */
+    Parent,
+    /** `t.cancel(why)`. */
+    Requested(string),
+}
+
+impl Display for Reason {
+    fun show(self): string = match self {
+        .SiblingFailed => "another task in its scope failed",
+        .Parent => "its scope was left early",
+        .Requested(why) => why,
+    };
+}
+
+/**
+ * How a task ended without its value: what `t.join()` gives instead.
+ * A task returning `Err` failed with that error.
+ */
+enum Stopped {
+    Cancelled(Reason),
+    Failed(Error),
+    Panicked(string),
+}
+
+impl Display for Stopped {
+    fun show(self): string = match self {
+        .Cancelled(why) => "cancelled: {why}",
+        .Failed(e) => "failed: {e}",
+        .Panicked(message) => "panicked: {message}",
+    };
+}
+
+/** A stopped task is an error: `t.join()?` passes it on. */
+impl Error for Stopped {}
+
+/**
+ * Why a scope failed: a task's error, or a panic in a task or the body.
+ * The first failure cancels everything else the scope runs.
+ */
+enum Failure {
+    Error(Error),
+    Panic(string),
+}
+
+impl Display for Failure {
+    fun show(self): string = match self {
+        .Error(e) => "{e}",
+        .Panic(message) => "panic: {message}",
+    };
+}
+
+/** A failed scope is an error: `scope s { … }?` passes it on. */
+impl Error for Failure {}

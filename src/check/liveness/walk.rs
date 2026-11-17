@@ -315,7 +315,11 @@ impl Walk<'_> {
                 arms.iter().for_each(|arm| self.expr(&arm.body));
             }
             // What a green thread runs is a closure.
-            ExprKind::Spawn(closure) => self.expr(closure),
+            ExprKind::Spawn(scope, closure) => {
+                scope.iter().for_each(|s| self.expr(s));
+                self.expr(closure)
+            }
+            ExprKind::Scope(scope) => self.block(&scope.body),
             ExprKind::Select(arms) => {
                 for arm in arms {
                     match &arm.kind {

@@ -41,7 +41,10 @@ Nov 15, 2026 · @kithinji
 - The `ffi` permission: a package declaring C code (`extern`, `[link]`) builds only when the program's `lugha.toml` grants it `allow = ["ffi"]`, a grant covering the package's dependencies too (E0333); `lugha.lock`'s `[ffi]` table and `lughac update` show who may run C (milestone 188; section 6).
 - Process lockdown: seccomp and Landlock limit the whole process, C code and started programs included, to the capability kinds `main` took (milestone 189; section 6).
 - A panic unwinds its task, running the pending `defer`s and letting go of what each frame holds (milestone 194; sections 5, 6, 9), through unwind tables: only calls with something to clean up get a landing pad. Programs link libgcc's unwinder, as C programs do.
+- Scopes and cancellation (milestone 195; sections 3, 4, 6, 9): `scope s { … }` is an expression of type `Result<T, Failure>`, and every task starts in a scope, `s.spawn(work(x))`, or in the root scope `main` and tests may take (`root: Scope`). A scope waits for its tasks; the first failure (a task's panic or `Err`, or a panic in the body) cancels the rest and is the scope's value. Cancelling is invisible: a cancelled task unwinds at its next pause or preemption point, running its `defer`s. A task handle's `join()` gives `Result<V, Stopped>`; `cancel(why)` and `name(text)`. Scope and task handles are second-class (E0472); `spawn` alone starts only an actor (E0474).
 - Reference counting manages every program's memory (milestone 193; section 7), built behind a flag over milestones 190–192 (across tasks, channels and actors with values marked shared as they cross, then measured against the collector). The Boehm collector, `--memory` and `LUGHA_MEMORY` are gone. `Ref` cycles aren't freed.
+
+**Breaking:** a task starts in a scope (milestone 195): `let t = spawn work(x); t.join()` is `let t = s.spawn(work(x)); t.join()` inside `scope s { … }`, or `root.spawn(work(x))` with `root: Scope` taken by `main`; `join()` gives a `Result`, so `t.join()` is `t.join().unwrap()` or `t.join()?`; `main` returning waits for the root scope's tasks; a task's panic fails its scope instead of ending the program; a `Task` can't be kept in an array, a field or a closure (E0472).
 
 **Breaking:** printing, input, files and the arguments need capabilities (milestone 180): `fun main() { println(x); }` is `fun main(console: Console) { console.println(x); }`; a function that prints takes the `Console` as a parameter; `read_file(p)` is `fs.cwd().read_file(p)` with `fs: Fs` taken by `main`; `args()` is an `args: string[]` parameter of `main`; `exit(n)` is returning `n` from `main`. The clock, the environment, other programs and the system's randomness need capabilities too (milestone 181): `time.now_ms()`, `time.monotonic_ms()` and `time.local_offset(ms)` are `clock.now_ms()`, `clock.monotonic_ms()` and `clock.local_offset(ms)` (its error a `string`); `env.get(n)` is the same call on an `env: Env`; `env.current_dir()` is `fs.cwd().path()`; `env.set_current_dir` is gone (the working folder never changes); `process.run`, `run_with` and `call` are `proc.run`, `proc.run_with` and `proc.call`, and `process.Output` is `ProcessOutput`; `random.from_os()` is `random.from_entropy(entropy)`; `crypto.random_bytes(n)` is `entropy.bytes(n)`; `crypto.ed25519_keypair()` and `crypto.x25519_keypair()` take the `Entropy`. Files and folders go through a `Dir` (milestone 182): `fs.make_dirs(p)` and the rest of `std.fs` are `dir.make_dirs(p)` on a `dir` from `fs.cwd()`, `fs.list_dir(p)` is `dir.list(p)`, `fs.File` is `File`; `read_bytes(p)`, `write_bytes(p, b)` and `append_bytes(p, b)` are `dir.read_bytes(p)` and so on; `read_stdin_bytes()` is `console.read_bytes()` and `flush()` is `console.flush()`. The network goes through a `Net` (milestone 183): `import std.net;` is gone and `net.listen(a)`, `net.connect(a)`, `net.resolve(n)` and the rest are the same calls on a `net: Net` that `main` takes; `net.Conn`, `net.Listener`, `net.Udp` and `net.Interface` are `Conn`, `Listener`, `Udp` and `NetInterface`; `http.get(url)` is `http.get(net, url)`, and every `std.http` and `std.tls` function that connects or listens takes the `Net` first. TLS certificates are PEM text (milestone 184): `tls.listen(net, addr, "cert.pem", "key.pem")` is `tls.listen(net, addr, dir.read_file("cert.pem")?, dir.read_file("key.pem")?)`, likewise `http.serve_tls`, and `Options.ca_file` is `Options.ca_pem` holding the certificates' text; `tls.Conn` and `tls.Listener` are `tls.SecureConn` and `tls.SecureListener`, and a server wanting `peer_key()` accepts with `accept_secure()`. Tests get stand-ins (milestone 185): a test taking `Fs` takes a `dir: Dir` (a fresh folder) or becomes `@test(integration)`, run by `lughac test --integration`; a plain test's `Clock`, `Env`, `Entropy` and `Net` are fixed, empty, seeded and loopback-only. Every `Dir` is confined (milestone 186): `fs.cwd().read_file("/etc/hosts")` or `"../x"` is `Err("path leads outside the folder")`; write `fs.dir("/etc")?.read_file("hosts")` or `fs.dir("..")?`; a `Dir` fake implements `dir(path)` and `read_only()`. A package declaring C code needs the program's grant (milestone 188): `sqlite = { …, allow = ["ffi"] }` in the program's `lugha.toml`, which covers its dependencies too. C code is locked down with the program (milestone 189): without `Net` it can't open a socket, without `Proc` it can't start a program, without `Fs` it can't open files beyond what the held capabilities read, and programs started through `Proc` share those limits. `#{…}` is gone (milestone 178): `#{"a": 1}` is `Map { "a": 1 }`, `#{1, 2}` is `Set { 1, 2 }`, and `#{}` is `Map {}` or `Set {}`; maps and sets print that way; a struct implementing `FromEntries` or `FromItems` is built with braces only in its own module. A numeric `as` that can lose information is E0469 (milestone 177): `n as u8` for a wider `n` is `n.truncate<u8>()` for the old bits, a float `as` an integer is `x.saturate<i64>()` for the old result, `n as f64` for an `i64` is `n.round<f64>()`, `n as char` is `n.try_into<char>()`; `f(a < b, c > (d))` now passes type arguments. Every variant in a pattern takes a leading dot (milestone 176): `Some(x) =>` is `.Some(x) =>`, `None =>` is `.None =>`, `if let Some(x) = o` is `if let .Some(x) = o`; an undotted one is E0212 or E0468, and `mut None` is E0468, not E0428. A `Result` used as a statement is E0467 (milestone 175): write `let _ = f();` to drop one on purpose. `assert_eq` and `assert_ne` are ordinary generic calls (milestone 173): an argument that can't be typed alone, first (`assert_eq(None, o)`), is E0412; write it second. The prelude's helpers are only methods (milestone 172): `map(xs, f)`, `str_trim(s)` and the like are no longer functions a program can call (E0301); write `xs.map(f)`, `s.trim()`. Operators go through blocks (milestone 171): an own `fun add(self, o: V): V` becomes `impl Add for V { … }`, several `mul`s on one type become one `impl Mul<R> for V` each, and `impl f64 { fun mul(self, v: V): V }` becomes `impl Mul<V> for f64` (that form is now E0466; E0458 is retired); an operator on an interface value is E0404, and a bound gives an operator only when it is an operator interface (`T: Mul<f64>`), not an interface with its own `mul`. Printing needs `Display` (milestone 170): `println(xs)`, `"{opt}"` and `to_string(p)` on an array, `Option`, tuple, map, `()` or a struct or enum without `impl Display` are E0422; write `.debug()` for the old text, or `impl Display`. A type's own `show` method becomes `impl Display for T`, and is no longer used inside an array or another value's text. `unwrap()` on an `Err` shows the error's debug form (`"boom"` quoted). `debug` is a reserved name. A struct or enum ordered with `<`, `sort`, `min` or `max` needs `with Ord` or `impl Ord` (milestone 168); an own `cmp` method no longer orders it, and `Ord` now implies `Eq`. Floats aren't `Ord`: `[1.5].sort()`, `math.min(1.5, 2.0)` and tuples or structs holding a float that are ordered are E0451; sort floats with `xs.sort_by(f64.total_order)`. A struct or enum compared with `==` or used as a map key or set value needs `with Eq` or `with Key` (milestone 167); own `eq` and `hash` methods become `impl Eq` and `impl Key`. A struct or enum encoded, decoded or otherwise used through a derivable interface needs `with I` (milestone 165); a type's own `to_json` or `show` no longer replaces a derived item. A type that met an interface by its methods needs `impl I for T`; methods that implement an interface move from `impl T { … }` into it. A number, string or array converted to a program's interface (`let x: Any = 1;`) is E0422 unless a block implements it for that type (milestone 169).
 
@@ -456,7 +459,8 @@ stmt         = var_decl | [ label ] while_stmt | [ label ] for_stmt
              | "defer" ( block_like [ ";" ] | expr [ assign_op expr ] ";" )   (* v17, milestone 151; an assignment: PRP-183 *)
              | block_like                     (* no ";" needed *)
              | expr [ assign_op expr ] ";" ;
-block_like   = if_expr | match_expr | select_expr | [ label ] loop_expr | block ;   (* select: v17; loop: milestone 152 *)
+block_like   = if_expr | match_expr | select_expr | scope_expr | [ label ] loop_expr | block ;   (* select: v17; loop: milestone 152; scope: milestone 195 *)
+scope_expr   = "scope" IDENT block ;   (* `scope` is a keyword only here, before a name and `{` (v18) *)
 label        = IDENT ":" ;        (* only directly before `loop`, `while` or `for`; never a map literal's key *)
 loop_expr    = "loop" block ;     (* v17, milestone 152 *)
 var_decl     = "let" [ "mut" ] IDENT [ ":" type ] "=" expr ";"
@@ -486,8 +490,9 @@ alternative  = "_"
              | "(" ")" ;                              (* the unit pattern (v17) *)
 
 expr         = prefix { infix } ;            (* Pratt loop, see table *)
-prefix       = ( "-" | "!" ) prefix | "spawn" postfix | postfix ;   (* binds tighter than infix; spawn: v17 *)
-postfix      = primary [ type_args ] { call | index | member | "?" } ;   (* `read(p)?` (v4) *)
+prefix       = ( "-" | "!" ) prefix | "spawn" postfix | postfix ;   (* binds tighter than infix; spawn: v17, an actor only since milestone 195 *)
+postfix      = primary [ type_args ] { call | index | member | spawn_in | "?" } ;   (* `read(p)?` (v4) *)
+spawn_in     = "." "spawn" "(" expr ")" ;   (* `s.spawn(work(x))`: the expr is a call (v18, milestone 195) *)
 type_args    = "<" ( type | "_" ) { "," ( type | "_" ) } ">" ;   (* only by the context rule (v18) *)
 call         = "(" [ arg { "," arg } [ "," ] ] ")" ;
 arg          = [ "out" | "ptr" | "mut" ] expr ;      (* for an extern's parameter of that mode, v17 *)
@@ -541,7 +546,7 @@ The bit operators sit between comparisons and `+ -`, as in Rust, so `flags & MAS
 
 **Actors** (v17, milestone 92). `actor_decl = [ visibility ] "actor" IDENT "{" { [ visibility ] IDENT ":" type "," | fun_decl } "}"` declares an actor at the top level: its fields (each followed by `,` unless last) and methods, in any order. Inside the body `Self`, and the actor's own name, mean its state. Anything else in the body is E0201.
 
-**`spawn` and `select`** (v17). `spawn` takes the whole postfix expression after it, which must end in a call or be a struct literal (an actor's state, milestone 92): `spawn work(x)`, `spawn m.f(x)`, `spawn p.area()`, `spawn fun() { … }()`. So `spawn f().g()` spawns `f().g()`; `(spawn f()).join()` joins at once. Anything else after `spawn` (`spawn f`, `spawn 1 + f()`, `spawn f()?`) is E0211. A `select` arm is one of `name = c.recv()` (or `_ = c.recv()`), `c.send(v)`, `after(ms)` or `default`, then `=>` and its value, separated as `match` arms are; any other arm is E0211, and the `select` keeps reading at the next arm. `after` and `default` are names everywhere else.
+**Scopes, `spawn` and `select`** (v17; scopes v18, milestone 195). `scope s { … }` names a scope `s` for its block; `scope` is a keyword only where a name and `{` follow it, and a name everywhere else. A task starts through a scope's handle: `s.spawn(…)` takes one expression, which must be a call: `s.spawn(work(x))`, `s.spawn(m.f(x))`, `s.spawn(p.area())`, `s.spawn(fun() { … }())`. `spawn` alone takes the whole postfix expression after it, which must be a struct literal (an actor's state, milestone 92) or end in a call (one giving an actor's state, else E0474 from the checker): `spawn Counter { count: 0 }`, `spawn Counter.new(3)`. Anything else after `spawn` or inside `.spawn(…)` (`s.spawn(f)`, `spawn 1 + f()`, `spawn f()?`) is E0211. A `select` arm is one of `name = c.recv()` (or `_ = c.recv()`), `c.send(v)`, `after(ms)` or `default`, then `=>` and its value, separated as `match` arms are; any other arm is E0211, and the `select` keeps reading at the next arm. `after` and `default` are names everywhere else.
 
 **Block-like statements.** A statement that starts with `if`, `match`, `select` or `{` is parsed as `block_like` and needs no trailing `;`. It ends at its closing brace, so `if c { a } - 1` is a statement followed by the expression `-1`, not a subtraction. If a block's final element is an expression with no `;` after it, including a block-like one, that expression is the block's tail value (section 5). A `;` directly after a block-like statement is allowed and makes it an ordinary statement: `if c { f(); };`. A `;` on its own, where a statement should start, is an error.
 
@@ -558,7 +563,7 @@ The bit operators sit between comparisons and `+ -`, as in Rust, so `flags & MAS
 | E0208 | `import` after an item | `fun f() {}` then `import geometry;` |
 | E0209 | A closure parameter that isn't a plain name | `fun(self) = 1`, `fun(mut x) = x` |
 | E0210 | An unknown or misplaced attribute | `@inline fun f() {}`; `@test struct S {}`; `@caller_location` on an interface's item, an actor's message, `main` or a test |
-| E0211 | `spawn` without a call, or a malformed `select` arm | `spawn f;`, `spawn 1 + f()`; `select { c.recv() => 1 }`, `select { x => 1 }` |
+| E0211 | `spawn` without a call, or a malformed `select` arm | `s.spawn(f)`, `spawn 1 + f()`; `select { c.recv() => 1 }`, `select { x => 1 }` |
 | E0212 | A variant in a pattern without its leading dot (v18) | `Circle(r) =>`; `if let Some(x) = o` |
 | E0213 | A `#{…}` literal (v18) | `#{"a": 1}` — help: `Map { "a": 1 }` or `Set { 1, 2 }` |
 | E0207 | `::` used as a path separator | `Shape::Circle(1.0)` — help: write `Shape.Circle`; parsing continues as if `.` were written; `Stack::<i64>` — help: `Stack<i64>` (v18) |
@@ -631,8 +636,11 @@ There is no null. Every string and array variable holds a valid object.
 
 **Tasks and channels** (v17, milestone 91). `Task` and `Chan` are predeclared in every module, as `Ref` is, unless the module declares its own. Both are shared handles: copying one copies the handle, so every copy names the same task or channel.
 
-- **`spawn call`** has type `Task<T>`, `T` being the call's result type, or the plain type `Task` (no argument) when the call returns nothing. An expected `Task<U>` types the call as a `U` (`let t: Task<u8> = spawn f(1);`).
-- **`t.join(): T`** waits until the call has finished and gives a copy of its result; joining again gives another copy at once. `join` of a plain `Task` returns nothing.
+- **`scope s { body }`** (v18, milestone 195) has type `Result<T, Failure>`, `T` being the body's type (`()` for a body that never finishes); in the body `s` is a `Scope`. `Scope`, `Failure`, `Stopped` and `Reason` are prelude types: `Failure` is `.Error(Error)` (a task returned `Err`) or `.Panic(string)`; `Stopped` is `.Cancelled(Reason)`, `.Failed(Error)` or `.Panicked(string)`; `Reason` is `.SiblingFailed`, `.Parent` or `.Requested(string)`. `Failure` and `Stopped` implement `Error`, so `scope s { … }?` and `t.join()?` pass them on. Used as a statement, a scope is a discarded `Result` (E0467).
+- **`s.spawn(call)`** has type `Task<T>`, `T` being the call's result type, or the plain type `Task` (no argument) when the call returns nothing; `s` must be a `Scope` (E0473). An expected `Task<U>` types the call as a `U` (`let t: Task<u8> = s.spawn(f(1));`). A call returning `Result<V, E>` needs `E` to implement `Error` (E0422): its `Err` fails the task. `spawn call` without a scope is E0474, unless the call gives an actor's state.
+- **`main` and tests may take a `Scope`** (v18), by type as a capability is taken: the root scope.
+- **`t.join(): Result<V, Stopped>`** waits until the task has finished and gives a copy of its value, `V` being `T`, or the `Ok` type when `T` is a `Result`; joining again gives another copy at once. A plain `Task`'s `join` gives `Result<(), Stopped>`. **`t.cancel(why: string)`** stops the task with `.Requested(why)`; **`t.name(text: string)`** names it.
+- **Second-class handles** (v18): a `Scope` or a `Task` is passed as an argument and nothing else. A function returning one, a field, payload, element, tuple or map holding one, a closure capturing one (a spawned call's arguments among them) is E0472. A local holding one is fine.
 - **Channels:**
 
 | Call | Result |
@@ -647,7 +655,7 @@ There is no null. Every string and array variable holds a valid object.
 
 - **Plain `self`:** like a box's, these methods change the task or channel, not the handle, so none needs `let mut`.
 - **No `==`:** tasks and channels are not `Eq` (E0404, E0419); `c.is(d)` compares channels. They print as `<task>` and `<chan>`.
-- **`spawn` of a call that changes its receiver** — `push`, `pop` or `clear` on an array, a `mut self` method, `swap` — is E0438: the new thread gets its own copy (as a closure does), so nobody would see the change.
+- **`s.spawn` of a call that changes its receiver** — `push`, `pop` or `clear` on an array, a `mut self` method, `swap` — is E0438: the new task gets its own copy (as a closure does), so nobody would see the change.
 - **`select`** is an expression: each arm's value agrees with the first arm that has one, as in `match`. A `recv` arm's name is the `Option<T>` received, in scope in that arm only. A `select` needs at least one `recv` or `send` arm, has at most one `after` and at most one `default`, and never both (E0438); the value of a `recv` or `send` arm must be a `Chan` (E0438); `after` takes an `i64` of milliseconds.
 
 **Actors** (v17, milestone 92). An actor is state that one green thread owns, and the methods that run there:
@@ -936,7 +944,7 @@ Strings are bytes: every position is a byte offset, and `slice` can cut a multi-
 
 Evaluation is strictly left to right: operands, call arguments and struct-literal fields are evaluated in source order. The only exceptions are `&&` and `||`, which skip their right operand when the left decides the result.
 
-**`spawn` and `select`** (v17). `spawn f(a, b)` evaluates `a` and `b` at once, in the spawning thread, then queues a new green thread that runs the call; the spawning thread goes on. A receiver or callee that is itself a call (`make().run()`) is evaluated at once too. Everything else the call mentions is captured by copy, exactly as by a closure (section 4), so later changes in the spawning thread never reach it. A `select` evaluates every arm's channel, sent value and `after` duration once, top to bottom. If some `recv` or `send` arms can go on at once, one of them is picked pseudo-randomly (the same way on every run), so no arm starves; otherwise `default` runs if there is one; otherwise the thread waits until an arm can go on or the `after` time has passed. A closed channel's `recv` arm can always go on (with `None`), and a `send` arm on a closed channel panics.
+**Scopes, `spawn` and `select`** (v17; scopes v18, milestone 195). `scope s { body }` runs its body in the current task; every task `s.spawn` starts finishes before the scope does. At the body's end the scope waits for its tasks, then runs the body's `defer`s, and its value is `Ok` with the body's. The first failure — a task's panic, a task returning `Err`, or a panic in the body — cancels every other task of the scope and the body with `.SiblingFailed`; the scope waits for them, and its value is `Err` with that failure (cancellations it caused aren't failures). Leaving the body early (`return`, `?`, `break`, `continue`) cancels the scope's tasks with `.Parent` and waits for them before the body's `defer`s run and the exit goes on. A failure or cancellation unwinds the current task only as far as the scope that catches it. Cancelling is invisible to the cancelled task: it notices at its next pause point (a channel operation, `join`, `select`, `sleep`, a socket wait) or preemption point and unwinds as a panic does, silently, running its `defer`s; a task waiting at a pause point is woken to do so; a task in C stops once it is back in Lugha. A task's panic doesn't end the program: it fails its scope. The root scope's tasks finish before the program does, once `main` returns; a failure among them cancels the rest and `main`, then ends the program with exit code 101. `s.spawn(f(a, b))` evaluates `a` and `b` at once, in the spawning task, then queues a new green thread that runs the call; the spawning task goes on. A receiver or callee that is itself a call (`make().run()`) is evaluated at once too. Everything else the call mentions is captured by copy, exactly as by a closure (section 4), so later changes in the spawning thread never reach it. A `select` evaluates every arm's channel, sent value and `after` duration once, top to bottom. If some `recv` or `send` arms can go on at once, one of them is picked pseudo-randomly (the same way on every run), so no arm starves; otherwise `default` runs if there is one; otherwise the thread waits until an arm can go on or the `after` time has passed. A closed channel's `recv` arm can always go on (with `None`), and a `send` arm on a closed channel panics.
 
 **Assignment order.** `place = value` and `place op= value` first evaluate the place's index expressions, root outward, bounds-checking each; then the value (for `op=`, the place's current value, then the right operand); then the write. So in `xs[i] = e`, an `e` that copies `xs` keeps the array as it was before the write (v15 spells this out; it is what every version did). `push`'s argument is likewise evaluated before the array is changed.
 
@@ -1236,13 +1244,13 @@ A v0 program is a single `.la` file containing top-level items: functions, exter
 - **Loading.** Every file is read once, so packages may import each other. A package has no main file; `main` in one is E0304, and importing the program's main file is E0319, as for any module.
 - **Visibility.** Another package sees only what is `public` (below).
 
-**Green threads** (v17, milestone 91). `spawn` starts a green thread; every one runs on the program's one OS thread, so green threads take turns and never run at the same instant: there are no data races, and `Ref` needs no locks.
+**Green threads** (v17, milestone 91). `s.spawn` starts a task, a green thread, in scope `s` (milestone 195); every one runs on the program's one OS thread, so green threads take turns and never run at the same instant: there are no data races, and `Ref` needs no locks.
 - **Switching:** a green thread runs until it waits — `join` on an unfinished task, `send` or `recv` that can't go on, a `select` that waits, `task.sleep`, `task.yield_now` — or is preempted. Waiting threads wake in the order they began to wait; sleepers in the order of their deadlines. A new thread starts after the threads already ready.
 - **Preemption:** in a program that uses `spawn`, every function entry and every loop iteration counts down a step budget; when it runs out (every 4096 steps) the running thread lets the ready ones run first. There are no signals and no timers, so a program's interleaving is the same on every run given the same input and timing of sleeps. Programs without `spawn` compile exactly as before.
 - **Blocking calls:** reading input, files, `Proc` and `extern` calls run to completion on the one OS thread, so every green thread waits for them. Sockets (`Net`, milestone 110) don't: a thread waiting to accept, connect, read or write is parked until its socket is ready, and the others run; when no thread is ready, the program waits for a socket or the next sleeper.
-- **The end:** when `main` returns, the program exits with `main`'s code; green threads still running are dropped. A panic in any green thread ends the whole program with its message and exit code 101.
+- **The end:** when `main` returns, the root scope's tasks finish, then the program exits with `main`'s code (milestone 195). A panic in a task fails its scope (section 6); one the program never catches — in `main`, or in a root-scope task — ends it with its message and exit code 101.
 - **Deadlock:** when no green thread can run, none is sleeping, none waits on a socket and one waits, the program panics with `panic: deadlock: every green thread is waiting` (no location), exit 101.
-- **Actors** (milestone 92) are green threads that take messages from an unbounded mailbox one at a time: messages from one caller in the order sent, from several in the order they arrive. A panic inside an actor's method prints its message, as any panic does, and unwinds the actor's stack, running its `defer`s (v18, milestone 194), but ends only that actor: the caller waiting for that message's result, and every later caller, panics with ``actor `Counter` panicked`` at its call; a call to a stopped actor panics with ``actor `Counter` has stopped``. A stack overflow inside an actor still ends the program. Plain `spawn f()` threads keep the rule above. Actors waiting on each other are a deadlock.
+- **Actors** (milestone 92) are green threads that take messages from an unbounded mailbox one at a time: messages from one caller in the order sent, from several in the order they arrive. A panic inside an actor's method prints its message, as any panic does, and unwinds the actor's stack, running its `defer`s (v18, milestone 194), but ends only that actor: the caller waiting for that message's result, and every later caller, panics with ``actor `Counter` panicked`` at its call; a call to a stopped actor panics with ``actor `Counter` has stopped``. A stack overflow inside an actor still ends the program. Tasks keep the rule above. Actors waiting on each other are a deadlock.
 
 **The standard library** (v15). Version 15 has `std.math` and `std.random` (and had `std.env`, `std.process` and `std.fs`, which became the `Env`, `Proc` and `Dir` capabilities in v18, milestones 181 and 182); version 17 adds `std.task`, `std.time`, `std.net` (the `Net` capability since milestone 183), `std.tls`, `std.crypto`, `std.http`, `std.toml` and `std.json`.
 
@@ -1671,7 +1679,8 @@ on_clicked(button, "clicked", fun(b: GtkWidget) { clicks.update(fun(n) = n + 1);
 - An iterator loop (v6) stores the iterator in a hidden local and calls its `next` with that local's address: directly for a struct or enum (its own method, or a bound default's instance in a generic instance), and through the table for an interface value.
 - An actor's message handler (v17, milestone 92) is `lugha_actor_<Type>.<method>(state, args, result)`: it reads the arguments from a counted block, one field each in element layout, calls `lugha_fn_<Type>.<method>` on the state and stores the result.
 - Each constant (v17) is a global `lugha_const_<key>` (the key's module path joined with `/`), zeroed, filled by `lugha_const_init()` (which runs the functions the values call, milestone 147), which the C `main` (and a test executable's) calls right after `lugha_rt_init`; a read loads the global.
-- A `spawn` site (v17) starts `lugha_task_<enclosing>.<n>(code, env, result)`, numbered per enclosing function from 0 like closures: it calls the closure the call was wrapped in and stores its result, in element layout, at `result`.
+- A `spawn` site (v17) starts `lugha_task_<enclosing>.<n>(code, env, result)`, numbered per enclosing function from 0 like closures: it calls the closure the call was wrapped in and stores its result, in element layout, at `result`; a result that is an `Err` is then handed to `lugha_rt_task_failed` as an `Error` value (milestone 195).
+- A scope (v18, milestone 195) keeps its runtime record in its function's frame. Within its body, a landing pad's cleanup runs only the body's `defer`s and releases, after `lugha_rt_scope_caught`, then goes on past the body instead of resuming: the unwind stops there. Every way out of the body waits for its tasks before the body's `defer`s run: its end through `lugha_rt_scope_end`, an early exit through `lugha_rt_scope_leave`.
 - A closure's body (v3) is `lugha_closure_<enclosing>.<n>`: the enclosing function's symbol without its prefix, then the closure's number in that function from 0 (`lugha_closure_main.0`, `lugha_closure_main.0.0` for a closure inside it, `lugha_closure_max<i64>.0` in an instance). Its environment comes first, as for every function value's code.
 - The array helpers (v3) are generic functions of a prelude written in Lugha, bundled with the compiler and checked with every program, under the module path `$prelude`, which no program can name: `lugha_fn_$prelude/map<Person, string>`. Each is compiled only at the types a program uses. `xs + ys` and `xs += ys` on arrays (v17, milestone 122) call `$concat<T>` the same way: a copy of `xs` with every element of `ys` pushed.
 - The iterator helpers and sources (v10) are Lugha in the prelude too: `it.map(f)` calls the prelude's `iter_map` with `it` converted to `Iter<T>` (its type's table, as for any conversion), `xs.iter()` calls `array_iter`, and `it.sum()` calls the `iter_sum_<T>` of its element type. Like every prelude item, each function, instance and method (`lugha_fn_$prelude/Range.next`) is compiled only when the program reaches it. `for b of s` is the array loop over the string's bytes, 8 bytes past the string pointer.
@@ -1746,6 +1755,15 @@ The compiler, `lughac`, is written in Rust with inkwell. It turns one `.la` file
 | `lugha_rt_str_from_c(text, nullable)` (v16) | A copy of C's NUL-terminated text as a string, invalid UTF-8 replaced; `NULL` stays `NULL` when `nullable`, else panics |
 | `lugha_rt_task_spawn(entry, code, env, size)` (v17) | A new green thread running `entry(code, env, result)`, `result` being `size` bytes the task holds; returns the task |
 | `lugha_rt_task_join(task)` (v17) | Waits for the task; the address of its result |
+| `lugha_rt_scope_enter(record)` (v18) | Starts a scope, its record in the caller's frame: the current task's innermost |
+| `lugha_rt_task_spawn_in(record, entry, code, env, size)` (v18) | `lugha_rt_task_spawn`, the task started in that scope |
+| `lugha_rt_scope_end(record)`, `lugha_rt_scope_leave(record)` (v18) | The body's end: waits for the scope's tasks; an early exit: cancels them with `.Parent` first, and ends the scope |
+| `lugha_rt_scope_caught(record)` (v18) | A landing pad stopped an unwind at the scope: a panic fails the scope, then its tasks are cancelled and waited for |
+| `lugha_rt_scope_exit(record, table, box, panic)` (v18) | Ends the scope: 0, or 2 with a failed task's `Error` (its table and box), or 3 with a panic's message; a cancellation from outside goes on unwinding |
+| `lugha_rt_scope_root()`, `lugha_rt_scope_root_finish()`, `lugha_rt_scope_root_unwound()` (v18) | The root scope's record; once `main` returns, waits for its tasks (exit 101 if one failed); once `main` unwound from a cancellation, the same wait |
+| `lugha_rt_task_failed(table, box)` (v18) | The current task returned `Err`: it fails its scope with that `Error` |
+| `lugha_rt_task_join_status(task, reason, text, table, box)` (v18) | Waits for the task (a pause point): 0 with its value ready, 1 cancelled (its reason and text), 2 failed (its error), 3 panicked (its message) |
+| `lugha_rt_task_cancel(task, why)`, `lugha_rt_task_name(task, text)` (v18) | `t.cancel(why)`, `t.name(text)` |
 | `lugha_rt_task_yield()` / `lugha_rt_task_sleep(ms)` (v17) | `task.yield_now()` and `task.sleep(ms)` |
 | `lugha_rt_task_preempt()` and the global `lugha_rt_task_budget` (v17) | The countdown generated code decrements at function entries and loop heads; at zero it calls `lugha_rt_task_preempt`, which refills it and yields |
 | `lugha_rt_task_select(cases, n, timeout, has_default, file, line, col)` (v17) | `select` over `n` cases `{ chan, kind, data, ok }` (kind 0 receive, 1 send); the case that ran, −1 for `default`, −2 for `after` |
@@ -2002,6 +2020,9 @@ Name and type errors, reported by the checker:
 | E0469 | A cast that can lose information (v18) | `big as u8` for `big: i64`; `2.5 as i64`; `n as f64` for `n: i64`; `n as T` for `T: Num` |
 | E0470 | Braces that can't build their type (v18) | `Point { 1, 2 }`; `Set { "a": 1 }`; `Map { 1, 2 }`; `Bag { "a" }` in `Bag`'s own module |
 | E0471 | Touching the world without a capability (v18) | `println(x)` (take `console: Console`); `read_file(p)` (take `fs: Fs`); `args()`; `exit(1)` |
+| E0472 | A scope or task handle kept (v18) | `fun f(s: Scope): Scope = s;`; `[s.spawn(f())]`; `struct K { t: Task<i64> }`; a closure capturing `s` |
+| E0473 | `spawn` through something that isn't a scope (v18) | `x.spawn(f())` with `x: i64` |
+| E0474 | A task started without a scope (v18) | `spawn work()` where `work` doesn't make an actor |
 | E0437 | A malformed `extern struct` | `extern struct S { s: string }`; a field of an array, a plain struct, an enum, `Option` (other than of a handle) or a function type; a handle, `Option` of one or `CPtr` in an `extern union`, at any depth; `extern struct S<T> { … }`; `extern struct S {}` |
 | E0433 | A pattern that must match every value but might not | `let (1, x) = t;`, `let Some(n) = o;` without `else`, `for (Some(a), b) of …` |
 | E0428 | Or-pattern alternatives that bind differently | `.Some(x) \| .None`; `.Count(n) \| .Circle(n)` with `n` an `i64` and an `f64` |
@@ -3756,9 +3777,10 @@ fun main(console: Console) {
 **Green threads** (milestone 91). Prints `25`, `closure 2`, `60` on three lines, exits with 0.
 
 ```
-// Green threads (v17): `spawn` runs a call concurrently and `join` waits
-// for its result. Channels carry values between threads; nothing is
-// marked `async`, and `square` is an ordinary function.
+// Green threads (v17): `root.spawn` runs a call concurrently, in the root
+// scope `main` takes, and `join` waits for its result. Channels carry
+// values between threads; nothing is marked `async`, and `square` is an
+// ordinary function.
 fun square(n: i64): i64 = n * n;
 
 fun produce(out: Chan<i64>, count: i64) {
@@ -3768,15 +3790,15 @@ fun produce(out: Chan<i64>, count: i64) {
     out.close();
 }
 
-fun main(console: Console) {
-    let a = spawn square(3);
-    let b = spawn square(4);
-    console.println(a.join() + b.join());
+fun main(console: Console, root: Scope) {
+    let a = root.spawn(square(3));
+    let b = root.spawn(square(4));
+    console.println(a.join().unwrap() + b.join().unwrap());
     let k = 2;
-    let t = spawn fun(): string { "closure {k}" }();
-    console.println(t.join());
+    let t = root.spawn(fun(): string { "closure {k}" }());
+    console.println(t.join().unwrap());
     let c: Chan<i64> = Chan.buffered(2);
-    spawn produce(c, 3);
+    root.spawn(produce(c, 3));
     let mut sum = 0;
     while let .Some(v) = c.recv() {
         sum += v;
@@ -3797,11 +3819,11 @@ fun later(c: Chan<string>, ms: i64) {
     c.send("late");
 }
 
-fun main(console: Console) {
+fun main(console: Console, root: Scope) {
     let quick: Chan<string> = Chan.new();
     let slow: Chan<string> = Chan.new();
-    spawn later(quick, 5);
-    spawn later(slow, 100);
+    root.spawn(later(quick, 5));
+    root.spawn(later(slow, 100));
     select {
         m = quick.recv() => console.println("quick: {m.debug()}"),
         m = slow.recv() => console.println("slow: {m.debug()}"),
@@ -3847,16 +3869,64 @@ fun customer(account: Account) {
 
 fun main(console: Console) {
     let account = spawn Account { balance: 0 };
-    let first = spawn customer(account);
-    let second = spawn customer(account);
-    first.join();
-    second.join();
+    scope s {
+        s.spawn(customer(account));
+        s.spawn(customer(account));
+    }.unwrap();
     console.println(account.total());
     account.withdraw(500);
     console.println(account.join().is_some());
     let other = spawn Account { balance: 7 };
     other.stop();
     console.println(other.join().is_none());
+}
+```
+
+**Scopes** (milestone 195). Prints `6`, `too slow: 50`, `slow: stopped`, `the body panicked` on four lines, exits with 0.
+
+```
+// Scopes (v18): every task starts in a scope, which waits for it. The
+// first failure, a task's `Err` or a panic, cancels the others, which
+// unwind at their next pause running their `defer`s, and is the scope's
+// value.
+import std.task;
+
+fun fetch(ms: i64): Result<i64, string> {
+    task.sleep(ms);
+    if ms > 10 { Err("too slow: {ms}") } else { Ok(ms * 2) }
+}
+
+fun slow(console: Console) {
+    defer console.println("slow: stopped");
+    task.sleep(10000);
+}
+
+fun both(a: i64, b: i64): Result<i64, Error> {
+    scope s {
+        let x = s.spawn(fetch(a));
+        let y = s.spawn(fetch(b));
+        Ok(x.join()? + y.join()?)
+    }?
+}
+
+fun main(console: Console) {
+    for (a, b) of [(1, 2), (1, 50)] {
+        match both(a, b) {
+            .Ok(n) => console.println(n),
+            .Err(e) => console.println(e),
+        }
+    }
+    let r = scope s {
+        s.spawn(slow(console));
+        task.sleep(1);
+        let xs = [1, 2, 3];
+        xs[5]
+    };
+    match r {
+        .Ok(n) => console.println(n),
+        .Err(.Panic(_)) => console.println("the body panicked"),
+        .Err(.Error(e)) => console.println(e),
+    }
 }
 ```
 
@@ -4102,6 +4172,7 @@ The spec is implemented in five milestones, each ending in a program that runs. 
 | 192 | The memory measurement (v18) | under `--memory=rc`: free lists by size class, releases after a local's last mention, `if` and `match` values handed through; for both models, enum payloads addressed so LLVM keeps them in registers and the runtime compiled at `-O2`; `LUGHA_CALL_COSTS=1` simulates later phases' per-call costs; `bench/measure/pauses.la`; the decision written up in `bench/RESULTS.md` | `tests/rc_programs.rs`, `bench/RESULTS.md` (done) |
 | 193 | Reference counting, the only memory model (v18) | the Boehm collector, `--memory` and `LUGHA_MEMORY` removed; callbacks hold their closure's environment until released; `Dir` and hasher handles counted, closed and freed with their last holder; temporaries taken where made and fresh arguments need no slot, `match` arms that leave the matched local alone borrow their bindings, releases read only counted fields | `tests/leaks.rs`, `tests/programs/capabilities/dir_lifetime/`, `tests/callbacks.rs` (done) |
 | 194 | Unwinding (v18) | a panic unwinds its task: each frame runs its pending `defer`s and lets go of what it holds, through landing pads on the calls that need them (`__gcc_personality_v0`, a forced unwind ending at the task's start); actors end after unwinding, spawned tasks end the program; a second panic, a stack overflow and C frames don't unwind | `tests/programs/control/unwinding/`, `tests/leaks.rs`, `tests/callbacks.rs` (done) |
+| 195 | Scopes and cancellation (v18) | `scope s { … }` as `Result<T, Failure>`; `s.spawn(call)`, bare `spawn` for actors only; `Scope`, `Failure`, `Stopped`, `Reason`; `join()` as `Result<V, Stopped>`, `cancel`, `name`; all-or-nothing failure; cancellation unwinding at pause and preemption points (socket waits included); early exits cancelling with `.Parent`; the root scope `main` and tests take; second-class handles; E0472–E0474 | The scopes program in section 10 passes; `tests/programs/concurrency/scopes/` (done) |
 
 In milestones 1 and 2, every value can be treated as `i64`, so codegen can start before the type checker exists. Until milestone 4 provides `lugha_rt_panic`, integer `+`, `-` and `*` wrap, and `/` and `%` stop the program with a trap on a zero divisor or `MIN / -1`. Milestone 3 then replaces that assumption with real types. The process exit code is the low 8 bits of `main`'s result, so milestone tests use results below 256.
 

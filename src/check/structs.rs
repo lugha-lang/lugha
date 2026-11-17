@@ -87,6 +87,7 @@ impl Checker {
             let mut fields: Vec<(String, Type)> = Vec::new();
             for (i, field) in s.fields.iter().enumerate() {
                 let ty = self.resolve(&field.ty);
+                self.stored_handle(&ty, field.ty.span);
                 if let Some(first) = s.fields[..i]
                     .iter()
                     .find(|f| f.name.name == field.name.name)
