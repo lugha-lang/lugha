@@ -24,9 +24,9 @@ pub enum Memory {
     #[default]
     Gc,
     Rc,
-    /// `Rc` with the per-call costs later phases add (a stack check, the
-    /// scheduling countdown) simulated in every function: for measuring
-    /// them, never for programs.
+    /// `Rc` with the per-call costs of growable stacks and preemption (a
+    /// stack check, the scheduling countdown) simulated in every function:
+    /// for measuring them, never for programs.
     RcCallCosts,
 }
 

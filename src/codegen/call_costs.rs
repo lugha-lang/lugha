@@ -1,7 +1,8 @@
-//! The per-call costs later phases add, simulated for measuring only
-//! (`LUGHA_MEMORY=rc` with `LUGHA_CALL_COSTS=1`): a stack check at every
-//! function's entry, and the countdown to the next scheduling point at
-//! entries and loop back-edges, in every program, with tasks or without.
+//! The per-call costs of growable stacks and preemption, simulated for
+//! measuring only (`LUGHA_MEMORY=rc` with `LUGHA_CALL_COSTS=1`): a stack
+//! check at every function's entry, and the countdown to the next
+//! scheduling point at entries and loop back-edges, in every program, with
+//! tasks or without.
 //! Neither ever changes what a program does: the stack limit is zero, and
 //! a spent countdown only yields when another task is ready.
 

@@ -237,8 +237,9 @@ pub(super) fn memory_from_env() -> Memory {
     }
 }
 
-/// Reference counting with the per-call costs later phases add simulated,
-/// when `$LUGHA_CALL_COSTS` is `1`: a measuring tool for the benchmarks.
+/// Reference counting with the per-call costs of growable stacks and
+/// preemption simulated, when `$LUGHA_CALL_COSTS` is `1`: a measuring tool
+/// for the benchmarks.
 fn with_call_costs(memory: Memory) -> Memory {
     match std::env::var("LUGHA_CALL_COSTS").as_deref() {
         Ok("1") => Memory::RcCallCosts,

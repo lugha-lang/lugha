@@ -1,6 +1,6 @@
 ## FEATURE: The memory prototype, last step: count elimination where the measurements point, a size-class allocator under `--memory=rc`, fib measured with every new per-call cost (PRF-09), and the written decision between reference counting and plan B; milestone 192.
 
-**Status:** approved 2026-11-17.
+**Status:** built 2026-11-17, awaiting review.
 
 ## OBJECTIVE
 ```
@@ -102,3 +102,17 @@ longest pause: … ms                            # PRF-04, under each model
 - [ ] Every benchmark measured under `lugha`, `lugha-rc` and `lugha-rc-calls`, pauses under both models, recorded with the decision write-up.
 - [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
 - [ ] Every `pub` item documented; spec prototype note, §11 row 192, CHANGELOG, `bench/README.md` updated.
+
+## CHANGES DURING THE BUILD
+- **Two changes outside `--memory=rc`, approved with the user mid-build:**
+  - **Enum payloads by `getelementptr`:** the split pass reached a payload's later words through `ptrtoint`/`inttoptr`, which kept LLVM from turning those slots into registers. A struct view (no new `unsafe`) fixes it. binarytrees under the collector went from 1.18 s / 72 MB to 0.66 s / 38 MB, and most of rc's dead releases folded away with it.
+  - **The runtime is compiled at `-O2`:** it had no optimization flag. chanping went from 0.28 s to 0.11 s under either model; rc's wordfreq from 0.63 s to 0.44 s.
+  - Both move the baseline: RESULTS.md compares rc with the collector as it is now, and gives the Draft's baseline too.
+- **Zeroing a reused block** uses fixed-size stores falling through from its class: a `memset` of a size known only at run time was a libc call on every allocation.
+- **Step 4 (enum releases checking the tag inline) was dropped:** after the payload fix LLVM already folds those calls, so it had nothing left to gain.
+- **Release at last use covers `let` locals** declared by a plain name; pattern bindings still go at their block's end. A local is let go after the statement in its own block holding its last mention, unless that is the block's last statement, the mention is in the tail or a `defer`, or the name is declared again before then.
+- **The header stays two words.** wordfreq still misses, but the size-class counts show why: its two million short strings take 32 or 48 bytes each, against 16 or 32 under the collector. A one-word header with 8-byte classes would take them to 24 or 32 (about 105 MB peak, estimated from the class counts), still above the collector. Only a smaller string representation would close the gap, so it is in the write-up rather than built.
+- **The call-cost simulation has no landing pads.** Turning calls into `invoke`s would mean teaching the passes that rewrite calls after lowering (struct returns, split parameters) about `invoke`, which is unwinding's own work. fib, PRF-09's measure, holds no counted value, so it would have no cleanup path anyway. The simulation is the stack check and the countdown; `LUGHA_CALL_COSTS` is read by the driver into a third `Memory` value, `RcCallCosts`.
+- **`pauses`** replaces one of 256 live trees per round and counts rounds the millisecond clock sees take 2 ms or more.
+- **Allocator test:** `tests/rc_programs.rs` also runs `tests/programs/runtime/rc_alloc/` without poisoning, so freed blocks are really reused.
+

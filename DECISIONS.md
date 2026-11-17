@@ -2286,7 +2286,14 @@ Printing sites and `==` reach a type's own plain `show`/`eq` too (`show_instance
 
 ## OPEN — Requires human input before implementation
 
-None.
+### Memory model: reference counting or plan B (2026-11-17)
+
+The memory prototype (milestones 190–192) is measured against the performance targets; `bench/RESULTS.md`'s entry of 2026-11-17 has every number and the write-up.
+
+- **Reference counting** (recommended): every target it can affect is met or nearly met; wordfreq's memory (120 MB against 83) misses because of per-object headers on two million short strings, which short strings stored inline would fix. If chosen, the next PRP makes `--memory=rc` the default, removes Boehm, and settles what stays uncovered (C callbacks, `Ref` cycles, panicking actors) against the phases that cover them.
+- **Plan B**, a heap per task with tracing collection: the prototype is removed and plan B is built and measured.
+
+Blocks: unwinding (phase 4) and everything after it, whose cleanup paths depend on the answer.
 
 ---
 

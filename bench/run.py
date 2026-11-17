@@ -47,6 +47,16 @@ LANGS = {
             str(LUGHAC), "build", str(src), "-O2", "--memory=rc", "-o", str(out),
         ],
     },
+    # The prototype with the per-call costs later phases add simulated: a
+    # stack check and the scheduling countdown in every function.
+    "lugha-rc-calls": {
+        "ext": "la",
+        "tool": "cargo",
+        "build": lambda src, out: [
+            "env", "LUGHA_CALL_COSTS=1",
+            str(LUGHAC), "build", str(src), "-O2", "--memory=rc", "-o", str(out),
+        ],
+    },
     "c": {
         "ext": "c",
         "tool": "gcc",

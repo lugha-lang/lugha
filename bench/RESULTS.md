@@ -211,3 +211,77 @@ Peak memory (MB, median):
 | wordfreq    | 81.6  | 138.4    | 16.2 | 47.1 | 128.2 |
 
 
+
+
+## 2026-11-17, commit 94f12a7, the memory measurement and the decision
+
+`--lang lugha,lugha-rc,lugha-rc-calls,c,rust,go`, same machine. Since the last entry, for both models: an enum's payload is addressed so LLVM keeps it in registers, and the runtime is compiled at `-O2`. Under rc only: free lists by size class, a local released after its last mention, `if` and `match` values handed through. `lugha-rc-calls` adds to every function the stack check and scheduling countdown that growable stacks and preemption will need (`LUGHA_CALL_COSTS=1`).
+
+Median wall time of 5 runs:
+
+| benchmark   | lugha  | lugha-rc | lugha-rc-calls | c       | rust    | go     |
+|-------------|--------|----------|----------------|---------|---------|--------|
+| binarytrees | 0.648s | 0.719s   | 0.768s         | 0.524s  | 1.420s  | 0.858s |
+| chanping    | 0.121s | 0.111s   | 0.113s         | 29.880s | 32.690s | 2.940s |
+| fannkuch    | 0.256s | 0.252s   | 0.380s         | 0.212s  | 0.216s  | 0.224s |
+| fib         | 0.563s | 0.568s   | 0.792s         | 0.240s  | 0.356s  | 0.570s |
+| mandelbrot  | 0.363s | 0.368s   | 0.388s         | 0.363s  | 0.405s  | 0.377s |
+| nbody       | 0.653s | 0.667s   | 0.756s         | 0.536s  | 0.611s  | 0.681s |
+| wordfreq    | 0.503s | 0.402s   | 0.506s         | 0.111s  | 0.150s  | 0.361s |
+
+Fastest run:
+
+| benchmark   | lugha  | lugha-rc | lugha-rc-calls | c       | rust    | go     |
+|-------------|--------|----------|----------------|---------|---------|--------|
+| binarytrees | 0.631s | 0.709s   | 0.753s         | 0.519s  | 1.404s  | 0.821s |
+| chanping    | 0.120s | 0.110s   | 0.113s         | 19.171s | 29.032s | 2.559s |
+| fannkuch    | 0.250s | 0.245s   | 0.376s         | 0.209s  | 0.215s  | 0.222s |
+| fib         | 0.560s | 0.560s   | 0.789s         | 0.235s  | 0.352s  | 0.562s |
+| mandelbrot  | 0.363s | 0.365s   | 0.380s         | 0.363s  | 0.405s  | 0.373s |
+| nbody       | 0.646s | 0.661s   | 0.746s         | 0.529s  | 0.603s  | 0.677s |
+| wordfreq    | 0.493s | 0.391s   | 0.501s         | 0.097s  | 0.150s  | 0.343s |
+
+Peak memory (MB, median):
+
+| benchmark   | lugha | lugha-rc | lugha-rc-calls | c    | rust | go    |
+|-------------|-------|----------|----------------|------|------|-------|
+| binarytrees | 37.3  | 25.8     | 25.9           | 9.8  | 18.0 | 11.8  |
+| chanping    | 2.1   | 1.9      | 1.9            | 1.7  | 2.3  | 2.0   |
+| fannkuch    | 2.1   | 1.8      | 1.8            | 1.7  | 2.1  | 1.8   |
+| fib         | 2.1   | 1.8      | 1.9            | 1.7  | 2.0  | 1.8   |
+| mandelbrot  | 2.1   | 1.8      | 1.8            | 1.7  | 2.2  | 1.8   |
+| nbody       | 2.1   | 1.8      | 1.8            | 1.7  | 2.1  | 2.0   |
+| wordfreq    | 81.5  | 120.1    | 120.2          | 16.2 | 47.2 | 110.9 |
+
+Pauses (`bench/measure/pauses.la 20000`, two runs each: 256 live trees, one replaced per round, a round normally well under 1 ms):
+
+| | longest round | rounds of 2 ms or more | time | peak memory |
+|---|---|---|---|---|
+| collector | 16 ms | 97, 98 of 20000 | 2.9 s | 63 MB |
+| reference counting | 4 ms | 3, 7 of 20000 | 3.1 s | 51 MB |
+
+### Against the targets
+
+The Draft's baseline is 2026-10-31 (binarytrees 1.114 s / 70.3 MB, wordfreq 0.557 s / 83.4 MB, fib 0.562 s). The collector itself is now faster on binarytrees (0.648 s / 37 MB), so each line gives both comparisons.
+
+| target | reference counting | met? |
+|---|---|---|
+| PRF-01: fannkuch, fib, mandelbrot, nbody within 3% | 0.252 / 0.568 / 0.368 / 0.667 s: within 2% of the collector and of the baseline | yes |
+| PRF-02: binarytrees at most 10% slower | 0.719 s: 35% faster than the baseline, 11% slower than today's collector | yes against the baseline; just over against today's collector |
+| PRF-02: wordfreq at most 10% slower | 0.402 s: 20% faster than the collector | yes |
+| PRF-03: binarytrees at most 35 MB | 25.8 MB | yes |
+| PRF-03: wordfreq no worse than 83.4 MB (aim 47) | 120.1 MB | **no** |
+| PRF-04: no pause over 1 ms | longest 4 ms, in 3 to 7 rounds of 20000, against the collector's 16 ms in about 100 | nearly: the few slow rounds free the same amount as every other round, so they look like the system's own scheduling, not memory management |
+| PRF-05: channel ping-pong within 1.5× of Go | 0.111 s against Go's 2.94 s | yes |
+| PRF-05: parallel binarytrees, idle task size | not measurable before the multi-threaded runtime | — |
+| PRF-06 and PRF-09: fib with every new per-call cost, within 3% | 0.792 s, +39% (fannkuch +51%, nbody +13%) | **no**, but not because of counting: fib holds no counted values, and the whole cost is the stack check and the countdown |
+
+### What the misses would cost to close
+
+- **wordfreq's memory** is the header. Its two million short strings take 32 or 48 bytes each under counting, against 16 or 32 under the collector (header 16 bytes, length 8, bytes and NUL). Releasing `picked` at its last use saved 16 MB. A one-word header (count and a type index) with 8-byte size classes would bring the strings to 24 or 32 bytes, about 105 MB peak (estimated from the size-class counts), still above the target. Only a smaller representation for short strings (bytes stored inline, no object at all up to 15 bytes) would reach the collector's figure or the 47 MB aim. That is a change to strings, not to the memory model, and plan B's per-task heaps would need a mark bit and size information per object too.
+- **The per-call costs** are the same under either model: plan B needs the stack check and the countdown as much as counting does. They decide how growable stacks and preemption are built (a countdown only at loop back-edges and in functions that loop, or a stack check folded into a frame's existing setup), not which memory model to use.
+- **binarytrees against today's collector** misses by about 1%; freeing every node through an indirect call to its visit, where the collector frees nothing one at a time, is what remains.
+
+### Recommendation
+
+**Reference counting.** Every target it can affect is met or nearly met, except wordfreq's memory, and that miss comes from per-object headers on very small strings, which a tracing heap would also pay for in some form. It is faster than the collector on wordfreq and chanping, uses a third less memory on binarytrees, and its pauses are a quarter of the collector's at their longest. Plan B would need its own allocator and a scan of every task's stack to reach numbers the prototype already has. The two follow-ups are separate decisions: short strings stored inline (for PRF-03), and how stack checks and the countdown are placed (for PRF-06 and PRF-09).
