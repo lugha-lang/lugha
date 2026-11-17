@@ -58,7 +58,7 @@ A task fails its scope, not the program; the scope cancels the others, waits for
   - `cancel(reason: string)` stops it with `.Requested(reason)`.
   - `name(text)` names it for failures and reports; the default name is the called function's.
 - **Joining is optional:** an unjoined result is dropped, but an unjoined failure still fails the scope.
-- **Second-class handles** [SCO-02]: a `Scope` or a `Task` may be passed as an argument and nothing else. It can't be returned, stored in a field, array or map, sent, put in an interface value or captured by a closure that may outlive it. A local is fine. New errors cover each (E0476 onwards, with pages).
+- **Second-class handles** [SCO-02]: a `Scope` or a `Task` may be passed as an argument and nothing else. It can't be returned, stored in a field, array or map, sent, put in an interface value or captured by a closure that may outlive it. A local is fine. New errors cover each (E0472 onwards, with pages).
 
 ### Cancellation
 - **Reasons** (`Reason`, a prelude enum): `.SiblingFailed`, `.Parent`, `.Requested(string)` now; `.Deadline` and `.Shutdown` come with deadlines and Ctrl-C [CAN-03].
@@ -87,7 +87,7 @@ A task fails its scope, not the program; the scope cancels the others, waits for
 3. **A scope catches in place,** with cleanup pads that stop at its edge, not by running the body on a separate stack or as a closure. Being an ordinary block keeps `return`, `break` and `?` inside the body plain control flow.
 4. **`Failure.task()` and `Task.name`'s default** come from the called function's name, so reports say which task failed without extra code.
 5. **The settings PRP adds `Failure.Deadline`;** this one only defines what exists now.
-6. **Error codes:** E0476 onwards for second-class handles and a `spawn` outside `s.spawn`; E0211 changes its message.
+6. **Error codes:** E0472 onwards for second-class handles and a `spawn` outside `s.spawn`; E0211 changes its message.
 
 ## REQUIREMENTS
 
