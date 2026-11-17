@@ -3,7 +3,7 @@
 //! stored like any value; a slot that leads back to the enum gets a heap
 //! copy and holds its pointer.
 
-use inkwell::values::{BasicValueEnum, ValueKind};
+use inkwell::values::BasicValueEnum;
 
 use super::CodegenError;
 use super::lower::{Lowerer, POSITIONED};
@@ -72,19 +72,12 @@ impl<'ctx> Lowerer<'ctx> {
                     .context
                     .i64_type()
                     .const_int(self.element_size(payload), false);
-                let alloc = self.runtime("lugha_rt_alloc", &[Type::I64], Some(Type::String));
-                let call = self
-                    .builder
-                    .build_call(alloc, &[size.into()], "boxed")
-                    .expect(POSITIONED);
-                let ValueKind::Basic(heap) = call.try_as_basic_value() else {
-                    unreachable!("lugha_rt_alloc returns a pointer")
+                let drop = if self.rc() {
+                    self.rc_box_drop(payload)
+                } else {
+                    None
                 };
-                let heap = heap.into_pointer_value();
-                if self.rc() {
-                    let drop = self.rc_box_drop(payload);
-                    self.rc_set_drop(heap, drop);
-                }
+                let heap = self.new_object(size, drop, "boxed");
                 self.store_element(heap, payload, value);
                 self.builder.build_store(address, heap).expect(POSITIONED);
             } else {

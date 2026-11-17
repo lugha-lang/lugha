@@ -210,18 +210,38 @@ impl<'ctx> Lowerer<'ctx> {
             .expect(POSITIONED)
     }
 
-    /// Stores `drop` as what releases `object`'s contents when it is freed.
-    pub(super) fn rc_set_drop(
+    /// A new object of `size` bytes, zeroed. Under reference counting it is
+    /// held once and carries `drop`, set in the same call; under the
+    /// collector `drop` is ignored.
+    pub(super) fn new_object(
         &mut self,
-        object: PointerValue<'ctx>,
+        size: inkwell::values::IntValue<'ctx>,
         drop: Option<FunctionValue<'ctx>>,
-    ) {
-        let Some(drop) = drop else { return };
-        let set = self.runtime("lugha_rt_rc_set_drop", &[Type::String, Type::String], None);
-        let address = drop.as_global_value().as_pointer_value();
-        self.builder
-            .build_call(set, &[object.into(), address.into()], "")
-            .expect(POSITIONED);
+        name: &str,
+    ) -> PointerValue<'ctx> {
+        let site = if self.rc() {
+            let alloc = self.runtime(
+                "lugha_rt_rc_alloc",
+                &[Type::I64, Type::String],
+                Some(Type::String),
+            );
+            let ptr = self.context.ptr_type(AddressSpace::default());
+            let drop = drop.map_or(ptr.const_null(), |d| d.as_global_value().as_pointer_value());
+            self.builder
+                .build_call(alloc, &[size.into(), drop.into()], name)
+                .expect(POSITIONED)
+        } else {
+            let alloc = self.runtime("lugha_rt_alloc", &[Type::I64], Some(Type::String));
+            self.builder
+                .build_call(alloc, &[size.into()], name)
+                .expect(POSITIONED)
+        };
+        match site.try_as_basic_value() {
+            inkwell::values::ValueKind::Basic(v) => v.into_pointer_value(),
+            inkwell::values::ValueKind::Instruction(_) => {
+                unreachable!("an allocation returns a pointer")
+            }
+        }
     }
 
     /// The interface value `pair`, read from the place at `address`, with

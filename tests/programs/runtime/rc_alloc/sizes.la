@@ -1,0 +1,45 @@
+// Objects of every size from a few bytes to past the small-object limit,
+// made, dropped and made again: a reused block must start out zeroed and
+// must never be handed out twice.
+
+struct Pair {
+    name: string,
+    weight: i64,
+}
+
+fun word(n: i64, shift: i64): string {
+    let mut bytes: u8[] = [];
+    for i in 0..n {
+        bytes.push((97 + (i + shift) % 26).truncate<u8>());
+    }
+    string_from_utf8(bytes).unwrap()
+}
+
+fun sum(text: string): i64 {
+    let mut total = 0;
+    for b of text.bytes() {
+        total += b as i64;
+    }
+    total
+}
+
+fun main(console: Console) {
+    for round in 0..3 {
+        let mut words: string[] = [];
+        let mut pairs: Pair[] = [];
+        for n in 0..600 {
+            words.push(word(n, round));
+            pairs.push(Pair { name: word(n % 40, n), weight: n });
+        }
+        let boxes: Ref<i64>[] = [Ref.new(round), Ref.new(round + 1)];
+        let mut total = 0;
+        for w of words {
+            total += sum(w);
+        }
+        let mut weights = 0;
+        for p of pairs {
+            weights += p.weight + p.name.len;
+        }
+        console.println("{round} {total} {weights} {boxes[0].get() + boxes[1].get()}");
+    }
+}

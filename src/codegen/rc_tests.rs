@@ -47,10 +47,13 @@ fn a_write_clones_an_array_whose_count_is_not_one() {
 #[test]
 fn objects_carry_their_drop_and_constants_never_die() {
     let ir = ir_rc("fun main() { let xs = [\"hey\"]; }");
+    // One call makes the object and gives it its drop.
     assert!(
-        ir.contains("call void @lugha_rt_rc_set_drop(ptr %array, ptr @lugha_rt_rc_drop_pointers)"),
+        ir.contains("@lugha_rt_rc_alloc(i64 24, ptr @lugha_rt_rc_drop_pointers)"),
         "{ir}"
     );
+    assert!(!body(&ir, "main").contains("lugha_rt_rc_set_drop"), "{ir}");
+    assert!(!body(&ir, "main").contains("@lugha_rt_alloc("), "{ir}");
     // The count of a literal: the immortal one.
     assert!(
         ir.contains("{ ptr null, i64 -9223372036854775808, i64 3,"),

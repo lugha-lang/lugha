@@ -5,7 +5,7 @@
 
 use inkwell::module::Linkage;
 use inkwell::types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, StructType};
-use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue, ValueKind};
+use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue};
 
 use super::CodegenError;
 use super::lower::{Lowerer, POSITIONED};
@@ -83,20 +83,13 @@ impl<'ctx> Lowerer<'ctx> {
         captured: &[Local<'ctx>],
     ) -> PointerValue<'ctx> {
         let size = layout.size_of().expect("an environment is sized");
-        let alloc = self.runtime("lugha_rt_alloc", &[Type::I64], Some(Type::String));
-        let call = self
-            .builder
-            .build_call(alloc, &[size.into()], "env")
-            .expect(POSITIONED);
-        let ValueKind::Basic(env) = call.try_as_basic_value() else {
-            unreachable!("lugha_rt_alloc returns a pointer")
-        };
-        let env = env.into_pointer_value();
-        if self.rc() {
+        let drop = if self.rc() {
             let types: Vec<Type> = captured.iter().map(|l| l.ty.clone()).collect();
-            let drop = self.rc_env_drop(layout, &types, false);
-            self.rc_set_drop(env, drop);
-        }
+            self.rc_env_drop(layout, &types, false)
+        } else {
+            None
+        };
+        let env = self.new_object(size, drop, "env");
         for (i, (name, local)) in names.iter().zip(captured).enumerate() {
             let value = self.load(local, name);
             // A copy, as at any copy site: the closure may outlive the local.

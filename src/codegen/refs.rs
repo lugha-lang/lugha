@@ -28,19 +28,12 @@ impl<'ctx> Lowerer<'ctx> {
             .context
             .i64_type()
             .const_int(self.element_size(&inner).max(1), false);
-        let alloc = self.runtime("lugha_rt_alloc", &[Type::I64], Some(Type::String));
-        let site = self
-            .builder
-            .build_call(alloc, &[size.into()], "box")
-            .expect(POSITIONED);
-        let ValueKind::Basic(raw) = site.try_as_basic_value() else {
-            unreachable!("lugha_rt_alloc returns a pointer")
+        let drop = if self.rc() {
+            self.rc_box_drop(&inner)
+        } else {
+            None
         };
-        let box_ptr = raw.into_pointer_value();
-        if self.rc() {
-            let drop = self.rc_box_drop(&inner);
-            self.rc_set_drop(box_ptr, drop);
-        }
+        let box_ptr = self.new_object(size, drop, "box");
         self.store_element(box_ptr, &inner, value);
         Ok(box_ptr.into())
     }

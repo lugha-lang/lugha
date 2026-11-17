@@ -27,7 +27,7 @@ pub use self::inputs::{Plan, PlanError};
 
 /// The runtime's source files, in the order they are joined: the core first,
 /// since it holds every `#include`, then the fragments that rely on it.
-pub const RUNTIME_PARTS: [(&str, &str); 27] = [
+pub const RUNTIME_PARTS: [(&str, &str); 28] = [
     ("lugha_rt.c", include_str!("../../runtime/lugha_rt.c")),
     ("stack.c", include_str!("../../runtime/stack.c")),
     ("print.c", include_str!("../../runtime/print.c")),
@@ -42,6 +42,7 @@ pub const RUNTIME_PARTS: [(&str, &str); 27] = [
     ("dir.c", include_str!("../../runtime/dir.c")),
     ("dir_names.c", include_str!("../../runtime/dir_names.c")),
     ("lockdown.c", include_str!("../../runtime/lockdown.c")),
+    ("rc_alloc.c", include_str!("../../runtime/rc_alloc.c")),
     ("rc.c", include_str!("../../runtime/rc.c")),
     ("process.c", include_str!("../../runtime/process.c")),
     ("test.c", include_str!("../../runtime/test.c")),
@@ -187,6 +188,7 @@ pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/dir.c"),
     include_str!("../../runtime/dir_names.c"),
     include_str!("../../runtime/lockdown.c"),
+    include_str!("../../runtime/rc_alloc.c"),
     include_str!("../../runtime/rc.c"),
     include_str!("../../runtime/process.c"),
     include_str!("../../runtime/test.c"),

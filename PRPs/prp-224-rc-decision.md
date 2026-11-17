@@ -1,6 +1,6 @@
 ## FEATURE: The memory prototype, last step: count elimination where the measurements point, a size-class allocator under `--memory=rc`, fib measured with every new per-call cost (PRF-09), and the written decision between reference counting and plan B; milestone 192.
 
-**Status:** proposed 2026-11-17.
+**Status:** approved 2026-11-17.
 
 ## OBJECTIVE
 ```

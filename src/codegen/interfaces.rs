@@ -7,7 +7,7 @@
 
 use inkwell::module::Linkage;
 use inkwell::types::StructType;
-use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue, StructValue, ValueKind};
+use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue, StructValue};
 
 use super::CodegenError;
 use super::copy::{aliasing, mangle};
@@ -97,19 +97,12 @@ impl<'ctx> Lowerer<'ctx> {
             .context
             .i64_type()
             .const_int(self.element_size(ty), false);
-        let alloc = self.runtime("lugha_rt_alloc", &[Type::I64], Some(Type::String));
-        let call = self
-            .builder
-            .build_call(alloc, &[size.into()], "box")
-            .expect(POSITIONED);
-        let ValueKind::Basic(heap) = call.try_as_basic_value() else {
-            unreachable!("lugha_rt_alloc returns a pointer")
+        let drop = if self.rc() {
+            self.rc_box_drop(ty)
+        } else {
+            None
         };
-        let heap = heap.into_pointer_value();
-        if self.rc() {
-            let drop = self.rc_box_drop(ty);
-            self.rc_set_drop(heap, drop);
-        }
+        let heap = self.new_object(size, drop, "box");
         self.store_element(heap, ty, value);
         heap
     }

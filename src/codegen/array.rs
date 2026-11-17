@@ -5,7 +5,7 @@
 //! element sizes and storage live in `codegen::heap`.
 
 use inkwell::IntPredicate;
-use inkwell::values::{BasicValueEnum, IntValue, PointerValue, ValueKind};
+use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
 
 use super::CodegenError;
 use super::heap::{ARRAY_HEADER, element_of};
@@ -28,20 +28,12 @@ impl<'ctx> Lowerer<'ctx> {
             .builder
             .build_int_add(data, i64_type.const_int(ARRAY_HEADER, false), "bytes")
             .expect(POSITIONED);
-        // The runtime returns a pointer; `string` is codegen's pointer-typed stand-in here.
-        let alloc = self.runtime("lugha_rt_alloc", &[Type::I64], Some(Type::String));
-        let call = self
-            .builder
-            .build_call(alloc, &[bytes.into()], "array")
-            .expect(POSITIONED);
-        let ValueKind::Basic(array) = call.try_as_basic_value() else {
-            unreachable!("lugha_rt_alloc returns a pointer")
+        let drop = if self.rc() {
+            self.rc_array_drop(element)
+        } else {
+            None
         };
-        let array = array.into_pointer_value();
-        if self.rc() {
-            let drop = self.rc_array_drop(element);
-            self.rc_set_drop(array, drop);
-        }
+        let array = self.new_object(bytes, drop, "array");
         self.builder.build_store(array, len).expect(POSITIONED);
         // A new array is full: `cap == len`.
         let cap = self.capacity_address(array);

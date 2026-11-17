@@ -31,14 +31,16 @@ impl<'ctx> Lowerer<'ctx> {
         let state_type = Type::Struct(key.to_string(), Vec::new());
         let state = self.get(operand, &state_type)?;
         let size = self.element_size(&state_type).max(1);
-        let block = self.gc_block(size);
         // Under reference counting the block holds the state, and the
         // actor the block.
-        if self.rc() {
+        let drop = if self.rc() {
             self.rc_retain(state, &state_type);
-            let drop = self.rc_box_drop(&state_type);
-            self.rc_set_drop(block, drop);
-        }
+            self.rc_box_drop(&state_type)
+        } else {
+            None
+        };
+        let size = self.context.i64_type().const_int(size, false);
+        let block = self.new_object(size, drop, "state");
         self.store_element(block, &state_type, state);
         let name = self.actor_name(key);
         Ok(self.call_rt("lugha_rt_actor_spawn", &[block.into(), name.into()], true))
@@ -85,8 +87,13 @@ impl<'ctx> Lowerer<'ctx> {
         let block = match layout {
             Some(layout) => {
                 let size = layout.size_of().expect("argument blocks are sized");
-                let block = self.call_rt("lugha_rt_alloc", &[size.into()], true);
-                let block = block.into_pointer_value();
+                // Under reference counting the block holds the arguments.
+                let drop = if self.rc() {
+                    self.rc_env_drop(layout, &params, true)
+                } else {
+                    None
+                };
+                let block = self.new_object(size, drop, "args");
                 for (i, (arg, ty)) in (0u32..).zip(args.iter().zip(&params)) {
                     let value = self.value_for_store(arg, ty)?;
                     let at = self
@@ -95,11 +102,8 @@ impl<'ctx> Lowerer<'ctx> {
                         .expect("a field per argument");
                     self.store_element(at, ty, value);
                 }
-                // Under reference counting the block holds the arguments
-                // and crosses to the actor: marked shared.
+                // It crosses to the actor: marked shared.
                 if self.rc() {
-                    let drop = self.rc_env_drop(layout, &params, true);
-                    self.rc_set_drop(block, drop);
                     self.rc_pointer_op(block, super::rc::RcOp::Mark);
                 }
                 block
@@ -225,12 +229,6 @@ impl<'ctx> Lowerer<'ctx> {
         }
         let fields: Vec<BasicTypeEnum> = params.iter().map(|p| self.storage_type(p)).collect();
         Some(self.context.struct_type(&fields, false))
-    }
-
-    fn gc_block(&mut self, size: u64) -> PointerValue<'ctx> {
-        let size = self.context.i64_type().const_int(size, false);
-        self.call_rt("lugha_rt_alloc", &[size.into()], true)
-            .into_pointer_value()
     }
 
     /// The actor's name as a C string, for its panics and printing.

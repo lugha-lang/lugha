@@ -80,6 +80,38 @@ fn programs_run_the_same_under_reference_counting() {
 }
 
 #[test]
+fn freed_memory_is_reused_without_poisoning() {
+    let workdir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let lughac = Path::new(env!("CARGO_BIN_EXE_lughac"));
+    let cases = match discover(&workdir.join("tests/programs/runtime/rc_alloc")) {
+        Ok(cases) => cases,
+        Err(malformed) => panic!("\n{}", format_malformed(&malformed)),
+    };
+    assert!(!cases.is_empty(), "the allocator's programs are there");
+    let failures: Vec<_> = cases
+        .into_iter()
+        .map(|mut case| {
+            // Without poisoning freed blocks go back on their lists, so
+            // later objects reuse them.
+            for (key, value) in [("LUGHA_MEMORY", "rc"), ("LUGHA_RC_REPORT", "1")] {
+                case.extras
+                    .envvars
+                    .push((key.to_string(), value.to_string()));
+            }
+            let outcome = run_case(lughac, workdir, &case, DEFAULT_TIMEOUT);
+            let (outcome, report) = split_report(outcome);
+            let mut mismatches = compare(&case, &outcome);
+            mismatches.extend(leaks(&case, report.as_deref()));
+            (case.name.clone(), mismatches)
+        })
+        .filter(|(_, mismatches)| !mismatches.is_empty())
+        .collect();
+    if !failures.is_empty() {
+        panic!("\n{}", format_report(&failures, failures.len()));
+    }
+}
+
+#[test]
 fn every_known_gap_is_a_program_that_exists() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/programs");
     for (name, why) in KNOWN {

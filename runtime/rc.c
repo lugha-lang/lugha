@@ -71,6 +71,7 @@ static void rc_report(void) {
 }
 
 static void lugha_rc_start(void) {
+    rc_alloc_start();
     const char *poison = getenv("LUGHA_RC_POISON");
     rc_poison = poison != NULL && strcmp(poison, "1") == 0;
     const char *report = getenv("LUGHA_RC_REPORT");
@@ -110,19 +111,23 @@ typedef struct {
  * changes atomically. A plain count is from 1 to below this. */
 #define RC_SHARED ((int64_t)1 << 62)
 
-/* A counted object of `size` bytes, zeroed, held once, with no visit until
- * its maker sets one (`lugha_rt_rc_set_drop`). */
-void *lugha_rt_alloc(int64_t size) {
-    RcHeader *block = calloc(1, sizeof(RcHeader) + (size_t)(size > 0 ? size : 0));
-    if (block == NULL) {
-        die("panic: out of memory\n");
-    }
+/* A counted object of `size` bytes, zeroed, held once, with `visit` for
+ * what it holds (`NULL`: nothing counted). */
+void *lugha_rt_rc_alloc(int64_t size, RcVisit visit) {
+    RcHeader *block = rc_block_new(sizeof(RcHeader) + (size_t)(size > 0 ? size : 0));
+    block->visit = visit;
     block->count = 1;
     rc_made++;
     if (rc_listing) {
         rc_list(block + 1, size);
     }
     return block + 1;
+}
+
+/* `lugha_rt_rc_alloc` with no visit until its maker sets one
+ * (`lugha_rt_rc_set_drop`): the runtime's own objects. */
+void *lugha_rt_alloc(int64_t size) {
+    return lugha_rt_rc_alloc(size, NULL);
 }
 
 /* `object`'s header. */
@@ -157,7 +162,7 @@ void lugha_rt_rc_free(void *object) {
     }
     rc_freed++;
     if (!rc_poison) {
-        free(header);
+        rc_block_free(header);
     }
 }
 
