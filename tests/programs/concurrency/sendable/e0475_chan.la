@@ -1,0 +1,6 @@
+struct Shared { hits: Ref<i64> }
+
+fun main() {
+    let c: Chan<Shared> = Chan.new();
+    let d = Chan<Ref<i64>>.buffered(1);
+}

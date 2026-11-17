@@ -114,6 +114,12 @@ impl Checker {
         {
             return None;
         }
+        // The kinds no `Sendable` block describes.
+        if interface == super::sendable::SENDABLE
+            && let Some(decided) = self.sendable_part(ty, path, seen)
+        {
+            return decided;
+        }
         if let Type::Param(name) = ty {
             let bounds = self.bounds(name);
             // `T: Eq` (or `Num`) is written as a flag.

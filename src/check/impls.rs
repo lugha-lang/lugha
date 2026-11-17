@@ -209,6 +209,11 @@ impl Checker {
             self.report(errors::misplaced_impl(written, why, i.ty.span));
             return false;
         }
+        // `Sendable` is worked out, never written.
+        if self.interfaces.get(&key).is_some_and(|i| i.auto) {
+            self.sendable_impl(&key, ty, b.span);
+            return false;
+        }
         if !self.by_block(&key) {
             let why = format!(
                 "names `{written}`, which a type still meets by its methods' names: write them in `impl {} {{ … }}`",
@@ -323,6 +328,7 @@ impl Checker {
             let d = errors::bad_impl(&self_ty, &applied.to_string(), &problems, b.span);
             self.report(d);
         }
+        self.sendable_impl(&entry.key, &self_ty, b.span);
         if let Some(missing) = self.missing_extended(owner, &entry.key) {
             let shown = super::derive_with::shown_interface(&missing);
             let me = super::derive_with::shown_interface(&entry.key);

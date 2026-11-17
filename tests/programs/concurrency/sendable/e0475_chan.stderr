@@ -1,0 +1,17 @@
+error[E0475]: a channel can't carry `Shared` to another task: `hits` is a `Ref<i64>`, which two tasks would share
+  --> tests/programs/concurrency/sendable/e0475_chan.la:4:12
+  |
+4 |     let c: Chan<Shared> = Chan.new();
+  |            ^^^^^^^^^^^^
+  |
+  = help: keep shared state in an actor, or send copies through a channel: a `Ref` belongs to one task
+
+error[E0475]: a channel can't carry `Ref<i64>` to another task: it is a `Ref<i64>`, which two tasks would share
+  --> tests/programs/concurrency/sendable/e0475_chan.la:5:13
+  |
+5 |     let d = Chan<Ref<i64>>.buffered(1);
+  |             ^^^^^^^^^^^^^^
+  |
+  = help: keep shared state in an actor, or send copies through a channel: a `Ref` belongs to one task
+
+For more about E0475, run `lughac explain E0475`.

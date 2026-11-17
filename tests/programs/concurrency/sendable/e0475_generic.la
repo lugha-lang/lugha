@@ -1,0 +1,9 @@
+fun relay<T>(s: Scope, value: T, out: Chan<T>) {
+    s.spawn(out.send(value));
+}
+
+fun run(s: Scope, f: fun(): i64) {
+    s.spawn(f());
+}
+
+fun main() {}

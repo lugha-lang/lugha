@@ -70,6 +70,7 @@ impl Parser<'_> {
             type_params,
             defaults,
             extends,
+            auto: false,
             items,
             span: Span::new(start, self.prev_end()),
         })

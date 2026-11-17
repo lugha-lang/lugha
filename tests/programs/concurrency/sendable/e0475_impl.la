@@ -1,0 +1,10 @@
+// A capability must be sendable, so a fake one can't hold a `Ref`.
+struct FakeClock { now: Ref<i64> }
+
+impl Clock for FakeClock {
+    fun now_ms(self): i64 = self.now.get();
+    fun monotonic_ms(self): i64 = self.now.get();
+    fun local_offset(self, ms: i64): Result<i64, string> = Ok(0);
+}
+
+fun main() {}

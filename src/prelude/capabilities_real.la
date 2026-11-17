@@ -118,16 +118,17 @@ impl $Dir {
 /** A file opened beneath folder `h` in `mode` 0 (reading), 1 (creating) or 2 (appending). */
 fun $opened(h: $Resource, path: string, mode: i64): Result<File, string> {
     let fd = $os.dir_file(h, path, mode)?;
-    Ok($File { fd: Ref.new(fd), writing: mode != 0, buf: Ref.new([]), pos: Ref.new(0), line: Ref.new(0) })
+    Ok($File { cell: $os.cell_new(fd, 0, 0, 0), writing: mode != 0 })
 }
 
-/** A real open file: its descriptor, and what `read_line` read ahead. */
+/**
+ * A real open file. Its cell, shared by every copy, holds the descriptor
+ * (slot 0, -1 once closed), where the unread part of what `read_line` read
+ * ahead starts (slot 1), the lines read so far (slot 2), and the read-ahead.
+ */
 struct $File {
-    fd: Ref<i64>,
+    cell: $Resource,
     writing: bool,
-    buf: Ref<u8[]>,
-    pos: Ref<i64>,
-    line: Ref<i64>,
 }
 
 impl File for $File {
@@ -136,26 +137,26 @@ impl File for $File {
         if max < 1 || max > 16777216 {
             return Err("max must be from 1 to 16777216");
         }
-        let buf = self.buf.get();
-        let pos = self.pos.get();
+        let buf = $os.cell_bytes(self.cell);
+        let pos = $os.cell_get(self.cell, 1);
         if pos >= buf.len {
             return $os.file_read(fd, max);
         }
         let end = if buf.len - pos > max { pos + max } else { buf.len };
         let got = $cut(buf, pos, end);
         if end == buf.len {
-            self.buf.set([]);
-            self.pos.set(0);
+            $os.cell_set_bytes(self.cell, []);
+            $os.cell_set(self.cell, 1, 0);
         } else {
-            self.pos.set(end);
+            $os.cell_set(self.cell, 1, end);
         }
         Ok(got)
     }
 
     fun read_line(self): Result<Option<string>, string> {
         let fd = self.reading()?;
-        let mut buf = self.buf.get();
-        let mut pos = self.pos.get();
+        let mut buf = $os.cell_bytes(self.cell);
+        let mut pos = $os.cell_get(self.cell, 1);
         let mut i = pos;
         while true {
             while i < buf.len {
@@ -193,7 +194,7 @@ impl File for $File {
     }
 
     fun write(self, bytes: u8[]): Result<(), string> {
-        let fd = self.fd.get();
+        let fd = $os.cell_get(self.cell, 0);
         if fd < 0 {
             return Err("closed");
         }
@@ -205,12 +206,12 @@ impl File for $File {
     }
 
     fun close(self) {
-        let fd = self.fd.get();
+        let fd = $os.cell_get(self.cell, 0);
         if fd >= 0 {
             $os.file_close(fd);
-            self.fd.set(-1);
-            self.buf.set([]);
-            self.pos.set(0);
+            $os.cell_set(self.cell, 0, -1);
+            $os.cell_set_bytes(self.cell, []);
+            $os.cell_set(self.cell, 1, 0);
         }
     }
 }
@@ -218,7 +219,7 @@ impl File for $File {
 impl $File {
     /** The descriptor, if this file is open for reading. */
     fun reading(self): Result<i64, string> {
-        let fd = self.fd.get();
+        let fd = $os.cell_get(self.cell, 0);
         if fd < 0 {
             return Err("closed");
         }
@@ -230,14 +231,14 @@ impl $File {
 
     /** Stores the read-ahead buffer and where the unread part starts. */
     fun keep(self, buf: u8[], pos: i64) {
-        self.buf.set(buf);
-        self.pos.set(pos);
+        $os.cell_set_bytes(self.cell, buf);
+        $os.cell_set(self.cell, 1, pos);
     }
 
     /** The next line's bytes as text, counting the line. */
     fun text(self, bytes: u8[]): Result<Option<string>, string> {
-        let n = self.line.get() + 1;
-        self.line.set(n);
+        let n = $os.cell_get(self.cell, 2) + 1;
+        $os.cell_set(self.cell, 2, n);
         match string_from_utf8(bytes) {
             .Ok(line) => Ok(Some(line)),
             .Err(_) => Err("line {n} is not valid UTF-8"),

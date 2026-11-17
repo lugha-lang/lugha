@@ -1,0 +1,33 @@
+error[E0475]: a channel can't carry `T` to another task: it is the type parameter `T`, not bounded `Sendable`
+  --> tests/programs/concurrency/sendable/e0475_generic.la:1:39
+  |
+1 | fun relay<T>(s: Scope, value: T, out: Chan<T>) {
+  |                                       ^^^^^^^
+  |
+  = help: add `Sendable` to its bounds: `<T: Sendable>`
+
+error[E0475]: a `T` can't be passed to another task: it is the type parameter `T`, not bounded `Sendable`
+  --> tests/programs/concurrency/sendable/e0475_generic.la:2:22
+  |
+2 |     s.spawn(out.send(value));
+  |                      ^^^^^
+  |
+  = help: add `Sendable` to its bounds: `<T: Sendable>`
+
+error[E0475]: a `Chan<T>` can't be passed to another task: it is the type parameter `T`, not bounded `Sendable`
+  --> tests/programs/concurrency/sendable/e0475_generic.la:2:13
+  |
+2 |     s.spawn(out.send(value));
+  |             ^^^
+  |
+  = help: add `Sendable` to its bounds: `<T: Sendable>`
+
+error[E0475]: a spawned call can't capture `f`: it is a function value, `fun(): i64`, which may have captured anything
+  --> tests/programs/concurrency/sendable/e0475_generic.la:6:13
+  |
+6 |     s.spawn(f());
+  |             ^^^
+  |
+  = help: pass the function itself, or take an interface that requires `Sendable`: `interface Job: fun(), Sendable {}`
+
+For more about E0475, run `lughac explain E0475`.

@@ -114,6 +114,7 @@ mod satisfy;
 mod scopes;
 mod select;
 mod self_type;
+mod sendable;
 mod siblings;
 mod signatures;
 mod slots;
@@ -358,6 +359,10 @@ pub(super) struct Checker {
     fun_origins: HashMap<ExprId, FunOrigin>,
     /// The same for an immutable local, by where it was declared.
     local_origins: HashMap<Span, FunOrigin>,
+    /// Sendable checks met before derive blocks are known, run after.
+    pending_sends: Vec<sendable::Pending>,
+    /// True once derive blocks are known: sendable checks run at once.
+    sends_ready: bool,
     /// See `Checked::impl_owners`.
     impl_owners: HashMap<Span, Type>,
     /// See `Checked::default_args`.

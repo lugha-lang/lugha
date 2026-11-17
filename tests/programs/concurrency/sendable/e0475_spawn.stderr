@@ -1,0 +1,25 @@
+error[E0475]: a spawned call can't capture `hits`: it is a `Ref<i64>`, which two tasks would share
+   --> tests/programs/concurrency/sendable/e0475_spawn.la:10:17
+   |
+10 |         s.spawn(fun() { hits.set(1); }());
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: keep shared state in an actor, or send copies through a channel: a `Ref` belongs to one task
+
+error[E0475]: a `Shared` can't be passed to another task: `hits` is a `Ref<i64>`, which two tasks would share
+   --> tests/programs/concurrency/sendable/e0475_spawn.la:11:22
+   |
+11 |         s.spawn(work(Shared { hits: hits }));
+   |                      ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: keep shared state in an actor, or send copies through a channel: a `Ref` belongs to one task
+
+error[E0475]: a `Ref<i64>` can't come back from another task as its result: it is a `Ref<i64>`, which two tasks would share
+   --> tests/programs/concurrency/sendable/e0475_spawn.la:12:17
+   |
+12 |         s.spawn(make());
+   |                 ^^^^^^
+   |
+   = help: keep shared state in an actor, or send copies through a channel: a `Ref` belongs to one task
+
+For more about E0475, run `lughac explain E0475`.

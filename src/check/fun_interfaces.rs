@@ -137,16 +137,21 @@ impl Checker {
             let earlier = self
                 .fun_origins
                 .values()
-                .filter(|o| matches!(o, FunOrigin::Closure(_, w) if w.ends_with(&format!(" in {}", self.owner))))
+                .filter(|o| matches!(o, FunOrigin::Closure(_, w, _) if w.ends_with(&format!(" in {}", self.owner))))
                 .map(|o| match o {
-                    FunOrigin::Closure(id, _) => *id,
+                    FunOrigin::Closure(id, ..) => *id,
                     FunOrigin::Named(_) => 0,
                 })
                 .collect::<std::collections::HashSet<_>>()
                 .len();
             let label = format!("closure {} in {}", earlier + 1, self.owner);
+            let names = self.captures.get(&expr.id).cloned().unwrap_or_default();
+            let captured = names
+                .into_iter()
+                .filter_map(|n| self.local(&n).map(|l| (n, l.ty)))
+                .collect();
             self.fun_origins
-                .insert(expr.id, FunOrigin::Closure(expr.id.0, label));
+                .insert(expr.id, FunOrigin::Closure(expr.id.0, label, captured));
         }
     }
 
@@ -281,7 +286,7 @@ mod tests {
             panic!("an own type")
         };
         assert!(
-            matches!(&own.origin, FunOrigin::Closure(_, label) if label == "closure 1 in main")
+            matches!(&own.origin, FunOrigin::Closure(_, label, _) if label == "closure 1 in main")
         );
         let src = format!(
             "{TWICE}fun double(x: i64): i64 = x * 2;\nfun main() {{ let a = twice(double, 1); }}"

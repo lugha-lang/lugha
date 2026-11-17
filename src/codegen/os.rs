@@ -26,6 +26,7 @@ impl<'ctx> Lowerer<'ctx> {
                 || op.starts_with("crypto_")
                 || op.starts_with("file_")
                 || op.starts_with("dir_")
+                || op.starts_with("cell_")
                 || matches!(op, "wall_ms" | "local_offset") =>
             {
                 self.net_call(call, op, args)?

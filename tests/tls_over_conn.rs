@@ -11,8 +11,10 @@ use std::process::Command;
 const PROGRAM: &str = r#"import std.http;
 import std.tls;
 
-/** One end of an in-memory connection: what one end writes, the other reads. */
-struct Pipe { inbox: Chan<u8[]>, outbox: Chan<u8[]>, closed: Ref<bool> }
+/** One end of an in-memory connection: what one end writes, the other
+ * reads. `open` holds one token until the end is closed, so closing twice
+ * closes the channel once. */
+struct Pipe { inbox: Chan<u8[]>, outbox: Chan<u8[]>, open: Chan<bool> }
 
 impl Conn for Pipe {
     fun read(self, max: i64): Result<u8[], string> = match self.inbox.recv() {
@@ -27,8 +29,7 @@ impl Conn for Pipe {
     fun peer(self): string = "pipe:1";
     fun addr(self): string = "pipe:0";
     fun close(self) {
-        if !self.closed.get() {
-            self.closed.set(true);
+        if self.open.try_recv().is_some() {
             self.outbox.close();
         }
     }
@@ -42,14 +43,21 @@ impl Net for Loopback {
     fun connect_timeout(self, addr: string, ms: i64): Result<Conn, string> {
         let there = Chan<u8[]>.buffered(64);
         let back = Chan<u8[]>.buffered(64);
-        self.calls.send(Pipe { inbox: there, outbox: back, closed: Ref.new(false) });
-        Ok(Pipe { inbox: back, outbox: there, closed: Ref.new(false) })
+        self.calls.send(Pipe { inbox: there, outbox: back, open: token() });
+        Ok(Pipe { inbox: back, outbox: there, open: token() })
     }
     fun listen(self, addr: string): Result<Listener, string> = Err("loopback only");
     fun resolve(self, name: string): Result<string[], string> = Ok(["127.0.0.1"]);
     fun udp_bind(self, addr: string): Result<Udp, string> = Err("loopback only");
     fun udp_bind_shared(self, addr: string): Result<Udp, string> = Err("loopback only");
     fun interfaces(self): Result<NetInterface[], string> = Ok([]);
+}
+
+/** A channel holding one token: an end that is still open. */
+fun token(): Chan<bool> {
+    let t: Chan<bool> = Chan.buffered(1);
+    t.send(true);
+    t
 }
 
 /** The server: each connection in turn, until `calls` closes. */

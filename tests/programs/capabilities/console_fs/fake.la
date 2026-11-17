@@ -1,8 +1,16 @@
-// A fake `Console`: an ordinary type that implements the interface.
-struct Recorder { lines: Ref<string[]> }
+// A fake `Console`: an ordinary type that implements the interface. A
+// capability may be handed to other tasks, so what the fake records lives
+// in an actor, which one task owns.
+actor Lines {
+    all: string[],
+    fun add(mut self, line: string) { self.all.push(line); }
+    fun get(self): string[] = self.all;
+}
+
+struct Recorder { lines: Lines }
 
 impl Console for Recorder {
-    fun print(self, x: Display) { self.lines.update(fun(ls: string[]): string[] = ls + [x.show()]); }
+    fun print(self, x: Display) { self.lines.add(x.show()); }
     fun println(self, x: Display) { self.print(x); }
     fun eprint(self, x: Display) { self.print(x); }
     fun eprintln(self, x: Display) { self.print(x); }
@@ -20,8 +28,9 @@ fun greet(console: Console, name: string) {
 }
 
 fun main(console: Console) {
-    let lines: Ref<string[]> = Ref.new([]);
+    let lines = spawn Lines { all: [] };
     greet(Recorder { lines: lines }, "fake");
     console.println(lines.get().debug());
+    lines.stop();
     greet(console, "real");
 }

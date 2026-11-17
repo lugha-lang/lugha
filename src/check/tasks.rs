@@ -35,7 +35,12 @@ impl Checker {
         Some(match (name, args.as_slice()) {
             ("Task", []) => Type::Task(Box::new(Type::Unit)),
             ("Task", [t]) => Type::Task(Box::new(t.clone())),
-            ("Chan", [t]) => Type::Chan(Box::new(t.clone())),
+            ("Chan", [t]) => {
+                // A channel carries its elements to other tasks.
+                let head = format!("a channel can't carry `{t}` to another task");
+                self.must_send(t, &head, span);
+                Type::Chan(Box::new(t.clone()))
+            }
             _ => {
                 self.report(errors::type_args(name, 1, args.len(), span));
                 Type::Error
@@ -86,6 +91,7 @@ impl Checker {
         }
         if let Type::Fun(_, ret) = &ty {
             self.task_error(call, ret);
+            self.spawn_crossings(closure, call, ret);
         }
         match ty {
             Type::Fun(_, ret) if *ret == Type::Never => Type::Task(Box::new(Type::Unit)),
@@ -171,10 +177,10 @@ mod tests {
                 let _ = scope s {
                     let a = s.spawn(p.area());
                     let b = s.spawn(P.make());
-                    let c = Ref.new(0);
-                    let d = s.spawn(fun() { c.update(fun(n: i64): i64 = n + 1); }());
-                    let fs = [fun(): i64 = 1];
-                    let e = s.spawn(fs[0]());
+                    let c: Chan<i64> = Chan.buffered(1);
+                    let d = s.spawn(fun() { c.send(1); }());
+                    let ns = [P.make()];
+                    let e = s.spawn(ns[0].area());
                 };
             }");
     }

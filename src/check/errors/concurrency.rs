@@ -11,7 +11,7 @@ pub(in crate::check) fn spawn_changes_copy(span: Span) -> Diagnostic {
         span,
     )
     .with_help(
-        "nobody would see the change; send the new value back through a channel, or keep it in a `Ref`",
+        "nobody would see the change; send the new value back through a channel, or keep the state in an actor",
     )
 }
 
@@ -62,5 +62,26 @@ pub(in crate::check) fn unscoped_task(span: Span) -> Diagnostic {
     Diagnostic::error("E0474", "a task starts in a scope", span).with_help(
         "start it through a scope's handle, `scope s { s.spawn(work(x)) }`, or through the \
          root scope `main` takes (`root: Scope`); `spawn` alone starts an actor",
+    )
+}
+
+/// E0475: a value that isn't sendable crosses to another task: `head`
+/// says which and how, `why` names its first part that isn't.
+pub(in crate::check) fn not_sendable(head: &str, why: &str, span: Span) -> Diagnostic {
+    let help = if why.contains("type parameter") {
+        "add `Sendable` to its bounds: `<T: Sendable>`"
+    } else if why.contains("function value") {
+        "pass the function itself, or take an interface that requires `Sendable`: `interface Job: fun(), Sendable {}`"
+    } else {
+        "keep shared state in an actor, or send copies through a channel: a `Ref` belongs to one task"
+    };
+    Diagnostic::error("E0475", format!("{head}: {why}"), span).with_help(help)
+}
+
+/// E0476: `impl Sendable`, `with Sendable`, or `auto interface` outside
+/// the prelude: sendability is worked out from a type's parts.
+pub(in crate::check) fn sendable_claimed(message: &str, span: Span) -> Diagnostic {
+    Diagnostic::error("E0476", message.to_string(), span).with_help(
+        "a type is sendable when every part of it is: nothing to write, and nothing to claim",
     )
 }

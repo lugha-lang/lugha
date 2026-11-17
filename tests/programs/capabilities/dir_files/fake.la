@@ -1,19 +1,36 @@
 // A fake `Dir` writes only the core; `write_file`, `append_file` and
 // `make_dirs` come from the interface's defaults. Its files are fakes too.
-struct Memory { files: Ref<Map<string, u8[]>>, folders: Ref<string[]> }
+// A capability may be handed to other tasks, so the fakes' state lives in
+// actors, each owned by one task.
+actor Store {
+    files: Map<string, u8[]>,
+    folders: string[],
+    fun get(self, path: string): Option<u8[]> = self.files.get(path);
+    fun put(mut self, path: string, bytes: u8[]) { self.files[path] = bytes; }
+    fun names(self): string[] = self.files.keys().sort();
+    fun add_folder(mut self, path: string) { self.folders.push(path); }
+    fun made(self): string[] = self.folders;
+}
 
-struct Tape { lines: Ref<string[]> }
+actor Lines {
+    left: string[],
+    fun next(mut self): Option<string> {
+        if self.left.len == 0 {
+            return None;
+        }
+        let first = self.left[0];
+        self.left = self.left.iter().skip(1).collect();
+        Some(first)
+    }
+}
+
+struct Memory { store: Store }
+
+struct Tape { lines: Lines }
 
 impl File for Tape {
     fun read(self, max: i64): Result<u8[], string> = Ok([]);
-    fun read_line(self): Result<Option<string>, string> {
-        let ls = self.lines.get();
-        if ls.len == 0 {
-            return Ok(None);
-        }
-        self.lines.set(ls.iter().skip(1).collect());
-        Ok(Some(ls[0]))
-    }
+    fun read_line(self): Result<Option<string>, string> = Ok(self.lines.next());
     fun write(self, bytes: u8[]): Result<(), string> = Err("read-only tape");
     fun close(self) {}
 }
@@ -25,14 +42,12 @@ impl Dir for Memory {
         .Ok(b) => string_from_utf8(b),
         .Err(e) => Err(e),
     };
-    fun read_bytes(self, path: string): Result<u8[], string> = match self.files.get().get(path) {
+    fun read_bytes(self, path: string): Result<u8[], string> = match self.store.get(path) {
         .Some(b) => Ok(b),
         .None => Err("No such file or directory"),
     };
     fun write_bytes(self, path: string, bytes: u8[]): Result<i64, string> {
-        let mut m = self.files.get();
-        m[path] = bytes;
-        self.files.set(m);
+        self.store.put(path, bytes);
         Ok(bytes.len)
     }
     fun append_bytes(self, path: string, bytes: u8[]): Result<i64, string> {
@@ -40,23 +55,23 @@ impl Dir for Memory {
         let n = self.write_bytes(path, old + bytes)?;
         Ok(bytes.len)
     }
-    fun list(self, path: string): Result<string[], string> = Ok(self.files.get().keys().sort());
+    fun list(self, path: string): Result<string[], string> = Ok(self.store.names());
     fun make_dir(self, path: string): Result<i64, string> {
-        self.folders.update(fun(fs: string[]): string[] = fs + [path]);
+        self.store.add_folder(path);
         Ok(0)
     }
     fun remove_file(self, path: string): Result<i64, string> = Err("not here");
     fun remove_dir(self, path: string): Result<i64, string> = Err("not here");
     fun exists(self, path: string): bool = self.is_file(path) || self.is_dir(path);
-    fun is_dir(self, path: string): bool = self.folders.get().iter().any(fun(f: string): bool = f == path);
-    fun is_file(self, path: string): bool = self.files.get().get(path).is_some();
+    fun is_dir(self, path: string): bool = self.store.made().iter().any(fun(f: string): bool = f == path);
+    fun is_file(self, path: string): bool = self.store.get(path).is_some();
     fun size(self, path: string): Result<i64, string> = self.read_bytes(path).map(fun(b: u8[]): i64 = b.len);
     fun rename(self, from: string, to: string): Result<(), string> = Err("not here");
     fun set_mode(self, path: string, mode: i64): Result<(), string> = Ok(());
     fun sync(self, path: string): Result<(), string> = Ok(());
     fun open(self, path: string): Result<File, string> {
         let text = self.read_file(path)?;
-        Ok(Tape { lines: Ref.new(text.split("\n")) })
+        Ok(Tape { lines: spawn Lines { left: text.split("\n") } })
     }
     fun create(self, path: string): Result<File, string> = Err("not here");
     fun append(self, path: string): Result<File, string> = Err("not here");
@@ -71,9 +86,9 @@ fun save(dir: Dir): Result<(), string> {
 }
 
 fun main(console: Console) {
-    let m = Memory { files: Ref.new(Map {}), folders: Ref.new([]) };
+    let m = Memory { store: spawn Store { files: Map {}, folders: [] } };
     console.println(save(m).debug());
-    console.println(m.folders.get().debug());
+    console.println(m.store.made().debug());
     console.println(m.read_file("note").debug());
     let f = m.open("note").unwrap();
     console.println(f.read_line().debug());

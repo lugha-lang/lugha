@@ -1,0 +1,25 @@
+error[E0476]: `auto interface` is the prelude's alone
+  --> tests/programs/concurrency/sendable/e0476.la:7:16
+  |
+7 | auto interface Mine {}
+  |                ^^^^
+  |
+  = help: a type is sendable when every part of it is: nothing to write, and nothing to claim
+
+error[E0476]: `Sendable` is worked out from a type's parts, never implemented
+  --> tests/programs/concurrency/sendable/e0476.la:3:6
+  |
+3 | impl Sendable for P {}
+  |      ^^^^^^^^
+  |
+  = help: a type is sendable when every part of it is: nothing to write, and nothing to claim
+
+error[E0476]: `Sendable` is worked out, never asked for
+  --> tests/programs/concurrency/sendable/e0476.la:5:26
+  |
+5 | struct Q { x: i64 } with Sendable
+  |                          ^^^^^^^^
+  |
+  = help: a type is sendable when every part of it is: nothing to write, and nothing to claim
+
+For more about E0476, run `lughac explain E0476`.

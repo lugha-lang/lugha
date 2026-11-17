@@ -1,0 +1,9 @@
+error[E0475]: `FakeClock` can't implement `Clock`, which requires `Sendable`: `now` is a `Ref<i64>`, which two tasks would share
+  --> tests/programs/concurrency/sendable/e0475_impl.la:4:6
+  |
+4 | impl Clock for FakeClock {
+  |      ^^^^^
+  |
+  = help: keep shared state in an actor, or send copies through a channel: a `Ref` belongs to one task
+
+For more about E0475, run `lughac explain E0475`.

@@ -86,9 +86,9 @@ pub struct OwnFun {
 /// Which function an own type is.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FunOrigin {
-    /// A closure literal, by its expression's id, and how it is shown:
-    /// `closure 2 in main`.
-    Closure(u32, String),
+    /// A closure literal, by its expression's id, how it is shown
+    /// (`closure 2 in main`), and what it captured, by name.
+    Closure(u32, String, Vec<(String, Type)>),
     /// A named function, by its key.
     Named(String),
 }
@@ -252,7 +252,7 @@ impl fmt::Display for Type {
             // One function: its signature, and which function it is.
             Type::Own(own) => {
                 let which = match &own.origin {
-                    FunOrigin::Closure(_, label) => label.clone(),
+                    FunOrigin::Closure(_, label, _) => label.clone(),
                     FunOrigin::Named(key) => key.clone(),
                 };
                 return write!(f, "{} {{{which}}}", own.signature());

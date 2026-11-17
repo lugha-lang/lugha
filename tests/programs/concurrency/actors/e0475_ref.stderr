@@ -1,0 +1,9 @@
+error[E0475]: actor `Cache` can't hold or exchange a `Ref<i64>`: it is a `Ref<i64>`, which two tasks would share
+  --> tests/programs/concurrency/actors/e0475_ref.la:2:11
+  |
+2 |     hits: Ref<i64>,
+  |           ^^^^^^^^
+  |
+  = help: keep shared state in an actor, or send copies through a channel: a `Ref` belongs to one task
+
+For more about E0475, run `lughac explain E0475`.

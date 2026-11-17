@@ -113,7 +113,7 @@ impl Display for string { fun show(self): string = self; }
  * error. `Result<T, Error>` holds any of them, and `?` converts a concrete
  * error into one; `"{e}"` shows it.
  */
-interface Error: Display {}
+interface Error: Display, Sendable {}
 
 /** A message is an error: `Result<T, string>` converts with `?`. */
 impl Error for string {}

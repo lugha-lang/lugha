@@ -12,7 +12,7 @@ error[E0438]: `spawn` of a call that changes its receiver or a `mut` argument: t
 14 |     let t = root.spawn(bump(mut x));
    |                        ^^^^^^^^^^^
    |
-   = help: nobody would see the change; send the new value back through a channel, or keep it in a `Ref`
+   = help: nobody would see the change; send the new value back through a channel, or keep the state in an actor
 
 error[E0406]: `bump` can't be used as a value
    --> tests/programs/functions/mut_params/not_here.la:15:13

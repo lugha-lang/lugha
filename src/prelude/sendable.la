@@ -1,0 +1,32 @@
+// What may cross to another task: a value holding nothing two tasks could
+// share. Worked out from a type's parts, through these blocks, for every
+// type: `auto`.
+
+/**
+ * A value that can cross to another task: its parts are numbers, text,
+ * arrays, structs and enums of such parts, channels, actors, interface
+ * values whose interface requires `Sendable`, and functions that captured
+ * only such values. A `Ref` never is: two tasks would share it. Nothing
+ * implements it by hand: a type is sendable when its parts are.
+ */
+auto interface Sendable {}
+
+derive Sendable for () {}
+derive Sendable for bool {}
+derive Sendable for char {}
+derive Sendable for string {}
+derive Sendable for i8 {}
+derive Sendable for i16 {}
+derive Sendable for i32 {}
+derive Sendable for i64 {}
+derive Sendable for u8 {}
+derive Sendable for u16 {}
+derive Sendable for u32 {}
+derive Sendable for u64 {}
+derive Sendable for f32 {}
+derive Sendable for f64 {}
+derive Sendable for handle {}
+derive<T: Sendable> Sendable for T[] {}
+derive Sendable for struct {}
+derive Sendable for enum {}
+derive Sendable for tuple {}

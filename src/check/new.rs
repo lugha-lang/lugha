@@ -64,6 +64,8 @@ impl Checker {
             qualified: std::collections::HashSet::new(),
             fun_origins: HashMap::new(),
             local_origins: HashMap::new(),
+            pending_sends: Vec::new(),
+            sends_ready: false,
             impl_owners: HashMap::new(),
             default_args: HashMap::new(),
             iterations: HashMap::new(),

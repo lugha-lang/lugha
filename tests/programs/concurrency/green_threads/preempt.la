@@ -1,15 +1,16 @@
-// A busy loop that never waits is preempted, so the thread that ends it runs.
-fun spin(stop: Ref<bool>): i64 {
+// A busy loop that never waits is preempted, so the task that ends it runs.
+// The flag crosses as a channel, which polling with `try_recv` never waits on.
+fun spin(stop: Chan<bool>): i64 {
     let mut turns = 0;
-    while !stop.get() {
+    while stop.try_recv().is_none() {
         turns += 1;
     }
     1
 }
 
 fun main(console: Console, root: Scope) {
-    let stop = Ref.new(false);
+    let stop: Chan<bool> = Chan.buffered(1);
     let s = root.spawn(spin(stop));
-    root.spawn(fun() { stop.set(true); }());
+    root.spawn(stop.send(true));
     console.println(s.join().unwrap());
 }

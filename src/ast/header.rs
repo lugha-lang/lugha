@@ -107,6 +107,9 @@ pub struct InterfaceDecl {
     pub defaults: Vec<Option<super::Type>>,
     /// The interfaces it extends, `interface Key: Eq`; empty when none.
     pub extends: Vec<Bound>,
+    /// `auto interface`: its derive blocks apply to every type whose parts
+    /// allow, with no `with` (the prelude's `Sendable`).
+    pub auto: bool,
     /// Required methods and associated functions, in order.
     pub items: Vec<InterfaceItem>,
     /// From `interface` to the closing brace.

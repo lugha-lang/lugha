@@ -3,9 +3,7 @@
 //! the declaration), so struct and method checking apply inside it. Outside,
 //! the actor's name is `Type::Actor`, a handle: `spawn` of the state gives
 //! one, method calls on it are messages, and its fields are private. What
-//! crosses an actor's boundary may hold no `Ref` (E0439).
-
-use std::collections::HashSet;
+//! crosses an actor's boundary must be sendable (E0475).
 
 use super::expr::Expect;
 use super::members::{Detail, Member, MemberKind, signature};
@@ -177,54 +175,12 @@ impl Checker {
         }
     }
 
+    /// What an actor keeps, takes or gives crosses to its task: E0475
+    /// unless sendable.
     fn shares_nothing(&mut self, key: &str, ty: &Type, span: Span) {
-        if self.may_share(ty, &mut HashSet::new()) {
-            let message = match ty {
-                Type::Ref(_) => format!(
-                    "`{ty}` is a shared box, which actor `{key}` would share: actors share nothing"
-                ),
-                _ => format!(
-                    "`{ty}` may hold a `Ref`, which actor `{key}` would share: actors share nothing"
-                ),
-            };
-            self.report(errors::actor_misuse(message, span));
-        }
-    }
-
-    /// Whether a value of `ty` may hold a `Ref`: one itself, a function or
-    /// interface value (which may have captured or boxed one), or a type
-    /// containing them.
-    fn may_share(&self, ty: &Type, seen: &mut HashSet<Type>) -> bool {
-        match ty {
-            // A capability is a handle to the world outside, meant to be
-            // passed to whatever does the work, an actor included.
-            Type::Interface(key, _) if super::impls::is_capability(key) => false,
-            Type::Ref(_) | Type::Fun(..) | Type::Interface(..) | Type::Param(_) => true,
-            Type::Array(inner) | Type::Option(inner) | Type::Task(inner) | Type::Chan(inner) => {
-                // A channel or task carries copies; what it carries is checked
-                // where it is sent, but a `Ref` inside would still be shared.
-                self.may_share(inner, seen)
-            }
-            Type::Struct(..) | Type::Enum(..) if !seen.insert(ty.clone()) => false,
-            Type::Struct(key, args) => {
-                let names: Vec<String> = self
-                    .structs
-                    .get(key)
-                    .map(|s| s.fields.iter().map(|(f, _)| f.clone()).collect())
-                    .unwrap_or_default();
-                names
-                    .iter()
-                    .filter_map(|f| self.field_type(key, args, f))
-                    .any(|f| self.may_share(&f, seen))
-            }
-            Type::Enum(key, args) => self
-                .enum_variants(key, args)
-                .unwrap_or_default()
-                .into_iter()
-                .flat_map(|(_, ps)| ps)
-                .any(|p| self.may_share(&p, seen)),
-            _ => false,
-        }
+        let name = key.rsplit('.').next().unwrap_or(key);
+        let head = format!("actor `{name}` can't hold or exchange a `{ty}`");
+        self.must_send(ty, &head, span);
     }
 }
 
@@ -327,6 +283,12 @@ mod tests {
             ("actor A<T> { x: T }", "T"),
             ("actor A { x: i64, fun stop(self) {} }", "stop"),
             ("actor A { x: i64, fun f<T>(self, t: T) {} }", "T"),
+        ] {
+            let src = format!("{actor}\nfun main() {{}}");
+            assert_eq!(errors(&src)[0], ("E0439", at), "{actor}");
+        }
+        // What crosses its boundary must be sendable.
+        for (actor, at) in [
             ("actor A { r: Ref<i64> }", "Ref<i64>"),
             (
                 "actor A { x: i64, fun f(self, g: fun(i64): i64) {} }",
@@ -338,7 +300,7 @@ mod tests {
             ),
         ] {
             let src = format!("{actor}\nfun main() {{}}");
-            assert_eq!(errors(&src)[0], ("E0439", at), "{actor}");
+            assert_eq!(errors(&src)[0], ("E0475", at), "{actor}");
         }
         // Channels and other handles may cross; plain data too.
         ok("actor B { n: i64 }

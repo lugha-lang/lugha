@@ -65,6 +65,9 @@ pub(super) struct InterfaceInfo {
     pub extends: Vec<Applied>,
     /// Each parameter's default, in its parameters and `Self`: `R = Self`.
     pub defaults: Vec<Option<Type>>,
+    /// `auto interface`: met by every type whose parts meet its derive
+    /// blocks, never by `impl` or `with`.
+    pub auto: bool,
 }
 
 impl Checker {
@@ -98,7 +101,15 @@ impl Checker {
                     uses_self: super::self_type::written_self_use(i),
                     extends: Vec::new(),
                     defaults: Vec::new(),
+                    auto: i.auto,
                 };
+                // Only the prelude declares one: `Sendable`.
+                if i.auto && !self.in_prelude() {
+                    self.report(errors::sendable_claimed(
+                        "`auto interface` is the prelude's alone",
+                        span,
+                    ));
+                }
                 self.interfaces.insert(key, info);
             }
         }

@@ -379,8 +379,9 @@ impl Printer<'_> {
             format!(": {}", names.join(", "))
         };
         let head = format!(
-            "{}interface {}{}{extends} ",
+            "{}{}interface {}{}{extends} ",
             visibility(i.visibility),
+            if i.auto { "auto " } else { "" },
             self.ident(&i.name),
             self.interface_params(i)
         );

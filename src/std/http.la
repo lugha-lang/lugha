@@ -129,6 +129,13 @@ impl Response {
 }
 
 /**
+ * What answers a server's requests: a function from a request to its
+ * response. It is sendable, since each connection's task calls it: a named
+ * function, or a closure that captured only sendable values.
+ */
+public interface Handler: fun(Request): Response, Sendable {}
+
+/**
  * Serves forever: each connection gets its own task, each request a call
  * of `handler`. Returns only when it can't listen, or when a connection
  * panics: the others are cancelled first.
@@ -136,7 +143,7 @@ impl Response {
  * @param addr host:port, `127.0.0.1:8080` for this machine only
  * @param handler makes a response for each request
  */
-public fun serve(net: Net, addr: string, handler: fun(Request): Response): Result<(), string> =
+public fun serve(net: Net, addr: string, handler: Handler): Result<(), string> =
     serve_with(net, addr, limits(), handler);
 
 /**
@@ -146,7 +153,7 @@ public fun serve(net: Net, addr: string, handler: fun(Request): Response): Resul
  * @param limits what to accept
  * @param handler makes a response for each request
  */
-public fun serve_with(net: Net, addr: string, limits: Limits, handler: fun(Request): Response): Result<(), string> {
+public fun serve_with(net: Net, addr: string, limits: Limits, handler: Handler): Result<(), string> {
     let listener = net.listen(addr)?;
     serve_on(fun(): Result<Conn, string> = listener.accept(), limits, handler)
 }
@@ -159,7 +166,7 @@ public fun serve_with(net: Net, addr: string, limits: Limits, handler: fun(Reque
  * @param key_pem its private key, PEM text, unencrypted
  * @param handler makes a response for each request
  */
-public fun serve_tls(net: Net, addr: string, cert_pem: string, key_pem: string, handler: fun(Request): Response): Result<(), string> =
+public fun serve_tls(net: Net, addr: string, cert_pem: string, key_pem: string, handler: Handler): Result<(), string> =
     serve_tls_with(net, addr, cert_pem, key_pem, limits(), handler);
 
 /**
@@ -172,7 +179,7 @@ public fun serve_tls(net: Net, addr: string, cert_pem: string, key_pem: string, 
  * @param limits what to accept
  * @param handler makes a response for each request
  */
-public fun serve_tls_with(net: Net, addr: string, cert_pem: string, key_pem: string, limits: Limits, handler: fun(Request): Response): Result<(), string> {
+public fun serve_tls_with(net: Net, addr: string, cert_pem: string, key_pem: string, limits: Limits, handler: Handler): Result<(), string> {
     let listener = tls.listen(net, addr, cert_pem, key_pem)?;
     listener.set_timeout(limits.timeout_ms);
     serve_on(fun(): Result<Conn, string> = listener.accept(), limits, handler)
@@ -182,7 +189,7 @@ public fun serve_tls_with(net: Net, addr: string, cert_pem: string, key_pem: str
  * Takes each connection `accept` gives to a task of its own, in one scope:
  * a connection's panic ends them all, and the error is returned.
  */
-fun serve_on(accept: fun(): Result<Conn, string>, limits: Limits, handler: fun(Request): Response): Result<(), string> {
+fun serve_on(accept: fun(): Result<Conn, string>, limits: Limits, handler: Handler): Result<(), string> {
     let served = scope s {
         while true {
             if let .Ok(conn) = accept() {
@@ -198,7 +205,7 @@ fun serve_on(accept: fun(): Result<Conn, string>, limits: Limits, handler: fun(R
 
 
 /** One connection: requests until it closes, fails, or asks to close. */
-fun connection(conn: Conn, limits: Limits, handler: fun(Request): Response) {
+fun connection(conn: Conn, limits: Limits, handler: Handler) {
     let mut reader = Reader { conn: conn, buf: [], pos: 0, deadline: 0 };
     let mut open = true;
     while open {

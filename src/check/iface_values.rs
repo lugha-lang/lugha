@@ -114,6 +114,11 @@ impl Checker {
                 self.report(d);
                 Type::Error
             }
+            _ if self.requires_sendable(&interface.key)
+                && !self.sendable_conversion(expr, &ty, wanted) =>
+            {
+                Type::Error
+            }
             _ if self.satisfies(&ty, &interface, expr.span) => {
                 self.conversions.insert(expr.id, wanted.clone());
                 self.conversion_uses(expr, &ty, &interface);

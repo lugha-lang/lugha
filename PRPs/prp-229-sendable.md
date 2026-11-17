@@ -1,6 +1,6 @@
 ## FEATURE: The sendable rule: a value crossing to another task must be `Sendable`, an `auto` prelude interface worked out from a type's parts; so a `Ref` never reaches two tasks; milestone 197.
 
-**Status:** approved 2026-11-17; scope grown (library handles), awaiting approval of the addition.
+**Status:** approved 2026-11-17, with the library handles added (approved); built.
 
 ## OBJECTIVE
 ```
@@ -88,13 +88,13 @@ The prelude's and std's own handles keep shared state in `Ref`s, so copies of on
 - Several OS threads: the rule prepares for them; tasks stay on one thread.
 
 ## TESTS
-- [ ] Checker unit tests: each sendable and non-sendable kind in rules 1–4; crossings 7–9 with the path in E0475; function values by captures; `T: Sendable`; E0476 for `impl`, `with` and `auto`.
-- [ ] `tests/programs/concurrency/sendable/`: the objective's errors; sharing through an actor and a channel instead; a `Handler` closure; a fake `Conn` (sendable) passed to a task.
-- [ ] Rewritten programs print what they printed.
-- [ ] Library handles: `tests/net.rs`, `udp`, `tls`, `tls_keys`, `tls_over_conn`, `http`, the file and `Dir` programs, and `leaks` (cells freed with their last handle) unchanged in output.
-- [ ] Targeted: `--lib`, `programs`, `leaks`, `spec`, `http`, `net`, `tls`, `tls_keys`, `tls_over_conn`, `udp`, `explain`, `comments`.
+- [x] Checker unit tests: each sendable and non-sendable kind in rules 1–4; crossings 7–9 with the path in E0475; function values by captures; `T: Sendable`; E0476 for `impl`, `with` and `auto`.
+- [x] `tests/programs/concurrency/sendable/`: the objective's errors; sharing through an actor and a channel instead; a `Handler` closure; a fake `Conn` (sendable) passed to a task.
+- [x] Rewritten programs print what they printed.
+- [x] Library handles: `tests/net.rs`, `udp`, `tls`, `tls_keys`, `tls_over_conn`, `http`, the file and `Dir` programs, and `leaks` (cells freed with their last handle) unchanged in output.
+- [x] Targeted: `--lib`, `programs`, `leaks`, `spec`, `http`, `net`, `tls`, `tls_keys`, `tls_over_conn`, `udp`, `explain`, `comments`.
 
 ## ACCEPTANCE
-- [ ] No program can make a `Ref` reachable from two tasks; every crossing is checked.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` clean; targeted tests pass.
-- [ ] Spec, CHANGELOG, error pages updated.
+- [x] No program can make a `Ref` reachable from two tasks; every crossing is checked.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` clean; targeted tests pass.
+- [x] Spec, CHANGELOG, error pages updated.

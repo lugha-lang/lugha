@@ -1,15 +1,21 @@
-// Go's `go func() { … }()`: a closure literal called on the spot.
+// Go's `go func() { … }()`: a closure literal called on the spot. What the
+// closures count crosses back through a channel.
 fun main(console: Console, root: Scope) {
     let k = 2;
-    let counter = Ref.new(0);
+    let counted: Chan<i64> = Chan.buffered(2);
     let t = root.spawn(fun(): i64 {
-        counter.update(fun(n: i64): i64 = n + 1);
+        counted.send(1);
         k * 10
     }());
     let u = root.spawn(fun() {
-        counter.update(fun(n: i64): i64 = n + 1);
+        counted.send(1);
     }());
     console.println(t.join().unwrap());
     u.join().unwrap();
-    console.println(counter.get());
+    counted.close();
+    let mut total = 0;
+    while let .Some(n) = counted.recv() {
+        total += n;
+    }
+    console.println(total);
 }

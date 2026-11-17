@@ -60,6 +60,7 @@ impl Checker {
             self.record(callee, Type::Unit);
             // `Chan<Job>.new()`: the written type is the channel's.
             let written = self.written_one(base, "Chan");
+            self.carried(written.as_ref(), base.span);
             let written = written.map(|t| Expect::of(Type::Chan(Box::new(t))));
             return Some(self.chan_new(call, name, args, written.as_ref().or(expect)));
         }

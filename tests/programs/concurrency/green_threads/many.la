@@ -1,14 +1,20 @@
-// Ten thousand green threads in one scope, each with its own stack.
-fun one(total: Ref<i64>) {
-    total.update(fun(n: i64): i64 = n + 1);
+// Ten thousand green threads in one scope, each with its own stack; each
+// reports through a channel.
+fun one(done: Chan<i64>) {
+    done.send(1);
 }
 
 fun main(console: Console) {
-    let total = Ref.new(0);
+    let done: Chan<i64> = Chan.buffered(10000);
     let all = scope s {
         for i in 0..10000 {
-            s.spawn(one(total));
+            s.spawn(one(done));
         }
     };
-    console.println("{total.get()} {all.is_ok()}");
+    done.close();
+    let mut total = 0;
+    while let .Some(n) = done.recv() {
+        total += n;
+    }
+    console.println("{total} {all.is_ok()}");
 }

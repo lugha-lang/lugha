@@ -64,6 +64,7 @@ impl Checker {
                 | "Listener"
                 | "Conn"
                 | "Udp"
+                | "Sendable"
         ) || is_operator_bound(name)
             || is_fun_interface(name))
             && self.interfaces.contains_key(&prelude);

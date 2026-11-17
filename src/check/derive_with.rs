@@ -91,6 +91,11 @@ impl Checker {
             };
             self.item_visible(&key, b.span);
             self.define_bound(b, &key);
+            if self.interfaces.get(&key).is_some_and(|i| i.auto) {
+                let message = format!("`{}` is worked out, never asked for", b.name.name);
+                self.report(errors::sendable_claimed(&message, b.span));
+                continue;
+            }
             let shown = shown_interface(&key);
             if !self.derives.covers(&key, &kind) {
                 let covered = self.derives.covered(&key);
@@ -166,7 +171,9 @@ impl Checker {
     /// prelude's types (`Result`, `Ordering`) are built in, like `Option`,
     /// and meet every derivable interface their parts meet.
     pub(super) fn asks(&self, owner: &str, interface: &str) -> bool {
-        owner.starts_with("$prelude.")
+        // An `auto` interface needs no asking.
+        self.interfaces.get(interface).is_some_and(|i| i.auto)
+            || owner.starts_with("$prelude.")
             || self
                 .asking
                 .asked

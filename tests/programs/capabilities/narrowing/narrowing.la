@@ -24,12 +24,19 @@ impl Listener for Ear {
     fun close(self) {}
 }
 
+/** What a fake network did, owned by one task: a `Net` may cross to others. */
+actor Log {
+    lines: string[],
+    fun add(mut self, what: string) { self.lines.push(what); }
+    fun all(self): string[] = self.lines;
+}
+
 /** Names resolve as the table says; every lookup and connection is logged. */
-struct Recorder { log: Ref<string[]> }
+struct Recorder { log: Log }
 
 impl Recorder {
     fun note(self, what: string) {
-        self.log.update(fun(l: string[]): string[] = l + [what]);
+        self.log.add(what);
     }
 }
 
@@ -64,7 +71,7 @@ fun tried(console: Console, label: string, r: Result<Conn, string>) {
 }
 
 fun main(console: Console, env: Env) {
-    let rec = Recorder { log: Ref.new([]) };
+    let rec = Recorder { log: spawn Log { lines: [] } };
     let api = rec.only("API.Example.com:443");
     tried(console, "api", api.connect("api.example.com:443"));
     tried(console, "other host", api.connect("example.org:443"));
@@ -87,7 +94,7 @@ fun main(console: Console, env: Env) {
     tried(console, "listen_only connect", ears.connect("api.example.com:443"));
     let one = rec.listen_only("127.0.0.1:8080");
     console.println("listen 0.0.0.0:8080 when 127.0.0.1 named: {one.listen("0.0.0.0:8080").is_err()}");
-    for line of rec.log.get() {
+    for line of rec.log.all() {
         console.println("  {line}");
     }
     let lang = env.only(["LUGHA_NARROW_A"]);

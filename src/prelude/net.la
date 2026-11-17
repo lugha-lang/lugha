@@ -12,7 +12,7 @@
  * never closed for you. Listen on `127.0.0.1` unless other machines should
  * reach the program. A fake implements the methods without a body.
  */
-interface Net {
+interface Net: Sendable {
     /**
      * Connects to an address, trying each one its name resolves to, giving
      * up after `ms` milliseconds (`0` waits forever).
@@ -67,7 +67,7 @@ interface Net {
 }
 
 /** A socket accepting connections: `net.listen(addr)`. Copies share it. */
-interface Listener {
+interface Listener: Sendable {
     /** Waits for the next connection; only this green thread waits. `Err` is `"closed"`, `"timed out"` or the system's reason. */
     fun accept(self): Result<Conn, string>;
     /** The address it listens on, as `host:port`; `""` once closed. */
@@ -79,7 +79,7 @@ interface Listener {
 }
 
 /** A connection, from `listener.accept()` or `net.connect(addr)`. Copies share it. */
-interface Conn {
+interface Conn: Sendable {
     /** What has arrived, up to `max` bytes (1 to 16777216), waiting for some if none has: `[]` once the other end has finished. */
     fun read(self, max: i64): Result<u8[], string>;
     /** Writes every byte, waiting while the connection is full. */
@@ -99,7 +99,7 @@ interface Conn {
  * share it. A datagram's sender address can be forged: check what it says
  * before trusting it.
  */
-interface Udp {
+interface Udp: Sendable {
     /**
      * Sends one datagram (it may be lost, repeated or reordered on the way) to
      * an IP address and port, `"192.168.1.20:5353"`, `"[ff02::fb%eth0]:5353"`:

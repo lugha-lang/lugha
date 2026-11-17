@@ -1,0 +1,14 @@
+struct Shared { hits: Ref<i64> }
+
+fun work(s: Shared): i64 = s.hits.get();
+
+fun make(): Ref<i64> = Ref.new(0);
+
+fun main() {
+    let hits = Ref.new(0);
+    let r = scope s {
+        s.spawn(fun() { hits.set(1); }());
+        s.spawn(work(Shared { hits: hits }));
+        s.spawn(make());
+    };
+}

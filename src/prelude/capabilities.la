@@ -8,7 +8,7 @@
  * Standard input, output and error: `console.println("hello")`.
  * `main` takes one as a parameter, `fun main(console: Console)`.
  */
-interface Console {
+interface Console: Sendable {
     /** Writes `x`'s text to standard output, with no newline. */
     fun print(self, x: Display);
     /** Writes `x`'s text and a newline to standard output. */
@@ -33,7 +33,7 @@ interface Console {
  * Files and folders: `fs.cwd()` is the folder the program started in.
  * `main` takes one as a parameter, `fun main(fs: Fs)`.
  */
-interface Fs {
+interface Fs: Sendable {
     /** The folder the program started in, as a `Dir`: that folder and below only. */
     fun cwd(self): Dir;
     /**
@@ -53,7 +53,7 @@ interface Fs {
  * byte")`. Nothing here deletes recursively. A fake implements the methods
  * without a body; the others are written over them.
  */
-interface Dir {
+interface Dir: Sendable {
     /** A folder inside this one, as a `Dir` reaching only it and below. */
     fun dir(self, path: string): Result<Dir, string>;
     /** This folder, for reading only: every method that would change something is `Err("the folder is read-only")`. */
@@ -134,7 +134,7 @@ interface Dir {
  * is `Err("not open for reading")`, the reverse `Err("not open for
  * writing")`, and any use after `close` is `Err("closed")`.
  */
-interface File {
+interface File: Sendable {
     /** Up to `max` bytes (1 to 16777216): what `read_line` read ahead first, else one read; `[]` at the end. */
     fun read(self, max: i64): Result<u8[], string>;
     /**
@@ -156,7 +156,7 @@ interface File {
  * The real date and time: `clock.now_ms()`. Pausing (`std.task.sleep`)
  * needs no clock.
  */
-interface Clock {
+interface Clock: Sendable {
     /**
      * Milliseconds since 1970-01-01 00:00 UTC, from the system clock. It can
      * jump when the clock is set: measure intervals with `monotonic_ms`.
@@ -173,7 +173,7 @@ interface Clock {
 }
 
 /** The environment variables, read-only: `env.get("HOME")`. */
-interface Env {
+interface Env: Sendable {
     /** The variable `name`: `None` when it is unset, isn't valid UTF-8, or `name` contains a NUL byte. */
     fun get(self, name: string): Option<string>;
     /** This environment narrowed to the variables `names`: any other reads as unset. */
@@ -188,7 +188,7 @@ interface Env {
  * working folder, and only stdin, stdout and stderr: every other descriptor
  * is closed on exec.
  */
-interface Proc {
+interface Proc: Sendable {
     /** Runs a program with its stdin empty, capturing its output: any exit code is `Ok`; `Err` when it couldn't start or its output isn't UTF-8. */
     fun run(self, cmd: string, args: string[]): Result<ProcessOutput, string>;
     /** `run`, with `input` written to the program's stdin. */
@@ -204,7 +204,7 @@ public struct ProcessOutput { public code: i32, public stdout: string, public st
  * The operating system's randomness, for keys, nonces and seeds. A seeded
  * generator (`std.random`) needs none.
  */
-interface Entropy {
+interface Entropy: Sendable {
     /** `n` random bytes; panics when `n` is negative. */
     fun bytes(self, n: i64): u8[];
     /** 64 random bits. */

@@ -19,7 +19,7 @@ impl Env for $TestEnv {
 }
 
 /** splitmix64 from seed 0: the same numbers in every test and every run. */
-struct $TestEntropy { state: Ref<u64> }
+struct $TestEntropy { cell: $Resource }
 
 impl Entropy for $TestEntropy {
     fun bytes(self, n: i64): u8[] {
@@ -39,8 +39,9 @@ impl Entropy for $TestEntropy {
         out
     }
     fun next_u64(self): u64 {
-        let state = self.state.get().wrapping_add(11400714819323198485);
-        self.state.set(state);
+        // The state, a `u64`, kept in the cell's slot 0 as its bits.
+        let state = $os.cell_get(self.cell, 0).truncate<u64>().wrapping_add(11400714819323198485);
+        $os.cell_set(self.cell, 0, state.truncate<i64>());
         let a = (state ^ (state >> 30)).wrapping_mul(13787848793156543929);
         let b = (a ^ (a >> 27)).wrapping_mul(10723151780598845931);
         b ^ (b >> 31)
@@ -119,7 +120,7 @@ fun $test_clock(): Clock = $TestClock {};
 fun $test_env(): Env = $TestEnv {};
 
 /** The randomness a plain test is given. */
-fun $test_entropy(): Entropy = $TestEntropy { state: Ref.new(0) };
+fun $test_entropy(): Entropy = $TestEntropy { cell: $os.cell_new(0, 0, 0, 0) };
 
 /** The network a plain test is given. */
 fun $test_net(): Net = $TestNet { real: $net() };

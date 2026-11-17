@@ -1,6 +1,6 @@
 // The real network: the runtime's sockets, through `$os` built-ins only the
-// prelude and std may call. Descriptors live in `Ref`s so every copy of a
-// socket sees it closed.
+// prelude and std may call. A socket's descriptor (slot 0, -1 once closed)
+// and timeout (slot 1) live in a runtime cell, so every copy sees it closed.
 
 /** The machine's network. */
 struct $Net {}
@@ -8,11 +8,11 @@ struct $Net {}
 impl Net for $Net {
     fun connect_timeout(self, addr: string, ms: i64): Result<Conn, string> {
         let fd = $os.net_connect(addr, ms)?;
-        Ok($Conn { fd: Ref.new(fd), timeout: Ref.new(0) })
+        Ok($Conn { cell: $os.cell_new(fd, 0, 0, 0) })
     }
     fun listen(self, addr: string): Result<Listener, string> {
         let fd = $os.net_listen(addr)?;
-        Ok($Listener { fd: Ref.new(fd), timeout: Ref.new(0) })
+        Ok($Listener { cell: $os.cell_new(fd, 0, 0, 0) })
     }
     fun resolve(self, name: string): Result<string[], string> {
         let mut out: string[] = [];
@@ -66,86 +66,86 @@ impl Net for $Net {
 /** A UDP socket bound with `shared` 1 (the port shared) or 0. */
 fun $udp_open(addr: string, shared: i64): Result<Udp, string> {
     let fd = $os.udp_bind(addr, shared)?;
-    Ok($Udp { fd: Ref.new(fd), timeout: Ref.new(0) })
+    Ok($Udp { cell: $os.cell_new(fd, 0, 0, 0) })
 }
 
 /** A real listening socket. */
-struct $Listener { fd: Ref<i64>, timeout: Ref<i64> }
+struct $Listener { cell: $Resource }
 
 /** A real connection. */
-struct $Conn { fd: Ref<i64>, timeout: Ref<i64> }
+struct $Conn { cell: $Resource }
 
 /** A real UDP socket. */
-struct $Udp { fd: Ref<i64>, timeout: Ref<i64> }
+struct $Udp { cell: $Resource }
 
 impl Listener for $Listener {
     fun accept(self): Result<Conn, string> {
-        let fd = self.fd.get();
+        let fd = $os.cell_get(self.cell, 0);
         if fd < 0 {
             return Err("closed");
         }
-        let conn = $os.net_accept(fd, self.timeout.get())?;
-        Ok($Conn { fd: Ref.new(conn), timeout: Ref.new(0) })
+        let conn = $os.net_accept(fd, $os.cell_get(self.cell, 1))?;
+        Ok($Conn { cell: $os.cell_new(conn, 0, 0, 0) })
     }
 
-    fun addr(self): string = $net_name(self.fd.get(), 0);
+    fun addr(self): string = $net_name($os.cell_get(self.cell, 0), 0);
 
     fun set_timeout(self, ms: i64) {
-        self.timeout.set(ms);
+        $os.cell_set(self.cell, 1, ms);
     }
 
     fun close(self) {
-        $net_shut(self.fd);
+        $net_shut(self.cell);
     }
 }
 
 impl Conn for $Conn {
     fun read(self, max: i64): Result<u8[], string> {
-        let fd = self.fd.get();
+        let fd = $os.cell_get(self.cell, 0);
         if fd < 0 {
             return Err("closed");
         }
-        $os.net_read(fd, max, self.timeout.get())
+        $os.net_read(fd, max, $os.cell_get(self.cell, 1))
     }
 
     fun write(self, bytes: u8[]): Result<(), string> {
-        let fd = self.fd.get();
+        let fd = $os.cell_get(self.cell, 0);
         if fd < 0 {
             return Err("closed");
         }
-        $os.net_write(fd, bytes, self.timeout.get())?;
+        $os.net_write(fd, bytes, $os.cell_get(self.cell, 1))?;
         Ok(())
     }
 
     fun set_timeout(self, ms: i64) {
-        self.timeout.set(ms);
+        $os.cell_set(self.cell, 1, ms);
     }
 
-    fun peer(self): string = $net_name(self.fd.get(), 1);
+    fun peer(self): string = $net_name($os.cell_get(self.cell, 0), 1);
 
-    fun addr(self): string = $net_name(self.fd.get(), 0);
+    fun addr(self): string = $net_name($os.cell_get(self.cell, 0), 0);
 
     fun close(self) {
-        $net_shut(self.fd);
+        $net_shut(self.cell);
     }
 }
 
 impl Udp for $Udp {
     fun send_to(self, bytes: u8[], addr: string): Result<(), string> {
-        let fd = self.fd.get();
+        let fd = $os.cell_get(self.cell, 0);
         if fd < 0 {
             return Err("closed");
         }
-        $os.udp_send(fd, bytes, addr, self.timeout.get())?;
+        $os.udp_send(fd, bytes, addr, $os.cell_get(self.cell, 1))?;
         Ok(())
     }
 
     fun recv_from(self, max: i64): Result<(u8[], string), string> {
-        let fd = self.fd.get();
+        let fd = $os.cell_get(self.cell, 0);
         if fd < 0 {
             return Err("closed");
         }
-        $os.udp_recv(fd, max, self.timeout.get())
+        $os.udp_recv(fd, max, $os.cell_get(self.cell, 1))
     }
 
     fun join(self, group: string, iface: string): Result<(), string> = self.group(group, iface, 1);
@@ -162,7 +162,7 @@ impl Udp for $Udp {
     fun set_multicast_loop(self, on: bool): Result<(), string> = self.option(1, if on { 1 } else { 0 });
 
     fun set_multicast_interface(self, iface: string): Result<(), string> {
-        let fd = self.fd.get();
+        let fd = $os.cell_get(self.cell, 0);
         if fd < 0 {
             return Err("closed");
         }
@@ -171,20 +171,20 @@ impl Udp for $Udp {
     }
 
     fun set_timeout(self, ms: i64) {
-        self.timeout.set(ms);
+        $os.cell_set(self.cell, 1, ms);
     }
 
-    fun addr(self): string = $net_name(self.fd.get(), 0);
+    fun addr(self): string = $net_name($os.cell_get(self.cell, 0), 0);
 
     fun close(self) {
-        $net_shut(self.fd);
+        $net_shut(self.cell);
     }
 }
 
 impl $Udp {
     /** Joins (`join` 1) or leaves (0) a multicast group. */
     fun group(self, group: string, iface: string, join: i64): Result<(), string> {
-        let fd = self.fd.get();
+        let fd = $os.cell_get(self.cell, 0);
         if fd < 0 {
             return Err("closed");
         }
@@ -194,7 +194,7 @@ impl $Udp {
 
     /** Sets multicast option `which`: 0 the hop limit, 1 looping back. */
     fun option(self, which: i64, value: i64): Result<(), string> {
-        let fd = self.fd.get();
+        let fd = $os.cell_get(self.cell, 0);
         if fd < 0 {
             return Err("closed");
         }
@@ -214,12 +214,12 @@ fun $net_name(fd: i64, peer: i64): string {
     }
 }
 
-/** Closes the socket in `fd` once, for every copy. */
-fun $net_shut(fd: Ref<i64>) {
-    let open = fd.get();
+/** Closes the socket in `cell`'s slot 0 once, for every copy. */
+fun $net_shut(cell: $Resource) {
+    let open = $os.cell_get(cell, 0);
     if open >= 0 {
         $os.net_close(open);
-        fd.set(-1);
+        $os.cell_set(cell, 0, -1);
     }
 }
 

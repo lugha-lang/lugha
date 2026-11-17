@@ -1,0 +1,9 @@
+struct P { x: i64 }
+
+impl Sendable for P {}
+
+struct Q { x: i64 } with Sendable
+
+auto interface Mine {}
+
+fun main() {}

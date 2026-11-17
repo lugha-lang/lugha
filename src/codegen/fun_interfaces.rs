@@ -32,7 +32,7 @@ impl<'ctx> Lowerer<'ctx> {
         let pair = self.get(callee, &ty)?.into_struct_value();
         let values = self.arguments(args, &own.params, false)?;
         let code = match &own.origin {
-            FunOrigin::Closure(id, _) => self.closure_fns.get(&ExprId(*id)).copied(),
+            FunOrigin::Closure(id, ..) => self.closure_fns.get(&ExprId(*id)).copied(),
             FunOrigin::Named(key) => {
                 let target = self.functions.get(key).map(|f| f.function);
                 target.map(|t| self.wrapper(t))

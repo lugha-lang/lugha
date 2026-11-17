@@ -49,18 +49,24 @@ public struct Keys {
     public accept: u8[][],
 }
 
-/** An encrypted connection over another `Conn`; it is a `Conn` itself. */
+/**
+ * An encrypted connection over another `Conn`; it is a `Conn` itself. Its
+ * cell, shared by every copy, holds the session's handle (slot 0, -1 once
+ * closed) and the timeout (slot 1).
+ */
 public struct SecureConn {
-    h: Ref<i64>,
+    cell: $Resource,
     under: Conn,
-    timeout: Ref<i64>,
 }
 
-/** A listener whose connections are encrypted; it is a `Listener` itself. */
+/**
+ * A listener whose connections are encrypted; it is a `Listener` itself.
+ * Its cell holds the context's handle (slot 0, -1 once closed) and the
+ * timeout (slot 1).
+ */
 public struct SecureListener {
-    ctx: Ref<i64>,
+    cell: $Resource,
     under: Listener,
-    timeout: Ref<i64>,
 }
 
 /**
@@ -195,7 +201,7 @@ public fun listen_keys(net: Net, addr: string, keys: Keys): Result<SecureListene
 /** A listener on `addr` handing each connection to context `ctx`, freed if listening fails. */
 fun listening(net: Net, addr: string, ctx: i64): Result<SecureListener, string> {
     match net.listen(addr) {
-        .Ok(l) => Ok(SecureListener { ctx: Ref.new(ctx), under: l, timeout: Ref.new(0) }),
+        .Ok(l) => Ok(SecureListener { cell: $os.cell_new(ctx, 0, 0, 0), under: l }),
         .Err(e) => {
             $os.tls_free_context(ctx);
             Err(e)
@@ -213,7 +219,7 @@ fun started(made: Result<i64, string>, conn: Conn, timeout_ms: i64): Result<Secu
         }
     };
     match drive(h, conn, 0, [], 0, deadline(timeout_ms)) {
-        .Ok(_) => Ok(SecureConn { h: Ref.new(h), under: conn, timeout: Ref.new(timeout_ms) }),
+        .Ok(_) => Ok(SecureConn { cell: $os.cell_new(h, timeout_ms, 0, 0), under: conn }),
         .Err(e) => {
             $os.tls_free(h);
             conn.close();
@@ -337,18 +343,18 @@ impl Listener for SecureListener {
         Ok(secure)
     }
 
-    fun addr(self): string = if self.ctx.get() < 0 { "" } else { self.under.addr() };
+    fun addr(self): string = if $os.cell_get(self.cell, 0) < 0 { "" } else { self.under.addr() };
 
     /** How long `accept` with its handshake waits, in milliseconds; `0` waits forever. */
     fun set_timeout(self, ms: i64) {
-        self.timeout.set(ms);
+        $os.cell_set(self.cell, 1, ms);
         self.under.set_timeout(ms);
     }
 
     fun close(self) {
-        let ctx = self.ctx.get();
+        let ctx = $os.cell_get(self.cell, 0);
         if ctx >= 0 {
-            self.ctx.set(-1);
+            $os.cell_set(self.cell, 0, -1);
             self.under.close();
             $os.tls_free_context(ctx);
         }
@@ -361,12 +367,12 @@ impl SecureListener {
      * @returns the connection after its handshake, or `Err` (a failed handshake is one too)
      */
     public fun accept_secure(self): Result<SecureConn, string> {
-        let ctx = self.ctx.get();
+        let ctx = $os.cell_get(self.cell, 0);
         if ctx < 0 {
             return Err("closed");
         }
         let conn = self.under.accept()?;
-        started($os.tls_new(ctx, ""), conn, self.timeout.get())
+        started($os.tls_new(ctx, ""), conn, $os.cell_get(self.cell, 1))
     }
 
     /**
@@ -376,7 +382,7 @@ impl SecureListener {
      * @returns `Ok(())`, or `Err` for a certificate listener or a closed one
      */
     public fun set_accept(self, accept: u8[][]): Result<(), string> {
-        let ctx = self.ctx.get();
+        let ctx = $os.cell_get(self.cell, 0);
         if ctx < 0 {
             return Err("closed");
         }
@@ -388,19 +394,19 @@ impl SecureListener {
 
 impl Conn for SecureConn {
     fun read(self, max: i64): Result<u8[], string> {
-        let h = self.h.get();
+        let h = $os.cell_get(self.cell, 0);
         if h < 0 {
             return Err("closed");
         }
-        drive(h, self.under, 1, [], max, deadline(self.timeout.get()))
+        drive(h, self.under, 1, [], max, deadline($os.cell_get(self.cell, 1)))
     }
 
     fun write(self, bytes: u8[]): Result<(), string> {
-        let h = self.h.get();
+        let h = $os.cell_get(self.cell, 0);
         if h < 0 {
             return Err("closed");
         }
-        let by = deadline(self.timeout.get());
+        let by = deadline($os.cell_get(self.cell, 1));
         let mut at = 0;
         while at < bytes.len {
             // One record at a time keeps OpenSSL's output buffer small.
@@ -412,18 +418,18 @@ impl Conn for SecureConn {
     }
 
     fun set_timeout(self, ms: i64) {
-        self.timeout.set(ms);
+        $os.cell_set(self.cell, 1, ms);
     }
 
-    fun peer(self): string = if self.h.get() < 0 { "" } else { self.under.peer() };
+    fun peer(self): string = if $os.cell_get(self.cell, 0) < 0 { "" } else { self.under.peer() };
 
-    fun addr(self): string = if self.h.get() < 0 { "" } else { self.under.addr() };
+    fun addr(self): string = if $os.cell_get(self.cell, 0) < 0 { "" } else { self.under.addr() };
 
     /** Ends the connection, telling the other end without waiting for its reply, and closes every copy. */
     fun close(self) {
-        let h = self.h.get();
+        let h = $os.cell_get(self.cell, 0);
         if h >= 0 {
-            self.h.set(-1);
+            $os.cell_set(self.cell, 0, -1);
             // Best effort: the peer may be gone already.
             if let .Ok(_) = $os.tls_step(h, 3, [], 0) {
                 let _ = flush_out(h, self.under, deadline(1000));
@@ -440,7 +446,7 @@ impl SecureConn {
      * `[]` on a certificate connection and once closed.
      */
     public fun peer_key(self): u8[] {
-        let h = self.h.get();
+        let h = $os.cell_get(self.cell, 0);
         if h < 0 { [] } else { $os.tls_peer_key(h) }
     }
 }

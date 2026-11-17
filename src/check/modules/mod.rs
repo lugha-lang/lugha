@@ -269,6 +269,8 @@ impl Checker {
             self.check_with(unit.program);
         }
         self.settle_keys();
+        // Every derive block is known: the sendable checks waiting on them.
+        self.run_pending_sends();
         for unit in units {
             self.enter(unit);
             self.visibility_rules(unit.program);

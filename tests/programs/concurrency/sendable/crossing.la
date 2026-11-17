@@ -1,0 +1,45 @@
+// What crosses to another task: plain data, channels, actors, capabilities,
+// and functions that captured only such values. State the tasks share
+// lives in an actor.
+actor Tally {
+    count: i64,
+    fun add(mut self, n: i64) { self.count += n; }
+    fun total(self): i64 = self.count;
+}
+
+struct Job { id: i64, tags: string[], scores: Map<string, i64> }
+
+interface Task2: fun(): i64, Sendable {}
+
+fun work(job: Job, tally: Tally, out: Chan<string>) {
+    tally.add(job.id);
+    out.send("job {job.id} {job.tags.len} {job.scores.len}");
+}
+
+fun relay<T: Sendable>(s: Scope, value: T, out: Chan<T>) {
+    s.spawn(out.send(value));
+}
+
+fun later(s: Scope, f: Task2): i64 = s.spawn(f()).join().unwrap();
+
+fun main(console: Console) {
+    let tally = spawn Tally { count: 0 };
+    let out: Chan<string> = Chan.buffered(4);
+    let k = 40;
+    let r = scope s {
+        s.spawn(work(Job { id: 1, tags: ["a"], scores: Map { "x": 1 } }, tally, out));
+        s.spawn(work(Job { id: 2, tags: [], scores: Map {} }, tally, out));
+        s.spawn(console.println("a capability crosses"));
+        let got = later(s, fun(): i64 = k + 2);
+        relay(s, "relayed", out);
+        got
+    };
+    out.close();
+    let mut lines: string[] = [];
+    while let .Some(line) = out.recv() {
+        lines.push(line);
+    }
+    console.println(lines.sort().debug());
+    console.println("{r.unwrap()} {tally.total()}");
+    tally.stop();
+}
