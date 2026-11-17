@@ -67,6 +67,25 @@ impl<'ctx> Lowerer<'ctx> {
         self.pads.last_before.insert(start, last);
     }
 
+    /// What a statement starting at `start` recorded, put back by
+    /// [`Self::unwind_restore`]: a construct's body may start at the same
+    /// place, after blocks the construct made for itself, and record those.
+    pub(super) fn unwind_record(&self, start: Start<'ctx>) -> Option<Option<BasicBlock<'ctx>>> {
+        self.pads.last_before.get(&start).copied()
+    }
+
+    /// Puts back what [`Self::unwind_record`] gave.
+    pub(super) fn unwind_restore(
+        &mut self,
+        start: Start<'ctx>,
+        record: Option<Option<BasicBlock<'ctx>>>,
+    ) {
+        match record {
+            Some(last) => self.pads.last_before.insert(start, last),
+            None => self.pads.last_before.remove(&start),
+        };
+    }
+
     /// At the end of the statement that started at `start`: its calls
     /// still without a pad get one running what a `return` here would.
     pub(super) fn unwind_statement(&mut self, start: Start<'ctx>) {

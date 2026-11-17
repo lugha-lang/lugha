@@ -1,0 +1,49 @@
+// A shield in a `defer` that runs as its task unwinds from a cancellation:
+// past its deadline it is cut off, wherever the task is (a wait, a busy
+// loop, a function the `defer` calls, its own `defer`s run), and the code
+// after it runs; then the first unwinding goes on.
+import std.task;
+
+fun polite(console: Console) {
+    shield within 10 {
+        defer console.println("polite: write cut off");
+        task.sleep(10_000);
+    }
+    console.println("polite: closed");
+}
+
+fun early(): i64 {
+    shield within 1_000 {
+        if true {
+            return 7;
+        }
+    }
+    0
+}
+
+fun worker(console: Console) {
+    defer {
+        polite(console);
+        console.println("early: {early()}");
+    }
+    defer {
+        shield within 10 {
+            let mut i = 0;
+            while i >= 0 {
+                i += 1;
+            }
+        }
+        console.println("busy: cut off");
+    }
+    task.sleep(10_000);
+}
+
+fun main(console: Console) {
+    let r = scope s {
+        let w = s.spawn(worker(console));
+        task.sleep(5);
+        w.cancel("stop");
+        console.println(w.join().is_err());
+    };
+    console.println(r.is_ok());
+}

@@ -1,0 +1,12 @@
+// A failure before the deadline stays the scope's value.
+fun bad(): Result<i64, string> = Err("too soon");
+
+fun main(console: Console) {
+    let r = scope s within 10_000 {
+        s.spawn(bad());
+    };
+    match r {
+        .Ok(_) => console.println("?"),
+        .Err(f) => console.println(f),
+    }
+}

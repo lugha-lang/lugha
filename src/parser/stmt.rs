@@ -64,6 +64,11 @@ impl Parser<'_> {
         if self.label_ahead() {
             return self.labelled_element(start);
         }
+        // A shield, like a block, needs no `;` after it.
+        if self.shield_ahead() {
+            let expr = self.shield_expr(start)?;
+            return Ok(self.block_like_element(start, expr));
+        }
         let kind = match self.peek() {
             TokenKind::Let => self.let_stmt()?,
             TokenKind::While if matches!(self.peek_at(1), TokenKind::Let) => {
@@ -171,15 +176,20 @@ impl Parser<'_> {
     /// a block statement), an expression or an assignment.
     fn deferred(&mut self) -> PResult<Stmt> {
         let start = self.span().start;
-        let kind = if matches!(
-            self.peek(),
-            TokenKind::If
-                | TokenKind::LBrace
-                | TokenKind::Match
-                | TokenKind::Select
-                | TokenKind::Loop
-        ) {
-            let expr = self.block_like()?;
+        let kind = if self.shield_ahead()
+            || matches!(
+                self.peek(),
+                TokenKind::If
+                    | TokenKind::LBrace
+                    | TokenKind::Match
+                    | TokenKind::Select
+                    | TokenKind::Loop
+            ) {
+            let expr = if self.shield_ahead() {
+                self.shield_expr(start)?
+            } else {
+                self.block_like()?
+            };
             self.eat(&TokenKind::Semi);
             StmtKind::Expr {
                 expr,

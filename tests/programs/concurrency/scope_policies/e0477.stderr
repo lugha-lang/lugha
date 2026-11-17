@@ -1,4 +1,4 @@
-error[E0477]: `quickly` isn't a scope setting here: write `independent`, `independent(f)` or `limit n`
+error[E0477]: `quickly` isn't a scope setting: write `independent`, `independent(f)`, `limit n`, `within ms` or `until t`
   --> tests/programs/concurrency/scope_policies/e0477.la:2:21
   |
 2 |     let a = scope s quickly {

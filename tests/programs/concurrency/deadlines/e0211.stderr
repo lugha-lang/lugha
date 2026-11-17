@@ -1,0 +1,9 @@
+error[E0211]: a shield needs a deadline
+  --> tests/programs/concurrency/deadlines/e0211.la:2:5
+  |
+2 |     shield {
+  |     ^^^^^^
+  |
+  = help: write `shield within ms { … }`: cancellation waits at most `ms` milliseconds
+
+For more about E0211, run `lughac explain E0211`.

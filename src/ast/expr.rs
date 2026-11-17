@@ -129,6 +129,9 @@ pub enum ExprKind {
     /// `scope s { body }`: a block whose tasks, started through `s`, all
     /// finish before it does.
     Scope(Box<ScopeExpr>),
+    /// `shield within ms { body }`, as the block it means:
+    /// `{ $os.shield_enter(ms); defer $os.shield_exit(); { body } }`.
+    Shield(Box<Block>),
     /// `select { arms }`.
     Select(Vec<SelectArm>),
 }
@@ -381,4 +384,21 @@ pub struct IfLet {
     pub scrutinee: Expr,
     pub then: Block,
     pub else_: Option<Box<Expr>>,
+}
+
+/// The deadline and the body of `shield within ms { body }`, from the block
+/// it means: the first statement's argument, and the tail.
+pub fn shield_parts(block: &Block) -> (&Expr, &Block) {
+    let within = match block.stmts.first().map(|s| &s.kind) {
+        Some(super::StmtKind::Expr { expr, .. }) => match &expr.kind {
+            ExprKind::Call(_, args) => &args[0],
+            _ => unreachable!("the parser made `$os.shield_enter(ms)`"),
+        },
+        _ => unreachable!("the parser made `$os.shield_enter(ms)`"),
+    };
+    let body = match block.tail.as_deref().map(|t| &t.kind) {
+        Some(ExprKind::Block(body)) => body,
+        _ => unreachable!("the parser made the body the tail"),
+    };
+    (within, body)
 }

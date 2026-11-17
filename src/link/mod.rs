@@ -26,7 +26,7 @@ pub use self::inputs::{Plan, PlanError};
 
 /// The runtime's source files, in the order they are joined: the core first,
 /// since it holds every `#include`, then the fragments that rely on it.
-pub const RUNTIME_PARTS: [(&str, &str); 32] = [
+pub const RUNTIME_PARTS: [(&str, &str); 33] = [
     ("lugha_rt.c", include_str!("../../runtime/lugha_rt.c")),
     ("stack.c", include_str!("../../runtime/stack.c")),
     ("print.c", include_str!("../../runtime/print.c")),
@@ -54,6 +54,7 @@ pub const RUNTIME_PARTS: [(&str, &str); 32] = [
         "scope_policy.c",
         include_str!("../../runtime/scope_policy.c"),
     ),
+    ("scope_time.c", include_str!("../../runtime/scope_time.c")),
     ("cells.c", include_str!("../../runtime/cells.c")),
     ("chans.c", include_str!("../../runtime/chans.c")),
     ("actors.c", include_str!("../../runtime/actors.c")),
@@ -65,7 +66,7 @@ pub const RUNTIME_PARTS: [(&str, &str); 32] = [
 ];
 
 /// Every runtime function codegen may call; `lugha_rt.c` defines them all.
-pub const RUNTIME_SYMBOLS: [&str; 134] = [
+pub const RUNTIME_SYMBOLS: [&str; 140] = [
     "lugha_rt_init",
     "lugha_rt_read_line",
     "lugha_rt_eprint",
@@ -200,6 +201,12 @@ pub const RUNTIME_SYMBOLS: [&str; 134] = [
     "lugha_rt_task_own_name",
     "lugha_rt_task_caught",
     "lugha_rt_task_panicked",
+    "lugha_rt_scope_remaining",
+    "lugha_rt_shield_enter",
+    "lugha_rt_shield_exit",
+    "lugha_rt_shield_caught",
+    "lugha_rt_shield_lost",
+    "lugha_rt_shield_end",
 ];
 
 /// The C runtime linked into every program: [`RUNTIME_PARTS`] joined in order,
@@ -229,6 +236,7 @@ pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/spawn.c"),
     include_str!("../../runtime/scopes.c"),
     include_str!("../../runtime/scope_policy.c"),
+    include_str!("../../runtime/scope_time.c"),
     include_str!("../../runtime/cells.c"),
     include_str!("../../runtime/chans.c"),
     include_str!("../../runtime/actors.c"),

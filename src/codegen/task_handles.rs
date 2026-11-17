@@ -16,6 +16,8 @@ use crate::check::Type;
 /// How a task's cancellation came about, as the runtime numbers it.
 const SIBLING_FAILED: u64 = 1;
 const PARENT: u64 = 2;
+const DEADLINE: u64 = 4;
+const SHUTDOWN: u64 = 5;
 
 /// The `Ok` and `Err` types of `ty`, if it is a `Result`.
 fn result_parts(ty: &Type) -> Option<(&Type, &Type)> {
@@ -183,10 +185,12 @@ impl<'ctx> Lowerer<'ctx> {
             .into_int_value();
         let slot = self.entry_alloca(&ty, "reason");
         let made = self.append("reason.made");
-        let [sibling, parent, requested] = [
+        let [sibling, parent, requested, late, shutdown] = [
             self.append("reason.sibling"),
             self.append("reason.parent"),
             self.append("reason.requested"),
+            self.append("reason.deadline"),
+            self.append("reason.shutdown"),
         ];
         let i32_type = self.context.i32_type();
         self.builder
@@ -196,10 +200,18 @@ impl<'ctx> Lowerer<'ctx> {
                 &[
                     (i32_type.const_int(SIBLING_FAILED, false), sibling),
                     (i32_type.const_int(PARENT, false), parent),
+                    (i32_type.const_int(DEADLINE, false), late),
+                    (i32_type.const_int(SHUTDOWN, false), shutdown),
                 ],
             )
             .expect(POSITIONED);
-        for (block, variant) in [(sibling, "SiblingFailed"), (parent, "Parent")] {
+        let plain = [
+            (sibling, "SiblingFailed"),
+            (parent, "Parent"),
+            (late, "Deadline"),
+            (shutdown, "Shutdown"),
+        ];
+        for (block, variant) in plain {
             self.builder.position_at_end(block);
             let value = self.construct_values(&ty, variant, Vec::new());
             self.builder.build_store(slot, value).expect(POSITIONED);

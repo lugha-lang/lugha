@@ -1,0 +1,11 @@
+// A body that never waits is still stopped at its deadline, at a
+// preemption point.
+fun main(console: Console) {
+    let r = scope s within 20 {
+        let mut i = 0;
+        loop {
+            i += 1;
+        }
+    };
+    console.println(r.is_err());
+}

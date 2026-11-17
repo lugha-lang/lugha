@@ -61,6 +61,14 @@ pub fn os_signature(op: &str) -> Option<(Vec<Type>, Type)> {
         "cell_set" => (vec![cptr(), Type::I64, Type::I64], Type::Unit),
         "cell_bytes" => (vec![cptr()], bytes()),
         "cell_set_bytes" => (vec![cptr(), bytes()], Type::Unit),
+        // What is left of a scope's deadline, in milliseconds (-1: none).
+        "scope_remaining" => (
+            vec![Type::Handle(super::input::CPTR.to_string())],
+            Type::I64,
+        ),
+        // `shield within ms { … }`: holds cancellation off, then lets it in.
+        "shield_enter" => (vec![Type::I64], Type::Unit),
+        "shield_exit" => (Vec::new(), Type::Unit),
         // The root scope's record.
         "scope_root" => (Vec::new(), Type::Handle(super::input::CPTR.to_string())),
         "dir_open" => (vec![Type::String], result(cptr())),

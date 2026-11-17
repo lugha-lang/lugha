@@ -29,6 +29,7 @@ fun main(console: Console) {
             .Error(.Net(m)) => console.println("{f.task}: net {m}"),
             .Error(.Disk(code)) => console.println("disk {code}"),
             .Panic(m) => console.println(m),
+            .Deadline => console.println("deadline"),
         },
     }
 }

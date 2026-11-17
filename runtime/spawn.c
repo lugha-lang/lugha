@@ -207,6 +207,7 @@ void lugha_rt_task_sleep(int64_t ms) {
 /* Called by generated code when its countdown reaches zero. */
 void lugha_rt_task_preempt(void) {
     lugha_rt_task_budget = TASK_BUDGET;
+    check_times();
     lugha_rt_cancel_point();
     if (live_count > 1) {
         lugha_rt_task_yield();

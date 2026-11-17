@@ -26,6 +26,10 @@ const KNOWN: &[(&str, &str)] = &[
         "control/unwinding/in_defer.la",
         "a panic in a defer ends the program unwound halfway",
     ),
+    (
+        "concurrency/deadlines/shield_value_lost.la",
+        "a shield's value lost while unwinding ends the program unwound halfway",
+    ),
     // A deadlock ends the program with every task still waiting.
     (
         "concurrency/actors/deadlock.la",

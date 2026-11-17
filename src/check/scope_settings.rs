@@ -1,6 +1,7 @@
 //! A scope's settings, the words between its name and its body:
-//! `independent`, `independent(f)` and `limit n` (E0477 for any other, or a
-//! repeat); and `scope<E>`, the error type its tasks fail with.
+//! `independent`, `independent(f)`, `limit n`, and one deadline, `within ms`
+//! or `until t` (E0477 for any other, a repeat, or both deadlines); and
+//! `scope<E>`, the error type its tasks fail with.
 
 use super::expr::Expect;
 use super::scopes::{error_type, failure_type};
@@ -51,9 +52,18 @@ impl Checker {
                 ("limit", Some(n)) => {
                     self.expect_type(n, &Expect::of(Type::I64));
                 }
+                ("within" | "until", Some(t)) => {
+                    // One deadline: `within` or `until`, not both.
+                    if seen.contains(&"within") && seen.contains(&"until") {
+                        let message =
+                            "a scope has one deadline: `within ms` or `until t`, not both";
+                        self.report(errors::scope_word(message, w.name.span));
+                    }
+                    self.expect_type(t, &Expect::of(Type::I64));
+                }
                 _ => {
                     let message = format!(
-                        "`{name}` isn't a scope setting here: write `independent`, `independent(f)` or `limit n`"
+                        "`{name}` isn't a scope setting: write `independent`, `independent(f)`, `limit n`, `within ms` or `until t`"
                     );
                     self.report(errors::scope_word(&message, w.name.span));
                 }
@@ -137,5 +147,33 @@ mod tests {
             )
         );
         ok("fun f(s: Scope): Result<(), Failure> = Ok(());\nfun main() {}");
+    }
+
+    #[test]
+    fn deadlines_take_milliseconds_and_one_of_within_or_until() {
+        ok(
+            "fun main() { let ms = 5; let r = scope s within ms { }; let t = scope s until 100 { }; }",
+        );
+        assert_eq!(
+            codes("fun main() { let r = scope s within \"soon\" { }; }"),
+            ["E0403"]
+        );
+        assert_eq!(
+            codes("fun main() { let r = scope s within 1 until 2 { }; }"),
+            ["E0477"]
+        );
+        assert_eq!(
+            let_type("fun main() { let r = scope s { s.remaining() }; }", "r").to_string(),
+            "Result<Option<i64>, $prelude.Failure<$prelude.Error>>"
+        );
+    }
+
+    #[test]
+    fn a_shield_is_its_body_s_value_and_needs_milliseconds() {
+        assert_eq!(
+            let_type("fun main() { let x = shield within 10 { 3 }; }", "x"),
+            Type::I64
+        );
+        assert_eq!(codes("fun main() { shield within true { } }"), ["E0403"]);
     }
 }

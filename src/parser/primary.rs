@@ -80,6 +80,10 @@ impl Parser<'_> {
     #[inline(never)]
     fn ident_primary(&mut self, start: usize, name: String) -> PResult<Expr> {
         // `scope s { … }`: `scope` is a word only where it starts one.
+        // `shield within ms { … }`: `shield` is a word only there.
+        if name == "shield" && matches!(self.peek_at(1), TokenKind::Ident(w) if w == "within") {
+            return self.shield_expr(start);
+        }
         if name == "scope" && self.scope_ahead() {
             return self.scope_expr(start);
         }

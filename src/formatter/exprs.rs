@@ -212,10 +212,36 @@ impl Printer<'_> {
                     text(")"),
                 ])
             }
-            ExprKind::Scope(scope) => concat(vec![
-                text(format!("scope {} ", scope.name.name)),
-                self.block(&scope.body, 0),
-            ]),
+            ExprKind::Scope(scope) => {
+                let mut head = String::from("scope");
+                if let Some(e) = &scope.error {
+                    head.push_str(&format!("<{}>", self.ty(e)));
+                }
+                head.push_str(&format!(" {} ", scope.name.name));
+                let mut parts = vec![text(head)];
+                for w in &scope.words {
+                    parts.push(text(w.name.name.clone()));
+                    match &w.arg {
+                        Some(a) if w.name.name == "independent" => {
+                            parts.extend([text("("), self.expr(a), text(")")]);
+                        }
+                        Some(a) => parts.extend([text(" "), self.expr(a)]),
+                        None => {}
+                    }
+                    parts.push(text(" "));
+                }
+                parts.push(self.block(&scope.body, 0));
+                concat(parts)
+            }
+            ExprKind::Shield(block) => {
+                let (within, body) = crate::ast::shield_parts(block);
+                concat(vec![
+                    text("shield within "),
+                    self.expr(within),
+                    text(" "),
+                    self.block(body, 0),
+                ])
+            }
             ExprKind::Select(arms) => self.selecting(e, arms),
         }
     }

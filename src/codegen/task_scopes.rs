@@ -33,10 +33,10 @@ pub(super) const ENDED_PANICKED: u64 = 3;
 /// `LughaScope` checks that it fits).
 const SCOPE_RECORD_WORDS: u32 = 24;
 
-/// A scope whose body is being lowered: where its pads stop.
+/// A scope or shield whose body is being lowered: where its pads stop.
 pub(super) struct Catch<'ctx> {
-    /// The runtime's record.
-    pub(super) rec: PointerValue<'ctx>,
+    /// The scope's runtime record; none for a shield.
+    pub(super) rec: Option<PointerValue<'ctx>>,
     /// Where a caught unwind goes on, once cleaned up.
     pub(super) caught: BasicBlock<'ctx>,
     /// The depth of the body's block among the blocks with `defer`s.
@@ -80,6 +80,8 @@ impl<'ctx> Lowerer<'ctx> {
             ptr.clone(),
             ptr.clone(),
             Type::I64,
+            Type::I64,
+            Type::I64,
         ];
         self.rt("lugha_rt_scope_enter", &params, None, &enter);
 
@@ -109,7 +111,7 @@ impl<'ctx> Lowerer<'ctx> {
         let caught = self.append("scope.caught");
         let end = self.append("scope.end");
         self.pads.catches.push(Catch {
-            rec,
+            rec: Some(rec),
             caught,
             defers: self.defers.len(),
             statements: self.rc_statement_depth(),
@@ -206,7 +208,7 @@ impl<'ctx> Lowerer<'ctx> {
             .catches
             .iter()
             .filter(|c| c.defers >= to)
-            .map(|c| (c.defers, c.rec))
+            .filter_map(|c| Some((c.defers, c.rec?)))
             .collect()
     }
 
@@ -221,21 +223,28 @@ impl<'ctx> Lowerer<'ctx> {
         self.rt(name, &[Type::String], None, &[rec.into()]);
     }
 
-    /// A pad's cleanup inside the innermost scope's body: the runtime takes
-    /// the unwind over, the body's `defer`s and releases run, then on past
-    /// the body.
+    /// A pad's cleanup inside the innermost scope's or shield's body: the
+    /// runtime takes the unwind over, the body's `defer`s and releases run,
+    /// then on past the body.
     pub(super) fn scope_cleanup(&mut self) -> bool {
         let Some(catch) = self.pads.catches.last() else {
             return false;
         };
         let (rec, caught) = (catch.rec, catch.caught);
         let (defers, statements) = (catch.defers, catch.statements);
-        self.rt(
-            "lugha_rt_scope_caught",
-            &[Type::String],
-            None,
-            &[rec.into()],
-        );
+        match rec {
+            Some(rec) => {
+                self.rt(
+                    "lugha_rt_scope_caught",
+                    &[Type::String],
+                    None,
+                    &[rec.into()],
+                );
+            }
+            None => {
+                self.rt("lugha_rt_shield_caught", &[], None, &[]);
+            }
+        }
         if let Err(e) = self.run_defers(defers) {
             // Lowered at every other exit already, so a failure there
             // would have stopped the build first; kept for the end.

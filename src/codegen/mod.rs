@@ -83,6 +83,7 @@ mod results;
 mod runtime;
 mod scope;
 mod scope_failures;
+mod shields;
 mod show_iface;
 mod split;
 mod split_leaves;

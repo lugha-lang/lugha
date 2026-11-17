@@ -217,6 +217,7 @@ impl Checker {
                 self.spawn_in(expr, scope.as_deref(), closure, expect)
             }
             ExprKind::Scope(scope) => self.scope_expr(scope, expect),
+            ExprKind::Shield(block) => self.block(block, expect),
             ExprKind::Select(arms) => self.select(expr, arms, expect),
             ExprKind::Int(_) | ExprKind::Float(_) => unreachable!("literals are matched first"),
         }

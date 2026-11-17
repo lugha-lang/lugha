@@ -257,6 +257,10 @@ fn bare(expr: &Expr) -> String {
             self::expr(spawned_call(closure))
         ),
         ExprKind::Scope(scope) => format!("(scope {} {})", scope.name.name, block(&scope.body)),
+        ExprKind::Shield(b) => {
+            let (within, body) = crate::ast::shield_parts(b);
+            format!("(shield {} {})", self::expr(within), block(body))
+        }
         ExprKind::Select(arms) => {
             let arms: String = arms.iter().map(|a| format!(" {}", select_arm(a))).collect();
             format!("(select{arms})")

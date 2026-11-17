@@ -12,7 +12,8 @@
  *
  * A panic while a stack is already unwinding (in a `defer`, say) ends the
  * program at once: its message is printed, but nothing is known about
- * what the frames hold.
+ * what the frames hold. Only a shield entered while unwinding, cut off at
+ * its deadline, unwinds again: its own landing pad stops that unwind.
  *
  * A fragment, not compiled on its own: joined after actors.c, whose
  * `panic_end` it calls.
@@ -49,9 +50,9 @@ static _Unwind_Reason_Code panic_stop(int version, _Unwind_Action actions,
     }
     *unwinding_flag() = false;
     if (panic->cancel) {
-        // `main`, cancelled because a root-scope task failed.
+        // `main`, cancelled because a root-scope task failed, or by Ctrl-C.
         fflush(stdout);
-        exit(101);
+        exit(shutting_down ? 130 : 101);
     }
     panic_end(panic->text, panic->len);
     // Only an actor's panic returns from `panic_end`'s caller, and it
@@ -77,8 +78,13 @@ void lugha_rt_unwound_to_c(void) {
  * (silent). A scope catching it takes `in_flight` over. */
 static void start_unwind(bool cancel, const char *text, size_t len) {
     bool *unwinding = unwinding_flag();
-    if (*unwinding) {
+    if (*unwinding && !(cancel && shield_cut_off())) {
         exit(101);
+    }
+    if (*unwinding) {
+        // A shield in a `defer` cut off: its pad stops this unwind and
+        // gives the first one back.
+        current->shield_outer = current->in_flight;
     }
     *unwinding = true;
     Panic *panic = lugha_rc_internal(sizeof(Panic));

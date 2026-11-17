@@ -45,15 +45,22 @@ static void poll_ready_sockets(void) {
 }
 
 static void idle_wait(void) {
-    if (sleepers == NULL && net_waiting == 0) {
+    // The next sleeper, deadline or shield's end (scope_time.c).
+    int64_t at = sleepers == NULL ? -1 : sleepers->wake_at;
+    int64_t timer = next_time();
+    if (timer >= 0 && (at < 0 || timer < at)) {
+        at = timer;
+    }
+    if (at < 0 && net_waiting == 0 && interrupts == 0) {
         deadlock();
     }
-    int64_t wait = sleepers == NULL ? -1 : sleepers->wake_at - now_ns();
+    int64_t wait = at < 0 ? -1 : at - now_ns();
     if (net_waiting > 0) {
-        poll_sockets(wait < 0 && sleepers != NULL ? 0 : wait);
+        poll_sockets(wait < 0 && at >= 0 ? 0 : wait);
     } else if (wait > 0) {
         struct timespec t = {.tv_sec = wait / 1000000000, .tv_nsec = wait % 1000000000};
-        while (nanosleep(&t, &t) != 0 && errno == EINTR) {
+        // Ctrl-C cuts the sleep short.
+        while (nanosleep(&t, &t) != 0 && errno == EINTR && interrupts == 0) {
         }
     }
 }

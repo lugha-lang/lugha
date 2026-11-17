@@ -1,0 +1,36 @@
+// A shield holds cancellation off: the cleanup inside it finishes, then
+// the cancellation applies. One past its own deadline is cut off.
+import std.task;
+
+fun careful(console: Console) {
+    defer {
+        shield within 1_000 {
+            task.sleep(100);
+            console.println("careful: cleanup done");
+        }
+    }
+    task.sleep(10_000);
+}
+
+fun hasty(console: Console) {
+    defer {
+        shield within 10 {
+            defer console.println("hasty: cut off");
+            task.sleep(10_000);
+            console.println("hasty: never");
+        }
+    }
+    task.sleep(10_000);
+}
+
+fun main(console: Console) {
+    let r = scope s {
+        let a = s.spawn(careful(console));
+        let b = s.spawn(hasty(console));
+        task.sleep(5);
+        a.cancel("stop");
+        b.cancel("stop");
+        console.println(a.join().is_err());
+    };
+    console.println(r.is_ok());
+}

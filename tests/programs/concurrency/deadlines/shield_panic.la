@@ -1,0 +1,10 @@
+// A panic inside a shield isn't held off: it goes on past the shield,
+// running the `defer`s on its way.
+fun main(console: Console) {
+    defer console.println("main: unwound");
+    shield within 1_000 {
+        defer console.println("shield: unwound");
+        let xs: i64[] = [];
+        console.println(xs[3]);
+    }
+}

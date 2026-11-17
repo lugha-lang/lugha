@@ -89,6 +89,18 @@ struct Fiber {
     bool cancellable;
     /* The panic or cancellation unwinding it, until caught or done. */
     Panic *in_flight;
+    /* `shield within ms`: how deep, until when (monotonic ns) cancellation
+     * is held off, and the next fiber in a shield. A shield entered while
+     * the fiber unwinds (in a `defer`) is cut off at its deadline by an
+     * unwind of its own, `shield_outer` keeping the first until the shield
+     * stops it; `shield_caught` is an unwind a shield stopped that goes on
+     * past it. */
+    int32_t shield_depth;
+    int64_t shield_until;
+    struct Fiber *shield_next;
+    bool shield_in_unwind;
+    Panic *shield_outer;
+    Panic *shield_caught;
     /* Run queue, and the list of every live fiber. */
     Fiber *next;
     Fiber *prev_live;
@@ -295,7 +307,11 @@ static void wake(Fiber *f, int64_t why) {
     make_ready(f);
 }
 
+static void check_times(void);
+
 static void wake_due_sleepers(void) {
+    // Deadlines, shields and Ctrl-C (scope_time.c).
+    check_times();
     if (sleepers == NULL) {
         return;
     }

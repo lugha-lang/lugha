@@ -1,0 +1,16 @@
+// `until t`: a deadline at a moment of the monotonic clock.
+import std.task;
+
+fun main(console: Console, clock: Clock) {
+    let at = clock.monotonic_ms() + 20;
+    let r = scope s until at {
+        task.sleep(5_000);
+    };
+    match r {
+        .Err(f) => match f.kind {
+            .Deadline => console.println("deadline"),
+            _ => console.println("?"),
+        },
+        .Ok(_) => console.println("?"),
+    }
+}

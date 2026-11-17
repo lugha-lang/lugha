@@ -19,6 +19,9 @@ use super::value::llvm_type;
 use crate::ast::ScopeExpr;
 use crate::check::Type;
 
+/// `lugha_rt_scope_exit`'s status for a scope past its deadline.
+const ENDED_LATE: u64 = 4;
+
 /// `lugha_rt_task_policy`'s answers (`runtime/scope_policy.c`).
 const POLICY_PRINT: u64 = 1;
 const POLICY_HANDLER: u64 = 2;
@@ -56,7 +59,8 @@ impl<'ctx> Lowerer<'ctx> {
         let i32_type = self.context.i32_type();
         let name = self.string_literal(&scope.name.name);
         let (mut policy, mut code, mut env) = (0, ptr.const_null(), ptr.const_null());
-        let mut limit = self.context.i64_type().const_all_ones();
+        let none = self.context.i64_type().const_all_ones();
+        let (mut limit, mut within, mut until) = (none, none, none);
         for w in &scope.words {
             match (w.name.name.as_str(), &w.arg) {
                 ("independent", None) => policy = POLICY_PRINT,
@@ -68,6 +72,8 @@ impl<'ctx> Lowerer<'ctx> {
                     env = part(1).expect("a pair has 2 fields").into_pointer_value();
                 }
                 ("limit", Some(n)) => limit = self.get(n, &Type::I64)?.into_int_value(),
+                ("within", Some(ms)) => within = self.get(ms, &Type::I64)?.into_int_value(),
+                ("until", Some(t)) => until = self.get(t, &Type::I64)?.into_int_value(),
                 _ => unreachable!("checked: E0477 for any other setting"),
             }
         }
@@ -77,6 +83,8 @@ impl<'ctx> Lowerer<'ctx> {
             code.into(),
             env.into(),
             limit.into(),
+            within.into(),
+            until.into(),
         ])
     }
 
@@ -114,10 +122,32 @@ impl<'ctx> Lowerer<'ctx> {
             .expect(POSITIONED);
         let slot = self.entry_alloca(&kind_type, "failure.kind");
         let (panicked, errored) = (self.append("failure.panic"), self.append("failure.error"));
-        let made = self.append("failure.made");
+        let (made, other, late) = (
+            self.append("failure.made"),
+            self.append("failure.other"),
+            self.append("failure.deadline"),
+        );
         self.builder
-            .build_conditional_branch(is_panic, panicked, errored)
+            .build_conditional_branch(is_panic, panicked, other)
             .expect(POSITIONED);
+        // The deadline passed (status 4), or a task's error.
+        self.builder.position_at_end(other);
+        let is_late = self
+            .builder
+            .build_int_compare(
+                IntPredicate::EQ,
+                status,
+                self.context.i32_type().const_int(ENDED_LATE, false),
+                "late",
+            )
+            .expect(POSITIONED);
+        self.builder
+            .build_conditional_branch(is_late, late, errored)
+            .expect(POSITIONED);
+        self.builder.position_at_end(late);
+        let kind = self.construct_values(&kind_type, "Deadline", Vec::new());
+        self.builder.build_store(slot, kind).expect(POSITIONED);
+        self.branch(made);
         self.builder.position_at_end(panicked);
         let message = load(self, panic);
         let kind = self.construct_values(&kind_type, "Panic", vec![message.into()]);

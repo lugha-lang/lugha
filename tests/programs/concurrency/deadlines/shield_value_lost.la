@@ -1,0 +1,23 @@
+// A shield with a value, cut off while its task unwinds, has no value to
+// go on with: the program ends, as for a panic while unwinding.
+import std.task;
+
+fun worker(console: Console) {
+    defer {
+        let n = shield within 10 {
+            task.sleep(10_000);
+            5
+        };
+        console.println(n);
+    }
+    task.sleep(10_000);
+}
+
+fun main(console: Console) {
+    let _ = scope s {
+        let w = s.spawn(worker(console));
+        task.sleep(5);
+        w.cancel("stop");
+        let _ = w.join();
+    };
+}

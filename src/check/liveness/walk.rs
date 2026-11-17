@@ -319,7 +319,14 @@ impl Walk<'_> {
                 scope.iter().for_each(|s| self.expr(s));
                 self.expr(closure)
             }
-            ExprKind::Scope(scope) => self.block(&scope.body),
+            ExprKind::Scope(scope) => {
+                // Its settings are read as it starts.
+                for w in &scope.words {
+                    w.arg.iter().for_each(|a| self.expr(a));
+                }
+                self.block(&scope.body)
+            }
+            ExprKind::Shield(block) => self.block(block),
             ExprKind::Select(arms) => {
                 for arm in arms {
                     match &arm.kind {

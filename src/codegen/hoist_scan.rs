@@ -239,9 +239,14 @@ impl<'ctx> Lowerer<'ctx> {
                 self.scan_read(scan, closure);
             }
             ExprKind::Scope(scope) => {
+                // Its settings are read as it starts.
+                for w in &scope.words {
+                    w.arg.iter().for_each(|a| self.scan_read(scan, a));
+                }
                 scan.bind(&scope.name.name);
                 self.block_scan(scan, &scope.body);
             }
+            ExprKind::Shield(block) => self.block_scan(scan, block),
             ExprKind::Select(arms) => {
                 for arm in arms {
                     match &arm.kind {

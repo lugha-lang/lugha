@@ -284,6 +284,7 @@ impl<'ctx> Lowerer<'ctx> {
             ExprKind::Repeat(value, count) => self.repeat(expr, value, count)?,
             ExprKind::Spawn(scope, closure) => self.spawn(expr, scope.as_deref(), closure)?,
             ExprKind::Scope(scope) => return self.scope_expr(expr, scope),
+            ExprKind::Shield(block) => return self.shield_expr(expr, block),
             ExprKind::Select(arms) => return self.select(expr, arms),
         };
         Ok(Value::Val(value))

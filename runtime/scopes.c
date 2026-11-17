@@ -25,8 +25,15 @@
  * tasks and scheduler it uses.
  */
 
-enum { TASK_OK = 0, TASK_CANCELLED = 1, TASK_FAILED = 2, TASK_PANICKED = 3 };
-enum { REASON_NONE = 0, REASON_SIBLING = 1, REASON_PARENT = 2, REASON_REQUESTED = 3 };
+enum { TASK_OK = 0, TASK_CANCELLED = 1, TASK_FAILED = 2, TASK_PANICKED = 3, TASK_DEADLINE = 4 };
+enum {
+    REASON_NONE = 0,
+    REASON_SIBLING = 1,
+    REASON_PARENT = 2,
+    REASON_REQUESTED = 3,
+    REASON_DEADLINE = 4,
+    REASON_SHUTDOWN = 5,
+};
 
 typedef struct LughaScope {
     struct LughaScope *outer;
@@ -57,6 +64,9 @@ typedef struct LughaScope {
      * waiting in `spawn` for one to finish. */
     int64_t limit;
     Fiber *limit_waiter;
+    /* Its deadline (monotonic ns, 0: none), and the next scope with one. */
+    int64_t deadline;
+    struct LughaScope *deadline_next;
 } LughaScope;
 
 /* Generated code keeps a scope's record in its frame, in this many bytes. */
@@ -70,6 +80,10 @@ static void cancel_unwind(void);
 static void cancel_tasks(LughaScope *s, int32_t reason);
 
 static void scope_room(LughaScope *s);
+static bool shielded(Fiber *f);
+static bool shield_cut_off(void);
+static void deadline_start(LughaScope *s, int64_t within, int64_t until);
+static void deadline_stop(LughaScope *s);
 
 /* Cancels `f` with `reason` (and `text`, for `REASON_REQUESTED`), by
  * `by`: a wait that may be cut short ends at once. */
@@ -86,7 +100,10 @@ static void cancel_fiber(Fiber *f, int32_t reason, LughaString *text, void *by) 
     for (LughaScope *s = f->scopes; s != NULL; s = s->outer) {
         cancel_tasks(s, REASON_PARENT);
     }
-    if (f != current && f->fired == WAITING && f->cancellable) {
+    // A wait in a shield goes on until the shield's deadline (scope_time.c).
+    // Only a fiber parked in the scheduler is WAITING, the running one
+    // too when the scheduler cancels it (a deadline, Ctrl-C).
+    if (f->fired == WAITING && f->cancellable && !shielded(f)) {
         wake(f, CANCELLED);
     }
 }
@@ -161,7 +178,7 @@ static void scope_task_done(Fiber *f) {
  * `policy` and the handler (`code`, `env`) what a task's failure does,
  * `limit` how many tasks may run at once (0: any; below 0 panics). */
 void lugha_rt_scope_enter(LughaScope *s, LughaString *name, int32_t policy, void *code,
-                          void *env, int64_t limit) {
+                          void *env, int64_t limit, int64_t within, int64_t until) {
     ensure_started();
     // `limit` is -1 when the scope says none.
     if (limit == 0 || limit < -1) {
@@ -178,6 +195,7 @@ void lugha_rt_scope_enter(LughaScope *s, LughaString *name, int32_t policy, void
     s->owner = current;
     s->outer = current->scopes;
     current->scopes = s;
+    deadline_start(s, within, until);
 }
 
 /* The root scope, which `main` and tests take. */
@@ -217,6 +235,7 @@ void lugha_rt_scope_end(LughaScope *s) {
  * cancellation it made over. */
 static void scope_pop(LughaScope *s) {
     current->scopes = s->outer;
+    deadline_stop(s);
     lugha_rt_rc_release(s->name);
     lugha_rt_rc_release(s->handler_env);
     s->name = NULL;
@@ -335,7 +354,10 @@ static bool panic_caught(void) {
 
 /* At a safe point: a cancelled task unwinds from here. */
 void lugha_rt_cancel_point(void) {
-    if (current != NULL && current->cancelled != REASON_NONE && !current->unwinding) {
+    if (current == NULL || current->cancelled == REASON_NONE) {
+        return;
+    }
+    if (current->unwinding ? shield_cut_off() : !shielded(current)) {
         cancel_unwind();
     }
 }

@@ -26,6 +26,7 @@ fun main(console: Console) {
         .Err(f) => match f.kind {
             .Panic(message) => console.println("{f.task} failed: {message.starts_with("boom at ")}"),
             .Error(e) => console.println("error {e}"),
+            .Deadline => console.println("deadline"),
         },
     }
 }

@@ -10,6 +10,14 @@
  */
 struct Scope<E> { $rec: CPtr }
 
+impl Scope<E> {
+    /** The milliseconds left before the scope's deadline (`within`, `until`), or `None` without one. */
+    fun remaining(self): Option<i64> {
+        let left = $os.scope_remaining(self.$rec);
+        if left < 0 { None } else { Some(left) }
+    }
+}
+
 /** The root scope `main` and tests take: its tasks finish before the program does. */
 fun $root_scope(): Scope<Error> = Scope { $rec: $os.scope_root() };
 
@@ -21,6 +29,10 @@ enum Reason {
     Parent,
     /** `t.cancel(why)`. */
     Requested(string),
+    /** Its scope's deadline passed (`within`, `until`). */
+    Deadline,
+    /** The program is shutting down: Ctrl-C. */
+    Shutdown,
 }
 
 impl Display for Reason {
@@ -28,6 +40,8 @@ impl Display for Reason {
         .SiblingFailed => "another task in its scope failed",
         .Parent => "its scope was left early",
         .Requested(why) => why,
+        .Deadline => "its scope's deadline passed",
+        .Shutdown => "the program is shutting down",
     };
 }
 
@@ -64,12 +78,15 @@ struct Failure<E> { task: string, kind: FailureKind<E> }
 enum FailureKind<E> {
     Error(E),
     Panic(string),
+    /** The scope's deadline passed: everything it ran was cancelled. */
+    Deadline,
 }
 
 impl Display for Failure<E: Display> {
     fun show(self): string = match self.kind {
         .Error(e) => "task `{self.task}` failed: {e}",
         .Panic(message) => "task `{self.task}` panicked: {message}",
+        .Deadline => "scope `{self.task}` passed its deadline",
     };
 }
 

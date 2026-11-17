@@ -1,0 +1,5 @@
+fun main(console: Console) {
+    shield {
+        console.println("held off for how long?");
+    }
+}

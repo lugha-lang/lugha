@@ -1,0 +1,15 @@
+// A nested scope's deadline is never later than its enclosing scope's;
+// without one, `remaining()` is `None`.
+fun main(console: Console) {
+    let plain = scope s {
+        s.remaining()
+    };
+    console.println(plain.debug());
+    let r = scope outer within 1_000 {
+        let inner = scope inner within 60_000 {
+            inner.remaining().unwrap() <= 1_000
+        };
+        inner.unwrap()
+    };
+    console.println(r.debug());
+}

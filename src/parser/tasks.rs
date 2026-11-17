@@ -51,6 +51,69 @@ impl Parser<'_> {
         ))
     }
 
+    /// `shield within ms { body }`, at `shield`: the block it means,
+    /// `{ $os.shield_enter(ms); defer $os.shield_exit(); { body } }`.
+    /// Without `within` (`shield { … }`, at a statement's start) it is
+    /// E0211: a shield always has a deadline.
+    pub(super) fn shield_expr(&mut self, start: usize) -> PResult<Expr> {
+        let word = self.bump();
+        if self.at(&TokenKind::LBrace) {
+            let message = "a shield needs a deadline";
+            let help =
+                "write `shield within ms { … }`: cancellation waits at most `ms` milliseconds";
+            self.error(Diagnostic::error("E0211", message, word).with_help(help));
+            let body = self.block()?;
+            return Ok(self.mk(start, ExprKind::Block(body)));
+        }
+        self.bump();
+        let within = self.cond()?;
+        let body = self.block()?;
+        let span = Span::new(start, self.prev_end());
+        let enter = self.os_call(start, "shield_enter", vec![within]);
+        let exit = self.os_call(start, "shield_exit", Vec::new());
+        let stmt = |kind| crate::ast::Stmt { kind, span };
+        let exit = stmt(crate::ast::StmtKind::Expr {
+            expr: exit,
+            semicolon: true,
+        });
+        let lowered = Block {
+            stmts: vec![
+                stmt(crate::ast::StmtKind::Expr {
+                    expr: enter,
+                    semicolon: true,
+                }),
+                stmt(crate::ast::StmtKind::Defer(Box::new(exit))),
+            ],
+            tail: Some(Box::new(self.mk(start, ExprKind::Block(body)))),
+            span,
+        };
+        Ok(self.mk(start, ExprKind::Shield(Box::new(lowered))))
+    }
+
+    /// True at a shield starting a statement: `shield within`, or `shield {`
+    /// missing its deadline (there `{` can't start a struct literal of a
+    /// type named `shield`, which no program declares by convention).
+    pub(super) fn shield_ahead(&self) -> bool {
+        matches!(self.peek(), TokenKind::Ident(n) if n == "shield")
+            && match self.peek_at(1) {
+                TokenKind::Ident(w) => w == "within",
+                TokenKind::LBrace => true,
+                _ => false,
+            }
+    }
+
+    /// `$os.op(args)`, made by the parser for a construct that means it.
+    fn os_call(&mut self, start: usize, op: &str, args: Vec<Expr>) -> Expr {
+        let span = Span::new(start, self.prev_end());
+        let os = self.mk(start, ExprKind::Name("$os".to_string()));
+        let name = Ident {
+            name: op.to_string(),
+            span,
+        };
+        let callee = self.mk(start, ExprKind::Field(Box::new(os), name));
+        self.mk(start, ExprKind::Call(Box::new(callee), args))
+    }
+
     /// True if a scope starts at `scope`: `scope s {`, `scope s word`, or
     /// `scope<E> s`. Anything else leaves `scope` a name.
     pub(super) fn scope_ahead(&self) -> bool {
@@ -343,5 +406,18 @@ mod tests {
             errors("fun t() { select { x => 1, y => 2 } }"),
             [("E0211", "x"), ("E0211", "y")]
         );
+    }
+
+    #[test]
+    fn a_shield_is_block_like_and_needs_within() {
+        assert_eq!(
+            body("shield within 10 { f(); } let x = 2;"),
+            "(block (stmt (shield 10 (block (; (call f))))) (let x 2))"
+        );
+        assert_eq!(
+            body("let shield = 1; let x = shield + 1;"),
+            "(block (let shield 1) (let x (+ shield 1)))"
+        );
+        assert_eq!(errors("fun t() { shield { f(); } }"), [("E0211", "shield")]);
     }
 }
