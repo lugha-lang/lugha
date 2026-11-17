@@ -2296,6 +2296,19 @@ Printing sites and `==` reach a type's own plain `show`/`eq` too (`show_instance
 
 **Why:** every target counting can affect is met or nearly met; it is faster than the collector on wordfreq and channels, uses a third less memory on binarytrees, and pauses a quarter as long; and copy-on-write by count, marking on send, `Weak` and `Pinned` all build on it.
 
+### 224. Function types are interfaces; `Sendable` is an automatic derive — phase 5 (PRP-228, PRP-229)
+
+**Decision:** reached with the user in discussion (2026-11-17), while planning the sendable rule.
+- **Every function value is a struct of its captures:** a closure's fields are what it captured; a named function's struct has none. Each has its own type.
+- **`fun(A): R` is an interface,** with one method, the body; every function value with that signature implements it. A value of type `fun(A): R` is an interface value (one function, the struct hidden), and a function value converts to it where one is expected, as any value converts to an interface.
+- **So the interface tools apply to functions:** `<F: fun(A): R>` keeps the exact function (its captures known, the call direct); `interface Handler: fun(Request): Response, Sendable {}` hides it but keeps a promise.
+- **`Sendable`** is an ordinary interface with derive blocks (`derive Sendable for struct {}`, for each built-in type but `Ref`, …), marked `auto`: its blocks apply to every type whose parts allow, with no `with`. A function value is sendable when its struct is, which is when its captures are. No hand-written `impl Sendable`.
+- **Globals are checked where declared, not in functions:** a `const` can't be a `Ref` today, so a function never reaches shared state except through its captures.
+
+**Why:** a function type can't say what a function captured, the same erasure as an interface value hiding its struct. Treating functions as interfaces answers every question about captures with existing tools (generics, bounds, interface parents) instead of a special `sendable fun` form or a `captures` clause; Rust and C++ model closures the same way. `auto` keeps `Sendable` from needing `with` on almost every type, works for other packages' types, and covers closures, which have nowhere to write `with`.
+
+**Not now:** `with` on a closure literal, and other `auto` interfaces: no use yet.
+
 ## OPEN — Requires human input before implementation
 
 None.
