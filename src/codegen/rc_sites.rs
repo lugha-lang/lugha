@@ -2,12 +2,12 @@
 //! expression's value is fresh (owned, so a temporary releases it) or read
 //! from somewhere (borrowed), and how a store takes its value over.
 
-use inkwell::values::BasicValueEnum;
+use inkwell::values::{BasicValueEnum, PointerValue};
 
 use super::CodegenError;
 use super::lower::{Lowerer, POSITIONED};
 use super::value::{Value, llvm_type};
-use crate::ast::{Expr, ExprKind};
+use crate::ast::{Expr, ExprId, ExprKind};
 use crate::check::Type;
 
 impl<'ctx> Lowerer<'ctx> {
@@ -145,5 +145,32 @@ impl<'ctx> Lowerer<'ctx> {
             }
             _ => false,
         }
+    }
+
+    /// A branch's value, for its expression `body`, into `result`, the
+    /// slot owning the branch's value: a fresh value's temporary is taken
+    /// over, any other value gets a holder.
+    pub(super) fn rc_branch_value(
+        &mut self,
+        body: &Expr,
+        value: BasicValueEnum<'ctx>,
+        (result, ty): (PointerValue<'ctx>, &Type),
+    ) {
+        if self.counted(ty) && !self.rc_take(value_source(body), ty) {
+            self.rc_retain(value, ty);
+        }
+        self.builder.build_store(result, value).expect(POSITIONED);
+    }
+}
+
+/// The expression whose value `expr` gives: a block's tail, through nested
+/// blocks; the temporary a fresh value went into is recorded under it.
+pub(super) fn value_source(expr: &Expr) -> ExprId {
+    match &expr.kind {
+        ExprKind::Block(block) => match &block.tail {
+            Some(tail) => value_source(tail),
+            None => expr.id,
+        },
+        _ => expr.id,
     }
 }

@@ -53,6 +53,9 @@ impl<'ctx> Lowerer<'ctx> {
         let mut diverged = false;
         for stmt in &block.stmts {
             diverged |= self.stmt(stmt)?;
+            if !diverged {
+                self.rc_let_go_after(stmt.span);
+            }
         }
         let value = match &block.tail {
             Some(tail)
@@ -106,6 +109,14 @@ impl<'ctx> Lowerer<'ctx> {
             return Ok(Value::Void);
         };
         let else_block = self.append("if.else");
+        // Under reference counting a slot owns the `if`'s value, as a
+        // `match`'s does, so a fresh value in either branch moves through.
+        let ty = self.ty(expr);
+        let owned = (self.rc() && self.counted(&ty)).then(|| {
+            let slot = self.entry_alloca(&ty, "if.value");
+            self.rc_result_slot(slot, &ty);
+            slot
+        });
         self.builder
             .build_conditional_branch(condition, then_block, else_block)
             .expect(POSITIONED);
@@ -113,16 +124,31 @@ impl<'ctx> Lowerer<'ctx> {
         self.builder.position_at_end(then_block);
         let then_value = self.block(then)?;
         let then_end = self.current_block();
+        if let (Some(slot), Value::Val(v), Some(tail)) = (owned, then_value, &then.tail) {
+            self.rc_branch_value(tail, v, (slot, &ty));
+        }
         self.finish_branch(then_value, merge);
 
         self.builder.position_at_end(else_block);
         let else_value = self.expr(else_expr)?;
         let else_end = self.current_block();
+        if let (Some(slot), Value::Val(v)) = (owned, else_value) {
+            self.rc_branch_value(else_expr, v, (slot, &ty));
+        }
         self.finish_branch(else_value, merge);
 
         self.builder.position_at_end(merge);
         Ok(match (then_value, else_value) {
             (Value::Never, Value::Never) => Value::Never,
+            (Value::Val(_), _) | (_, Value::Val(_)) if owned.is_some() => {
+                let slot = owned.expect("checked");
+                self.rc_result_ready(expr.id, slot);
+                Value::Val(
+                    self.builder
+                        .build_load(llvm_type(self.context, &ty), slot, "if")
+                        .expect(POSITIONED),
+                )
+            }
             // The other branch's block is the merge block's only predecessor.
             (Value::Never, value) | (value, Value::Never) => value,
             (Value::Val(a), Value::Val(b)) => {

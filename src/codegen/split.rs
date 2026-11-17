@@ -17,7 +17,7 @@ use inkwell::basic_block::BasicBlock;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
-use inkwell::types::{BasicType, BasicTypeEnum};
+use inkwell::types::BasicTypeEnum;
 use inkwell::values::{
     BasicValue, BasicValueEnum, FunctionValue, InstructionOpcode, InstructionValue, PhiValue,
 };
@@ -25,8 +25,8 @@ use inkwell::values::{
 use super::lower::POSITIONED;
 use super::rebuild::replace_uses;
 use super::split_leaves::{
-    Path, aligned, basic_type, byte_size, extract, insert, leaf_types, operand, order,
-    result_leaves, undef, value_of,
+    Path, aligned, basic_type, extract, insert, leaf_types, operand, order, result_leaves, undef,
+    value_of,
 };
 use big::is_big;
 
@@ -294,7 +294,7 @@ impl<'a, 'ctx> Splitter<'a, 'ctx> {
     }
 
     /// The address of the leaf at `path` inside the `ty` at `ptr`: struct
-    /// fields by `getelementptr`, array elements by their byte offset
+    /// fields by `getelementptr`, array elements through a struct view
     /// (inkwell's array `getelementptr` is `unsafe`).
     fn address(
         &self,
@@ -323,7 +323,10 @@ impl<'a, 'ctx> Splitter<'a, 'ctx> {
         at
     }
 
-    /// `at` moved `i` elements of type `element` along.
+    /// `at` moved `i` elements of type `element` along: a field of a view
+    /// of `i + 1` elements, whose fields lie where an array's elements do.
+    /// A `getelementptr` keeps the address visible to LLVM, so slots it
+    /// reaches still become registers.
     fn offset(
         &self,
         at: inkwell::values::PointerValue<'ctx>,
@@ -333,24 +336,11 @@ impl<'a, 'ctx> Splitter<'a, 'ctx> {
         if i == 0 {
             return at;
         }
-        let i64_type = self.context.i64_type();
-        let b = self.builder;
-        let size = match byte_size(element) {
-            Some(n) => i64_type.const_int(n * i as u64, false),
-            None => {
-                let one = element.size_of().expect("a sized element");
-                b.build_int_mul(one, i64_type.const_int(i as u64, false), "size")
-                    .expect(POSITIONED)
-            }
-        };
-        let base = b.build_ptr_to_int(at, i64_type, "base").expect(POSITIONED);
-        let address = b.build_int_add(base, size, "address").expect(POSITIONED);
-        b.build_int_to_ptr(
-            address,
-            self.context.ptr_type(Default::default()),
-            "element",
-        )
-        .expect(POSITIONED)
+        let fields = vec![element; i as usize + 1];
+        let view = self.context.struct_type(&fields, false);
+        self.builder
+            .build_struct_gep(view, at, i, "element")
+            .expect("a field per element")
     }
 
     fn position_after(&self, def: InstructionValue<'ctx>) {

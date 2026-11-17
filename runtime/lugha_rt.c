@@ -48,7 +48,7 @@ void *lugha_rc_internal(size_t size);
 #define GC_gcollect() ((void)0)
 #define GC_invoke_finalizers() 0
 #define GC_push_all_eager(a, b) ((void)0)
-#define GC_get_my_stackbottom(b) ((void)(b))
+#define GC_get_my_stackbottom(b) ((b)->mem_base = NULL)
 #define GC_get_push_other_roots() ((GC_push_other_roots_proc)0)
 #define GC_set_push_other_roots(p) ((void)(p))
 #define GC_set_stackbottom(t, b) ((void)(b))

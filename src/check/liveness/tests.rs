@@ -241,3 +241,42 @@ fn a_deferred_mention_counts_at_the_end_of_its_block() {
     let src = "fun main(console: Console) { let xs = [1]; { defer console.println(xs[0]); } let ys = xs; }";
     assert_eq!(moved(src), ["xs"]);
 }
+
+/// Each statement of `src` after which locals are let go early, as its
+/// text, with their names.
+fn released(src: &str) -> Vec<(&str, Vec<String>)> {
+    let checked = ok(src);
+    let mut out: Vec<_> = checked
+        .dead_after
+        .iter()
+        .filter(|(span, _)| span.end <= src.len())
+        .map(|(span, names)| (&src[span.start..span.end], names.clone()))
+        .collect();
+    out.sort();
+    out
+}
+
+#[test]
+fn a_local_dies_after_the_statement_with_its_last_mention() {
+    let src = "fun f(console: Console): i64 { let xs = [1, 2]; let n = xs.len; \
+               let ys = [3]; defer console.println(ys.len); let zs = [4]; n + 1 }\nfun main() {}";
+    assert_eq!(
+        released(src),
+        vec![
+            ("let n = xs.len;", vec!["xs".to_string()]),
+            ("let zs = [4];", vec!["zs".to_string()]),
+        ]
+    );
+}
+
+#[test]
+fn a_local_shadowed_before_its_last_mention_is_left_to_its_block() {
+    let src = "fun f(): i64 { let x = [1]; let x = x.len; let y = 2; x + y }\nfun main() {}";
+    assert_eq!(released(src), Vec::<(&str, Vec<String>)>::new());
+}
+
+#[test]
+fn the_last_statement_leaves_its_locals_to_the_block_end() {
+    let src = "fun f(console: Console) { let xs = [1]; console.println(xs.len); }\nfun main() {}";
+    assert_eq!(released(src), Vec::<(&str, Vec<String>)>::new());
+}

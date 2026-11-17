@@ -92,16 +92,20 @@ impl<'ctx> Lowerer<'ctx> {
             let value = self.expr(&arm.body)?;
             self.scopes.pop();
             if let (Some(result), Value::Val(v)) = (result, value) {
-                if counted && !self.rc_take(arm.body.id, &rty) {
-                    self.rc_retain(v, &rty);
+                if counted {
+                    self.rc_branch_value(&arm.body, v, (result, &rty));
+                } else {
+                    self.builder.build_store(result, v).expect(POSITIONED);
                 }
-                self.builder.build_store(result, v).expect(POSITIONED);
             }
             self.rc_statement_end();
             diverges &= matches!(value, Value::Never);
             self.finish_branch(value, end);
         }
         self.builder.position_at_end(end);
+        if let (Some(result), true) = (result, counted) {
+            self.rc_result_ready(expr.id, result);
+        }
         Ok(match result {
             _ if diverges && !live.is_empty() => Value::Never,
             Some(result) => Value::Val(

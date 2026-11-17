@@ -118,6 +118,7 @@ fn check_with(
             hands: live.hands,
             param_hands: live.param_hands,
             keeps: live.keeps,
+            dead_after: live.dead_after,
             callees: checker.callees,
             conversions: checker.conversions,
             try_conversions: checker.try_conversions,

@@ -42,6 +42,49 @@ impl Walk<'_> {
             self.expr(tail);
         }
         self.block_ends.pop();
+        self.last_mentions(block);
+    }
+
+    /// Records, for each `let` local `block` declares, the statement of
+    /// `block` holding its last mention (its own `let` if it has none),
+    /// when later statements or a tail follow that one. A mention in a
+    /// `defer` counts at the block's end; one in the tail leaves the local
+    /// to the block. A local shadowed up to that statement is left too:
+    /// its name would find the newer one.
+    fn last_mentions(&mut self, block: &Block) {
+        let stmts = &block.stmts;
+        for (j, stmt) in stmts.iter().enumerate() {
+            let StmtKind::Let { name, .. } = &stmt.kind else {
+                continue;
+            };
+            let last = self
+                .positions
+                .get(&name.span)
+                .and_then(|p| p.last().copied());
+            let i = match last {
+                None => j,
+                Some(at) => match stmts[j..]
+                    .iter()
+                    .position(|s| s.span.start <= at && at < s.span.end)
+                {
+                    Some(k) => j + k,
+                    None => continue,
+                },
+            };
+            if i + 1 == stmts.len() && block.tail.is_none() {
+                continue;
+            }
+            let shadowed = stmts[j + 1..=i]
+                .iter()
+                .any(|s| matches!(&s.kind, StmtKind::Let { name: n, .. } if n.name == name.name));
+            if !shadowed {
+                self.out
+                    .dead_after
+                    .entry(stmts[i].span)
+                    .or_default()
+                    .push(name.name.clone());
+            }
+        }
     }
 
     /// `defer e;`: `e` runs when its block ends, after

@@ -50,6 +50,66 @@ static void rc_alloc_start(void) {
     }
 }
 
+/* Zeroes the first `class` 16-byte pieces of `block`: one fixed-size
+ * store each, falling through from the class down, where a `memset` of a
+ * size known only at run time would be a call per allocation. */
+#define RC_ZERO16(i) memset((char *)block + 16 * (i), 0, 16)
+static void rc_zero(void *block, size_t class) {
+    switch (class) {
+    case 17:
+        RC_ZERO16(16);
+        /* fall through */
+    case 16:
+        RC_ZERO16(15);
+        /* fall through */
+    case 15:
+        RC_ZERO16(14);
+        /* fall through */
+    case 14:
+        RC_ZERO16(13);
+        /* fall through */
+    case 13:
+        RC_ZERO16(12);
+        /* fall through */
+    case 12:
+        RC_ZERO16(11);
+        /* fall through */
+    case 11:
+        RC_ZERO16(10);
+        /* fall through */
+    case 10:
+        RC_ZERO16(9);
+        /* fall through */
+    case 9:
+        RC_ZERO16(8);
+        /* fall through */
+    case 8:
+        RC_ZERO16(7);
+        /* fall through */
+    case 7:
+        RC_ZERO16(6);
+        /* fall through */
+    case 6:
+        RC_ZERO16(5);
+        /* fall through */
+    case 5:
+        RC_ZERO16(4);
+        /* fall through */
+    case 4:
+        RC_ZERO16(3);
+        /* fall through */
+    case 3:
+        RC_ZERO16(2);
+        /* fall through */
+    case 2:
+        RC_ZERO16(1);
+        /* fall through */
+    default:
+        RC_ZERO16(0);
+    }
+}
+#undef RC_ZERO16
+
 /* A zeroed block of `size` bytes. */
 static void *rc_block_new(size_t size) {
     if (size <= RC_SMALL && size > 0) {
@@ -57,7 +117,7 @@ static void *rc_block_new(size_t size) {
         void *block = rc_lists[class];
         if (block != NULL) {
             rc_lists[class] = *(void **)block;
-            memset(block, 0, class * 16);
+            rc_zero(block, class);
             return block;
         }
         size_t room = class * 16;

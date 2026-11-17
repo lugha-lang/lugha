@@ -147,6 +147,13 @@ impl<'ctx> Lowerer<'ctx> {
         }
     }
 
+    /// The result slot of the branching expression `id` (an `if`, a
+    /// `match`) owns its value: a store of it takes the slot over, as it
+    /// would a fresh value's temporary.
+    pub(super) fn rc_result_ready(&mut self, id: ExprId, slot: PointerValue<'ctx>) {
+        self.rc_slots.last = Some((id, slot));
+    }
+
     /// Forgets which value was last put in a temporary.
     pub(super) fn rc_forget_last(&mut self) {
         self.rc_slots.last = None;
@@ -349,6 +356,33 @@ impl<'ctx> Lowerer<'ctx> {
             self.rc_temporary(None, value, ty);
         }
         value
+    }
+
+    /// Releases the owned locals of the block being lowered that nothing
+    /// mentions after the statement at `span`, which just ended.
+    pub(super) fn rc_let_go_after(&mut self, span: crate::span::Span) {
+        if !self.rc() {
+            return;
+        }
+        let Some(names) = self.dead_after.get(&span).cloned() else {
+            return;
+        };
+        for name in names {
+            let Some(local) = self.scopes.find(&name).filter(|l| !l.borrowed) else {
+                continue;
+            };
+            let Some(block) = self.rc_slots.blocks.last_mut() else {
+                return;
+            };
+            // Only a slot this block owns: anything else isn't its to free.
+            let all = &self.rc_slots.all;
+            let Some(at) = block.iter().position(|&i| all[i].0 == local.ptr) else {
+                continue;
+            };
+            let index = block.remove(at);
+            let (slot, ty) = self.rc_slots.all[index].clone();
+            self.rc_empty(slot, &ty);
+        }
     }
 
     /// Starts a block's owned locals.

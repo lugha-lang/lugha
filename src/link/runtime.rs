@@ -139,7 +139,13 @@ pub(super) fn compile(
     if crypto {
         text.extend_from_slice(CRYPTO_SOURCE.as_bytes());
     }
-    let mut flags = vec![std::ffi::OsString::from("-isystem"), gc_include.into()];
+    // Optimized like the collector: every program's allocation, strings,
+    // maps and channels run through this code.
+    let mut flags = vec![
+        std::ffi::OsString::from("-O2"),
+        "-isystem".into(),
+        gc_include.into(),
+    ];
     // The reference-counting runtime: its own cached object.
     if rc {
         flags.push("-DLUGHA_RC=1".into());

@@ -109,3 +109,30 @@ fn a_plain_count_is_one_unsigned_compare() {
     assert_eq!(inc.matches("icmp ult").count(), 1, "{inc}");
     assert!(inc.contains("call void @lugha_rt_rc_slow("), "{inc}");
 }
+
+#[test]
+fn a_fresh_value_through_an_if_or_match_moves_out() {
+    let ir = ir_rc(
+        "enum T { Leaf, Node(T, T) }\n\
+         fun make(d: i64): T = if d == 0 { T.Node(T.Leaf, T.Leaf) } else { T.Node(make(d - 1), make(d - 1)) };\n\
+         fun pick(d: i64): T = match d { 0 => T.Leaf, _ => { T.Node(T.Leaf, T.Leaf) } };\n\
+         fun main() { let t = make(2); let u = pick(1); }",
+    );
+    for name in ["make", "pick"] {
+        let f = body(&ir, name);
+        assert!(!f.contains("@lugha_rc_retain_"), "{name}: {f}");
+    }
+}
+
+#[test]
+fn a_local_goes_after_its_last_use_not_at_its_block_end() {
+    let ir = ir_rc(
+        "fun main(console: Console) { let xs = [\"a\"]; let n = xs.len; console.println(n); }",
+    );
+    let main = body(&ir, "main");
+    // The last read of `xs`'s slot releases it, before the printing call.
+    let last = &main[main.rfind("= load ptr, ptr %xs,").expect("read")..];
+    let released = last.find("call void @lugha_rc_dec(").expect("released");
+    let printed = last.find("call void %slot(").expect("printed");
+    assert!(released < printed, "{main}");
+}

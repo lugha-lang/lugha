@@ -55,6 +55,9 @@ pub(super) struct Liveness {
     /// Per function or method key, which parameters it keeps (receiver
     /// first for a method); only keys with at least one.
     pub keeps: HashMap<String, Vec<bool>>,
+    /// Per statement, the `let` locals of its block that nothing mentions
+    /// after it: their values can go when it ends.
+    pub dead_after: HashMap<Span, Vec<String>>,
 }
 
 /// One function's parameters while it is walked.
