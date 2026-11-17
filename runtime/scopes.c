@@ -42,12 +42,25 @@ typedef struct LughaScope {
     void *error_table;
     void *error_box;
     LughaString *panic;
+    /* The failing task's name, with the failure. */
+    LughaString *failed_task;
     /* Left early: no longer the fiber's, its tasks done and let go of. */
     bool left;
+    /* Its name, for a failure of its body. */
+    LughaString *name;
+    /* What a task's failure does (`POLICY_*`, scope_policy.c), and the
+     * handler `independent(f)` gives, a function value's code and env. */
+    int32_t policy;
+    void *handler_code;
+    void *handler_env;
+    /* `limit n`: how many tasks may run at once (0: any), and the fiber
+     * waiting in `spawn` for one to finish. */
+    int64_t limit;
+    Fiber *limit_waiter;
 } LughaScope;
 
 /* Generated code keeps a scope's record in its frame, in this many bytes. */
-_Static_assert(sizeof(LughaScope) <= 96, "a scope's record fits its frame slot");
+_Static_assert(sizeof(LughaScope) <= 192, "a scope's record fits its frame slot");
 
 /* `main`'s scope: its owner is the main fiber. */
 static LughaScope root_scope;
@@ -55,6 +68,8 @@ static LughaScope root_scope;
 static void cancel_unwind(void);
 
 static void cancel_tasks(LughaScope *s, int32_t reason);
+
+static void scope_room(LughaScope *s);
 
 /* Cancels `f` with `reason` (and `text`, for `REASON_REQUESTED`), by
  * `by`: a wait that may be cut short ends at once. */
@@ -88,7 +103,7 @@ static void cancel_tasks(LughaScope *s, int32_t reason) {
 /* `s` failed: the first failure is kept, the rest are cancelled. Takes
  * the error's box or the message over. */
 static void scope_fail(LughaScope *s, int32_t outcome, void *table, void *box,
-                       LughaString *panic) {
+                       LughaString *panic, LughaString *task) {
     if (s->failed != TASK_OK) {
         lugha_rt_rc_release(box);
         lugha_rt_rc_release(panic);
@@ -98,6 +113,8 @@ static void scope_fail(LughaScope *s, int32_t outcome, void *table, void *box,
     s->error_table = table;
     s->error_box = box;
     s->panic = panic;
+    lugha_rt_rc_retain(task);
+    s->failed_task = task;
     cancel_tasks(s, REASON_SIBLING);
     if (s->owner != current) {
         cancel_fiber(s->owner, REASON_SIBLING, NULL, s);
@@ -131,13 +148,33 @@ static void scope_task_done(Fiber *f) {
     if (s->running == 0 && s->owner_waiting) {
         wake(s->owner, 0);
     }
+    // A `spawn` waiting for room under `limit n`.
+    if (s->limit_waiter != NULL && s->running < s->limit) {
+        Fiber *waiter = s->limit_waiter;
+        s->limit_waiter = NULL;
+        wake(waiter, 0);
+    }
 }
 
-/* `scope s { … }` starts: its record, at `s` in the frame running the
- * body, is the current fiber's innermost. */
-void lugha_rt_scope_enter(LughaScope *s) {
+/* `scope s word… { … }` starts: its record, at `s` in the frame running
+ * the body, is the current fiber's innermost. `name` is the scope's,
+ * `policy` and the handler (`code`, `env`) what a task's failure does,
+ * `limit` how many tasks may run at once (0: any; below 0 panics). */
+void lugha_rt_scope_enter(LughaScope *s, LughaString *name, int32_t policy, void *code,
+                          void *env, int64_t limit) {
     ensure_started();
+    // `limit` is -1 when the scope says none.
+    if (limit == 0 || limit < -1) {
+        panic_with("a scope's limit must be at least 1", 34);
+    }
     memset(s, 0, sizeof *s);
+    lugha_rt_rc_retain(name);
+    s->name = name;
+    s->policy = policy;
+    s->handler_code = code;
+    lugha_rt_rc_retain(env);
+    s->handler_env = env;
+    s->limit = limit < 0 ? 0 : limit;
     s->owner = current;
     s->outer = current->scopes;
     current->scopes = s;
@@ -153,6 +190,7 @@ void *lugha_rt_scope_root(void) {
 /* `s.spawn(…)`: a new task, started in `s`. */
 LughaTask *lugha_rt_task_spawn_in(LughaScope *s, void (*entry)(void *, void *, void *),
                                   void *code, void *env, int64_t result_size) {
+    scope_room(s);
     LughaTask *task = lugha_rt_task_spawn(entry, code, env, result_size);
     Fiber *f = last_spawned;
     f->started_in = s;
@@ -179,6 +217,10 @@ void lugha_rt_scope_end(LughaScope *s) {
  * cancellation it made over. */
 static void scope_pop(LughaScope *s) {
     current->scopes = s->outer;
+    lugha_rt_rc_release(s->name);
+    lugha_rt_rc_release(s->handler_env);
+    s->name = NULL;
+    s->handler_env = NULL;
     for (LughaTask *t = s->tasks; t != NULL;) {
         LughaTask *next = t->scope_next;
         lugha_rt_rc_release(t);
@@ -217,7 +259,8 @@ void lugha_rt_scope_caught(LughaScope *s) {
     current->in_flight = NULL;
     current->unwinding = false;
     if (caught != NULL && !caught->cancel) {
-        scope_fail(s, TASK_PANICKED, NULL, NULL, string_of(caught->text, (int64_t)caught->len));
+        LughaString *text = string_of(caught->text, (int64_t)caught->len);
+        scope_fail(s, TASK_PANICKED, NULL, NULL, text, s->name);
     }
     if (caught != NULL) {
         free(caught->text);
@@ -230,30 +273,34 @@ void lugha_rt_scope_caught(LughaScope *s) {
 /* The scope ends: its failure, if any (`TASK_FAILED` with the error's
  * table and box, `TASK_PANICKED` with the message, handed over), or
  * `TASK_OK`. A cancellation from outside goes on unwinding from here. */
-int32_t lugha_rt_scope_exit(LughaScope *s, void **table, void **box, LughaString **panic) {
+int32_t lugha_rt_scope_exit(LughaScope *s, void **table, void **box, LughaString **panic,
+                            LughaString **task) {
     int32_t failed = s->failed;
     *table = s->error_table;
     *box = s->error_box;
     *panic = s->panic;
+    *task = s->failed_task;
     scope_pop(s);
     if (current->cancelled != REASON_NONE) {
         lugha_rt_rc_release(*box);
         lugha_rt_rc_release(*panic);
+        lugha_rt_rc_release(*task);
         cancel_unwind();
     }
     return failed;
 }
 
-/* The current task returned `Err`: it failed with that error, an `Error`
- * value's table and box (handed over). */
-void lugha_rt_task_failed(void *table, void *box) {
+/* The current task returned `Err`: it failed with that error, its table
+ * (NULL unless the scope's error type is an interface) and box, handed
+ * over; `fails` when the failure fails its scope. */
+void lugha_rt_task_failed(void *table, void *box, int32_t fails) {
     LughaTask *t = current->task;
     t->outcome = TASK_FAILED;
     t->error_table = table;
     t->error_box = box;
-    if (current->started_in != NULL) {
+    if (current->started_in != NULL && fails) {
         lugha_rt_rc_retain(box);
-        scope_fail(current->started_in, TASK_FAILED, table, box, NULL);
+        scope_fail(current->started_in, TASK_FAILED, table, box, NULL, t->name);
     }
 }
 
@@ -270,20 +317,20 @@ static void scope_task_unwound(bool cancel, const char *text, size_t len) {
         t->outcome = TASK_PANICKED;
         t->text = string_of(text, (int64_t)len);
         lugha_rt_rc_retain(t->text);
-        scope_fail(current->started_in, TASK_PANICKED, NULL, NULL, t->text);
+        scope_fail(current->started_in, TASK_PANICKED, NULL, NULL, t->text, t->name);
     }
     current->unwinding = false;
     fiber_exit(current);
 }
 
-/* True if a scope other than the root catches a panic here: the current
- * fiber runs a scope's body, or a task a scope started. */
+/* True if a panic here is reported elsewhere, so not printed as it
+ * happens: the current fiber runs a scope's body (its scope's value), or
+ * is a task a scope started (its entry reports it, naming the task). */
 static bool panic_caught(void) {
     if (current == NULL) {
         return false;
     }
-    bool started = current->started_in != NULL && current->started_in != &root_scope;
-    return current->scopes != NULL || started;
+    return current->scopes != NULL || current->started_in != NULL;
 }
 
 /* At a safe point: a cancelled task unwinds from here. */
@@ -345,8 +392,13 @@ void lugha_rt_task_name(LughaTask *t, LughaString *name) {
     t->name = name;
 }
 
-/* When `main` returns: its scope's tasks finish first; one that failed
- * ends the program as an unhandled panic does. */
+/* When `main` returns: its scope's tasks finish first. True if one failed:
+ * the program then ends with 101, as after an unhandled panic. */
+/* True if a root-scope task failed. */
+static int32_t root_scope_failed(void) {
+    return root_scope.failed != TASK_OK;
+}
+
 /* Waits for the root scope's tasks, and lets go of them and of its
  * failure, once reported. */
 static void root_scope_wait(void) {
@@ -359,8 +411,10 @@ static void root_scope_wait(void) {
     root_scope.tasks = NULL;
     lugha_rt_rc_release(root_scope.error_box);
     lugha_rt_rc_release(root_scope.panic);
+    lugha_rt_rc_release(root_scope.failed_task);
     root_scope.error_box = NULL;
     root_scope.panic = NULL;
+    root_scope.failed_task = NULL;
 }
 
 /* `main` unwound: when cancelled because a root-scope task failed, the
@@ -373,17 +427,10 @@ void lugha_rt_scope_root_unwound(void) {
     }
 }
 
-void lugha_rt_scope_root_finish(void) {
+int32_t lugha_rt_scope_root_finish(void) {
     if (current == NULL) {
-        return;
+        return 0;
     }
     root_scope_wait();
-    if (root_scope.failed == TASK_FAILED) {
-        fflush(stdout);
-        fputs("error: a task in the root scope failed\n", stderr);
-    }
-    if (root_scope.failed != TASK_OK) {
-        fflush(stdout);
-        exit(101);
-    }
+    return root_scope_failed();
 }

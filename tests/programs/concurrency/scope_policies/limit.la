@@ -1,0 +1,32 @@
+// `limit n`: `spawn` waits while n of the scope's tasks run.
+import std.task;
+
+actor Gauge {
+    now: i64,
+    most: i64,
+    fun enter(mut self) {
+        self.now += 1;
+        if self.now > self.most {
+            self.most = self.now;
+        }
+    }
+    fun leave(mut self) { self.now -= 1; }
+    fun most_at_once(self): i64 = self.most;
+}
+
+fun work(g: Gauge) {
+    g.enter();
+    task.sleep(5);
+    g.leave();
+}
+
+fun main(console: Console) {
+    let g = spawn Gauge { now: 0, most: 0 };
+    let r = scope s limit 2 {
+        for i in 0..6 {
+            s.spawn(work(g));
+        }
+    };
+    console.println("{g.most_at_once()} {r.is_ok()}");
+    g.stop();
+}

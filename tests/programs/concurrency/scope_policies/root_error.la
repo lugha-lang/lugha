@@ -1,0 +1,7 @@
+// A root-scope task's `Err` is printed in full, then the program ends.
+fun bad(): Result<i64, string> = Err("could not start");
+
+fun main(console: Console, root: Scope) {
+    root.spawn(bad());
+    console.println("main done");
+}

@@ -31,7 +31,7 @@ pub(super) const ENDED_PANICKED: u64 = 3;
 
 /// The 8-byte words a scope's record takes in its frame (the runtime's
 /// `LughaScope` checks that it fits).
-const SCOPE_RECORD_WORDS: u32 = 12;
+const SCOPE_RECORD_WORDS: u32 = 24;
 
 /// A scope whose body is being lowered: where its pads stop.
 pub(super) struct Catch<'ctx> {
@@ -71,14 +71,23 @@ impl<'ctx> Lowerer<'ctx> {
         let record = self.entry_slot(words.into(), "scope.record");
         // Every use names the slot itself, so its frame keeps it to the end.
         let rec = record;
-        self.rt(
-            "lugha_rt_scope_enter",
-            std::slice::from_ref(&ptr),
-            None,
-            &[rec.into()],
-        );
+        let mut enter = vec![rec.into()];
+        enter.extend(self.scope_settings(scope)?);
+        let params = [
+            ptr.clone(),
+            ptr.clone(),
+            Type::I32,
+            ptr.clone(),
+            ptr.clone(),
+            Type::I64,
+        ];
+        self.rt("lugha_rt_scope_enter", &params, None, &enter);
 
-        let handle_type = Type::Struct("$prelude.Scope".to_string(), Vec::new());
+        // `Scope<E>`, `E` being what its tasks fail with, as in `Failure<E>`.
+        let Type::Struct(_, failure_args) = &failure else {
+            unreachable!("checked: a scope fails with a `Failure`")
+        };
+        let handle_type = Type::Struct("$prelude.Scope".to_string(), failure_args.clone());
         let handle = self.entry_alloca(&handle_type, &scope.name.name);
         let shell = llvm_type(self.context, &handle_type).into_struct_type();
         let value = self
@@ -139,13 +148,20 @@ impl<'ctx> Lowerer<'ctx> {
             self.entry_alloca(&ptr, "failed.table"),
             self.entry_alloca(&ptr, "failed.box"),
             self.entry_alloca(&ptr, "failed.panic"),
+            self.entry_alloca(&ptr, "failed.task"),
         ];
         let mut args: Vec<BasicValueEnum> = vec![rec.into()];
         args.extend(parts.iter().map(|p| BasicValueEnum::from(*p)));
         let status = self
             .rt(
                 "lugha_rt_scope_exit",
-                &[ptr.clone(), ptr.clone(), ptr.clone(), ptr.clone()],
+                &[
+                    ptr.clone(),
+                    ptr.clone(),
+                    ptr.clone(),
+                    ptr.clone(),
+                    ptr.clone(),
+                ],
                 Some(Type::I32),
                 &args,
             )
@@ -168,7 +184,7 @@ impl<'ctx> Lowerer<'ctx> {
         self.builder.position_at_end(failed);
         // The body may have finished before a task failed.
         self.rc_value_at(slot, &result, RcOp::Release);
-        let err = self.failure_value(&failure, status, parts);
+        let err = self.scope_failure(&failure, status, parts);
         let err = self.construct_values(&result, "Err", vec![err]);
         self.builder.build_store(slot, err).expect(POSITIONED);
         self.branch(done);
@@ -178,53 +194,6 @@ impl<'ctx> Lowerer<'ctx> {
                 .build_load(llvm_type(self.context, &result), slot, "scope")
                 .expect(POSITIONED),
         ))
-    }
-
-    /// The `Failure` a failed scope's `status` and handed-over `parts`
-    /// (an `Error`'s table and box, a panic's message) make.
-    fn failure_value(
-        &mut self,
-        failure: &Type,
-        status: inkwell::values::IntValue<'ctx>,
-        [table, boxed, panic]: [PointerValue<'ctx>; 3],
-    ) -> BasicValueEnum<'ctx> {
-        let ptr = self.context.ptr_type(Default::default());
-        let load = |this: &Self, at: PointerValue<'ctx>| {
-            this.builder
-                .build_load(ptr, at, "part")
-                .expect(POSITIONED)
-                .into_pointer_value()
-        };
-        let i32_type = self.context.i32_type();
-        let is_panic = self
-            .builder
-            .build_int_compare(
-                IntPredicate::EQ,
-                status,
-                i32_type.const_int(ENDED_PANICKED, false),
-                "panicked",
-            )
-            .expect(POSITIONED);
-        let slot = self.entry_alloca(failure, "failure");
-        let (panicked, errored) = (self.append("failure.panic"), self.append("failure.error"));
-        let joined = self.append("failure.made");
-        self.builder
-            .build_conditional_branch(is_panic, panicked, errored)
-            .expect(POSITIONED);
-        self.builder.position_at_end(panicked);
-        let message = load(self, panic);
-        let value = self.construct_values(failure, "Panic", vec![message.into()]);
-        self.builder.build_store(slot, value).expect(POSITIONED);
-        self.branch(joined);
-        self.builder.position_at_end(errored);
-        let pair = self.pair(load(self, table), load(self, boxed));
-        let value = self.construct_values(failure, "Error", vec![pair.into()]);
-        self.builder.build_store(slot, value).expect(POSITIONED);
-        self.branch(joined);
-        self.builder.position_at_end(joined);
-        self.builder
-            .build_load(llvm_type(self.context, failure), slot, "failure")
-            .expect(POSITIONED)
     }
 
     /// The scopes an exit to block depth `to` leaves, outermost first,
@@ -351,9 +320,39 @@ impl<'ctx> Lowerer<'ctx> {
         self.rc_after_entry(params, args);
     }
 
-    /// Once `main` (or a test) returns: the root scope's tasks finish.
-    pub(super) fn root_scope_finish(&mut self) {
-        self.rt("lugha_rt_scope_root_finish", &[], None, &[]);
+    /// Once `main` (or a test) returns: the root scope's tasks finish, then
+    /// its arguments are let go of. True (an `i1`) if a root task failed.
+    pub(super) fn finish_entry(
+        &mut self,
+        params: &[Type],
+        args: &[BasicMetadataValueEnum<'ctx>],
+    ) -> inkwell::values::IntValue<'ctx> {
+        let failed = self
+            .rt("lugha_rt_scope_root_finish", &[], Some(Type::I32), &[])
+            .expect("returns whether a task failed")
+            .into_int_value();
+        self.rc_after_entry(params, args);
+        self.builder
+            .build_int_compare(
+                IntPredicate::NE,
+                failed,
+                failed.get_type().const_zero(),
+                "failed",
+            )
+            .expect(POSITIONED)
+    }
+
+    /// The program's exit code: 101 when a root task failed, else `code`.
+    pub(super) fn exit_code(
+        &mut self,
+        code: inkwell::values::IntValue<'ctx>,
+        failed: inkwell::values::IntValue<'ctx>,
+    ) -> inkwell::values::IntValue<'ctx> {
+        let panicked = code.get_type().const_int(101, false);
+        self.builder
+            .build_select(failed, panicked, code, "exit")
+            .expect(POSITIONED)
+            .into_int_value()
     }
 
     /// Calls runtime function `name`; its value, if it returns one.

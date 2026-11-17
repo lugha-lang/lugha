@@ -1,0 +1,34 @@
+// `scope<E>`: every task's error is an `E`, and so is the scope's failure.
+enum SyncError { Net(string), Disk(i64) }
+
+impl Display for SyncError {
+    fun show(self): string = match self {
+        .Net(m) => "network: {m}",
+        .Disk(code) => "disk {code}",
+    };
+}
+
+impl Error for SyncError {}
+
+fun download(fails: bool): Result<i64, SyncError> = if fails { Err(SyncError.Net("timeout")) } else { Ok(1) };
+
+fun save(): Result<i64, SyncError> = Ok(2);
+
+fun sync(fails: bool): Result<(), Failure<SyncError>> {
+    scope<SyncError> s {
+        s.spawn(download(fails));
+        s.spawn(save());
+    }
+}
+
+fun main(console: Console) {
+    console.println(sync(false).is_ok());
+    match sync(true) {
+        .Ok(_) => console.println("?"),
+        .Err(f) => match f.kind {
+            .Error(.Net(m)) => console.println("{f.task}: net {m}"),
+            .Error(.Disk(code)) => console.println("disk {code}"),
+            .Panic(m) => console.println(m),
+        },
+    }
+}

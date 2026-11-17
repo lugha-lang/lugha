@@ -1,0 +1,2 @@
+task `bad` failed: bad 2
+task `boom` panicked: boom at tests/programs/concurrency/scope_policies/independent.la:13:5

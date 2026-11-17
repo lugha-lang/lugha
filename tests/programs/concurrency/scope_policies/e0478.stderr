@@ -1,0 +1,9 @@
+error[E0478]: this task fails with `string`, which doesn't convert to its scope's `SyncError`
+   --> tests/programs/concurrency/scope_policies/e0478.la:13:17
+   |
+13 |         s.spawn(other());
+   |                 ^^^^^^^
+   |
+   = help: return `SyncError` from the task, or make `SyncError` an interface that `string` implements
+
+For more about E0478, run `lughac explain E0478`.

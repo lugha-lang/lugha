@@ -1,2 +1,2 @@
 Ok(1)
-failed: oops 5
+failed: task `check` failed: oops 5

@@ -1,1 +1,1 @@
-panic: work failed at tests/programs/control/unwinding/spawned.la:7:5
+task `work` panicked: work failed at tests/programs/control/unwinding/spawned.la:7:5

@@ -82,6 +82,7 @@ mod refs;
 mod results;
 mod runtime;
 mod scope;
+mod scope_failures;
 mod show_iface;
 mod split;
 mod split_leaves;

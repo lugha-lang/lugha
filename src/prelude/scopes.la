@@ -8,10 +8,10 @@
  * A handle may be passed as an argument, and nothing else: it can't be
  * returned, stored, sent or captured.
  */
-struct Scope { $rec: CPtr }
+struct Scope<E> { $rec: CPtr }
 
 /** The root scope `main` and tests take: its tasks finish before the program does. */
-fun $root_scope(): Scope = Scope { $rec: $os.scope_root() };
+fun $root_scope(): Scope<Error> = Scope { $rec: $os.scope_root() };
 
 /** Why a task was cancelled. */
 enum Reason {
@@ -53,20 +53,30 @@ impl Display for Stopped {
 impl Error for Stopped {}
 
 /**
- * Why a scope failed: a task's error, or a panic in a task or the body.
- * The first failure cancels everything else the scope runs.
+ * Why a scope failed: which task (`task`, its name: what `t.name(…)` set,
+ * else the called function's) and how (`kind`). The first failure cancels
+ * everything else an all-or-nothing scope runs. `E` is the scope's error
+ * type: `Error` unless the scope says `scope<E>`.
  */
-enum Failure {
-    Error(Error),
+struct Failure<E> { task: string, kind: FailureKind<E> }
+
+/** How a task failed: it returned this error, or it panicked with this message. */
+enum FailureKind<E> {
+    Error(E),
     Panic(string),
 }
 
-impl Display for Failure {
-    fun show(self): string = match self {
-        .Error(e) => "{e}",
-        .Panic(message) => "panic: {message}",
+impl Display for Failure<E: Display> {
+    fun show(self): string = match self.kind {
+        .Error(e) => "task `{self.task}` failed: {e}",
+        .Panic(message) => "task `{self.task}` panicked: {message}",
     };
 }
 
 /** A failed scope is an error: `scope s { … }?` passes it on. */
-impl Error for Failure {}
+impl Error for Failure<E: Error> {}
+
+/** What an `independent` scope does with a failure it has no handler for. */
+fun $report_failure(f: Failure<Error>) {
+    eprintln(f.show());
+}

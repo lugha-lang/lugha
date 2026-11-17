@@ -123,7 +123,11 @@ impl Checker {
         if let Type::Param(name) = ty {
             let bounds = self.bounds(name);
             // `T: Eq` (or `Num`) is written as a flag.
-            let bound = bounds.interfaces.iter().any(|a| a.key == interface)
+            // A bound that extends it counts: `E: Error` is sendable.
+            let bound = bounds
+                .interfaces
+                .iter()
+                .any(|a| a.key == interface || self.extends_or_is(&a.key, interface))
                 || interface == super::derive::EQ && super::derive::implies_eq(&bounds);
             return if bound {
                 None

@@ -61,11 +61,9 @@ impl<'ctx> Lowerer<'ctx> {
             let args = self.entry_arguments(&params, entry);
             self.lock_down(&params);
             self.builder.build_call(test, &args, "").expect(POSITIONED);
-            self.root_scope_finish();
-            self.rc_after_entry(&params, &args);
-            self.builder
-                .build_return(Some(&i32_type.const_zero()))
-                .expect(POSITIONED);
+            let failed = self.finish_entry(&params, &args);
+            let code = self.exit_code(i32_type.const_zero(), failed);
+            self.builder.build_return(Some(&code)).expect(POSITIONED);
             self.builder.position_at_end(next);
         }
         let unknown = self.runtime("lugha_rt_test_unknown", &[], Some(Type::I32));

@@ -138,7 +138,18 @@ pub enum ExprKind {
 pub struct ScopeExpr {
     /// The scope's handle, `s` in `s.spawn(…)`.
     pub name: Ident,
+    /// `scope<E>`: the error type its tasks fail with, when written.
+    pub error: Option<super::Type>,
+    /// Its settings, in order: `independent`, `independent(f)`, `limit n`.
+    pub words: Vec<ScopeWord>,
     pub body: Block,
+}
+
+/// A scope's setting: a word, and its value (`limit 10`, `independent(f)`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScopeWord {
+    pub name: Ident,
+    pub arg: Option<Expr>,
 }
 
 /// Prefix operators.

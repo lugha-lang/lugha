@@ -85,3 +85,27 @@ pub(in crate::check) fn sendable_claimed(message: &str, span: Span) -> Diagnosti
         "a type is sendable when every part of it is: nothing to write, and nothing to claim",
     )
 }
+
+/// E0477: a scope's setting that doesn't exist, or is said twice.
+pub(in crate::check) fn scope_word(message: &str, span: Span) -> Diagnostic {
+    Diagnostic::error("E0477", message.to_string(), span).with_help(
+        "a scope's settings come between its name and its body, each at most once: \
+         `scope conns independent limit 100 { … }`",
+    )
+}
+
+/// E0478: a task's error type that doesn't convert to its scope's.
+pub(in crate::check) fn task_error_unconverted(
+    e: &crate::check::Type,
+    scope_error: &crate::check::Type,
+    span: Span,
+) -> Diagnostic {
+    Diagnostic::error(
+        "E0478",
+        format!("this task fails with `{e}`, which doesn't convert to its scope's `{scope_error}`"),
+        span,
+    )
+    .with_help(format!(
+        "return `{scope_error}` from the task, or make `{scope_error}` an interface that `{e}` implements"
+    ))
+}

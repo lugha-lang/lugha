@@ -23,7 +23,9 @@ fun main(console: Console) {
     };
     match r {
         .Ok(n) => console.println("ok {n}"),
-        .Err(.Panic(message)) => console.println("failed: {message.starts_with("boom at ")}"),
-        .Err(.Error(e)) => console.println("error {e}"),
+        .Err(f) => match f.kind {
+            .Panic(message) => console.println("{f.task} failed: {message.starts_with("boom at ")}"),
+            .Error(e) => console.println("error {e}"),
+        },
     }
 }

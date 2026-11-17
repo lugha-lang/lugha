@@ -1,0 +1,15 @@
+enum SyncError { Net }
+
+impl Display for SyncError {
+    fun show(self): string = "net";
+}
+
+impl Error for SyncError {}
+
+fun other(): Result<i64, string> = Err("x");
+
+fun main() {
+    let r = scope<SyncError> s {
+        s.spawn(other());
+    };
+}

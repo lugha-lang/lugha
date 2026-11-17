@@ -1,6 +1,6 @@
 ## FEATURE: How a scope runs its tasks: `independent` and `independent(f)`, `limit n`, `scope<E>`, and failures that name their task (`Failure` becomes a struct with `task` and `kind`); milestone 198.
 
-**Status:** proposed 2026-11-18.
+**Status:** approved 2026-11-18; built.
 
 ## OBJECTIVE
 ```
@@ -85,12 +85,12 @@ match sync(net) {
 - Library combinators (first success, …): the Draft leaves them to libraries.
 
 ## TESTS
-- [ ] Checker unit tests: header words and E0477; `scope<E>` types and E0478; `Failure`/`Scope` defaults; a handler's type and sendability.
-- [ ] `tests/programs/concurrency/scope_policies/`: an independent scope surviving failures (printed, and to a handler); `join` seeing `.Failed` and `.Panicked`; `limit` keeping at most n running; `scope<E>` with a converting error; task names (default, `name()`, body); a root task's `Err` printed in full.
-- [ ] Rewritten matches print what they printed.
-- [ ] Targeted: `--lib`, `programs`, `leaks`, `spec`, `http`, `explain`, `comments`, `codegen`.
+- [x] Checker unit tests: header words and E0477; `scope<E>` types and E0478; `Failure`/`Scope` defaults; a handler's type and sendability.
+- [x] `tests/programs/concurrency/scope_policies/`: an independent scope surviving failures (printed, and to a handler); `join` seeing `.Failed` and `.Panicked`; `limit` keeping at most n running; `scope<E>` with a converting error; task names (default, `name()`, body); a root task's `Err` printed in full.
+- [x] Rewritten matches print what they printed.
+- [x] Targeted: `--lib`, `programs`, `leaks`, `spec`, `http`, `explain`, `comments`, `codegen`.
 
 ## ACCEPTANCE
-- [ ] An independent scope reports every failure and keeps running; `limit` holds; `scope<E>` types its failures.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` clean; targeted tests pass.
-- [ ] Spec, CHANGELOG, error pages updated.
+- [x] An independent scope reports every failure and keeps running; `limit` holds; `scope<E>` types its failures.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` clean; targeted tests pass.
+- [x] Spec, CHANGELOG, error pages updated.

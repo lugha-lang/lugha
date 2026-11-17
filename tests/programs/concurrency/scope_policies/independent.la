@@ -1,0 +1,32 @@
+// An independent scope: a task's failure is printed as it happens, and the
+// other tasks and the body run on. `join` sees how each task ended.
+import std.task;
+
+fun ok(n: i64): i64 {
+    task.sleep(5);
+    n
+}
+
+fun bad(n: i64): Result<i64, string> = if n > 0 { Err("bad {n}") } else { Ok(n) };
+
+fun boom(): i64 {
+    panic("boom")
+}
+
+fun main(console: Console) {
+    let r = scope s independent {
+        let a = s.spawn(ok(1));
+        let b = s.spawn(bad(2));
+        let c = s.spawn(boom());
+        match b.join() {
+            .Err(.Failed(e)) => console.println("b failed: {e}"),
+            other => console.println("b: {other.debug()}"),
+        }
+        match c.join() {
+            .Err(.Panicked(m)) => console.println("c panicked: {m.starts_with("boom")}"),
+            _ => console.println("c?"),
+        }
+        a.join().unwrap()
+    };
+    console.println(r.debug());
+}

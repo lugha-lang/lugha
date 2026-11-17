@@ -3,7 +3,7 @@
 //! editor work offline and match this compiler.
 
 /// Every code with its explanation, in code order (`docs/errors/<CODE>.md`).
-pub const EXPLANATIONS: [(&str, &str); 156] = [
+pub const EXPLANATIONS: [(&str, &str); 158] = [
     ("E0101", include_str!("../docs/errors/E0101.md")),
     ("E0102", include_str!("../docs/errors/E0102.md")),
     ("E0103", include_str!("../docs/errors/E0103.md")),
@@ -139,6 +139,8 @@ pub const EXPLANATIONS: [(&str, &str); 156] = [
     ("E0474", include_str!("../docs/errors/E0474.md")),
     ("E0475", include_str!("../docs/errors/E0475.md")),
     ("E0476", include_str!("../docs/errors/E0476.md")),
+    ("E0477", include_str!("../docs/errors/E0477.md")),
+    ("E0478", include_str!("../docs/errors/E0478.md")),
     ("E0501", include_str!("../docs/errors/E0501.md")),
     ("E0502", include_str!("../docs/errors/E0502.md")),
     ("E0503", include_str!("../docs/errors/E0503.md")),

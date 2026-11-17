@@ -407,12 +407,12 @@ impl<'ctx> Lowerer<'ctx> {
             .expect(POSITIONED);
         // A panic in `main` lets go of its arguments too, once unwound.
         self.unwind_entry((main, call), |this| this.main_unwound(params, &args));
-        self.root_scope_finish();
-        self.rc_after_entry(params, &args);
+        let failed = self.finish_entry(params, &args);
         let code = match call.try_as_basic_value() {
             ValueKind::Basic(value) => value.into_int_value(),
             ValueKind::Instruction(_) => i32_type.const_zero(),
         };
+        let code = self.exit_code(code, failed);
         self.builder.build_return(Some(&code)).expect(POSITIONED);
     }
 }
@@ -495,6 +495,6 @@ mod tests {
     fn void_main_exits_with_zero() {
         let ir = ir("fun main() { }");
         assert!(ir.contains("define void @lugha_fn_main()"), "{ir}");
-        assert!(ir.contains("ret i32 0"), "{ir}");
+        assert!(ir.contains(", i32 101, i32 0"), "{ir}");
     }
 }

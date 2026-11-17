@@ -18,9 +18,27 @@ pub(super) const STOPPED: &str = "$prelude.Stopped";
 /// The prelude's `Reason`, why a task was cancelled.
 pub(super) const REASON: &str = "$prelude.Reason";
 
-/// The type of a scope's handle.
-pub(super) fn scope_type() -> Type {
-    Type::Struct(SCOPE.to_string(), Vec::new())
+/// The prelude's `Error` interface, as a type.
+pub(super) fn error_type() -> Type {
+    Type::Interface(super::impls::ERROR.to_string(), Vec::new())
+}
+
+/// The type of the handle of a scope whose tasks' errors are `e`.
+pub(super) fn scope_type(e: Type) -> Type {
+    Type::Struct(SCOPE.to_string(), vec![e])
+}
+
+/// A failure of a scope whose tasks' errors are `e`.
+pub(super) fn failure_type(e: Type) -> Type {
+    Type::Struct(FAILURE.to_string(), vec![e])
+}
+
+/// `Scope` or `Failure` written without arguments: the plain scope's, `<Error>`.
+pub(super) fn with_error_default(key: &str) -> Option<Type> {
+    match key {
+        SCOPE | FAILURE => Some(Type::Struct(key.to_string(), vec![error_type()])),
+        _ => None,
+    }
 }
 
 /// What `t.join()` gives for a task returning `result`: `Result<V,
@@ -75,8 +93,14 @@ impl Checker {
             }
             _ => None,
         };
+        let e = self.scope_error(scope);
+        self.scope_words(scope, &e);
         self.push();
-        self.declare(&scope.name, scope_type(), Binding::Let { mutable: false });
+        self.declare(
+            &scope.name,
+            scope_type(e.clone()),
+            Binding::Let { mutable: false },
+        );
         let body = self.block(&scope.body, inner.as_ref());
         self.pop();
         let body = if body == Type::Never {
@@ -84,28 +108,40 @@ impl Checker {
         } else {
             body
         };
-        Type::Enum(
-            RESULT.to_string(),
-            vec![body, Type::Enum(FAILURE.to_string(), Vec::new())],
-        )
+        Type::Enum(RESULT.to_string(), vec![body, failure_type(e)])
     }
 
-    /// A task returning `ret`: when it is a `Result`, its `Err` fails the
-    /// task's scope as an `Error` value, so the error type must be one
-    /// (E0422), its table made where the task ends.
-    pub(super) fn task_error(&mut self, call: &Expr, ret: &Type) {
+    /// A task returning `ret`, started in a scope whose tasks' errors are
+    /// `scope_error`: when it returns a `Result`, its error must be
+    /// `scope_error`, or convert to it as `?` converts (E0478); the
+    /// conversion's table is made where the task ends.
+    pub(super) fn task_error(&mut self, call: &Expr, ret: &Type, scope_error: &Type) {
         let Type::Enum(k, args) = ret else { return };
         if k != RESULT || args.len() != 2 || matches!(args[1], Type::Error) {
             return;
         }
-        let error = Type::Interface(super::impls::ERROR.to_string(), Vec::new());
-        let interface = super::applied::Applied::of(&error).expect("an interface type");
         let e = &args[1];
-        if matches!(e, Type::Interface(..)) {
+        if e.fits(scope_error) || *scope_error == Type::Error {
             return;
         }
-        if self.satisfies(e, &interface, call.span) {
-            self.conversion_uses(call, e, &interface);
+        let converts = match super::applied::Applied::of(scope_error) {
+            Some(interface) if !matches!(e, Type::Interface(..)) => {
+                let ok = self.unmet(e, &interface).is_empty();
+                if ok {
+                    self.conversion_uses(call, e, &interface);
+                }
+                ok
+            }
+            Some(interface) => self
+                .undeclared(
+                    &super::applied::Applied::of(e).expect("an interface"),
+                    &interface,
+                )
+                .is_empty(),
+            None => false,
+        };
+        if !converts {
+            self.report(errors::task_error_unconverted(e, scope_error, call.span));
         }
     }
 
@@ -118,10 +154,15 @@ impl Checker {
         closure: &Expr,
         expect: Option<&Expect>,
     ) -> Type {
-        if let Some(scope) = scope {
-            self.spawn_scope(scope);
+        let scope_error = match scope {
+            Some(scope) => self.spawn_scope(scope),
+            None => error_type(),
+        };
+        let ty = self.spawn(closure, expect, &scope_error);
+        // A task's failure may be printed: by an `independent` scope, or the root.
+        if scope.is_some() {
+            self.used(expr, "$prelude.$report_failure", &[]);
         }
-        let ty = self.spawn(closure, expect);
         match (&ty, scope) {
             (Type::Actor(_), Some(_)) => {
                 let message = "an actor starts with `spawn` alone: `spawn Counter { count: 0 }`";
@@ -137,10 +178,16 @@ impl Checker {
     }
 
     /// The scope `s` in `s.spawn(…)`: a `Scope`, or E0473.
-    fn spawn_scope(&mut self, scope: &Expr) {
+    /// Its tasks' error type, `Error` for a plain scope.
+    fn spawn_scope(&mut self, scope: &Expr) -> Type {
         let ty = self.expr(scope, None);
-        if !matches!(&ty, Type::Struct(k, _) if k == SCOPE) && ty != Type::Error {
-            self.report(errors::not_a_scope(&ty, scope.span));
+        match &ty {
+            Type::Struct(k, args) if k == SCOPE => args.first().cloned().unwrap_or_else(error_type),
+            Type::Error => Type::Error,
+            _ => {
+                self.report(errors::not_a_scope(&ty, scope.span));
+                Type::Error
+            }
         }
     }
 
@@ -197,7 +244,8 @@ mod tests {
     #[test]
     fn a_scope_is_a_result_of_its_body() {
         let src = format!("{WORK}fun main() {{ let r = scope s {{ s.spawn(work(1)); 2 }}; }}");
-        let failure = Type::Enum("$prelude.Failure".into(), Vec::new());
+        let error = Type::Interface("$prelude.Error".into(), Vec::new());
+        let failure = Type::Struct("$prelude.Failure".into(), vec![error]);
         assert_eq!(
             let_type(&src, "r"),
             Type::Enum("$prelude.Result".into(), vec![Type::I64, failure])
@@ -259,6 +307,6 @@ mod tests {
     fn a_task_error_must_be_an_error() {
         let src = "struct Oops { code: i64 }\nfun bad(): Result<i64, Oops> = Ok(1);\n\
                    fun main() { let _ = scope s { s.spawn(bad()); }; }";
-        assert_eq!(errors(src)[0].0, "E0422");
+        assert_eq!(errors(src)[0].0, "E0478");
     }
 }

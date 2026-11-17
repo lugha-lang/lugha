@@ -158,6 +158,19 @@ impl<'ctx> Lowerer<'ctx> {
         self.function = saved;
     }
 
+    /// `call` unwinds to a pad running `body` (which ends its block), and
+    /// the unwind stops there: a task's entry catching its own.
+    pub(super) fn catch_call(
+        &mut self,
+        call: InstructionValue<'ctx>,
+        body: impl FnOnce(&mut Self),
+    ) {
+        let (block, landed) = self.cleanup_block();
+        self.in_pad(block, body);
+        let pad = self.pad_entry((block, landed), |_| {});
+        self.give_pad(call, pad);
+    }
+
     /// In a function C calls (a callback's entry): a panic never unwinds
     /// into C, so every call here that may unwind gets a pad ending the
     /// program instead.

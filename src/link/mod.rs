@@ -26,7 +26,7 @@ pub use self::inputs::{Plan, PlanError};
 
 /// The runtime's source files, in the order they are joined: the core first,
 /// since it holds every `#include`, then the fragments that rely on it.
-pub const RUNTIME_PARTS: [(&str, &str); 31] = [
+pub const RUNTIME_PARTS: [(&str, &str); 32] = [
     ("lugha_rt.c", include_str!("../../runtime/lugha_rt.c")),
     ("stack.c", include_str!("../../runtime/stack.c")),
     ("print.c", include_str!("../../runtime/print.c")),
@@ -50,6 +50,10 @@ pub const RUNTIME_PARTS: [(&str, &str); 31] = [
     ("tasks.c", include_str!("../../runtime/tasks.c")),
     ("spawn.c", include_str!("../../runtime/spawn.c")),
     ("scopes.c", include_str!("../../runtime/scopes.c")),
+    (
+        "scope_policy.c",
+        include_str!("../../runtime/scope_policy.c"),
+    ),
     ("cells.c", include_str!("../../runtime/cells.c")),
     ("chans.c", include_str!("../../runtime/chans.c")),
     ("actors.c", include_str!("../../runtime/actors.c")),
@@ -61,7 +65,7 @@ pub const RUNTIME_PARTS: [(&str, &str); 31] = [
 ];
 
 /// Every runtime function codegen may call; `lugha_rt.c` defines them all.
-pub const RUNTIME_SYMBOLS: [&str; 129] = [
+pub const RUNTIME_SYMBOLS: [&str; 134] = [
     "lugha_rt_init",
     "lugha_rt_read_line",
     "lugha_rt_eprint",
@@ -191,6 +195,11 @@ pub const RUNTIME_SYMBOLS: [&str; 129] = [
     "lugha_rt_cell_set",
     "lugha_rt_cell_bytes",
     "lugha_rt_cell_set_bytes",
+    "lugha_rt_task_policy",
+    "lugha_rt_task_handler",
+    "lugha_rt_task_own_name",
+    "lugha_rt_task_caught",
+    "lugha_rt_task_panicked",
 ];
 
 /// The C runtime linked into every program: [`RUNTIME_PARTS`] joined in order,
@@ -219,6 +228,7 @@ pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/tasks.c"),
     include_str!("../../runtime/spawn.c"),
     include_str!("../../runtime/scopes.c"),
+    include_str!("../../runtime/scope_policy.c"),
     include_str!("../../runtime/cells.c"),
     include_str!("../../runtime/chans.c"),
     include_str!("../../runtime/actors.c"),

@@ -4,7 +4,9 @@
 //! codegen treat what the new thread runs as any closure body.
 
 use super::{PResult, Parser, Reported};
-use crate::ast::{Block, Closure, Expr, ExprKind, Ident, ScopeExpr, SelectArm, SelectKind};
+use crate::ast::{
+    Block, Closure, Expr, ExprKind, Ident, ScopeExpr, ScopeWord, SelectArm, SelectKind,
+};
 use crate::diagnostic::Diagnostic;
 use crate::lexer::TokenKind;
 use crate::span::Span;
@@ -49,18 +51,67 @@ impl Parser<'_> {
         ))
     }
 
-    /// `scope name { body }`, at `scope`.
+    /// True if a scope starts at `scope`: `scope s {`, `scope s word`, or
+    /// `scope<E> s`. Anything else leaves `scope` a name.
+    pub(super) fn scope_ahead(&self) -> bool {
+        match self.peek_at(1) {
+            TokenKind::Ident(_) => {
+                matches!(self.peek_at(2), TokenKind::LBrace | TokenKind::Ident(_))
+            }
+            TokenKind::Lt => (2..8).any(|n| {
+                *self.peek_at(n) == TokenKind::Gt
+                    && matches!(self.peek_at(n + 1), TokenKind::Ident(_))
+            }),
+            _ => false,
+        }
+    }
+
+    /// `scope [<E>] name word… { body }`, at `scope`. A word takes a
+    /// value in parentheses (`independent(f)`), or, for `limit`, `within`
+    /// and `until`, written after it; the checker says which words exist.
     pub(super) fn scope_expr(&mut self, start: usize) -> PResult<Expr> {
         self.bump();
+        let error = if self.at(&TokenKind::Lt) {
+            let open = self.bump();
+            let ty = self.nested(|p| p.ty())?;
+            self.close(open, &TokenKind::Gt)?;
+            Some(ty)
+        } else {
+            None
+        };
         let TokenKind::Ident(name) = self.peek().clone() else {
-            unreachable!("checked by the caller: `scope` then a name")
+            return Err(self.expected("the scope's name"));
         };
         let name = Ident {
             name,
             span: self.bump(),
         };
+        let mut words = Vec::new();
+        while let TokenKind::Ident(word) = self.peek().clone() {
+            let span = self.bump();
+            let arg = if self.at(&TokenKind::LParen) {
+                let open = self.bump();
+                let e = self.nested(|p| p.expr())?;
+                self.close(open, &TokenKind::RParen)?;
+                Some(e)
+            } else if matches!(word.as_str(), "limit" | "within" | "until") {
+                Some(self.cond()?)
+            } else {
+                None
+            };
+            words.push(ScopeWord {
+                name: Ident { name: word, span },
+                arg,
+            });
+        }
         let body = self.block()?;
-        Ok(self.mk(start, ExprKind::Scope(Box::new(ScopeExpr { name, body }))))
+        let scope = ScopeExpr {
+            name,
+            error,
+            words,
+            body,
+        };
+        Ok(self.mk(start, ExprKind::Scope(Box::new(scope))))
     }
 
     /// `call` wrapped in a closure with no parameters, covering exactly

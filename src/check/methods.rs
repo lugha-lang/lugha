@@ -142,7 +142,12 @@ impl Checker {
                 }
             };
             self.in_actor = i.actor.then(|| owner.clone());
+            // The block's own bounds (`impl Error for Failure<E: Error>`).
+            let declared = self.generics_of(&owner);
+            let outer = self.impl_generics(&declared, &i.params);
+            let saved = std::mem::replace(&mut self.type_params, outer);
             self.check_impl(i, &owner, &ty);
+            self.type_params = saved;
             for f in &i.methods {
                 let Some(m) = self.methods.get(&owner).and_then(|m| m.get(&f.name.name)) else {
                     continue;

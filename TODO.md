@@ -28,7 +28,6 @@ What's next. Shipped work is in CHANGELOG.md (and the spec's §11 milestone tabl
 
 ## Concurrency (v17)
 
-- [ ] **Task names in reports:** `Failure.task()` and a task's default name (the called function's); `t.name(text)` is stored but nothing reads it yet. A root-scope task's `Err` prints only "a task in the root scope failed", not the error.
 - [ ] Built-in supervisors (restart policies), links/monitors; generic actors; actors as interface values; bounded mailboxes; actors on several OS threads; a stack overflow inside an actor ending only that actor.
 - [ ] Non-blocking input and output (a waiting read pauses only its green thread); green threads on several OS threads.
 

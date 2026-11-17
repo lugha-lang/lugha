@@ -17,11 +17,6 @@ use crate::check::Type;
 const SIBLING_FAILED: u64 = 1;
 const PARENT: u64 = 2;
 
-/// The prelude's `Error` interface, as a type.
-fn error_type() -> Type {
-    Type::Interface("$prelude.Error".to_string(), Vec::new())
-}
-
 /// The `Ok` and `Err` types of `ty`, if it is a `Result`.
 fn result_parts(ty: &Type) -> Option<(&Type, &Type)> {
     match ty {
@@ -230,13 +225,14 @@ impl<'ctx> Lowerer<'ctx> {
     }
 
     /// In task entry `entry`, after the task's `value` (of type `result`)
-    /// is stored: an `Err` fails the task, its error handed to the runtime
-    /// as an `Error` value with a holder of its own.
+    /// is stored: an `Err` is the task's failure, in a scope whose tasks
+    /// fail with `scope_error`.
     pub(super) fn report_failure(
         &mut self,
         entry: FunctionValue<'ctx>,
         result: &Type,
         value: BasicValueEnum<'ctx>,
+        scope_error: &Type,
     ) {
         let Some((_, error)) = result_parts(result) else {
             return;
@@ -262,24 +258,61 @@ impl<'ctx> Lowerer<'ctx> {
             .expect(POSITIONED);
         self.builder.position_at_end(fails);
         let e = self.load_payload(result, slot, &payloads, 0, &error);
-        self.rc_retain(e, &error);
-        let pair = if error == error_type() {
-            e.into_struct_value()
-        } else {
-            self.box_as(e, &error, &error_type()).into_struct_value()
-        };
-        let table = self
-            .builder
-            .build_extract_value(pair, 0, "table")
-            .expect("a pair has 2 fields");
-        let boxed = self
-            .builder
-            .build_extract_value(pair, 1, "box")
-            .expect("a pair has 2 fields");
-        let params = [Type::String, Type::String];
-        self.rt("lugha_rt_task_failed", &params, None, &[table, boxed]);
+        let how = super::scope_failures::TaskFailure::Error(e, error);
+        self.task_failure(entry, scope_error, how);
         self.branch(done);
         self.builder.position_at_end(done);
+        self.function = saved;
+    }
+
+    /// Gives `call`, the task's call in entry `entry`, a landing pad that
+    /// stops the unwind there: a cancellation ends the task quietly, a
+    /// panic is its failure.
+    pub(super) fn catch_task(
+        &mut self,
+        entry: FunctionValue<'ctx>,
+        call: inkwell::values::InstructionValue<'ctx>,
+        scope_error: &Type,
+    ) {
+        let saved = self.function.replace(entry);
+        let scope_error = scope_error.clone();
+        self.catch_call(call, move |this| {
+            let text = this.entry_alloca(&Type::String, "panic.text");
+            let how = this
+                .rt(
+                    "lugha_rt_task_caught",
+                    &[Type::String],
+                    Some(Type::I32),
+                    &[text.into()],
+                )
+                .expect("returns how it stopped")
+                .into_int_value();
+            let panicked = this
+                .builder
+                .build_int_compare(
+                    IntPredicate::EQ,
+                    how,
+                    this.context.i32_type().const_int(2, false),
+                    "panicked",
+                )
+                .expect(POSITIONED);
+            let (failed, done) = (this.append("task.panicked"), this.append("task.stopped"));
+            this.builder
+                .build_conditional_branch(panicked, failed, done)
+                .expect(POSITIONED);
+            this.builder.position_at_end(failed);
+            let ptr = this.context.ptr_type(Default::default());
+            let message = this
+                .builder
+                .build_load(ptr, text, "message")
+                .expect(POSITIONED)
+                .into_pointer_value();
+            let how = super::scope_failures::TaskFailure::Panic(message);
+            this.task_failure(entry, &scope_error, how);
+            this.branch(done);
+            this.builder.position_at_end(done);
+            this.builder.build_return(None).expect(POSITIONED);
+        });
         self.function = saved;
     }
 }

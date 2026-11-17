@@ -1,0 +1,2 @@
+["task `bad` failed: bad 2", "task `first` failed: bad 1"]
+Ok(3)

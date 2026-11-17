@@ -1,0 +1,17 @@
+error[E0477]: `quickly` isn't a scope setting here: write `independent`, `independent(f)` or `limit n`
+  --> tests/programs/concurrency/scope_policies/e0477.la:2:21
+  |
+2 |     let a = scope s quickly {
+  |                     ^^^^^^^
+  |
+  = help: a scope's settings come between its name and its body, each at most once: `scope conns independent limit 100 { … }`
+
+error[E0477]: `independent` is said twice
+  --> tests/programs/concurrency/scope_policies/e0477.la:4:33
+  |
+4 |     let b = scope s independent independent {
+  |                                 ^^^^^^^^^^^
+  |
+  = help: a scope's settings come between its name and its body, each at most once: `scope conns independent limit 100 { … }`
+
+For more about E0477, run `lughac explain E0477`.

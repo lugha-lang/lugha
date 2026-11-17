@@ -80,10 +80,7 @@ impl Parser<'_> {
     #[inline(never)]
     fn ident_primary(&mut self, start: usize, name: String) -> PResult<Expr> {
         // `scope s { … }`: `scope` is a word only where it starts one.
-        if name == "scope"
-            && matches!(self.peek_at(1), TokenKind::Ident(_))
-            && self.peek_at(2) == &TokenKind::LBrace
-        {
+        if name == "scope" && self.scope_ahead() {
             return self.scope_expr(start);
         }
         // `name: loop { … }` as a value.

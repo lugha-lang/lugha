@@ -1,0 +1,6 @@
+fun main() {
+    let a = scope s quickly {
+    };
+    let b = scope s independent independent {
+    };
+}

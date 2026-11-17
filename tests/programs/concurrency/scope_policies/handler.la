@@ -1,0 +1,19 @@
+// `independent(f)`: each failure goes to `f`, in the task that failed.
+fun bad(n: i64): Result<i64, string> = Err("bad {n}");
+
+fun main(console: Console) {
+    let seen: Chan<string> = Chan.buffered(4);
+    let r = scope s independent(fun(f: Failure) { seen.send("{f}"); }) {
+        let t = s.spawn(bad(1));
+        t.name("first");
+        s.spawn(bad(2));
+        3
+    };
+    seen.close();
+    let mut lines: string[] = [];
+    while let .Some(l) = seen.recv() {
+        lines.push(l);
+    }
+    console.println(lines.sort().debug());
+    console.println(r.debug());
+}

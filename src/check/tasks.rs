@@ -50,7 +50,12 @@ impl Checker {
 
     /// `spawn call`: the closure the parser wrapped the call in, checked
     /// as any closure, makes a `Task` of its result.
-    pub(super) fn spawn(&mut self, closure: &Expr, expect: Option<&Expect>) -> Type {
+    pub(super) fn spawn(
+        &mut self,
+        closure: &Expr,
+        expect: Option<&Expect>,
+        scope_error: &Type,
+    ) -> Type {
         self.uses_tasks = true;
         self.effect("spawn", "starts a task", closure.span);
         // `let t: Task<u8> = spawn f(1)` types the call as a `u8`.
@@ -90,7 +95,7 @@ impl Checker {
             self.report(errors::spawn_changes_copy(span));
         }
         if let Type::Fun(_, ret) = &ty {
-            self.task_error(call, ret);
+            self.task_error(call, ret, scope_error);
             self.spawn_crossings(closure, call, ret);
         }
         match ty {

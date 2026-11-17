@@ -135,9 +135,9 @@ impl Checker {
             let supplied = match p {
                 Type::Array(element) => entry == Entry::Main && **element == Type::String,
                 // The capabilities, and the root scope's handle.
-                Type::Interface(key, args) | Type::Struct(key, args) => {
-                    args.is_empty() && maker(key, entry).is_some()
-                }
+                Type::Interface(key, args) => args.is_empty() && maker(key, entry).is_some(),
+                // The root scope's handle, `Scope<Error>`.
+                Type::Struct(key, _) => maker(key, entry).is_some(),
                 Type::Error => true,
                 _ => false,
             };

@@ -194,6 +194,10 @@ impl Checker {
             return Type::Error;
         };
         let generics = self.generics_of(&key);
+        // `Scope` and `Failure` alone are the plain scope's: `Error` errors.
+        if let Some(ty) = super::scopes::with_error_default(&key) {
+            return ty;
+        }
         if !generics.is_empty() {
             self.report(errors::type_args(name, generics.len(), 0, span));
             return Type::Error;

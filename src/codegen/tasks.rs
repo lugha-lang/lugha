@@ -38,15 +38,19 @@ impl<'ctx> Lowerer<'ctx> {
         let ExprKind::Closure(c) = &closure.kind else {
             unreachable!("the parser wraps a spawned call in a closure")
         };
-        let scope = match scope {
-            Some(s) => {
-                let handle = self.get(s, &self.ty(s))?.into_struct_value();
-                self.builder
-                    .build_extract_value(handle, 0, "scope")
-                    .expect("a scope has 1 field")
-            }
-            None => unreachable!("the parser starts a task only in a scope"),
+        let Some(scope) = scope else {
+            unreachable!("the parser starts a task only in a scope")
         };
+        // What its tasks fail with: `E` in `Scope<E>`.
+        let scope_error = match self.ty(scope) {
+            Type::Struct(_, args) => args[0].clone(),
+            _ => unreachable!("checked: a scope's handle"),
+        };
+        let handle = self.get(scope, &self.ty(scope))?.into_struct_value();
+        let scope = self
+            .builder
+            .build_extract_value(handle, 0, "scope")
+            .expect("a scope has 1 field");
         self.scopes.push();
         let mut hidden = Vec::new();
         for early in evaluated_first(spawned_call(closure)) {
@@ -81,7 +85,7 @@ impl<'ctx> Lowerer<'ctx> {
         let fun = Type::Fun(Vec::new(), result.clone());
         self.rc_mark(pair.into(), &fun);
 
-        let entry = self.task_entry(&result);
+        let entry = self.task_entry(&result, &scope_error);
         let code = self
             .builder
             .build_extract_value(pair, 0, "code")
@@ -138,6 +142,15 @@ impl<'ctx> Lowerer<'ctx> {
             .build_call(setup, &[task.into(), visit.into()], "")
             .expect(POSITIONED);
 
+        // Its name, for its failures: the called function's, until `name`.
+        let named = task_name(spawned_call(closure));
+        let named = self.string_literal(named);
+        self.rt(
+            "lugha_rt_task_name",
+            &[Type::String, Type::String],
+            None,
+            &[task, named.into()],
+        );
         Ok(task)
     }
 
@@ -151,7 +164,7 @@ impl<'ctx> Lowerer<'ctx> {
 
     /// `lugha_task_<enclosing>.<n>(code, env, result)`: calls the closure
     /// `{ code, env }` and stores what it returns at `result`.
-    fn task_entry(&mut self, result: &Type) -> FunctionValue<'ctx> {
+    fn task_entry(&mut self, result: &Type, scope_error: &Type) -> FunctionValue<'ctx> {
         let enclosing = self.function.expect("`spawn` is inside a function");
         let name = enclosing.get_name().to_string_lossy().into_owned();
         let base = name
@@ -196,11 +209,19 @@ impl<'ctx> Lowerer<'ctx> {
             Type::Never => Type::Unit,
             ty => ty.clone(),
         };
-        if let Value::Val(value) = self.call_pair(pair, (&[], &ret), Vec::new()) {
+        let called = self.call_pair(pair, (&[], &ret), Vec::new());
+        let call = self
+            .builder
+            .get_insert_block()
+            .and_then(|b| b.get_last_instruction())
+            .expect("the call was just built");
+        if let Value::Val(value) = called {
             self.store_element(param(2).into_pointer_value(), &ret, value);
-            self.report_failure(entry, &ret, value);
+            self.report_failure(entry, &ret, value, scope_error);
         }
         self.builder.build_return(None).expect(POSITIONED);
+        // A panic or cancellation stops here: the task's own failure.
+        self.catch_task(entry, call, scope_error);
         if let Some(block) = saved_block {
             self.builder.position_at_end(block);
         }
@@ -272,6 +293,20 @@ impl<'ctx> Lowerer<'ctx> {
             .expect(POSITIONED);
         self.branch(go_on);
         self.builder.position_at_end(go_on);
+    }
+}
+
+/// A task's name before `t.name(…)`: the called function's simple name,
+/// `closure` for a closure called on the spot.
+fn task_name(call: &Expr) -> &str {
+    let ExprKind::Call(callee, _) = &call.kind else {
+        return "task";
+    };
+    match &callee.kind {
+        ExprKind::Name(name) => name,
+        ExprKind::Field(_, name) => &name.name,
+        ExprKind::Closure(_) => "closure",
+        _ => "task",
     }
 }
 

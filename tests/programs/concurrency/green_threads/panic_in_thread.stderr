@@ -1,1 +1,1 @@
-panic: boom at tests/programs/concurrency/green_threads/panic_in_thread.la:4:5
+task `boom` panicked: boom at tests/programs/concurrency/green_threads/panic_in_thread.la:4:5
