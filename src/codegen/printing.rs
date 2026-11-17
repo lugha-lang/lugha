@@ -76,7 +76,7 @@ impl<'ctx> Lowerer<'ctx> {
             Type::Char => self.call_runtime_value("lugha_rt_char_quote", &[Type::Char], &[value]),
             _ if plain(ty) => self.text_of(ty, value),
             Type::Unit => self.string_literal("()").into(),
-            Type::Fun(..) => self.string_literal("<fun>").into(),
+            Type::Fun(..) | Type::Own(_) => self.string_literal("<fun>").into(),
             _ => {
                 let helper = self.debug_function(ty);
                 let call = self

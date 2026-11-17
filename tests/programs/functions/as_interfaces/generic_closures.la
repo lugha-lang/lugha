@@ -1,0 +1,23 @@
+// Generic code over functions: each function passed gets its own instance,
+// whatever it captured; named functions and plain function values work too.
+fun apply_all<F: fun(i64): i64>(f: F, xs: i64[]): i64[] = xs.map(fun(x: i64): i64 = f(x));
+
+fun double(x: i64): i64 = x * 2;
+
+fun main(console: Console) {
+    let k = 10;
+    let name = "n";
+    let on = true;
+    let add = fun(x: i64): i64 = x + k;
+    let flag = fun(x: i64): i64 = if on { x + name.len } else { x };
+    console.println(apply_all(add, [1, 2]).debug());
+    console.println(apply_all(flag, [1, 2]).debug());
+    console.println(apply_all(double, [1, 2]).debug());
+    let erased: fun(i64): i64 = if k > 5 { add } else { flag };
+    console.println(apply_all(erased, [1]).debug());
+    let mut f = add;
+    f = flag;
+    console.println(f(1));
+    let fs = [add, flag, double];
+    console.println(fs.len);
+}

@@ -61,7 +61,10 @@ impl Checker {
                 name,
                 ty,
                 init,
-            } => self.let_stmt(*mutable, name, ty.as_ref(), init),
+            } => {
+                self.let_stmt(*mutable, name, ty.as_ref(), init);
+                self.local_origin(*mutable || ty.is_some(), name, init);
+            }
             StmtKind::Assign {
                 op, place, value, ..
             } => self.assign(*op, place, value),

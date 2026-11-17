@@ -1,0 +1,27 @@
+// An interface requiring a function and another interface: structs may
+// implement both, and its values are callable and have the other's methods.
+interface Named {
+    fun name(self): string;
+}
+
+interface Job: fun(): i64, Named {}
+
+struct Answer {}
+
+impl Named for Answer {
+    fun name(self): string = "answer";
+}
+
+impl fun(): i64 for Answer {
+    fun call(self): i64 = 42;
+}
+
+impl Job for Answer {}
+
+fun run(console: Console, job: Job) {
+    console.println("{job.name()}: {job()}");
+}
+
+fun main(console: Console) {
+    run(console, Answer {});
+}

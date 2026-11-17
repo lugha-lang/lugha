@@ -125,6 +125,14 @@ impl Checker {
         if !other_right && let Some(problems) = self.builtin_operator(arg, &interface.key) {
             return problems;
         }
+        // A function value implements its own signature's interface, and
+        // any interface requiring only that.
+        if let Type::Fun(params, ret) = arg {
+            return self.fun_unmet((params, ret), interface);
+        }
+        if let Type::Own(own) = arg {
+            return self.fun_unmet((&own.params, &own.ret), interface);
+        }
         // A built-in type through its block: `impl Show for f64`.
         if self.builtin_implements(arg, interface) {
             return Vec::new();

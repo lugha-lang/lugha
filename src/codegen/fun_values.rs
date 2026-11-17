@@ -104,7 +104,7 @@ impl<'ctx> Lowerer<'ctx> {
 
     /// `lugha_ref_<symbol>`: `target` with an environment pointer first,
     /// emitted once.
-    fn wrapper(&mut self, target: FunctionValue<'ctx>) -> FunctionValue<'ctx> {
+    pub(super) fn wrapper(&mut self, target: FunctionValue<'ctx>) -> FunctionValue<'ctx> {
         let symbol = target.get_name().to_string_lossy().into_owned();
         let name = symbol.replacen("lugha_fn_", "lugha_ref_", 1);
         if let Some(existing) = self.module.get_function(&name) {

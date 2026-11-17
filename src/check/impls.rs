@@ -135,17 +135,6 @@ impl Checker {
         ));
     }
 
-    /// For the editor: `b`, naming interface `key` in an `impl` or `with`,
-    /// leads to the interface's declaration, and its module to the module.
-    pub(super) fn define_bound(&mut self, b: &crate::ast::Bound, key: &str) {
-        if let Some(info) = self.interfaces.get(key) {
-            self.hover.define(b.name.span, info.span);
-        }
-        if let Some(m) = &b.module {
-            self.module_named(m.span, &m.name);
-        }
-    }
-
     /// True for an interface a type may implement through `impl I for T`:
     /// any but the prelude's, except its `Eq`, `Key`, `Ord`, `Debug` and `Display`.
     pub(super) fn by_block(&self, key: &str) -> bool {
@@ -163,6 +152,7 @@ impl Checker {
             .contains(&key)
             || is_capability(key)
             || is_operator(key)
+            || super::fun_interfaces::is_fun_key(key)
     }
 
     /// True for a prelude interface met only through `impl I for T`:
@@ -185,7 +175,8 @@ impl Checker {
         (module_of(key) != "$prelude"
             || prelude_nominal.contains(&key)
             || is_capability(key)
-            || is_operator(key))
+            || is_operator(key)
+            || super::fun_interfaces::is_fun_key(key))
             && !self.derives.derivable(key)
     }
 

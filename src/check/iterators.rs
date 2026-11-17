@@ -2,6 +2,7 @@
 //! `for x of e` over any `e` whose type has `fun next(mut self): Option<T>`.
 
 use super::applied::Applied;
+use super::fun_interfaces::is_fun_interface;
 use super::{Binding, Checker, Type, errors};
 
 use crate::ast::{Block, Expr, Ident};
@@ -63,7 +64,8 @@ impl Checker {
                 | "Listener"
                 | "Conn"
                 | "Udp"
-        ) || is_operator_bound(name))
+        ) || is_operator_bound(name)
+            || is_fun_interface(name))
             && self.interfaces.contains_key(&prelude);
         if module.is_none() && known && !declared {
             return prelude;

@@ -111,8 +111,13 @@ impl Parser<'_> {
         })
     }
 
-    /// `Eq`, `Ord`, `Shape`, `m.Shape`, or with arguments, `Source<T>`.
+    /// `Eq`, `Ord`, `Shape`, `m.Shape`, or with arguments, `Source<T>`;
+    /// or a function type, `fun(A): R`, the prelude's interface for its
+    /// number of parameters.
     pub(super) fn bound(&mut self) -> PResult<Bound> {
+        if self.at(&TokenKind::Fun) {
+            return self.fun_bound();
+        }
         let first = self.ident("bound name")?;
         let (module, name) = self.qualified_name(first, "bound name")?;
         let args = if self.at(&TokenKind::Lt) {
@@ -131,6 +136,31 @@ impl Parser<'_> {
             name,
             args,
             span,
+        })
+    }
+}
+
+impl Parser<'_> {
+    /// `fun(A, B): R` as a bound: `$Fun2<A, B, R>`, a missing result `()`.
+    fn fun_bound(&mut self) -> PResult<Bound> {
+        let t = self.ty()?;
+        let crate::ast::TypeKind::Fun(params, ret) = t.kind else {
+            return Err(self.expected("`fun(…)`"));
+        };
+        let unit = crate::ast::Type {
+            kind: crate::ast::TypeKind::Tuple(Vec::new()),
+            span: t.span,
+        };
+        let mut args = params;
+        args.push(ret.map_or(unit, |r| *r));
+        Ok(Bound {
+            module: None,
+            name: crate::ast::Ident {
+                name: format!("$Fun{}", args.len() - 1),
+                span: t.span,
+            },
+            args,
+            span: t.span,
         })
     }
 }

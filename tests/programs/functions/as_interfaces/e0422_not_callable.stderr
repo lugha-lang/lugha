@@ -1,0 +1,17 @@
+error[E0422]: `i64` doesn't implement `fun(i64): i64`
+  --> tests/programs/functions/as_interfaces/e0422_not_callable.la:4:13
+  |
+4 |     let n = twice(5, 1);
+  |             ^^^^^^^^^^^
+  |
+  = help: pass a function or closure of type `fun(i64): i64`, or a value of a type with `impl fun(i64): i64 for …`
+
+error[E0422]: `fun(string): i64 {closure 1 in main}` doesn't implement `fun(i64): i64`
+  --> tests/programs/functions/as_interfaces/e0422_not_callable.la:5:13
+  |
+5 |     let m = twice(fun(s: string): i64 = 1, 1);
+  |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = help: pass a function or closure of type `fun(i64): i64`, or a value of a type with `impl fun(i64): i64 for …`
+
+For more about E0422, run `lughac explain E0422`.

@@ -1,6 +1,6 @@
 ## FEATURE: Function types are interfaces: every function value has a type of its own (a struct of its captures) implementing its signature's interface `fun(A): R`, so `<F: fun(A): R>` keeps the exact function and `interface Job: fun(), Other {}` names a kind of function; milestone 196.
 
-**Status:** proposed 2026-11-17.
+**Status:** approved 2026-11-17; built.
 
 ## OBJECTIVE
 ```
@@ -69,13 +69,13 @@ Every program that uses function values today means the same and builds unchange
 - Changing a function value's run-time representation or what any existing program prints.
 
 ## TESTS
-- [ ] Checker unit tests: a closure's own type and its conversion; `<F: fun(i64): i64>` infers `F` from a closure and from a named function; branches, arrays and `let mut` meeting as `fun(A): R`; `interface Job: fun()` values callable; `impl fun(i64): i64 for S`; E0422 for a non-function passed to `<F: fun(i64): i64>`.
-- [ ] Codegen tests: one instance per function passed; a direct call inside it; `fun(A): R` calls still indirect.
-- [ ] `tests/programs/functions/as_interfaces/`: the objective program; a struct implementing `fun(i64): i64`; an interface requiring a function; generic code over closures capturing different things; errors.
-- [ ] Every existing program unchanged: `programs`, `leaks` (closures freed as before), `codegen`, `spec`, `--lib`.
+- [x] Checker unit tests: a closure's own type and its conversion; `<F: fun(i64): i64>` infers `F` from a closure and from a named function; branches, arrays and `let mut` meeting as `fun(A): R`; `interface Job: fun()` values callable; `impl fun(i64): i64 for S`; E0422 for a non-function passed to `<F: fun(i64): i64>`.
+- [x] Codegen tests: one instance per function passed; a direct call inside it; `fun(A): R` calls still indirect.
+- [x] `tests/programs/functions/as_interfaces/`: the objective program; a struct implementing `fun(i64): i64`; an interface requiring a function; generic code over closures capturing different things; errors.
+- [x] Every existing program unchanged: `programs`, `leaks` (closures freed as before), `codegen`, `spec`, `--lib`.
 
 ## ACCEPTANCE
-- [ ] The objective program prints `18`, `9`, `15`.
-- [ ] Existing programs build and print exactly as before.
-- [ ] `cargo test --lib` and the touched integration tests pass; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
-- [ ] Every `pub` item documented; spec, CHANGELOG and CLAUDE.md updated where they change.
+- [x] The objective program prints `18`, `9`, `15`.
+- [x] Existing programs build and print exactly as before.
+- [x] `cargo test --lib` and the touched integration tests pass; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
+- [x] Every `pub` item documented; spec, CHANGELOG and CLAUDE.md updated where they change.

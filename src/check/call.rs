@@ -13,11 +13,14 @@ impl Checker {
     /// values too.
     pub(super) fn name(&mut self, expr: &Expr, name: &str, expect: Option<&Expect>) -> Type {
         if let Some(local) = self.local(name) {
+            self.read_origin(expr, local.span);
             return local.ty;
         }
         let key = self.key(name);
         if self.functions.contains_key(&key) {
-            return self.function_value(expr, &key, expect);
+            let ty = self.function_value(expr, &key, expect);
+            self.named_origin(expr, &key, &ty);
+            return ty;
         }
         // A constant.
         if self.consts.contains_key(&key) {

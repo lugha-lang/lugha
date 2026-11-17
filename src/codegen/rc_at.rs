@@ -31,7 +31,7 @@ impl<'ctx> Lowerer<'ctx> {
                 self.rc_pointer_op(object.into_pointer_value(), op);
             }
             // The environment, or the box: the second field.
-            Type::Fun(..) | Type::Interface(..) => {
+            Type::Fun(..) | Type::Own(_) | Type::Interface(..) => {
                 let pair = self.context.struct_type(&[ptr.into(), ptr.into()], false);
                 let at = self
                     .builder

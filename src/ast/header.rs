@@ -74,6 +74,14 @@ pub struct Bound {
 impl Bound {
     /// The bound as written, without spaces: `Shape`, `geo.Source<i64>`.
     pub fn written(&self) -> String {
+        // A function type as a bound reads as it was written.
+        if self.module.is_none()
+            && self.name.name.starts_with("$Fun")
+            && let Some((ret, params)) = self.args.split_last()
+        {
+            let params: Vec<String> = params.iter().map(Type::written).collect();
+            return format!("fun({}):{}", params.join(","), ret.written());
+        }
         let mut out = match &self.module {
             Some(m) => format!("{}.{}", m.name, self.name.name),
             None => self.name.name.clone(),

@@ -81,6 +81,13 @@ impl Checker {
         let Some(Expect { ty: wanted, reason }) = expect else {
             return ty;
         };
+        // A struct with a function interface's `call` converts to that function type.
+        if let Type::Fun(params, ret) = wanted
+            && matches!(ty, Type::Struct(..) | Type::Enum(..))
+            && self.called_through_call(&ty, expr.span)
+        {
+            return self.fun_value_of(expr, &ty, (params, ret), wanted);
+        }
         let Some(interface) = Applied::of(wanted) else {
             return ty;
         };

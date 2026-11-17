@@ -6,6 +6,17 @@ use super::{Checker, Type, errors};
 use crate::span::Span;
 
 impl Checker {
+    /// For the editor: `b`, naming interface `key` in an `impl` or `with`,
+    /// leads to the interface's declaration, and its module to the module.
+    pub(super) fn define_bound(&mut self, b: &crate::ast::Bound, key: &str) {
+        if let Some(info) = self.interfaces.get(key) {
+            self.hover.define(b.name.span, info.span);
+        }
+        if let Some(m) = &b.module {
+            self.module_named(m.span, &m.name);
+        }
+    }
+
     /// E0419 for the first argument that doesn't meet its parameter's bounds.
     pub(super) fn meets_bounds(&mut self, generics: &[Generic], args: &[Type], span: Span) -> bool {
         for (g, arg) in generics.iter().zip(args) {

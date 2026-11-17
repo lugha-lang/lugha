@@ -90,6 +90,7 @@ mod methods;
 mod modules;
 mod mut_params;
 use mut_params::muts_of;
+mod fun_interfaces;
 mod named_imports;
 mod new;
 mod numbers;
@@ -146,6 +147,7 @@ pub use derive_intrinsics::{DERIVE_OPS, derive_op};
 pub use entry::{ENTRY_CAPABILITIES, Entry, TEST_CAPABILITIES, lockdown_kinds, maker};
 pub use float_bits::{bits_of, from_bits, total_order};
 pub use float_ops::{float_op, os_op, os_signature, string_op};
+pub use fun_interfaces::through_call;
 pub use hashing::hash_op;
 pub use iface_tables::{InterfaceMethod, InterfaceShape};
 pub use impls::{ImplEntry, Impls, find as find_impl};
@@ -166,7 +168,7 @@ pub use signatures::Sig;
 pub use slots::{indirect_slot, slot_names_variant};
 pub use templates::exact as template_exact;
 pub use tuples::elements as tuple_elements;
-pub use types::{Enums, Structs, Type};
+pub use types::{Enums, FunOrigin, OwnFun, Structs, Type};
 
 use crate::ast::{ExprId, Program};
 use crate::diagnostic::Diagnostic;
@@ -352,6 +354,10 @@ pub(super) struct Checker {
     nominal_calls: HashMap<ExprId, applied::Applied>,
     /// See `Checked::qualified`.
     qualified: std::collections::HashSet<ExprId>,
+    /// Which function a function-typed expression holds, where known.
+    fun_origins: HashMap<ExprId, FunOrigin>,
+    /// The same for an immutable local, by where it was declared.
+    local_origins: HashMap<Span, FunOrigin>,
     /// See `Checked::impl_owners`.
     impl_owners: HashMap<Span, Type>,
     /// See `Checked::default_args`.

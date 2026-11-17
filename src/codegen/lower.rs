@@ -95,6 +95,8 @@ pub(super) struct Lowerer<'ctx> {
     /// A spawned call's arguments already evaluated by the spawning thread:
     /// each lowers as a load of the hidden capture named here.
     pub(super) presets: HashMap<ExprId, String>,
+    /// Each closure literal's function, once lowered: what an own type calls.
+    pub(super) closure_fns: HashMap<ExprId, FunctionValue<'ctx>>,
     /// How externs with callbacks pass their parameters (`Checked::c_params`).
     pub(super) c_params: crate::check::CParams,
     /// C entries made so far, for `lugha_cfn_<n>`.
@@ -264,6 +266,7 @@ pub(super) fn lower<'ctx>(
         captures: checked.captures.clone(),
         uses_tasks: checked.uses_tasks,
         presets: HashMap::new(),
+        closure_fns: HashMap::new(),
         c_params: checked.c_params.clone(),
         c_entries: 0,
         variant_values: checked.variant_values.clone(),

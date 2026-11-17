@@ -19,6 +19,10 @@ pub(in crate::check) fn not_implemented(
     span: Span,
 ) -> Diagnostic {
     let help = match declared {
+        // `fun(i64): i64`: a function of that signature, or a type implementing it.
+        _ if interface.starts_with("fun(") => format!(
+            "pass a function or closure of type `{interface}`, or a value of a type with `impl {interface} for …`"
+        ),
         Some(declared) => format!("add `impl {interface} for {declared} {{ … }}`"),
         None => format!(
             "add `impl {interface} for {ty} {{ … }}` in the module that declares `{interface}`"

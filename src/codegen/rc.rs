@@ -34,6 +34,7 @@ fn counted_in(ty: &Type, structs: &Structs, enums: &Enums, path: &mut Vec<String
         | Type::Array(_)
         | Type::Ref(_)
         | Type::Fun(..)
+        | Type::Own(_)
         | Type::Interface(..)
         | Type::Chan(_)
         | Type::Task(_)
@@ -137,7 +138,7 @@ impl<'ctx> Lowerer<'ctx> {
         match ty {
             _ if pointer_counted(ty) => self.rc_pointer_op(value.into_pointer_value(), op),
             // The environment, or the box: the second field.
-            Type::Fun(..) | Type::Interface(..) => {
+            Type::Fun(..) | Type::Own(_) | Type::Interface(..) => {
                 let object = self
                     .builder
                     .build_extract_value(value.into_struct_value(), 1, "object")

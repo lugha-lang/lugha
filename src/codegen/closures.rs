@@ -47,6 +47,7 @@ impl<'ctx> Lowerer<'ctx> {
             Some(layout) => self.fill_env(layout, &names, &captured),
         };
         let function = self.closure_function(params, ret);
+        self.closure_fns.insert(expr.id, function);
         let types: Vec<Type> = captured.iter().map(|l| l.ty.clone()).collect();
         self.lower_closure(c, function, (params, ret), (layout, &names, &types))?;
         let pair = self.context.struct_type(&[ptr.into(), ptr.into()], false);

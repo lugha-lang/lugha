@@ -35,7 +35,7 @@ pub(super) fn layout(ty: &Type, structs: &Structs, enums: &Enums) -> (u64, u64) 
         // A handle is a C pointer.
         Type::Handle(_) => (8, 8),
         // `{ code, env }`, `{ table, box }`.
-        Type::Fun(..) | Type::Interface(..) => (16, 8),
+        Type::Fun(..) | Type::Own(_) | Type::Interface(..) => (16, 8),
         // An `extern union`: its largest field, at its largest alignment.
         Type::Struct(..) if is_union_fields(&structs[&ty.to_string()]) => {
             let (mut size, mut align) = (0u64, 1u64);

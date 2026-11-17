@@ -62,7 +62,7 @@ pub(super) fn llvm_type<'ctx>(context: &'ctx Context, ty: &Type) -> BasicTypeEnu
             .into(),
         // `{ code, env }`: the function, then its environment;
         // `{ table, box }` for an interface value.
-        Type::Fun(..) | Type::Interface(..) => {
+        Type::Fun(..) | Type::Own(_) | Type::Interface(..) => {
             let ptr = context.ptr_type(AddressSpace::default());
             context.struct_type(&[ptr.into(), ptr.into()], false).into()
         }

@@ -180,7 +180,11 @@ impl Checker {
             ExprKind::Str(_) => Type::String,
             ExprKind::Interp(parts) => self.interpolation(parts),
             ExprKind::Format(call) => self.format_call(call),
-            ExprKind::Closure(c) => self.closure(expr, c, expect),
+            ExprKind::Closure(c) => {
+                let ty = self.closure(expr, c, expect);
+                self.closure_origin(expr, &ty);
+                ty
+            }
             ExprKind::Try(inner) => self.try_expr(expr, inner, expect),
             ExprKind::Cast(inner, target) => self.cast(expr, inner, target),
             ExprKind::Index(base, _, index) => self.index(expr, base, index),

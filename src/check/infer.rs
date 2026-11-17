@@ -35,6 +35,8 @@ impl Checker {
             return Some(Vec::new());
         }
         let names: Vec<&str> = generics.iter().map(|g| g.name.as_str()).collect();
+        // Parameters an argument makes its exact function: `twice<F: fun(i64): i64>`.
+        let own = self.own_params(generics, result.map(|(declared, _)| declared));
         let mut failed = false;
         if let Some((declared, Some(expect))) = result {
             // A context that already failed was reported; it can't decide anything.
@@ -54,7 +56,7 @@ impl Checker {
         let is_closure = |(e, _): &&(&Expr, Expect)| matches!(e.kind, ExprKind::Closure(_));
         let (closures, later): (Vec<_>, Vec<_>) = later.into_iter().partition(is_closure);
         for (e, want) in now.into_iter().chain(later).chain(closures) {
-            failed |= self.input(e, want, &names, &mut bound);
+            failed |= self.input(e, want, (&names, &own), &mut bound);
         }
         self.through_bounds(generics, &mut bound);
         let mut args = Vec::new();
@@ -78,7 +80,13 @@ impl Checker {
 
     /// One input: checked against its type when every parameter in it is
     /// bound, otherwise typed alone and used to bind them. True if it failed.
-    fn input(&mut self, e: &Expr, want: &Expect, names: &[&str], bound: &mut Bound) -> bool {
+    fn input(
+        &mut self,
+        e: &Expr,
+        want: &Expect,
+        (names, own): (&[&str], &[&str]),
+        bound: &mut Bound,
+    ) -> bool {
         if !unbound(&want.ty, names, bound) {
             let ty = substitute(&want.ty, bound);
             let found = self.expect_type(
@@ -97,6 +105,7 @@ impl Checker {
         let hint = (matches!(e.kind, ExprKind::Closure(_)) || self.may_be_variant_value(e))
             .then(|| Expect::of(known(&want.ty, names, bound)));
         let found = self.value(e, hint.as_ref());
+        let found = self.own_input(e, &want.ty, found, own);
         unify(&want.ty, &found, names, bound);
         if let Some(failed) = self.interface_input(e, want, &found, names, bound) {
             return failed;

@@ -1,0 +1,23 @@
+// A function value has a type of its own, implementing its signature's
+// interface: generic code keeps the exact function, and an interface may
+// name a kind of function.
+interface Pricing: fun(i64): i64 {}
+
+fun twice<F: fun(i64): i64>(f: F, x: i64): i64 = f(f(x));
+
+fun total(rule: Pricing, xs: i64[]): i64 {
+    let mut sum = 0;
+    for x of xs {
+        sum += rule(x);
+    }
+    sum
+}
+
+fun main(console: Console) {
+    let rate = 3;
+    let triple = fun(x: i64): i64 = x * rate;
+    console.println(twice(triple, 2));
+    console.println(total(triple, [1, 2]));
+    let f: fun(i64): i64 = triple;
+    console.println(f(5));
+}

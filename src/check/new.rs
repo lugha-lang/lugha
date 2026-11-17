@@ -62,6 +62,8 @@ impl Checker {
             asking: derive_with::Asking::default(),
             nominal_calls: HashMap::new(),
             qualified: std::collections::HashSet::new(),
+            fun_origins: HashMap::new(),
+            local_origins: HashMap::new(),
             impl_owners: HashMap::new(),
             default_args: HashMap::new(),
             iterations: HashMap::new(),

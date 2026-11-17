@@ -187,6 +187,22 @@ impl<'ctx> Lowerer<'ctx> {
             ExprKind::Call(callee, args) if matches!(self.ty(callee), Type::Fun(..)) => {
                 return self.call_value(callee, args);
             }
+            ExprKind::Call(callee, args) if matches!(self.ty(callee), Type::Own(_)) => {
+                return self.call_own(callee, args);
+            }
+            // `f(x)` on a value with a function interface's `call`: `f.call(x)`.
+            ExprKind::Call(callee, args)
+                if matches!(
+                    self.ty(callee),
+                    Type::Struct(..) | Type::Enum(..) | Type::Interface(..)
+                ) =>
+            {
+                let member = crate::check::through_call(expr, callee);
+                if let Some(value) = self.method_call(expr, &member, args)? {
+                    return Ok(value);
+                }
+                unreachable!("checked: the callee has `call`")
+            }
             ExprKind::Call(callee, args) => {
                 // `f(…)` and `m.f(…)`: the checker named the function.
                 if self

@@ -53,7 +53,12 @@ pub enum Type {
     /// A handle, by its `extern type`'s key: an opaque C pointer.
     Handle(String),
     /// A function value, `fun(A, B): R`; `R` is `Unit` for no result.
+    /// It is that signature's interface: any function, which one hidden.
     Fun(Vec<Type>, Box<Type>),
+    /// One function's own type: a closure's or a named function's, which
+    /// implements its signature's interface. A generic argument only, so an
+    /// instance knows which function it calls.
+    Own(Box<OwnFun>),
     /// A value of an interface type, by the interface's key, with its type
     /// arguments (empty unless it is generic): some type that satisfies
     /// it, chosen at run time.
@@ -68,6 +73,31 @@ pub enum Type {
     /// An expression that already produced a diagnostic. Fits anything and
     /// is never reported, so one mistake gives one error.
     Error,
+}
+
+/// One function, as its own type: where it comes from and its signature.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct OwnFun {
+    pub origin: FunOrigin,
+    pub params: Vec<Type>,
+    pub ret: Type,
+}
+
+/// Which function an own type is.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum FunOrigin {
+    /// A closure literal, by its expression's id, and how it is shown:
+    /// `closure 2 in main`.
+    Closure(u32, String),
+    /// A named function, by its key.
+    Named(String),
+}
+
+impl OwnFun {
+    /// The function type it implements, `fun(A): R`.
+    pub fn signature(&self) -> Type {
+        Type::Fun(self.params.clone(), Box::new(self.ret.clone()))
+    }
 }
 
 impl Type {
@@ -219,6 +249,14 @@ impl fmt::Display for Type {
                 return write!(f, "({element})[]");
             }
             Type::Array(element) => return write!(f, "{element}[]"),
+            // One function: its signature, and which function it is.
+            Type::Own(own) => {
+                let which = match &own.origin {
+                    FunOrigin::Closure(_, label) => label.clone(),
+                    FunOrigin::Named(key) => key.clone(),
+                };
+                return write!(f, "{} {{{which}}}", own.signature());
+            }
             Type::Fun(params, ret) => {
                 let params: Vec<String> = params.iter().map(ToString::to_string).collect();
                 write!(f, "fun({})", params.join(", "))?;
@@ -238,6 +276,15 @@ impl fmt::Display for Type {
                 // A tuple prints as written, `(i64, string)`.
                 if name.starts_with("$tuple") {
                     return write!(f, "({})", args.join(", "));
+                }
+                // A function interface prints as the function type it is.
+                if let Type::Interface(_, types) = self
+                    && name
+                        .strip_prefix("$prelude.$Fun")
+                        .is_some_and(|n| n.parse::<usize>().is_ok())
+                    && let Some((ret, params)) = types.split_last()
+                {
+                    return write!(f, "{}", Type::Fun(params.to_vec(), Box::new(ret.clone())));
                 }
                 let name = match self {
                     Type::Struct(..) => name,

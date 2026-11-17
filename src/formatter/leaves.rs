@@ -96,6 +96,20 @@ impl Printer<'_> {
     }
 
     pub(super) fn bound(&self, b: &Bound) -> String {
+        // A function type as a bound prints as written: `fun(A): R`, and
+        // `fun(A)` for a result of `()`.
+        if b.module.is_none()
+            && b.name.name.starts_with("$Fun")
+            && let Some((ret, params)) = b.args.split_last()
+        {
+            let unit = matches!(&ret.kind, crate::ast::TypeKind::Tuple(ts) if ts.is_empty());
+            let ret = (!unit).then(|| Box::new(ret.clone()));
+            let fun = Type {
+                kind: crate::ast::TypeKind::Fun(params.to_vec(), ret),
+                span: b.span,
+            };
+            return self.ty(&fun);
+        }
         let mut out = match &b.module {
             Some(m) => format!("{}.", self.ident(m)),
             None => String::new(),

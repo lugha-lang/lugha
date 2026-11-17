@@ -52,6 +52,10 @@ impl<'ctx> Lowerer<'ctx> {
         if !self.fresh_unconverted(expr) {
             self.rc_retain(value, &ty);
         }
+        // A struct with a function interface's `call`, as a function value.
+        if let Type::Fun(..) = to {
+            return Ok(Value::Val(self.fun_from_value(value, &ty, to)));
+        }
         Ok(Value::Val(self.box_as(value, &ty, to)))
     }
 
@@ -115,7 +119,11 @@ impl<'ctx> Lowerer<'ctx> {
         ];
         for m in self.interfaces[key].methods_at(args) {
             // An ancestor's item: the ancestor's block or default.
-            let method = self.method_of(ty, &m.owner, &m.owner_args, &m.name);
+            // A function value's `call`: through the pair its box holds.
+            let method = match ty {
+                Type::Fun(..) if m.name == "call" => self.fun_call_slot(ty),
+                _ => self.method_of(ty, &m.owner, &m.owner_args, &m.name),
+            };
             slots.push(method.as_global_value().as_pointer_value().into());
         }
         let table_type = self.table_type(key);

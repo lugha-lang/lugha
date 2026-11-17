@@ -133,6 +133,10 @@ impl Checker {
         match ty {
             Type::Fun(..) => self.call_value(call, &name, &ty, args),
             Type::Error | Type::Never => self.unchecked_args(args),
+            // `f(x)` on a value with a function interface's `call`.
+            _ if self.called_through_call(&ty, callee.span) => {
+                self.call_through(call, callee, args)
+            }
             _ => {
                 let d = match &callee.kind {
                     ExprKind::Name(n) => errors::not_function(n, callee.span),

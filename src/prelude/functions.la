@@ -1,0 +1,58 @@
+// The interfaces function types are: `fun(A, B): R` in a bound, an
+// interface's list of what it requires, or an `impl … for` header names the
+// one for its number of parameters. Every function value implements its
+// own signature's; its one method, `call`, is the call.
+
+/** `fun(): R`: anything callable with 0 arguments, giving an `R`. */
+interface $Fun0<R> {
+    /** The call: `f()`. */
+    fun call(self): R;
+}
+
+/** `fun(A): R`: anything callable with 1 argument, giving an `R`. */
+interface $Fun1<A, R> {
+    /** The call: `f(a)`. */
+    fun call(self, a: A): R;
+}
+
+/** `fun(A, B): R`: anything callable with 2 arguments, giving an `R`. */
+interface $Fun2<A, B, R> {
+    /** The call: `f(a, b)`. */
+    fun call(self, a: A, b: B): R;
+}
+
+/** `fun(A, B, C): R`: anything callable with 3 arguments, giving an `R`. */
+interface $Fun3<A, B, C, R> {
+    /** The call: `f(a, b, c)`. */
+    fun call(self, a: A, b: B, c: C): R;
+}
+
+/** `fun(A, B, C, D): R`: anything callable with 4 arguments, giving an `R`. */
+interface $Fun4<A, B, C, D, R> {
+    /** The call: `f(a, b, c, d)`. */
+    fun call(self, a: A, b: B, c: C, d: D): R;
+}
+
+/** `fun(A, B, C, D, E): R`: anything callable with 5 arguments, giving an `R`. */
+interface $Fun5<A, B, C, D, E, R> {
+    /** The call: `f(a, b, c, d, e)`. */
+    fun call(self, a: A, b: B, c: C, d: D, e: E): R;
+}
+
+/** `fun(A, B, C, D, E, F): R`: anything callable with 6 arguments, giving an `R`. */
+interface $Fun6<A, B, C, D, E, F, R> {
+    /** The call: `f(a, b, c, d, e, f)`. */
+    fun call(self, a: A, b: B, c: C, d: D, e: E, f: F): R;
+}
+
+/** `fun(A, B, C, D, E, F, G): R`: anything callable with 7 arguments, giving an `R`. */
+interface $Fun7<A, B, C, D, E, F, G, R> {
+    /** The call: `f(a, b, c, d, e, f, g)`. */
+    fun call(self, a: A, b: B, c: C, d: D, e: E, f: F, g: G): R;
+}
+
+/** `fun(A, B, C, D, E, F, G, H): R`: anything callable with 8 arguments, giving an `R`. */
+interface $Fun8<A, B, C, D, E, F, G, H, R> {
+    /** The call: `f(a, b, c, d, e, f, g, h)`. */
+    fun call(self, a: A, b: B, c: C, d: D, e: E, f: F, g: G, h: H): R;
+}
