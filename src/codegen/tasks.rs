@@ -242,7 +242,7 @@ impl<'ctx> Lowerer<'ctx> {
     /// One step of the countdown, at a function's entry or a loop's head,
     /// in a program that spawns.
     pub(super) fn preempt_point(&mut self) {
-        if !self.uses_tasks {
+        if !self.uses_tasks && !self.call_costs() {
             return;
         }
         let i64_type = self.context.i64_type();

@@ -49,6 +49,8 @@ pub(super) struct Lowerer<'ctx> {
     pub(super) param_moves: HashSet<ExprId>,
     pub(super) param_hands: HashSet<ExprId>,
     pub(super) hands: HashSet<ExprId>,
+    /// Per statement, the `let` locals nothing mentions after it.
+    pub(super) dead_after: HashMap<crate::span::Span, Vec<String>>,
     pub(super) keeps: HashMap<String, Vec<bool>>,
     /// Each keeping function's owning instance, by its ordinary one.
     pub(super) owning_instances:
@@ -214,7 +216,7 @@ pub(super) fn lower<'ctx>(
     checked: &Checked,
     (sources, target, memory): (&[ModuleSource], super::Target, super::Memory),
 ) -> Result<Module<'ctx>, CodegenError> {
-    if let Some(what) = super::rc::rc_unsupported(checked).filter(|_| memory == super::Memory::Rc) {
+    if let Some(what) = super::rc::rc_unsupported(checked).filter(|_| memory != super::Memory::Gc) {
         return Err(CodegenError::Unsupported(what));
     }
     let mut lowerer = Lowerer {
@@ -232,6 +234,7 @@ pub(super) fn lower<'ctx>(
         param_moves: checked.param_moves.clone(),
         param_hands: checked.param_hands.clone(),
         hands: checked.hands.clone(),
+        dead_after: checked.dead_after.clone(),
         keeps: checked.keeps.clone(),
         owning_instances: HashMap::new(),
         owning: false,

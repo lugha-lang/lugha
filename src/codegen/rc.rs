@@ -99,7 +99,7 @@ pub(super) const SHARED: u64 = 1 << 62;
 impl<'ctx> Lowerer<'ctx> {
     /// True when building under reference counting.
     pub(super) fn rc(&self) -> bool {
-        self.memory == Memory::Rc
+        matches!(self.memory, Memory::Rc | Memory::RcCallCosts)
     }
 
     /// True if `ty`'s values hold counted objects.

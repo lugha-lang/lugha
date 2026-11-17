@@ -314,7 +314,7 @@ pub(super) fn build(
         .map_err(|e| Failure::Program(front.source.clone(), vec![e.diagnostic()]))?;
     plan.tls = std_import(&front.modules, "tls", &["tls", "http"]);
     plan.crypto = std_import(&front.modules, "crypto", &["crypto"]);
-    plan.rc = memory == Memory::Rc;
+    plan.rc = memory != Memory::Gc;
     let temp = TempDir::new().map_err(|e| internal(&front.source, temp_error(e)))?;
     let object = temp.path.join("prog.o");
     codegen::emit_object_modules(

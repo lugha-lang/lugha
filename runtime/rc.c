@@ -259,6 +259,13 @@ void lugha_rt_rc_slow(void *object, int64_t delta) {
     }
 }
 
+/* The stack check generated code makes when the per-call costs are
+ * simulated (`LUGHA_CALL_COSTS=1`): the limit is zero, so the cold call
+ * below never runs, but the compiler can't know that. */
+int64_t lugha_rt_stack_limit = 0;
+
+void lugha_rt_stack_low(void) {}
+
 /* Takes one holder from `object` (none for `NULL`), freeing it at zero:
  * the runtime's own release; generated code inlines the same. */
 void lugha_rt_rc_release(void *object) {

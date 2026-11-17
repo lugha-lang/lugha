@@ -12,6 +12,7 @@ mod c_abi;
 mod c_abi_arm;
 mod c_arrays;
 mod c_calls;
+mod call_costs;
 mod callbacks;
 mod cast;
 mod channels;
@@ -165,6 +166,12 @@ pub(crate) mod test_util {
     /// `ir`, lowered for reference counting.
     pub fn ir_rc(src: &str) -> String {
         ir_in(src, super::Memory::Rc)
+    }
+
+    /// `ir`, lowered for reference counting with the simulated per-call
+    /// costs.
+    pub fn ir_calls(src: &str) -> String {
+        ir_in(src, super::Memory::RcCallCosts)
     }
 
     fn ir_in(src: &str, memory: super::Memory) -> String {
