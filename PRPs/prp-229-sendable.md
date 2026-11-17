@@ -1,6 +1,6 @@
 ## FEATURE: The sendable rule: a value crossing to another task must be `Sendable`, an `auto` prelude interface worked out from a type's parts; so a `Ref` never reaches two tasks; milestone 197.
 
-**Status:** proposed 2026-11-17.
+**Status:** approved 2026-11-17; scope grown (library handles), awaiting approval of the addition.
 
 ## OBJECTIVE
 ```
@@ -54,6 +54,13 @@ Data races become impossible by construction: the only shared, changeable thing,
 - **E0476** — `impl Sendable`, `with Sendable`, or `auto` outside the prelude.
 - E0439 keeps its other uses (an actor's state outside `spawn`, `mut` parameters, `stop`); its sharing part moves to E0475. **E0438 stays**: `s.spawn(bump(mut c))` would silently change the task's own copy.
 
+### Library handles (added while building)
+The prelude's and std's own handles keep shared state in `Ref`s, so copies of one handle agree: `$File` (descriptor, read-ahead buffer and position), `$Listener`, `$Conn` and `$Udp` (descriptor and timeout), `std.tls`'s secure connection and listener (handle, context, timeout), and tests' seeded `Entropy` (its state). Under the rule none could cross, so no `Conn` could reach a task, and `std.http` gives each connection its own.
+- **A runtime-owned cell replaces those `Ref`s:** a counted runtime object (`$Resource`, already sendable as a handle) holding four `i64` slots and one byte buffer, reached only through built-ins: `$os.cell_new(a, b, c, d)`, `$os.cell_get(cell, i)`, `$os.cell_set(cell, i, v)`, `$os.cell_bytes(cell)`, `$os.cell_set_bytes(cell, bytes)` (`runtime/cells.c`).
+- **Copies still agree,** since they hold one cell, and the state is the runtime's: each operation is one step the multi-thread runtime makes atomic, instead of Lugha code sharing a box. What a handle means doesn't change, and nothing in a program's view changes.
+- **Rewritten to use it:** `$File`, `$Listener`, `$Conn`, `$Udp`, `$net_shut`, `std.tls`'s `SecureConn`, `SecureListener` and their helpers, and `$TestEntropy` (its `u64` state kept in a slot as bits). No bundled type then holds a `Ref`; the rule holds for the library with no exception.
+- New runtime symbols are listed with the others in `src/link/mod.rs` (names only; nothing about how C is compiled or linked changes).
+
 ### Library and programs
 - **`std.http`:** `interface Handler: fun(Request): Response, Sendable {}`; `serve` and its kin take a `Handler`. `http.serve(net, addr, handle)` is unchanged for a named function or a closure capturing sendable values.
 - **Programs that share a `Ref` between tasks** are rewritten to a channel or an actor (about eight end-to-end programs, and the TLS-over-pipes test's fake `Conn`, whose `closed` flag is a `Ref`).
@@ -66,6 +73,7 @@ Data races become impossible by construction: the only shared, changeable thing,
 5. **C handles and actor handles are sendable**; only `pinned` (thread-bound) C types, which don't exist yet, won't be.
 6. **Two new codes**, E0475 and E0476; E0439's sharing part retired into E0475 (its page updated, the code kept for the rest).
 7. **E0438 kept**, against the Draft's "replaced": a `mut` argument to a spawned call is a silent no-op, not a race, and deserves its error.
+8. **One general cell, not a record per kind of handle:** four slots and a buffer cover every handle's state, with five built-ins and one runtime fragment; a handle-specific C record each would mean five times the runtime code for the same effect. (The user chose to rework the handles rather than trust the library.)
 
 ## REQUIREMENTS
 
@@ -83,6 +91,7 @@ Data races become impossible by construction: the only shared, changeable thing,
 - [ ] Checker unit tests: each sendable and non-sendable kind in rules 1–4; crossings 7–9 with the path in E0475; function values by captures; `T: Sendable`; E0476 for `impl`, `with` and `auto`.
 - [ ] `tests/programs/concurrency/sendable/`: the objective's errors; sharing through an actor and a channel instead; a `Handler` closure; a fake `Conn` (sendable) passed to a task.
 - [ ] Rewritten programs print what they printed.
+- [ ] Library handles: `tests/net.rs`, `udp`, `tls`, `tls_keys`, `tls_over_conn`, `http`, the file and `Dir` programs, and `leaks` (cells freed with their last handle) unchanged in output.
 - [ ] Targeted: `--lib`, `programs`, `leaks`, `spec`, `http`, `net`, `tls`, `tls_keys`, `tls_over_conn`, `udp`, `explain`, `comments`.
 
 ## ACCEPTANCE
