@@ -34,6 +34,9 @@ impl Case {
             .args(args)
             .current_dir(&self.0)
             .env("HOME", &self.0)
+            // One worker, so one C stack: these cases are about callbacks
+            // and C's stack, not threads.
+            .env("LUGHA_WORKERS", "1")
             .env(key, value)
             .output()
             .expect("lughac runs")

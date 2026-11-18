@@ -61,7 +61,7 @@ static void rc_check_owner(int64_t count) {
                 "panic: an unshared object reached a second task (made by task %" PRId64
                 ", used by task %" PRId64 ")\n",
                 maker, user);
-        exit(101);
+        program_exit(101);
     }
 }
 

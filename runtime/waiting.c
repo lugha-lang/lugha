@@ -121,13 +121,19 @@ static void reap(void);
 
 /* What the fiber landing on a worker does first, before its own code: the
  * fiber it replaced is saved now, so its park completes and, had it
- * finished, its stack goes back. */
+ * finished, its stack goes back. A fiber starting holds no section, so
+ * the lock the switch kept is let go of. */
 static void landed(void) {
     park_finish();
     reap();
+    if (worker->rt_depth == 0) {
+        rt_lock_give();
+    }
 }
 
-/* Switches to `next`; `parking`: the current fiber is in `block`. */
+/* Switches to `next`, on this thread; `parking`: the current fiber is in
+ * `block`. The fiber may come back on another thread: everything after the
+ * swap reads `worker` afresh. */
 static void switch_to(Fiber *next, bool parking) {
     Fiber *prev = current;
     if (next == prev) {
@@ -136,16 +142,22 @@ static void switch_to(Fiber *next, bool parking) {
     if (parking) {
         worker->parking = prev;
     }
+    prev->rt_depth = worker->rt_depth;
+    worker->rt_depth = next->rt_depth;
     current = next;
+#if defined(__SANITIZE_THREAD__)
+    __tsan_switch_to_fiber(next->tsan, 0);
+#endif
     lugha_rt_task_swap(&prev->sp, next->sp);
     /* Back on `prev`'s stack: another fiber ran and switched back. */
     landed();
 }
 
-/* Nothing is ready: waits for a socket or the next sleeper; wakes threads
- * whose sockets are ready without waiting (net.c). */
-static void idle_wait(void);
+/* Wakes threads whose sockets are ready, without waiting (net.c). */
 static void poll_ready_sockets(void);
+
+/* The next ready fiber this worker may run (workers.c). */
+static Fiber *take_ready(void);
 
 /* Each waiting task and what it waits on, after a deadlock (actors.c). */
 static void report_waits(void);
@@ -154,29 +166,23 @@ static void deadlock(void) {
     fflush(stdout);
     fputs("panic: deadlock: every green thread is waiting\n", stderr);
     report_waits();
-    exit(101);
+    program_exit(101);
 }
 
 /* Runs the next ready fiber; the current one has already queued itself, or
- * is parking (`parking`). Sleeps the OS thread when only sleepers remain. */
+ * is parking (`parking`). With none ready, the worker's idle loop runs
+ * (workers.c), until something wakes this fiber and a worker takes it. */
 static void schedule_from(bool parking) {
     if (worker->on_c_stack) {
         panic_with("a C callback can't wait: start a task instead", 45);
     }
-    for (;;) {
-        wake_due_sleepers();
-        // Woken while still on this worker (a deadline, a socket the idle
-        // wait polled): nothing to switch to, it runs on.
-        if (parking && !is_waiting(current)) {
-            return;
-        }
-        Fiber *next = pop_ready();
-        if (next != NULL) {
-            switch_to(next, parking);
-            return;
-        }
-        idle_wait();
+    wake_due_sleepers();
+    // Woken already (a deadline): nothing to switch to, it runs on.
+    if (parking && !is_waiting(current)) {
+        return;
     }
+    Fiber *next = take_ready();
+    switch_to(next != NULL ? next : worker->idle, parking);
 }
 
 static void schedule(void) {

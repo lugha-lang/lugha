@@ -145,6 +145,16 @@ void lugha_rt_print_newline(void) {
     fputc('\n', stdout);
 }
 
+/* Around `println`'s text and newline: the line is printed whole, though
+ * tasks on other threads print too (stdout's lock, which nests). */
+void lugha_rt_print_begin(void) {
+    flockfile(stdout);
+}
+
+void lugha_rt_print_end(void) {
+    funlockfile(stdout);
+}
+
 LughaString *lugha_rt_to_string_i32(int32_t value) {
     char text[FORMAT_CAP];
     snprintf(text, sizeof text, "%" PRId32, value);

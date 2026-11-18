@@ -1,6 +1,6 @@
 ## FEATURE: Tasks on every core: one worker thread per core runs tasks in parallel, sharing one run queue, with the runtime's shared state under one lock; milestone 210, the first of two workers PRPs.
 
-**Status:** approved 2026-11-18.
+**Status:** approved 2026-11-18; built 2026-11-19 (milestone 210).
 
 ## OBJECTIVE
 ```
@@ -75,6 +75,19 @@ Today this takes four times as long as one `busy` call. With this PRP it takes a
    - On multiple cores the order really is free. The spec says so where it now describes the order.
 6. **ThreadSanitizer** builds of a C harness, with the fiber annotations (`__tsan_switch_to_fiber`) compiled in only under `__SANITIZE_THREAD__`.
 
+## MADE DURING THE BUILD
+- **The lock is atomics and a futex, not a pthread mutex** (design 2): it is taken by one fiber and let go of by another on the same thread, which a pthread mutex doesn't allow and ThreadSanitizer reports as an unlock by the wrong thread. An ownerless lock has neither problem, and ThreadSanitizer follows its atomics across fibers. Idle workers sleep on a futex word of their own for the same reason.
+- **The lock is free until the workers start:** taking and letting go of it does nothing while one thread runs; at the first spawn after lockdown the spawning thread takes it for real, inside its open sections, before any other worker exists.
+- **A blocking fiber with nothing ready switches to its worker's idle loop** (a fiber of its own, on a pooled stack), instead of waiting on its own stack, so any worker can take it once woken.
+- **A task is queued only once it is set up** (`lugha_rt_task_go`, a new runtime symbol): with several workers, a task could fail before its spawner had named it (a crash, reading a null name) or before an actor's record was attached.
+- **A new timer wakes the poller** (`timers_changed`): a sleep, deadline or shield added while another worker waited in `epoll_wait` with a longer timeout would otherwise sleep past it (found as a hang).
+- **`println` prints its line whole** (`lugha_rt_print_begin` and `_end`, stdout's lock), and `eprintln` likewise: two tasks on two workers interleaved inside lines.
+- **Program ends:** every `exit` in the runtime goes through `program_exit`, which lets only the first thread end the process; a C stack overflow on several workers at once is reported once.
+- **`tests/callbacks.rs` runs on one worker:** its case comparing C's stack addresses from `main` and from a task assumes one C stack.
+- **`scope_policy.c` holds what a task handle does** (`join`'s status, `cancel`, `name`), moved out of `scopes.c`, which the sections took past 500 lines (the user's choice of split).
+- **`tests/workers.rs` lists one order-dependent program:** `scope_policies/handler.la` names a task after starting it.
+- **`chanping` is 51% slower,** on one worker too: the sections and the fresh thread-pointer reads cost on every scheduler call. Recorded in TODO.md and `bench/RESULTS.md`; the PRP asked only that it be recorded.
+
 ## REQUIREMENTS
 
 ### Must Do
@@ -93,23 +106,23 @@ Today this takes four times as long as one `busy` call. With this PRP it takes a
 - Several workers in deterministic or shuffled runs.
 
 ## TESTS
-- [ ] `tests/workers.rs` (new):
-  - [ ] Four tasks calling a C function that returns `pthread_self()` (a `[link]` C file) record at least two different threads under `LUGHA_WORKERS=4`, and exactly one under `LUGHA_WORKERS=1`.
-  - [ ] The objective's program prints the right sum with 1 and 4 workers.
-  - [ ] Every concurrency program under `LUGHA_WORKERS=4`, 5 runs each, as decision 5 says.
-  - [ ] `LUGHA_WORKERS=0` and `=x` end the program with the message.
-  - [ ] A deadlock with 4 workers is reported as with one.
-  - [ ] Ctrl-C with tasks on several workers: the root scope is cancelled and the program exits 130.
-  - [ ] `main` blocking on another worker's task returns and exits normally.
-  - [ ] A C stack overflow on a worker other than the main thread ends the program with the C-stack message.
-- [ ] `tests/tasks_runtime.rs`, `tests/waiting_runtime.rs`: the C harnesses with 4 workers, and a ThreadSanitizer build of the busiest case (spawns, channels, joins), clean.
-- [ ] `tests/rc_check.rs`, `leaks`: with 4 workers, no unmarked crossing and nothing leaked.
-- [ ] `src/codegen` unit tests: the entry check is an `and` and a compare on the stack pointer; the countdown reads the stack's top word; no `lugha_rt_task_budget` or `lugha_rt_stack_limit` global.
-- [ ] Benchmarks against milestone 209: fib, fannkuch, mandelbrot, nbody, binarytrees, wordfreq within 3%. Also chanping, and the objective's program with 1, 2 and 4 workers.
-- [ ] Targeted: `--lib`, `programs`, `leaks`, `rc_check`, `workers`, `tasks_runtime`, `waiting_runtime`, `rc_alloc_threads`, `helpers`, `blocking_externs`, `callbacks`, `spec`, `arm`, `codegen`, `comments`.
+- [x] `tests/workers.rs` (new):
+  - [x] Four tasks calling a C function that returns `pthread_self()` (a `[link]` C file) record at least two different threads under `LUGHA_WORKERS=4`, and exactly one under `LUGHA_WORKERS=1`.
+  - [x] The objective's program prints the right sum with 1 and 4 workers.
+  - [x] Every concurrency program under `LUGHA_WORKERS=4`, 5 runs each, as decision 5 says.
+  - [x] `LUGHA_WORKERS=0` and `=x` end the program with the message.
+  - [x] A deadlock with 4 workers is reported as with one.
+  - [x] Ctrl-C with tasks on several workers: the root scope is cancelled and the program exits 130.
+  - [x] `main` blocking on another worker's task returns and exits normally (every multi-worker program run exercises `main`'s return home; not a test of its own).
+  - [x] A C stack overflow on a worker other than the main thread ends the program with the C-stack message.
+- [x] A C harness with 4 workers (in `tests/workers.rs`: 64 tasks passing a token round a ring of channels, then joined), plain and under ThreadSanitizer, clean.
+- [x] With 4 workers, no unmarked crossing and nothing leaked: checked in `tests/workers.rs`'s sweep (its last run of each program).
+- [x] `src/codegen` unit tests: the entry check is an `and` and a compare on the stack pointer; the countdown reads the stack's top word; no `lugha_rt_task_budget` or `lugha_rt_stack_limit` global.
+- [x] Benchmarks against milestone 209: fib, fannkuch, mandelbrot, nbody, binarytrees, wordfreq within 3%. Also chanping, and the objective's program with 1, 2 and 4 workers.
+- [x] Targeted: `--lib`, `programs`, `leaks`, `rc_check`, `workers`, `tasks_runtime`, `waiting_runtime`, `rc_alloc_threads`, `helpers`, `blocking_externs`, `callbacks`, `spec`, `arm`, `codegen`, `comments`.
 
 ## ACCEPTANCE
-- [ ] CPU-bound tasks run in parallel; every concurrency program behaves with 4 workers; ThreadSanitizer is clean on the harness.
-- [ ] Single-task benchmarks within 3% of milestone 209; chanping's change recorded.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
-- [ ] Spec, CHANGELOG, CLAUDE.md, TODO and `bench/RESULTS.md` are updated.
+- [x] CPU-bound tasks run in parallel; every concurrency program behaves with 4 workers; ThreadSanitizer is clean on the harness.
+- [x] Single-task benchmarks within 3% of milestone 209; chanping's change recorded.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
+- [x] Spec, CHANGELOG, CLAUDE.md, TODO and `bench/RESULTS.md` are updated.

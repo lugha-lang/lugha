@@ -162,6 +162,11 @@ impl<'ctx> Lowerer<'ctx> {
         };
         match (name, arg) {
             ("print" | "println", arg) => {
+                let line = name == "println";
+                if line {
+                    let begin = self.runtime("lugha_rt_print_begin", &[], None);
+                    self.builder.build_call(begin, &[], "").expect(POSITIONED);
+                }
                 if let Some((ty, value)) = arg {
                     let print = self.runtime(
                         &format!("lugha_rt_print_{}", suffix(&ty)),
@@ -176,9 +181,12 @@ impl<'ctx> Lowerer<'ctx> {
                         self.rc_drop_string(value);
                     }
                 }
-                if name == "println" {
+                if line {
                     let newline = self.runtime("lugha_rt_print_newline", &[], None);
                     self.builder.build_call(newline, &[], "").expect(POSITIONED);
+                    // The text and its newline as one line.
+                    let end = self.runtime("lugha_rt_print_end", &[], None);
+                    self.builder.build_call(end, &[], "").expect(POSITIONED);
                 }
                 Ok(Value::Void)
             }

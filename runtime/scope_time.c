@@ -70,6 +70,7 @@ static void deadline_start(LughaScope *s, int64_t within, int64_t until) {
     if (own != 0) {
         s->deadline_next = deadlines;
         deadlines = s;
+        timers_changed();
     }
 }
 
@@ -136,6 +137,7 @@ static int64_t next_time(void) {
 
 /* `s.remaining()`: the milliseconds left, at least 0, or -1 without a deadline. */
 int64_t lugha_rt_scope_remaining(LughaScope *s) {
+    RT_SECTION();
     if (s->deadline == 0) {
         return -1;
     }
@@ -146,6 +148,7 @@ int64_t lugha_rt_scope_remaining(LughaScope *s) {
 /* `shield within ms`: cancellation held off for at most `ms`, the earlier
  * deadline winning when shields nest. */
 void lugha_rt_shield_enter(int64_t ms) {
+    RT_SECTION();
     ensure_started();
     int64_t until = now_ns() + ms_to_ns(ms < 0 ? 0 : ms);
     if (current->shield_depth == 0) {
@@ -153,6 +156,7 @@ void lugha_rt_shield_enter(int64_t ms) {
         current->shield_next = shielded_fibers;
         current->shield_in_unwind = current->unwinding;
         shielded_fibers = current;
+        timers_changed();
     } else if (until < current->shield_until) {
         current->shield_until = until;
     }
@@ -161,6 +165,7 @@ void lugha_rt_shield_enter(int64_t ms) {
 
 /* The shield's block ends, however it ends. */
 void lugha_rt_shield_exit(void) {
+    RT_SECTION();
     if (current == NULL || current->shield_depth == 0) {
         return;
     }
@@ -182,6 +187,7 @@ void lugha_rt_shield_exit(void) {
  * goes on once the `defer` around the shield ends; any other goes on past
  * the shield (`lugha_rt_shield_end`). */
 void lugha_rt_shield_caught(void) {
+    RT_SECTION();
     overflow_over();
     Panic *caught = current->in_flight;
     if (current->shield_outer != NULL) {
@@ -200,6 +206,7 @@ void lugha_rt_shield_caught(void) {
  * there is none to go on with, so the program ends, as for a panic while
  * unwinding. */
 void lugha_rt_shield_lost(void) {
+    RT_SECTION();
     if (current->shield_caught == NULL) {
         die("panic: a shield with a value was cut off at its deadline while its task unwound\n");
     }
@@ -208,6 +215,7 @@ void lugha_rt_shield_lost(void) {
 /* Past the shield: an unwind it stopped goes on, and a cancellation held
  * meanwhile applies now. */
 void lugha_rt_shield_end(void) {
+    RT_SECTION();
     Panic *caught = current->shield_caught;
     if (caught != NULL) {
         current->shield_caught = NULL;
@@ -217,14 +225,19 @@ void lugha_rt_shield_end(void) {
     lugha_rt_cancel_point();
 }
 
+/* Wakes the worker waiting for events (jobs.c). */
+static void poller_kick(void);
+
 /* Ctrl-C: noted for the scheduler; the second, or one before any task
  * started (no scheduler to act on it), ends the program at once. */
 static void on_interrupt(int sig) {
     (void)sig;
     interrupts++;
-    if (interrupts > 1 || current == NULL) {
+    if (interrupts > 1 || !tasks_started) {
         _exit(130);
     }
+    // A worker waiting for events sees it at once.
+    poller_kick();
 }
 
 /* Installs the Ctrl-C handler, as the runtime starts. */

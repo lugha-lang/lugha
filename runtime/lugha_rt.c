@@ -38,6 +38,9 @@
 #include <linux/openat2.h>
 #include <linux/seccomp.h>
 #include <sched.h>
+#if defined(__SANITIZE_THREAD__)
+#include <sanitizer/tsan_interface.h>
+#endif
 #include <stddef.h>
 #include <sys/prctl.h>
 #include <sys/epoll.h>
@@ -47,6 +50,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include <linux/futex.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <inttypes.h>
@@ -157,9 +161,6 @@ typedef struct Worker {
     struct Fiber *running;
     struct Fiber *zombie;
     struct Fiber *parking;
-    /* Ready fibers, first in first out. */
-    struct Fiber *ready_head;
-    struct Fiber *ready_tail;
     /* The fiber `lugha_rt_task_spawn` made last, for actors.c to mark. */
     struct Fiber *last_spawned;
     /* True while C runs, or a C callback's Lugha code (stacks.c): on the C
@@ -180,6 +181,15 @@ typedef struct Worker {
     bool freezing;
     /* `select`'s pick: pseudo-random, the same on every run (chans.c). */
     uint64_t pick_state;
+    /* How deep the running fiber is in runtime sections (`RT_SECTION`):
+     * the thread holds `rt_lock` while it is above 0. */
+    int64_t rt_depth;
+    /* Its idle loop (workers.c), where it waits for work; whether it waits
+     * there now on its condition variable, or as the poller. */
+    struct Fiber *idle;
+    uint32_t wake;
+    bool sleeping;
+    bool polling;
     /* Its freed blocks of each class, linked through their first word; the
      * unused end of its newest chunk of each class (rc_alloc.c). */
     void *lists[RC_CLASSES];
@@ -200,7 +210,33 @@ typedef struct Worker {
  * has one; a helper thread's is never used, since helpers never make or
  * keep Lugha values. */
 static __thread Worker this_worker = {.pick_state = 0x9e3779b97f4a7c15u};
-#define worker (&this_worker)
+
+/* The thread pointer, read fresh: a task may move to another thread at a
+ * switch, and a compiler may keep a thread-local address in a register
+ * across a call, so `worker` reads it each time instead. */
+static inline uintptr_t thread_pointer(void) {
+    uintptr_t tp;
+#if defined(__x86_64__)
+    __asm__ volatile("movq %%fs:0, %0" : "=r"(tp));
+#else
+    __asm__ volatile("mrs %0, tpidr_el0" : "=r"(tp));
+#endif
+    return tp;
+}
+
+/* Where `this_worker` lies from the thread pointer: the same in every
+ * thread (the executable's own thread-local block), set before `main`. */
+static intptr_t worker_offset;
+
+__attribute__((constructor)) static void worker_offset_init(void) {
+    worker_offset = (intptr_t)((uintptr_t)&this_worker - thread_pointer());
+}
+
+static inline Worker *worker_now(void) {
+    return (Worker *)(thread_pointer() + (uintptr_t)worker_offset);
+}
+
+#define worker (worker_now())
 /* Every thread that entered as a worker, for the report's sums. */
 static Worker *workers;
 static pthread_mutex_t workers_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -219,6 +255,8 @@ void lugha_rt_worker_enter(void) {
 static int32_t program_argc;
 static char **program_argv;
 
+static void workers_init(void);
+
 void lugha_rt_init(int32_t argc, char **argv) {
     lugha_rt_worker_enter();
     program_argc = argc;
@@ -226,15 +264,26 @@ void lugha_rt_init(int32_t argc, char **argv) {
     install_stack_overflow_handler();
     install_interrupt_handler();
     sched_init();
+    workers_init();
     hash_key_init();
     helpers_init();
     lugha_rc_start();
 }
 
+/* Ends the process with `code`: the first thread to end it does, and any
+ * other trying at the same time waits, since two `exit`s at once would
+ * run the exit handlers twice. */
+static pthread_mutex_t exit_lock = PTHREAD_MUTEX_INITIALIZER;
+
+__attribute__((noreturn)) static void program_exit(int code) {
+    pthread_mutex_lock(&exit_lock);
+    exit(code);
+}
+
 static void die(const char *message) {
     fflush(stdout);
     fputs(message, stderr);
-    exit(101);
+    program_exit(101);
 }
 
 /* Prints `panic: <text>` (program data, so never a format string), then

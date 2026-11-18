@@ -50,16 +50,19 @@ void *lugha_rt_cell_new(int64_t a, int64_t b, int64_t c, int64_t d) {
 
 /* `$os.cell_get(cell, i)`. */
 int64_t lugha_rt_cell_get(LughaCell *cell, int64_t i) {
+    RT_SECTION();
     return *cell_slot(cell, i);
 }
 
 /* `$os.cell_set(cell, i, v)`. */
 void lugha_rt_cell_set(LughaCell *cell, int64_t i, int64_t v) {
+    RT_SECTION();
     *cell_slot(cell, i) = v;
 }
 
 /* `$os.cell_bytes(cell)`: its bytes, a new holder (empty when it has none). */
 LughaArray *lugha_rt_cell_bytes(LughaCell *cell) {
+    RT_SECTION();
     if (cell->bytes == NULL) {
         return bytes_of("", 0);
     }
@@ -69,6 +72,7 @@ LughaArray *lugha_rt_cell_bytes(LughaCell *cell) {
 
 /* `$os.cell_set_bytes(cell, bytes)`: the cell holds `bytes` now. */
 void lugha_rt_cell_set_bytes(LughaCell *cell, LughaArray *bytes) {
+    RT_SECTION();
     // Copies of the handle, and so the cell, may be in other tasks.
     lugha_rt_rc_mark(bytes);
     lugha_rt_rc_retain(bytes);

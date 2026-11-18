@@ -26,8 +26,9 @@ pub use self::inputs::{Plan, PlanError};
 
 /// The runtime's source files, in the order they are joined: the core first,
 /// since it holds every `#include`, then the fragments that rely on it.
-pub const RUNTIME_PARTS: [(&str, &str); 38] = [
+pub const RUNTIME_PARTS: [(&str, &str); 40] = [
     ("lugha_rt.c", include_str!("../../runtime/lugha_rt.c")),
+    ("rt_lock.c", include_str!("../../runtime/rt_lock.c")),
     ("stack.c", include_str!("../../runtime/stack.c")),
     ("helpers.c", include_str!("../../runtime/helpers.c")),
     ("print.c", include_str!("../../runtime/print.c")),
@@ -66,13 +67,17 @@ pub const RUNTIME_PARTS: [(&str, &str); 38] = [
     ("jobs.c", include_str!("../../runtime/jobs.c")),
     ("cmem.c", include_str!("../../runtime/cmem.c")),
     ("net.c", include_str!("../../runtime/net.c")),
+    ("workers.c", include_str!("../../runtime/workers.c")),
     ("resolve.c", include_str!("../../runtime/resolve.c")),
     ("udp.c", include_str!("../../runtime/udp.c")),
 ];
 
 /// Every runtime function codegen may call; `lugha_rt.c` defines them all.
-pub const RUNTIME_SYMBOLS: [&str; 150] = [
+pub const RUNTIME_SYMBOLS: [&str; 153] = [
     "lugha_rt_init",
+    "lugha_rt_task_go",
+    "lugha_rt_print_begin",
+    "lugha_rt_print_end",
     "lugha_rt_rc_freeze_start",
     "lugha_rt_rc_freeze_end",
     "lugha_rt_main",
@@ -228,6 +233,7 @@ pub const RUNTIME_SYMBOLS: [&str; 150] = [
 /// compiled as one `lugha_rt.c`.
 pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/lugha_rt.c"),
+    include_str!("../../runtime/rt_lock.c"),
     include_str!("../../runtime/stack.c"),
     include_str!("../../runtime/helpers.c"),
     include_str!("../../runtime/print.c"),
@@ -263,6 +269,7 @@ pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/jobs.c"),
     include_str!("../../runtime/cmem.c"),
     include_str!("../../runtime/net.c"),
+    include_str!("../../runtime/workers.c"),
     include_str!("../../runtime/resolve.c"),
     include_str!("../../runtime/udp.c"),
 );

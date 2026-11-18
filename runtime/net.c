@@ -2,7 +2,7 @@
  * net.c — part of lugha_rt.c: `std.net`'s built-ins.
  * TCP sockets, all non-blocking and close-on-exec. A call that would block
  * parks its green thread on one `epoll` set (`wait_fd`) and the others run;
- * the scheduler waits on that set when nothing is ready (`idle_wait`).
+ * an idle worker waits on that set when nothing is ready (workers.c).
  * Every failure comes back as 0 and the system's message, never a panic.
  *
  * A fragment, not compiled on its own: joined after tasks.c (the scheduler
@@ -20,7 +20,9 @@ static int32_t net_error(LughaString **error, const char *message) {
 }
 
 /* Wakes every thread whose socket is ready; waits up to `wait_ns` (< 0
- * forever) for the first. A thread already woken by its timeout is skipped. */
+ * forever) for the first, the lock let go of meanwhile. A thread already
+ * woken by its timeout is skipped; helper jobs come back, and the workers'
+ * wake-up event is taken (workers.c). */
 static void poll_sockets(int64_t wait_ns) {
     int ms = -1;
     if (wait_ns >= 0) {
@@ -28,10 +30,21 @@ static void poll_sockets(int64_t wait_ns) {
         ms = rounded > INT32_MAX ? INT32_MAX : (int)rounded;
     }
     struct epoll_event events[NET_EVENTS];
-    int n = epoll_wait(net_epoll, events, NET_EVENTS, ms);
+    int n;
+    if (ms == 0) {
+        n = epoll_wait(net_epoll, events, NET_EVENTS, 0);
+    } else {
+        rt_lock_give();
+        n = epoll_wait(net_epoll, events, NET_EVENTS, ms);
+        rt_lock_take();
+    }
     for (int i = 0; i < n; i++) {
         if (events[i].data.ptr == &helper_tag) {
             jobs_collect();
+            continue;
+        }
+        if (events[i].data.ptr == &wake_tag) {
+            wake_taken();
             continue;
         }
         Fiber *f = events[i].data.ptr;
@@ -47,38 +60,6 @@ static void poll_ready_sockets(void) {
     }
 }
 
-static void idle_wait(void) {
-    // The next sleeper, deadline or shield's end (scope_time.c).
-    int64_t at = sleepers == NULL ? -1 : sleepers->wake_at;
-    int64_t timer = next_time();
-    if (timer >= 0 && (at < 0 || timer < at)) {
-        at = timer;
-    }
-    if (at < 0 && net_waiting == 0 && jobs_out == 0 && interrupts == 0) {
-        deadlock();
-    }
-    // Virtual time: what sockets have ready, without waiting; else, since
-    // nothing else can happen, time jumps to the next timer.
-    if (virtual_time()) {
-        if (net_waiting > 0) {
-            poll_sockets(at < 0 ? -1 : 0);
-        }
-        if (worker->ready_head == NULL && at > virtual_ns) {
-            virtual_ns = at;
-        }
-        return;
-    }
-    int64_t wait = at < 0 ? -1 : at - now_ns();
-    if (net_waiting > 0 || jobs_out > 0) {
-        poll_sockets(wait < 0 && at >= 0 ? 0 : wait);
-    } else if (wait > 0) {
-        struct timespec t = {.tv_sec = wait / 1000000000, .tv_nsec = wait % 1000000000};
-        // Ctrl-C cuts the sleep short.
-        while (nanosleep(&t, &t) != 0 && errno == EINTR && interrupts == 0) {
-        }
-    }
-}
-
 /* `wait_fd`'s answer when the waiting task is cancelled: the caller lets
  * go of what it holds, then unwinds (`cancel_unwind`). */
 #define WAIT_CANCELLED (-1)
@@ -86,6 +67,7 @@ static void idle_wait(void) {
 /* Parks this thread until `fd` is ready for `events`: 1, or 0 when
  * `deadline` (monotonic ns; < 0 for none) passes first, or WAIT_CANCELLED. */
 static int wait_fd(int fd, uint32_t events, int64_t deadline) {
+    RT_SECTION();
     ensure_started();
     if (current->cancelled != REASON_NONE && !current->unwinding) {
         return WAIT_CANCELLED;

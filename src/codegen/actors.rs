@@ -83,8 +83,9 @@ impl<'ctx> Lowerer<'ctx> {
             .expect("a pair has 2 fields")
             .into_struct_value();
         let simple = key.rsplit('.').next().unwrap_or(key).to_string();
-        let task = self.start_task(scope, scope_error, pair, &Type::Unit, &simple)?;
+        let task = self.start_task_held(scope, scope_error, pair, &Type::Unit, &simple)?;
         self.call_rt("lugha_rt_actor_started", &[task, actor], false);
+        self.task_go(task);
         // The scope holds the task; the actor's handle is what `spawn` gives.
         self.rc_release(task, &Type::Task(Box::new(Type::Unit)));
         Ok(actor)

@@ -61,6 +61,8 @@ static void chan_panic(const char *what, const char *file, int64_t line, int64_t
 /* The visit of a `Chan`: the values still in its ring; the ring goes
  * with it. Waiting senders keep their values on their own stacks. */
 static void rc_chan_visit(void *object, int64_t op) {
+    // Freeing a channel wakes its waiting senders.
+    RT_SECTION();
     LughaChan *c = object;
     if (c->elem_visit != NULL) {
         for (int64_t i = 0; i < c->len; i++) {
@@ -240,6 +242,7 @@ static int32_t recv_now(LughaChan *c, void *out) {
 /* `c.send(v)`: `value` points at the copy in element layout. */
 void lugha_rt_chan_send(LughaChan *c, const void *value, const char *file, int64_t line,
                         int64_t col) {
+    RT_SECTION();
     ensure_started();
     lugha_rt_cancel_point();
     if (can_send(c)) {
@@ -262,6 +265,7 @@ void lugha_rt_chan_send(LughaChan *c, const void *value, const char *file, int64
 
 /* `c.recv()`: 1 and the value in `out`, or 0 once closed and empty. */
 int32_t lugha_rt_chan_recv(LughaChan *c, void *out) {
+    RT_SECTION();
     ensure_started();
     lugha_rt_cancel_point();
     if (can_recv(c)) {
@@ -282,6 +286,7 @@ int32_t lugha_rt_chan_recv(LughaChan *c, void *out) {
 /* `rx.try_recv()`: never waits. 1 with a value in `out`, 0 when empty,
  * 2 once closed and empty. */
 int32_t lugha_rt_chan_try_recv(LughaChan *c, void *out) {
+    RT_SECTION();
     ensure_started();
     if (can_recv(c)) {
         return recv_now(c, out) ? 1 : 2;
@@ -293,6 +298,7 @@ int32_t lugha_rt_chan_try_recv(LughaChan *c, void *out) {
 /* `tx.try_send(v)`: never waits. 0 sent, 1 full, 2 closed; unless sent,
  * the value stays the caller's. */
 int32_t lugha_rt_chan_try_send(LughaChan *c, const void *value) {
+    RT_SECTION();
     ensure_started();
     if (c->closed) {
         return 2;
@@ -306,6 +312,7 @@ int32_t lugha_rt_chan_try_send(LughaChan *c, const void *value) {
 
 /* `c.close()`: receivers get `None`, waiting senders panic. */
 void lugha_rt_chan_close(LughaChan *c, const char *file, int64_t line, int64_t col) {
+    RT_SECTION();
     ensure_started();
     if (c->closed) {
         chan_panic("close of a closed channel", file, line, col);
@@ -337,6 +344,7 @@ static uint64_t pick(uint64_t n) {
  * case is picked at random; otherwise the thread waits on all of them. */
 int64_t lugha_rt_task_select(LughaCase *cases, int64_t n, int64_t timeout_ms, int32_t has_default,
                              const char *file, int64_t line, int64_t col) {
+    RT_SECTION();
     ensure_started();
     lugha_rt_cancel_point();
     int64_t ready = 0;

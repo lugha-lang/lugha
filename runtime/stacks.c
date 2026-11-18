@@ -103,6 +103,9 @@ static void reap(void) {
         give_stack(dead->map);
     }
     rt_scratch_done(dead->show.boxes);
+#if defined(__SANITIZE_THREAD__)
+    __tsan_destroy_fiber(dead->tsan);
+#endif
     free(dead);
 }
 
@@ -233,9 +236,13 @@ typedef struct {
     int32_t code;
 } MainCall;
 
+/* Back to the main thread, where `lugha_rt_main` returns (workers.c). */
+static void main_go_home(void);
+
 static void main_on_stack(void *p) {
     MainCall *call = p;
     call->code = call->entry(call->argc, call->argv);
+    main_go_home();
 }
 
 /* The C `main` lughac emits: runs `entry` (the program, the runtime's

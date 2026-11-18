@@ -20,7 +20,7 @@ static Fiber parked(void) {
 }
 
 static const char *harness_queued(const Fiber *f) {
-    return worker->ready_head == f ? "queued" : "not queued";
+    return ready_head == f ? "queued" : "not queued";
 }
 
 int main(int argc, char **argv) {
@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
         worker->parking = &f;
         park_finish();
         wake(&f, 1);
-        worker->ready_head = worker->ready_tail = NULL;
+        ready_head = ready_tail = NULL;
         wake(&f, 2);
         printf("%s %ld\n", harness_queued(&f), (long)f.fired);
     } else if (strcmp(c, "waiting") == 0) {

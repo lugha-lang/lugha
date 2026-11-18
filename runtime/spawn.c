@@ -7,6 +7,10 @@
  * tasks.c, whose fibers and scheduler it uses.
  */
 
+/* Starting the other workers, and waking an idle one (workers.c). */
+static void workers_start(void);
+static void wake_idle_worker(void);
+
 /* Where a new fiber starts: runs its call, stores the result, wakes its
  * joiners, and never comes back. */
 static void fiber_exit(Fiber *self);
@@ -44,6 +48,7 @@ void lugha_rt_rc_task_setup(LughaTask *task, RcVisit result_visit) {
  * task, an actor's handle) is let go of. What only its stack holds stays:
  * stopping doesn't unwind. */
 void lugha_rt_rc_stop_threads(void) {
+    RT_SECTION();
     if (current == NULL) {
         return;
     }
@@ -61,13 +66,16 @@ void lugha_rt_rc_stop_threads(void) {
 
 __attribute__((used, visibility("hidden"))) void lugha_rt_task_fiber_main(Fiber *self) {
     landed();
-    self->entry(self->code, self->env, self->task->result);
+    // A worker's idle loop has no task (workers.c).
+    self->entry(self->code, self->env, self->task == NULL ? NULL : self->task->result);
     fiber_exit(self);
 }
 
 /* Finishes the running fiber: its task is done, its joiners wake, and the
  * next fiber runs; never returns. An actor's panic ends its fiber here too. */
 static void fiber_exit(Fiber *self) {
+    // Never returns: the lock goes on to the next fiber.
+    rt_enter();
     LughaTask *task = self->task;
     scope_task_done(self);
     task->done = 1;
@@ -96,28 +104,9 @@ static void fiber_exit(Fiber *self) {
     die("panic: internal error: a finished green thread ran again\n");
 }
 
-/* `spawn`: a new green thread running `entry(code, env, result)`,
- * queued behind the ready ones; the caller keeps running. */
-LughaTask *lugha_rt_task_spawn(void (*entry)(void *, void *, void *), void *code, void *env,
-                               int64_t result_size) {
-    ensure_started();
-    LughaTask *task = lugha_rt_alloc((int64_t)sizeof(LughaTask));
-    /* The result's block is the task's own, freed with it. The new
-     * fiber holds the task until it ends, and two tasks hold it now. */
-    task->result = lugha_rc_internal((size_t)(result_size < 1 ? 1 : result_size));
-    lugha_rt_rc_set_drop(task, rc_task_visit);
-    lugha_rt_rc_retain(task);
-    lugha_rt_rc_mark(task);
-    Fiber *f = lugha_rc_internal(sizeof(Fiber));
-    f->map = new_stack();
-    f->top = stack_top(f->map);
-    budget_fill(f->map);
-    f->entry = entry;
-    f->code = code;
-    f->env = env;
-    f->task = task;
-    f->number = ++fibers_started;
-    f->wake_at = -1;
+/* `f`'s first frame on its stack, which the first switch to it pops,
+ * landing in `lugha_rt_task_boot`. */
+static void fiber_frame(Fiber *f) {
 #if defined(__x86_64__)
     /* The first switch pops these: MXCSR and x87 defaults, then r15, r14,
      * r13, r12 (the fiber), rbx and rbp in slots 1 to 6, then returns into
@@ -141,17 +130,71 @@ LughaTask *lugha_rt_task_spawn(void (*entry)(void *, void *, void *), void *code
     frame[11] = (uint64_t)(uintptr_t)lugha_rt_task_boot;
 #endif
     f->sp = frame;
+#if defined(__SANITIZE_THREAD__)
+    f->tsan = __tsan_create_fiber(0);
+#endif
+}
+
+/* A new green thread running `entry(code, env, result)`, not yet queued:
+ * no worker runs it until `task_go`. */
+static LughaTask *task_create(void (*entry)(void *, void *, void *), void *code, void *env,
+                              int64_t result_size) {
+    ensure_started();
+    LughaTask *task = lugha_rt_alloc((int64_t)sizeof(LughaTask));
+    /* The result's block is the task's own, freed with it. The new
+     * fiber holds the task until it ends, and two tasks hold it now. */
+    task->result = lugha_rc_internal((size_t)(result_size < 1 ? 1 : result_size));
+    lugha_rt_rc_set_drop(task, rc_task_visit);
+    lugha_rt_rc_retain(task);
+    lugha_rt_rc_mark(task);
+    Fiber *f = lugha_rc_internal(sizeof(Fiber));
+    f->map = new_stack();
+    f->top = stack_top(f->map);
+    budget_fill(f->map);
+    f->entry = entry;
+    f->code = code;
+    f->env = env;
+    f->task = task;
+    f->number = ++fibers_started;
+    f->wake_at = -1;
+    fiber_frame(f);
     f->next_live = live;
     live->prev_live = f;
     live = f;
     live_count++;
-    make_ready(f);
+    task->fiber = f;
     worker->last_spawned = f;
+    return task;
+}
+
+/* Queues a task made by `task_create`: the spawner runs on, so another
+ * worker may run the new task now. */
+static void task_go(LughaTask *task) {
+    make_ready(task->fiber);
+    workers_start();
+    wake_idle_worker();
+}
+
+/* `lugha_rt_task_go(task)`: generated code's start of a task it finished
+ * setting up (its result's visit, its name, an actor's record). */
+void lugha_rt_task_go(LughaTask *task) {
+    RT_SECTION();
+    task_go(task);
+}
+
+/* `spawn`: a new green thread running `entry(code, env, result)`,
+ * queued behind the ready ones; the caller keeps running. */
+LughaTask *lugha_rt_task_spawn(void (*entry)(void *, void *, void *), void *code, void *env,
+                               int64_t result_size) {
+    RT_SECTION();
+    LughaTask *task = task_create(entry, code, env, result_size);
+    task_go(task);
     return task;
 }
 
 /* `t.join()`: waits until the task's call has finished; its result. */
 void *lugha_rt_task_join(LughaTask *task) {
+    RT_SECTION();
     ensure_started();
     if (!task->done) {
         current->wait_next = task->joiners;
@@ -163,11 +206,12 @@ void *lugha_rt_task_join(LughaTask *task) {
 
 /* `task.yield_now()`: lets every ready thread run first. */
 void lugha_rt_task_yield(void) {
+    RT_SECTION();
     ensure_started();
     lugha_rt_cancel_point();
     wake_due_sleepers();
     poll_ready_sockets();
-    if (worker->ready_head == NULL) {
+    if (ready_head == NULL) {
         return;
     }
     make_ready(current);
@@ -177,6 +221,7 @@ void lugha_rt_task_yield(void) {
 
 /* `task.sleep(ms)`: pauses this thread; others run. */
 void lugha_rt_task_sleep(int64_t ms) {
+    RT_SECTION();
     ensure_started();
     if (ms <= 0) {
         lugha_rt_task_yield();
@@ -200,6 +245,7 @@ void lugha_rt_task_preempt(void) {
     if (worker->on_c_stack) {
         return;
     }
+    RT_SECTION();
     check_times();
     lugha_rt_cancel_point();
     if (live_count > 1) {

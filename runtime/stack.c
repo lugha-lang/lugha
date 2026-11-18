@@ -31,6 +31,14 @@ static void on_segv(int signal, siginfo_t *info, void *context) {
     bool main_overflow =
         stack_low != 0 && at + GUARD_WINDOW >= stack_low && at < stack_low + GUARD_WINDOW;
     if (c_overflow || main_overflow) {
+        // Reported once: a thread overflowing too waits for the first to
+        // end the process.
+        static int reported;
+        if (__atomic_exchange_n(&reported, 1, __ATOMIC_ACQ_REL) != 0) {
+            for (;;) {
+                pause();
+            }
+        }
         /* Not async-signal-safe, but it keeps earlier output, as other panics
          * do; if the overflow happened inside stdio this can hang instead of
          * exiting, which is acceptable for a program already out of stack. */
@@ -48,6 +56,19 @@ static void on_segv(int signal, siginfo_t *info, void *context) {
     fallback.sa_handler = SIG_DFL;
     sigaction(signal, &fallback, NULL);
     raise(signal);
+}
+
+/* A worker thread's own alternate stack: the handler runs on the faulting
+ * thread, so each needs one. Without it, a fault there kills the process
+ * with SIGSEGV, as before. */
+static void stack_overflow_handler_thread(void) {
+    stack_t alternate;
+    memset(&alternate, 0, sizeof alternate);
+    alternate.ss_sp = malloc(sizeof alternate_stack);
+    alternate.ss_size = sizeof alternate_stack;
+    if (alternate.ss_sp != NULL) {
+        sigaltstack(&alternate, NULL);
+    }
 }
 
 /* Each step can fail; then the program runs without the handler, as before. */

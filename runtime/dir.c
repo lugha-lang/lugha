@@ -179,6 +179,7 @@ static void dir_working_done(void) {
 
 /* `$os.dir_cwd()`: the working folder, confined like any `Dir`. */
 int32_t lugha_rt_dir_cwd(void **out, LughaString **error) {
+    RT_SECTION();
     if (dir_working == NULL) {
         void *opened;
         if (!dir_plain(".", 1, &opened, error)) {

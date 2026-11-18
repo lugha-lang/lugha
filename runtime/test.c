@@ -32,5 +32,5 @@ void lugha_rt_test_skip(const LughaString *reason, const char *file, int64_t lin
     fwrite(reason->bytes, 1, (size_t)reason->len, stderr);
     fputc('\n', stderr);
     fflush(stderr);
-    exit(77);
+    program_exit(77);
 }

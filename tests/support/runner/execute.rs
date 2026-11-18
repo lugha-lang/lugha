@@ -35,6 +35,9 @@ fn case_command(lughac: &Path, workdir: &Path, case: &Case) -> (Command, Option<
             cmd.arg(subcommand).arg(arg).current_dir(workdir)
         }
     };
+    // One worker: many programs print from several tasks, and the order
+    // they expect is one thread's. `tests/workers.rs` runs them on several.
+    cmd.env("LUGHA_WORKERS", "1");
     cmd.envs(case.extras.envvars.iter().map(|(k, v)| (k, v)));
     if !case.extras.args.is_empty() {
         cmd.arg("--").args(&case.extras.args);

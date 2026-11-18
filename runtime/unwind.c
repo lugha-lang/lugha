@@ -52,12 +52,12 @@ static _Unwind_Reason_Code panic_stop(int version, _Unwind_Action actions,
     if (panic->cancel) {
         // `main`, cancelled because a root-scope task failed, or by Ctrl-C.
         fflush(stdout);
-        exit(shutting_down ? 130 : 101);
+        program_exit(shutting_down ? 130 : 101);
     }
     panic_end(panic->text, panic->len);
     // Only an actor's panic returns from `panic_end`'s caller, and it
     // never does: its fiber ends. Anything else has exited.
-    exit(101);
+    program_exit(101);
 }
 
 /* The `_Unwind_Exception` cleanup a foreign catcher would call; nothing
@@ -71,7 +71,7 @@ static void panic_free(_Unwind_Reason_Code reason, struct _Unwind_Exception *exc
  * unwinds into C, whose state it can't know, so the program ends here. */
 void lugha_rt_unwound_to_c(void) {
     fflush(stdout);
-    exit(101);
+    program_exit(101);
 }
 
 /* Unwinds the current fiber: a panic with its message, or a cancellation
@@ -79,7 +79,7 @@ void lugha_rt_unwound_to_c(void) {
 static void start_unwind(bool cancel, const char *text, size_t len) {
     bool *unwinding = unwinding_flag();
     if (*unwinding && !(cancel && shield_cut_off())) {
-        exit(101);
+        program_exit(101);
     }
     if (*unwinding) {
         // A shield in a `defer` cut off: its pad stops this unwind and
@@ -97,17 +97,20 @@ static void start_unwind(bool cancel, const char *text, size_t len) {
     if (current != NULL) {
         current->in_flight = panic;
     }
+    // The unwind leaves the runtime's sections without closing them.
+    rt_drop();
     _Unwind_ForcedUnwind(&panic->exception, panic_stop, NULL);
     // Only if the unwinder couldn't start: end the task as it is.
     panic_end(text, len);
-    exit(101);
+    program_exit(101);
 }
 
 /* A caught unwind that wasn't the catcher's own goes on outward. */
 static void resume_unwind(Panic *panic) {
     current->in_flight = panic;
+    rt_drop();
     _Unwind_ForcedUnwind(&panic->exception, panic_stop, NULL);
-    exit(101);
+    program_exit(101);
 }
 
 static void panic_unwind(const char *text, size_t len) {

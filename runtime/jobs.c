@@ -49,6 +49,41 @@ static void helper_event_open(void) {
     }
 }
 
+/* The workers' wake-up event, in the set: written to wake the worker
+ * waiting in `epoll_wait` (workers.c), and from the Ctrl-C handler. */
+static char wake_tag;
+static int wake_fd = -1;
+
+static void wake_open(void) {
+    if (wake_fd >= 0) {
+        return;
+    }
+    io_open();
+    int fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+    struct epoll_event ev = {.events = EPOLLIN, .data = {.ptr = &wake_tag}};
+    if (fd < 0 || epoll_ctl(net_epoll, EPOLL_CTL_ADD, fd, &ev) != 0) {
+        die("panic: can't make the workers' wake-up event\n");
+    }
+    wake_fd = fd;
+}
+
+/* Wakes the worker waiting in `epoll_wait`; safe in a signal handler. */
+static void poller_kick(void) {
+    if (wake_fd >= 0) {
+        uint64_t one = 1;
+        // Full already is as good: a wake-up is pending.
+        ssize_t written = write(wake_fd, &one, sizeof one);
+        (void)written;
+    }
+}
+
+/* The wake-up event was seen: emptied, so the next one is seen too. */
+static void wake_taken(void) {
+    uint64_t count;
+    while (read(wake_fd, &count, sizeof count) < 0 && errno == EINTR) {
+    }
+}
+
 /* Takes every finished job back: wakes its task, or frees it when its task
  * stopped waiting; each one taken makes room for a task waiting to give. */
 static void jobs_collect(void) {
@@ -130,6 +165,7 @@ static void job_run(Job *job) {
         job->run(job);
         return;
     }
+    RT_SECTION();
     ensure_started();
     if (!job->holds_task && current->cancelled != REASON_NONE && !current->unwinding) {
         job_free(job);

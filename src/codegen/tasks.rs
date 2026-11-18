@@ -97,6 +97,27 @@ impl<'ctx> Lowerer<'ctx> {
         result: &Type,
         named: &str,
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
+        let task = self.start_task_held(scope, scope_error, pair, result, named)?;
+        self.task_go(task);
+        Ok(task)
+    }
+
+    /// Queues a task `start_task_held` made: until now no worker could run
+    /// it, so it ran with its name and result's visit already set.
+    pub(super) fn task_go(&mut self, task: BasicValueEnum<'ctx>) {
+        self.rt("lugha_rt_task_go", &[Type::String], None, &[task]);
+    }
+
+    /// `start_task` without queuing the task: the caller finishes setting it
+    /// up (an actor's record), then calls `task_go`.
+    pub(super) fn start_task_held(
+        &mut self,
+        scope: BasicValueEnum<'ctx>,
+        scope_error: &Type,
+        pair: inkwell::values::StructValue<'ctx>,
+        result: &Type,
+        named: &str,
+    ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
         // The closure, and what its arguments
         // reach, cross to the new task: marked shared, its holder the task's.
         let fun = Type::Fun(Vec::new(), Box::new(result.clone()));

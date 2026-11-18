@@ -110,16 +110,19 @@ int32_t lugha_rt_read_line(LughaString **out) {
  * flushed first so a terminal shows output in program order. */
 void lugha_rt_eprint(const LughaString *text, int32_t newline) {
     fflush(stdout);
+    // One line whole, though tasks on other threads print too.
+    flockfile(stderr);
     fwrite(text->bytes, 1, (size_t)text->len, stderr);
     if (newline) {
         fputc('\n', stderr);
     }
+    funlockfile(stderr);
 }
 
 /* `exit(code)`: stdout flushed, then the process ends with `code`. */
 void lugha_rt_exit(int32_t code) {
     fflush(stdout);
-    exit(code);
+    program_exit(code);
 }
 
 /* `flush()`: what `print` wrote so far, out now. A

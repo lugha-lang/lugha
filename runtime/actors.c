@@ -131,6 +131,8 @@ static void actor_task_ended(bool panicked) {
  * message until `stop`; a cancellation while it waits for mail ends it. */
 void lugha_rt_actor_run(void *env) {
     LughaActor *a = env;
+    // Its mailbox under the lock; each handler, Lugha code, without it.
+    rt_enter();
     for (;;) {
         while (a->head == NULL) {
             a->idle = current;
@@ -151,12 +153,15 @@ void lugha_rt_actor_run(void *env) {
         a->queued--;
         room(a);
         a->handling = m;
+        rt_leave();
         m->handler(a->state, m->args, m->result);
+        rt_enter();
         a->handling = NULL;
         answer(m, RUNNING);
         message_done(m);
     }
     actor_ended(a, STOPPED);
+    rt_leave();
 }
 
 /* A panic nothing caught ends the program: an actor's is caught by its
@@ -164,7 +169,7 @@ void lugha_rt_actor_run(void *env) {
 static void panic_end(const char *text, size_t len) {
     (void)text;
     (void)len;
-    exit(101);
+    program_exit(101);
 }
 
 /* The visit of an actor's handle: its state. */
@@ -199,6 +204,7 @@ LughaActor *lugha_rt_actor_new(void *state, const char *name, int64_t capacity) 
 /* The actor's task has started in its scope: the scope stops it once its
  * other tasks are done. */
 void lugha_rt_actor_started(LughaTask *task, LughaActor *a) {
+    RT_SECTION();
     Fiber *f = task->fiber;
     f->actor = a;
     LughaScope *s = f->started_in;
@@ -262,6 +268,7 @@ static void post_counted(LughaActor *a, Message *m, const char *file, int64_t li
  * value: `lugha_rt_rc_block_done`). */
 void *lugha_rt_actor_call(LughaActor *a, Handler handler, void *args, int64_t size,
                           const char *file, int64_t line, int64_t col) {
+    RT_SECTION();
     ensure_started();
     int32_t outcome = RUNNING;
     Message *m = new_message();
@@ -287,6 +294,7 @@ void *lugha_rt_actor_call(LughaActor *a, Handler handler, void *args, int64_t si
 /* A cast: queues `handler(state, args, …)` and goes on. */
 void lugha_rt_actor_cast(LughaActor *a, Handler handler, void *args, const char *file,
                          int64_t line, int64_t col) {
+    RT_SECTION();
     ensure_started();
     Message *m = new_message();
     m->handler = handler;
@@ -301,6 +309,7 @@ static void stop_after_mail(LughaActor *a) {
 
 /* `a.stop()`: a message like any other, after what is queued. */
 void lugha_rt_actor_stop(LughaActor *a, const char *file, int64_t line, int64_t col) {
+    RT_SECTION();
     ensure_started();
     check_alive(a, file, line, col);
     stop_after_mail(a);

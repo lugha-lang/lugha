@@ -361,3 +361,30 @@ Each program built by the previous compiler (milestone 208) and by this one, at 
 | chanping    | 0.174s  | 0.180s  | +3.4%  |
 
 wordfreq moved +0.7% on the run before this one: noise. With `worker` a thread-local pointer to the record, binarytrees was +4.6% and chanping +12%: every field took two dependent loads, the pointer reloaded after each call. With the record itself thread-local, each field is one `fs`-relative access. The mimalloc baseline wasn't measured: it isn't installed here, and only blocks over 272 bytes would go through it.
+
+## 2026-11-19 — tasks on every core (PRP-242, milestone 210)
+
+Each program built by milestone 209's compiler and by this one, at `-O2`, run 9 times each, interleaved; the median of each. The machine has 2 cores, 4 threads.
+
+| benchmark   | before  | after   | change |
+|-------------|---------|---------|--------|
+| fib         | 0.782s  | 0.690s  | -11.8% |
+| fannkuch    | 0.260s  | 0.260s  | -0.3%  |
+| mandelbrot  | 0.367s  | 0.369s  | +0.6%  |
+| nbody       | 0.680s  | 0.679s  | -0.2%  |
+| binarytrees | 0.912s  | 0.927s  | +1.7%  |
+| wordfreq    | 0.500s  | 0.507s  | +1.5%  |
+| chanping    | 0.183s  | 0.277s  | +51.5% |
+
+Four tasks each summing `i % 7` for 400 million `i`, then sending the sum to `main`:
+
+| workers | time  |
+|---------|-------|
+| 1       | 3.22s |
+| 2       | 1.70s |
+| 4       | 1.58s |
+
+Two cores give 1.9×; hyperthreads add little to a loop of integer division.
+
+- **The stack check and budget** from the stack pointer (`sp & mask`, the budget in the stack's top word) measured alone: fib +2.5%, nbody −0.3%, chanping −6% against milestone 209. fib's final −11.8% came with the rest; code layout, likely.
+- **chanping** is slower on one worker too (0.25–0.27 s): measured in a C harness against the runtime, about 0.03 s of the 0.075 s is reading the thread pointer afresh on each access (a task may have moved between threads), about 0.04 s the lock's sections, even with the lock itself skipped while one thread runs, and the rest the switch's extra bookkeeping. Accepted for now; the next PRP reworks exactly these (TODO.md).
