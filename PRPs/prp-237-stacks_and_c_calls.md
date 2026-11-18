@@ -1,6 +1,6 @@
 ## FEATURE: Stacks and C calls: task stacks become large lazy reservations carved from pooled regions with no guard pages, a check at each function's entry raises a `stack overflow` panic that unwinds, C code runs on its own large stack, and `main` is a task on a pooled stack; milestone 205.
 
-**Status:** proposed 2026-11-18.
+**Status:** approved 2026-11-18; built 2026-11-18 (milestone 205).
 
 ## OBJECTIVE
 ```
@@ -50,6 +50,16 @@ prints `true`, then `panic: stack overflow at …` on stderr and `unwound`, and 
 5. **A callback that would wait panics now**, rather than corrupting the C stack: the safe rule before PRP 6 gives callbacks their full shape.
 6. **The C harness (`tests/tasks_runtime.rs`) keeps `main` on the process's stack** (the runtime still accepts a `main` fiber without a pooled stack), so it needs no `lugha_rt_main`.
 
+## MEASUREMENTS
+Interleaved against the previous compiler (`bench/RESULTS.md`): fib +34.6%, fannkuch +4.2%, mandelbrot +0.4%, nbody +1.0%, binarytrees and wordfreq unchanged. fib and fannkuch miss the 3% target; recorded and accepted, as decision 4 says, with the optimisations in TODO.md (small leaf functions skipping the check; the check past early returns).
+
+## MADE DURING THE BUILD
+- **The check is inserted after optimising** (`insert_stack_checks`, on functions codegen marked), not while lowering: inlined into a loop, a lowered check ran on every turn (nbody +11%). The check takes a new first block, and the function's `alloca`s move into it, keeping their names.
+- **C calls move to the C stack in one pass over the finished module** (`codegen::c_stack`), whatever lowered them (plain externs, renamed ones, structs by value): each call of a declared external non-`lugha_` function becomes a frame and `lugha_rt_c_call` with a per-site thunk carrying the call's attributes.
+- **`main` runs through `lugha_rt_main`**, which takes its pooled stack without starting the scheduler, so a program without tasks still exits at the first Ctrl-C.
+- **The C harness's stack-overflow case is gone:** it recursed in C on a task's stack, which is what this PRP rules out; the overflow programs cover the behaviour. The four overflow programs no longer leak (they unwind) and left the leak test's known list; an overflow in a root task now reports as that task's panic.
+- **"A million frames" became 100,000** in the tests: a million frames don't fit an 8 MiB stack.
+
 ## REQUIREMENTS
 
 ### Must Do
@@ -62,14 +72,14 @@ prints `true`, then `panic: stack overflow at …` on stderr and `unwound`, and 
 - `scope s stack n`, a project default (PRP 8); queued or `inline` callbacks, `Ring<T>` (PRP 6); several workers (PRP 5).
 
 ## TESTS
-- [ ] `tests/programs/control/unwinding/`: an overflow in `main` and in a task unwinding with their `defer`s run (exit 101, and a scoped task's overflow failing its scope); a deep but legal recursion (a million frames) succeeding.
-- [ ] `tests/programs/concurrency/`: a hundred thousand tasks in one scope.
-- [ ] `tests/programs/c_interop/` (or the extern tests): an extern doing deep recursion in C on the C stack; a callback calling back into Lugha, which calls an extern again; a callback that would wait panicking with the message.
-- [ ] `tests/tasks_runtime.rs` unchanged in behaviour; the `stack_overflow` known-leak entry updated if the program now unwinds.
-- [ ] Targeted: `--lib`, `programs`, `leaks`, `spec`, `tasks_runtime`, `test_modes`, the extern and callback tests, `arm` (ARM64 builds).
+- [x] `tests/programs/control/unwinding/`: an overflow in `main` and in a task unwinding with their `defer`s run (exit 101, and a scoped task's overflow failing its scope); a deep but legal recursion (a million frames) succeeding.
+- [x] `tests/programs/concurrency/`: a hundred thousand tasks in one scope.
+- [x] `tests/programs/c_interop/` (or the extern tests): an extern doing deep recursion in C on the C stack; a callback calling back into Lugha, which calls an extern again; a callback that would wait panicking with the message.
+- [x] `tests/tasks_runtime.rs` unchanged in behaviour; the `stack_overflow` known-leak entry updated if the program now unwinds.
+- [x] Targeted: `--lib`, `programs`, `leaks`, `spec`, `tasks_runtime`, `test_modes`, the extern and callback tests, `arm` (ARM64 builds).
 
 ## ACCEPTANCE
-- [ ] Overflows unwind; task count is bounded by memory, not mappings; C runs on its own stack.
-- [ ] The benchmarks measured and recorded.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` clean; targeted tests pass.
-- [ ] Spec, CHANGELOG and CLAUDE.md updated.
+- [x] Overflows unwind; task count is bounded by memory, not mappings; C runs on its own stack.
+- [x] The benchmarks measured and recorded.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` clean; targeted tests pass.
+- [x] Spec, CHANGELOG and CLAUDE.md updated.

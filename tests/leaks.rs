@@ -49,24 +49,8 @@ const KNOWN: &[(&str, &str)] = &[
         "concurrency/channels/deadlock.la",
         "the waiting tasks aren't unwound",
     ),
-    // Running out of stack, or a fault in C, ends the program from a signal
-    // handler: nothing unwinds, and no report is printed.
-    (
-        "collections/growable_arrays/stack_overflow.la",
-        "a stack overflow doesn't unwind",
-    ),
-    (
-        "concurrency/green_threads/overflow.la",
-        "a stack overflow doesn't unwind",
-    ),
-    (
-        "runtime/small_frames/big_frame_overflow.la",
-        "a stack overflow doesn't unwind",
-    ),
-    (
-        "runtime/small_frames/green_big_frame_overflow.la",
-        "a stack overflow doesn't unwind",
-    ),
+    // A fault in C ends the program from a signal handler: nothing
+    // unwinds, and no report is printed.
     (
         "collections/growable_arrays/segv_from_c.la",
         "a fault in C ends the program from its signal handler",

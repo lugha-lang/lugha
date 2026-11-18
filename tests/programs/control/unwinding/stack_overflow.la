@@ -1,0 +1,9 @@
+// Running out of stack is a panic like any other: it unwinds, running the
+// pending `defer`s. A deep recursion that fits runs as usual.
+fun depth(n: i64): i64 = if n == 0 { 0 } else { 1 + depth(n - 1) };
+
+fun main(console: Console) {
+    defer console.println("main unwound");
+    console.println(depth(100_000));
+    console.println(depth(1_000_000_000));
+}

@@ -287,6 +287,7 @@ void lugha_rt_scope_leave(LughaScope *s) {
  * over; one from outside stays, to go on once the scope ends. Then the
  * tasks are cancelled and waited for. */
 void lugha_rt_scope_caught(LughaScope *s) {
+    stack_limit_restore();
     Panic *caught = current->in_flight;
     // Unwinding from the exit that left it (a `defer` there): not its own.
     if (s->left && caught != NULL) {

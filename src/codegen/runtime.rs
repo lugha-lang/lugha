@@ -294,7 +294,10 @@ mod tests {
             ),
             "{ir}"
         );
-        let main = &ir[ir.find("define i32 @main(i32 %0, ptr %1)").unwrap()..];
+        // The program's start, which the C `main` runs on a pooled stack.
+        let main = &ir[ir
+            .find("define internal i32 @lugha_entry(i32 %0, ptr %1)")
+            .unwrap()..];
         // The runtime keeps `argc`/`argv` for `args()`.
         let init = main
             .find("call void @lugha_rt_init(i32 %0, ptr %1)")

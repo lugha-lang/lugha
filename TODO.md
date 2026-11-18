@@ -19,6 +19,7 @@ What's next. Shipped work is in CHANGELOG.md (and the spec's §11 milestone tabl
 - [ ] **Literal patterns on `f64`.**
 - [ ] **Warnings:** an irrefutable `if let`.
 - [ ] **Small values stored inline in interface values** (an optimisation only).
+- [ ] **The stack check: measure and optimise** (after PRP-237): fib is 35% slower and fannkuch 4% (target 3%). Skip the check in functions whose frames are small and that call nothing (as Go does), and move it past a function's early returns (shrink-wrapping: fib's base cases then check nothing).
 - [ ] **Maps: measure and optimise** (after PRP-236, user's call): SipHash-1-3 made `wordfreq` about 18% slower (target 10%). End a string with a `0xff` byte in a buffered byte stream, as Rust does, instead of a length word (about 4 rounds for a short word instead of 6); then a SwissTable-style table (groups of control bytes), where most of the gap to Rust's 0.15 s lies.
 - [ ] **Packages, more:** a registry; `ssh` URLs; branches or commits as requirements; two versions of one package in a build; full version ranges and pre-release versions.
 - [ ] **Imports, more:** re-export chains (`m.v.w.X`), a `--package` flag, package-level (not `public`) re-exports.

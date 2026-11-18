@@ -321,3 +321,63 @@ fn a_panic_in_a_callback_unwinds_to_it_and_ends_the_program() {
         text(&out.stderr)
     );
 }
+
+#[test]
+fn c_runs_on_its_own_stack_whichever_task_calls_it() {
+    // A local's address in C, from `main` and from a task: both on the one
+    // C stack, near each other; task stacks are 8 MiB apart.
+    Case::new(
+        "extern fun c_where(): i64;\n\
+         fun from_task(): i64 = c_where();\n\
+         fun main(console: Console) {\n\
+             let here = c_where();\n\
+             let r = scope s { s.spawn(from_task()).join().unwrap() };\n\
+             let there = r.unwrap();\n\
+             let apart = if here > there { here - there } else { there - here };\n\
+             console.println(apart < 65_536);\n\
+         }\n",
+        "long c_where(void) { volatile char local = 0; return (long)&local; }\n",
+    )
+    .runs("true\n");
+}
+
+#[test]
+fn a_callback_may_call_c_again() {
+    Case::new(
+        "extern fun apply_sum(n: i64, f: fun(i64): i64): i64;\n\
+         extern fun twice(x: i64): i64;\n\
+         fun main(console: Console) {\n\
+             console.println(apply_sum(4, fun(x) = twice(x)));\n\
+         }\n",
+        "long apply_sum(long n, long (*f)(long)) {\n\
+             long s = 0;\n\
+             for (long i = 0; i < n; i++) s += f(i);\n\
+             return s;\n\
+         }\n\
+         long twice(long x) { return 2 * x; }\n",
+    )
+    .runs("12\n");
+}
+
+#[test]
+fn a_callback_that_would_wait_panics() {
+    let case = Case::new(
+        "import std.task;\n\
+         extern fun apply_sum(n: i64, f: fun(i64): i64): i64;\n\
+         fun main(console: Console) {\n\
+             console.println(apply_sum(2, fun(x) { task.sleep(1); x }));\n\
+         }\n",
+        "long apply_sum(long n, long (*f)(long)) {\n\
+             long s = 0;\n\
+             for (long i = 0; i < n; i++) s += f(i);\n\
+             return s;\n\
+         }\n",
+    );
+    let out = case.lughac(&["run", "main.la"]);
+    assert_eq!(out.status.code(), Some(101));
+    assert!(
+        text(&out.stderr).contains("panic: a C callback can't wait: start a task instead"),
+        "{}",
+        text(&out.stderr)
+    );
+}

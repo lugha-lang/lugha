@@ -12,6 +12,7 @@ mod c_abi;
 mod c_abi_arm;
 mod c_arrays;
 mod c_calls;
+mod c_stack;
 mod call_costs;
 mod callbacks;
 mod cast;

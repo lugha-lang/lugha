@@ -7,21 +7,6 @@
  * tasks.c, whose fibers and scheduler it uses.
  */
 
-static char *new_stack(void) {
-    if (spare_count > 0) {
-        return spare[--spare_count];
-    }
-    char *map = mmap(NULL, FIBER_GUARD + FIBER_STACK, PROT_READ | PROT_WRITE,
-                     MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_STACK, -1, 0);
-    if (map == MAP_FAILED) {
-        die("panic: out of memory\n");
-    }
-    if (mprotect(map, FIBER_GUARD, PROT_NONE) != 0) {
-        die("panic: out of memory\n");
-    }
-    return map;
-}
-
 /* Where a new fiber starts: runs its call, stores the result, wakes its
  * joiners, and never comes back. */
 static void fiber_exit(Fiber *self);
@@ -127,7 +112,7 @@ LughaTask *lugha_rt_task_spawn(void (*entry)(void *, void *, void *), void *code
     lugha_rt_rc_mark(task);
     Fiber *f = lugha_rc_internal(sizeof(Fiber));
     f->map = new_stack();
-    f->top = f->map + FIBER_GUARD + FIBER_STACK;
+    f->top = f->map + stack_size;
     f->entry = entry;
     f->code = code;
     f->env = env;
@@ -207,6 +192,10 @@ void lugha_rt_task_sleep(int64_t ms) {
 /* Called by generated code when its countdown reaches zero. */
 void lugha_rt_task_preempt(void) {
     lugha_rt_task_budget = TASK_BUDGET;
+    // A C callback runs on the C stack, which no other task may take.
+    if (on_c_stack) {
+        return;
+    }
     check_times();
     lugha_rt_cancel_point();
     if (live_count > 1) {

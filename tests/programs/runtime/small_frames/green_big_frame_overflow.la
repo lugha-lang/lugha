@@ -1,5 +1,5 @@
-// The same 200 KB frames in a green thread: the probes reach its
-// guard pages page by page instead of stepping over them.
+// The same 200 KB frames in a green thread: each function's entry check
+// sees the task's stack run out, and the overflow is a panic that unwinds.
 struct Big {
     g0: i64,
     g1: i64,

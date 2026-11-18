@@ -23,8 +23,10 @@ use inkwell::values::{
 
 use super::split_leaves::successors;
 
-/// Adds stack probes to every function `module` defines.
+/// Adds stack probes to every function `module` defines, after moving
+/// every C call onto the C stack (`codegen::c_stack`).
 pub(super) fn probe_stacks<'ctx>(context: &'ctx Context, module: &Module<'ctx>) {
+    super::c_stack::calls_on_c_stack(context, module);
     let probe = context.create_string_attribute("probe-stack", "inline-asm");
     for function in module
         .get_functions()

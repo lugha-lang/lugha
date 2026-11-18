@@ -6,26 +6,21 @@
  * waits (`join`, a channel, `select`, `sleep`), yields, or is preempted by
  * the countdown generated code keeps in `lugha_rt_task_budget`.
  *
- * Each green thread is a `Fiber`: its own `mmap`'d stack (1 MiB, guard pages
- * below) and the stack pointer saved while it is switched out. `main` is a
- * fiber too, on the program's own stack. A fiber is the runtime's own
- * memory, freed once another fiber runs after it ends.
+ * Each green thread is a `Fiber`: a stack from the pool (stacks.c) and the
+ * stack pointer saved while it is switched out. `main` is a fiber too. A
+ * fiber is the runtime's own memory, freed once another fiber runs after
+ * it ends.
  *
  * A `Task<T>` value is a `LughaTask`, a counted object holding the result; a
  * `Chan<T>` is a `LughaChan`. Values cross channels as `elem` bytes in
  * element layout, already copied by generated code.
  *
  * A fragment, not compiled on its own: lughac's link.rs joins it after the
- * core (lugha_rt.c), stack.c (`green_guard_low`/`high`) and random.c.
+ * core (lugha_rt.c), stack.c and random.c; stacks.c follows it.
  */
 
-/* Reserved per green thread, and the guard below it. */
-#define FIBER_STACK (1024 * 1024)
-#define FIBER_GUARD GUARD_WINDOW
 /* Steps between preemption checks in generated code. */
 #define TASK_BUDGET 4096
-/* Stacks of finished threads kept for reuse. */
-#define SPARE_STACKS 16
 
 typedef struct Fiber Fiber;
 
@@ -135,8 +130,6 @@ static Fiber *live;
 static int64_t live_count;
 /* A fiber that has finished, reaped by the next one to run. */
 static Fiber *zombie;
-static char *spare[SPARE_STACKS];
-static int spare_count;
 
 void lugha_rt_task_swap(void **save, void *load);
 void lugha_rt_task_boot(void);
@@ -424,20 +417,10 @@ static void wake_due_sleepers(void) {
     }
 }
 
-/* Gives a finished fiber's stack back once another one is running on its own. */
-static void reap(void) {
-    Fiber *dead = zombie;
-    if (dead == NULL) {
-        return;
-    }
-    zombie = NULL;
-    if (spare_count < SPARE_STACKS) {
-        spare[spare_count++] = dead->map;
-    } else {
-        munmap(dead->map, FIBER_GUARD + FIBER_STACK);
-    }
-    free(dead);
-}
+/* Task stacks and the limit (stacks.c). */
+static void reap(void);
+static uintptr_t stack_limit_of(const Fiber *f);
+extern uintptr_t lugha_rt_stack_limit;
 
 static void switch_to(Fiber *next) {
     Fiber *prev = current;
@@ -445,8 +428,7 @@ static void switch_to(Fiber *next) {
         return;
     }
     current = next;
-    green_guard_low = next->map == NULL ? 0 : (uintptr_t)next->map;
-    green_guard_high = next->map == NULL ? 0 : (uintptr_t)next->map + FIBER_GUARD;
+    lugha_rt_stack_limit = stack_limit_of(next);
     lugha_rt_task_swap(&prev->sp, next->sp);
     /* Back on `prev`'s stack: whoever ran before may have finished. */
     reap();
@@ -467,9 +449,16 @@ static void deadlock(void) {
     exit(101);
 }
 
+/* True while C runs, or a C callback's Lugha code (stacks.c): on the C
+ * stack, which no other task may run on. */
+static bool on_c_stack;
+
 /* Runs the next ready fiber; the current one has already queued itself, or
  * is waiting. Sleeps the OS thread when only sleepers remain. */
 static void schedule(void) {
+    if (on_c_stack) {
+        panic_with("a C callback can't wait: start a task instead", 45);
+    }
     for (;;) {
         wake_due_sleepers();
         Fiber *next = pop_ready();

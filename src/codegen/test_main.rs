@@ -14,7 +14,7 @@ impl<'ctx> Lowerer<'ctx> {
         let i32_type = self.context.i32_type();
         let ptr = self.context.ptr_type(Default::default());
         let main_type = i32_type.fn_type(&[i32_type.into(), ptr.into()], false);
-        let main = self.module.add_function("main", main_type, None);
+        let main = self.c_entry(main_type);
         self.builder
             .position_at_end(self.context.append_basic_block(main, "entry"));
         let argc = main.get_nth_param(0).expect("main takes argc");

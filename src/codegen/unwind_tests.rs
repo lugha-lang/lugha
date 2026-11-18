@@ -67,7 +67,9 @@ fn every_function_has_unwind_tables() {
 #[test]
 fn main_lets_go_of_its_arguments_when_it_unwinds() {
     let ir = ir_raw("fun main(args: string[]) { let x = args[0]; }");
-    let at = ir.find("define i32 @main(").expect("the C entry");
+    let at = ir
+        .find("define internal i32 @lugha_entry(")
+        .expect("the C entry");
     let main = &ir[at..at + ir[at..].find("\n}").expect("a body ends")];
     assert!(main.contains("invoke void @lugha_fn_main("), "{main}");
     assert!(main.contains("landingpad"), "{main}");

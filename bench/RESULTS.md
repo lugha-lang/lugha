@@ -298,3 +298,19 @@ Landing pads (a panic runs `defer`s and releases while unwinding). The machine w
 | nbody | 0.67 s | 0.67 s | 106.0 KB | 111.0 KB |
 
 `fib` has no landing pads, so its code is unchanged; binarytrees' `make` holds counted values across its calls, which now unwind to pads (+5%). Binaries grow 5–12% with the unwind tables and pads.
+
+## 2026-11-18 — the stack check and C on its own stack (PRP-237, milestone 205)
+
+Each program built once by the previous compiler (`main`) and once by this one, at `-O2`, then run 9 times each, interleaved (one machine; `bench/run.py`'s consecutive runs swung by 10–30%). The check sits at the entry of each function left after optimising.
+
+| benchmark   | before  | after   | change |
+|-------------|---------|---------|--------|
+| fib         | 0.578s  | 0.778s  | +34.6% |
+| fannkuch    | 0.244s  | 0.254s  | +4.2%  |
+| mandelbrot  | 0.365s  | 0.366s  | +0.4%  |
+| nbody       | 0.743s  | 0.751s  | +1.0%  |
+| binarytrees | 0.887s  | 0.887s  | -0.1%  |
+| wordfreq    | 0.484s  | 0.482s  | -0.4%  |
+
+With the check inserted before optimising, nbody was +11%: a function inlined into a loop checked on every turn. fib pays a load, a compare and a branch per call, which does little else; fib and fannkuch miss the 3% target, accepted for now (TODO.md).
+

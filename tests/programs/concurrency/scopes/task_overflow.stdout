@@ -1,0 +1,3 @@
+task unwound
+task `deep` panicked: stack overflow
+main goes on

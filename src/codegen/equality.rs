@@ -117,6 +117,8 @@ mod tests {
     fn arrays_compare_lengths_before_elements() {
         let ir = ir("fun main() { let a = [1, 2]; let e = a == [1, 3]; }");
         let helper = body(&ir, "\"lugha_fn_$prelude/Eq@array.eq<i64>\"");
+        // Past the stack check, which branches to the body's first block.
+        let helper = &helper[helper.find("\nentry:").expect("the body's first block")..];
         let lengths = helper
             .find("icmp ne i64")
             .or_else(|| helper.find("icmp eq i64"));

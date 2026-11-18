@@ -99,6 +99,7 @@ pub fn emit_ir_with(
 ) -> Result<String, CodegenError> {
     let context = Context::create();
     let module = lower::lower(&context, units, checked, (sources, target, costs))?;
+    super::call_costs::insert_stack_checks(&context, &module);
     frames::share_all_slots(&module);
     Ok(module.print_to_string().to_string())
 }
@@ -191,6 +192,8 @@ pub fn emit_object_modules(
     module
         .run_passes(pipeline, &machine, PassBuilderOptions::create())
         .map_err(emit_error)?;
+    // Each function still standing checks the stack at its entry.
+    super::call_costs::insert_stack_checks(&context, &module);
     if opt == OptLevel::O2 {
         frames::share_all_slots(&module);
     }

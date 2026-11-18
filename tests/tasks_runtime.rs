@@ -1,7 +1,9 @@
 //! The green-thread runtime through a C harness built against
 //! `lugha_rt.c`: scheduling order, what a switch keeps, sleeping, channels,
 //! `select`, objects a suspended thread holds staying its own, preemption,
-//! and the panics (deadlock, closed channels, stack overflow).
+//! and the panics (deadlock, closed channels). A task's stack overflow is
+//! caught by Lugha functions' entry check, which C has not: see the
+//! overflow programs under `tests/programs/`.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -78,8 +80,6 @@ static int64_t ponger(void *env) {
     while (lugha_rt_chan_recv(chans[0], &v)) { v += 1; lugha_rt_chan_send(chans[1], &v, "x", 1, 1); }
     return 0;
 }
-static int64_t recurse(int64_t n) { volatile char pad[256]; pad[0] = (char)n; return n == 0 ? pad[0] : recurse(n - 1) + pad[0]; }
-static int64_t deep(void *env) { (void)env; return recurse(100000000); }
 static int64_t keeper(void *env) {
     (void)env;
     int64_t **cell = lugha_rt_alloc(sizeof(int64_t *) * 64);
@@ -166,8 +166,6 @@ int main(int argc, char **argv) {
         lugha_rt_chan_close(c, "m", 1, 1);
         int64_t v = 1;
         lugha_rt_chan_send(c, &v, "file.la", 3, 9);
-    } else if (!strcmp(test, "overflow")) {
-        join(spawn(deep, NULL));
     } else if (!strcmp(test, "gc")) {
         void *k = spawn(keeper, NULL), *c = spawn(churn, NULL);
         join(c);
@@ -396,17 +394,6 @@ fn sending_on_a_closed_channel_panics_at_the_send() {
     assert_eq!(
         err,
         "panic: send on a closed channel at file.la:3:9
-"
-    );
-    assert_eq!(code, Some(101));
-}
-
-#[test]
-fn a_green_threads_stack_overflow_panics() {
-    let (_, err, code) = run("overflow");
-    assert_eq!(
-        err,
-        "panic: stack overflow
 "
     );
     assert_eq!(code, Some(101));

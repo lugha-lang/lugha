@@ -1,0 +1,19 @@
+// A task that runs out of stack unwinds, running its `defer`s, and fails
+// its scope; the program goes on.
+fun depth(n: i64): i64 = if n == 0 { 0 } else { 1 + depth(n - 1) };
+
+fun deep(console: Console): i64 {
+    defer console.println("task unwound");
+    depth(1_000_000_000)
+}
+
+fun main(console: Console) {
+    let r = scope s {
+        s.spawn(deep(console));
+    };
+    match r {
+        .Ok(_) => console.println("?"),
+        .Err(f) => console.println("{f}"),
+    }
+    console.println("main goes on");
+}

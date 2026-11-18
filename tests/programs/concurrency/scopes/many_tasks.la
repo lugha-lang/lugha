@@ -1,0 +1,20 @@
+// A hundred thousand tasks at once: each stack is a reservation from a
+// pooled region, so the kernel's limit on mappings is no ceiling.
+fun one(n: i64): i64 = n % 7;
+
+fun main(console: Console) {
+    let (tx, rx) = Chan<i64>.new(100_000);
+    let r = scope s {
+        for i in 0..100_000 {
+            s.spawn(fun() {
+                tx.send(one(i));
+            }());
+        }
+    };
+    tx.close();
+    let mut sum = 0;
+    for x of rx {
+        sum += x;
+    }
+    console.println("{r.is_ok()} {sum}");
+}
