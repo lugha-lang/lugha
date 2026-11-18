@@ -1,6 +1,6 @@
 ## FEATURE: An allocator for many threads: small blocks belong to the worker that carved them, a block freed on another thread goes back to its owner with one atomic push, and a C stress test frees blocks across real threads; milestone 209.
 
-**Status:** proposed 2026-11-18.
+**Status:** approved 2026-11-18; built 2026-11-18 (milestone 209).
 
 ## OBJECTIVE
 Nothing changes for a program: same output, same speed within noise. What changes is that `lugha_rt_alloc` and freeing are safe from several threads at once, which the workers PRP needs before any task runs on a second thread:
@@ -40,6 +40,14 @@ test eight_threads_free_each_others_blocks ... ok      (also under ThreadSanitiz
 3. **No vendored allocator.** Per the research and the project's rule, mimalloc only serves as a benchmark baseline (`LD_PRELOAD`), measured once and recorded.
 4. **The stress test is C against the runtime,** with real `pthread`s and, as a second build, ThreadSanitizer (available with the system `cc`). GenMC isn't installed here, so model checking waits.
 
+## MADE DURING THE BUILD
+- **The `Worker` record itself is thread-local** (`static __thread Worker this_worker`, `worker` its address), not a thread-local pointer to a record (design 4): through a pointer every field took two dependent loads, the pointer reloaded after each call, costing binarytrees 4.6% and chanping 12%; in the thread's own storage each field is one `fs`-relative access (+0.2% and +3.4%). A consequence: a worker thread must never exit, since other threads free blocks back to its record. `lugha_rt_worker_enter` registers the calling thread; `lugha_rt_init` does it for `main`.
+- **No guard against a non-worker thread allocating:** every thread has a record, so a helper allocating would quietly become a worker of its own. Helpers never make Lugha values; callbacks from C's threads (a later PRP) settle it.
+- **The C harnesses** (`tests/waiting_runtime.rs`) now call `lugha_rt_init`, as every program's `main` does.
+- **mimalloc wasn't measured:** not installed here, and only blocks over 272 bytes would go through it.
+- **The remote list has no ABA hazard:** other threads only push; the owner takes the whole list with one swap, never popping one block.
+- **The reuse test's margin:** measured 470 chunks with blocks taken back and about 3,200 without, for 4,000 rounds; the test allows 1,000.
+
 ## REQUIREMENTS
 
 ### Must Do
@@ -52,16 +60,16 @@ test eight_threads_free_each_others_blocks ... ok      (also under ThreadSanitiz
 - Change size classes, the header, or generated code.
 
 ## TESTS
-- [ ] `tests/rc_alloc_threads.rs` (new): a C harness built against `lugha_rt.c`, run both plainly and with `-fsanitize=thread`:
-  - [ ] 8 threads, each a worker, allocate blocks of every class, hand them to the others through mutex-guarded queues, and free what they receive; every block keeps a written pattern until freed, and the report's made and freed counts agree at the end.
-  - [ ] A thread whose own list is empty takes back the blocks others freed for it, before carving a new chunk (checked through the chunk count).
-  - [ ] Blocks over 272 bytes cross threads through `calloc` and `free`.
-- [ ] `tests/tasks_runtime.rs`, `tests/leaks.rs`, `tests/rc_check.rs` and `programs` pass unchanged (one thread: every free is local).
-- [ ] `python3 bench/run.py`-style interleaved runs against milestone 208 (binarytrees above all), plus binarytrees under mimalloc via `LD_PRELOAD` once, recorded.
-- [ ] Targeted: `--lib`, `programs`, `leaks`, `rc_check`, `tasks_runtime`, `waiting_runtime`, `helpers`, `codegen`, `spec`, `arm`.
+- [x] `tests/rc_alloc_threads.rs` (new): a C harness built against `lugha_rt.c`, run both plainly and with `-fsanitize=thread`:
+  - [x] 8 threads, each a worker, allocate blocks of every class, hand them to the others through mutex-guarded queues, and free what they receive; every block keeps a written pattern until freed, and the report's made and freed counts agree at the end.
+  - [x] A thread whose own list is empty takes back the blocks others freed for it, before carving a new chunk (checked through the chunk count).
+  - [x] Blocks over 272 bytes cross threads through `calloc` and `free`.
+- [x] `tests/tasks_runtime.rs`, `tests/leaks.rs`, `tests/rc_check.rs` and `programs` pass unchanged (one thread: every free is local).
+- [x] `python3 bench/run.py`-style interleaved runs against milestone 208 (binarytrees above all), recorded; mimalloc not measured (see the build notes).
+- [x] Targeted: `--lib`, `programs`, `leaks`, `rc_check`, `tasks_runtime`, `waiting_runtime`, `helpers`, `codegen`, `spec`, `arm`.
 
 ## ACCEPTANCE
-- [ ] The stress test passes, with and without ThreadSanitizer.
-- [ ] Benchmarks within noise of milestone 208, or the difference recorded and accepted.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
-- [ ] Spec, CHANGELOG, CLAUDE.md and `bench/RESULTS.md` are updated.
+- [x] The stress test passes, with and without ThreadSanitizer.
+- [x] Benchmarks within noise of milestone 208, or the difference recorded and accepted.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
+- [x] Spec, CHANGELOG, CLAUDE.md and `bench/RESULTS.md` are updated.

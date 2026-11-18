@@ -26,8 +26,6 @@
 #define RC_IMMORTAL INT64_MIN
 #define RC_FREED (INT64_MIN + 0x5EED)
 
-static int64_t rc_made;
-static int64_t rc_freed;
 /* With poisoning, freed objects stay as tombstones: never reused. */
 static bool rc_poison;
 
@@ -36,8 +34,10 @@ static void **rc_objects;
 static int64_t *rc_sizes;
 static int64_t rc_listed, rc_room;
 static bool rc_listing;
+static pthread_mutex_t rc_list_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static void rc_list(void *object, int64_t size) {
+    pthread_mutex_lock(&rc_list_lock);
     if (rc_listed == rc_room) {
         rc_room = rc_room == 0 ? 1024 : rc_room * 2;
         rc_objects = realloc(rc_objects, (size_t)rc_room * sizeof(void *));
@@ -48,11 +48,26 @@ static void rc_list(void *object, int64_t size) {
     }
     rc_objects[rc_listed] = object;
     rc_sizes[rc_listed++] = size;
+    pthread_mutex_unlock(&rc_list_lock);
+}
+
+/* Objects made and freed so far, by every worker. */
+static void rc_totals(int64_t *made, int64_t *freed) {
+    *made = 0;
+    *freed = 0;
+    pthread_mutex_lock(&workers_lock);
+    for (Worker *w = workers; w != NULL; w = w->next_worker) {
+        *made += __atomic_load_n(&w->made, __ATOMIC_RELAXED);
+        *freed += __atomic_load_n(&w->freed, __ATOMIC_RELAXED);
+    }
+    pthread_mutex_unlock(&workers_lock);
 }
 
 static void rc_report(void) {
-    fprintf(stderr, "rc: %" PRId64 " allocated, %" PRId64 " freed, %" PRId64 " live\n", rc_made,
-            rc_freed, rc_made - rc_freed);
+    int64_t made, freed;
+    rc_totals(&made, &freed);
+    fprintf(stderr, "rc: %" PRId64 " allocated, %" PRId64 " freed, %" PRId64 " live\n", made,
+            freed, made - freed);
     for (int64_t i = 0; i < rc_listed; i++) {
         const int64_t *words = rc_objects[i];
         if (words[-1] == RC_FREED || words[-1] == RC_IMMORTAL) {
@@ -113,7 +128,7 @@ void *lugha_rt_rc_alloc(int64_t size, RcVisit visit) {
     RcHeader *block = rc_block_new(sizeof(RcHeader) + (size_t)(size > 0 ? size : 0));
     block->visit = visit;
     block->count = rc_first_count();
-    rc_made++;
+    worker->made++;
     if (rc_listing) {
         rc_list(block + 1, size);
     }
@@ -156,7 +171,7 @@ void lugha_rt_rc_free(void *object) {
     if (header->visit != NULL) {
         header->visit(object, RC_RELEASE);
     }
-    rc_freed++;
+    worker->freed++;
     if (!rc_poison) {
         rc_block_free(header);
     }
@@ -187,7 +202,7 @@ void lugha_rt_rc_mark(void *object) {
     if (worker->freezing) {
         // Never freed from now on: the report counts it as let go of.
         header->count = RC_IMMORTAL;
-        rc_freed++;
+        worker->freed++;
     } else {
         header->count = count | RC_SHARED;
     }

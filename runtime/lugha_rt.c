@@ -140,9 +140,16 @@ void lugha_rt_rc_set_drop(void *object, void (*visit)(void *, int64_t));
 void lugha_rt_rc_drop_pointers(void *object, int64_t op);
 void *lugha_rc_internal(size_t size);
 
-/* What one worker thread schedules with: the task it runs and the ones
- * ready to, and the per-thread state of counting and `select`. Every
- * fragment reaches it through `worker`; there is one worker today. */
+/* Small blocks (rc_alloc.c): 16-byte classes up to `RC_SMALL` bytes, header
+ * included, carved from `RC_CHUNK`-byte chunks. */
+#define RC_CHUNK ((uintptr_t)1 << 16)
+#define RC_SMALL 272
+#define RC_CLASSES (RC_SMALL / 16 + 1)
+
+/* What one worker thread schedules and allocates with: the task it runs
+ * and the ones ready to, its blocks, and the per-thread state of counting
+ * and `select`. Every fragment reaches the running thread's through
+ * `worker`. */
 typedef struct Worker {
     /* The running fiber (`current`, tasks.c), the fiber that finished
      * last, still to be reaped, and the one whose park the next switch
@@ -168,16 +175,47 @@ typedef struct Worker {
     bool freezing;
     /* `select`'s pick: pseudo-random, the same on every run (chans.c). */
     uint64_t pick_state;
+    /* Its freed blocks of each class, linked through their first word; the
+     * unused end of its newest chunk of each class (rc_alloc.c). */
+    void *lists[RC_CLASSES];
+    uintptr_t carve[RC_CLASSES];
+    uintptr_t carve_end[RC_CLASSES];
+    /* Its blocks other threads freed, by class: pushed by them with a
+     * compare-and-swap, taken whole by it with a swap. */
+    void *remote[RC_CLASSES];
+    /* Objects it made and freed, summed for `LUGHA_RC_REPORT` (rc.c). */
+    int64_t made;
+    int64_t freed;
+    /* Every worker, for those sums. */
+    struct Worker *next_worker;
 } Worker;
 
-static Worker first_worker = {.pick_state = 0x9e3779b97f4a7c15u};
-static Worker *const worker = &first_worker;
+/* The running thread's worker, in the thread's own storage, so each field
+ * is one `fs`-relative access (x86-64; `tpidr_el0` on ARM64). Every thread
+ * has one; a helper thread's is never used, since helpers never make or
+ * keep Lugha values. */
+static __thread Worker this_worker = {.pick_state = 0x9e3779b97f4a7c15u};
+#define worker (&this_worker)
+/* Every thread that entered as a worker, for the report's sums. */
+static Worker *workers;
+static pthread_mutex_t workers_lock = PTHREAD_MUTEX_INITIALIZER;
+
+/* Makes the calling thread a worker: `main`'s at start, and each thread
+ * that runs tasks. A worker thread never exits: other threads keep
+ * freeing blocks back to it. */
+void lugha_rt_worker_enter(void) {
+    pthread_mutex_lock(&workers_lock);
+    this_worker.next_worker = workers;
+    workers = &this_worker;
+    pthread_mutex_unlock(&workers_lock);
+}
 
 /* The C `main`'s arguments, for `args()`. */
 static int32_t program_argc;
 static char **program_argv;
 
 void lugha_rt_init(int32_t argc, char **argv) {
+    lugha_rt_worker_enter();
     program_argc = argc;
     program_argv = argv;
     install_stack_overflow_handler();

@@ -345,3 +345,19 @@ What was tried on the way:
 - **Atomic counts in generated code.** `monotonic` loads and stores cost fannkuch 5%: LLVM won't hoist a `monotonic` load out of a loop. `unordered` (never torn, defined under a race, still hoistable) costs nothing, and is what shipped.
 - **The owner check's test in copy-on-write.** Testing for a checked count of one cost fannkuch 4%, even placed off the hot path; it is emitted only in builds made with `LUGHA_RC_CHECK=1`.
 - **The waiting handoff.** In a C ping-pong harness built against the runtime, the compare-and-swaps cost about 20% and a flag read at run time to skip them about 8%; they are compiled out while one worker runs. Moving the new `Fiber` fields after the hot ones recovered a few percent. What remains on `chanping` is the handoff's extra checks: accepted for now, TODO.md.
+
+## 2026-11-18 — an allocator for many threads (PRP-241, milestone 209)
+
+Each program built by the previous compiler (milestone 208) and by this one, at `-O2`, then run 9 times each, interleaved; the median of each.
+
+| benchmark   | before  | after   | change |
+|-------------|---------|---------|--------|
+| fib         | 0.784s  | 0.779s  | -0.6%  |
+| fannkuch    | 0.260s  | 0.254s  | -2.4%  |
+| mandelbrot  | 0.367s  | 0.368s  | +0.1%  |
+| nbody       | 0.681s  | 0.679s  | -0.3%  |
+| binarytrees | 0.893s  | 0.895s  | +0.2%  |
+| wordfreq    | 0.486s  | 0.504s  | +3.8%  |
+| chanping    | 0.174s  | 0.180s  | +3.4%  |
+
+wordfreq moved +0.7% on the run before this one: noise. With `worker` a thread-local pointer to the record, binarytrees was +4.6% and chanping +12%: every field took two dependent loads, the pointer reloaded after each call. With the record itself thread-local, each field is one `fs`-relative access. The mimalloc baseline wasn't measured: it isn't installed here, and only blocks over 272 bytes would go through it.

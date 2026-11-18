@@ -27,6 +27,7 @@ int main(int argc, char **argv) {
     if (argc < 2) {
         return 2;
     }
+    lugha_rt_init(argc, argv);
     const char *c = argv[1];
     Fiber f = parked();
     if (strcmp(c, "woken_while_parking") == 0) {

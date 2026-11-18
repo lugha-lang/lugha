@@ -5,32 +5,40 @@
  * that size takes it, without a trip through malloc.
  *
  * - Small blocks (up to `RC_SMALL` bytes, header included) come in 16-byte
- *   classes. Each class carves 64 KB chunks out of one region of address
- *   space reserved at start-up; a chunk's first word is its class, so
- *   freeing a block needs nothing in the block itself.
+ *   classes. Each worker carves 64 KB chunks out of one region of address
+ *   space reserved at start-up, taken with one atomic add; a chunk's first
+ *   16 bytes hold its class and the worker that owns it, so freeing a
+ *   block needs nothing in the block itself.
+ * - Each worker keeps its own lists (the `Worker` record), so allocating
+ *   and freeing its own blocks takes no lock and no atomic. A block of
+ *   another worker's chunk is pushed onto that worker's remote list for
+ *   its class with one compare-and-swap; the owner takes the whole list
+ *   with one swap when its own runs dry, before carving. The owner is the
+ *   chunk's, never the count's shared bit: a task that moved to another
+ *   worker frees its unshared blocks there.
  * - A block inside the region is small; any other block came from calloc
  *   (a large object, or a small one once the region is used up) and goes
- *   back to free.
+ *   back to free, which any thread may call.
  * - Memory taken for small blocks is never returned to the system.
- * - One OS thread allocates (tasks are green threads on it), so the lists
- *   are plain globals.
  *
  * A fragment, not compiled on its own: joined after the core (lugha_rt.c),
  * before rc.c.
  */
 
-#define RC_CHUNK ((uintptr_t)1 << 16)
-#define RC_SMALL 272
-#define RC_CLASSES (RC_SMALL / 16 + 1)
-
-/* The reserved region: committed by the kernel page by page, as touched. */
+/* The reserved region: committed by the kernel page by page, as touched.
+ * `rc_region_next` moves by atomic adds; the bounds never change. */
 static uintptr_t rc_region, rc_region_next, rc_region_end;
 
-/* Freed blocks of each class, linked through their first word. */
-static void *rc_lists[RC_CLASSES];
+/* A chunk's first 16 bytes. */
+typedef struct {
+    size_t class;
+    Worker *owner;
+} RcChunk;
 
-/* The unused end of each class's newest chunk. */
-static uintptr_t rc_carve[RC_CLASSES], rc_carve_end[RC_CLASSES];
+/* The chunk `block` (inside the region) was carved from. */
+static RcChunk *rc_chunk_of(const void *block) {
+    return (RcChunk *)((uintptr_t)block & ~(RC_CHUNK - 1));
+}
 
 /* Reserves the region: as much address space as the system grants, from
  * 64 GB down to 1 GB. Without one, every block comes from calloc. */
@@ -109,30 +117,50 @@ static void rc_zero(void *block, size_t class) {
 }
 #undef RC_ZERO16
 
+/* A new chunk for `w`'s class `class`, or 0 once the region is used up. */
+static uintptr_t rc_chunk_take(Worker *w, size_t class) {
+    if (__atomic_load_n(&rc_region_next, __ATOMIC_RELAXED) >= rc_region_end) {
+        return 0;
+    }
+    uintptr_t chunk = __atomic_fetch_add(&rc_region_next, RC_CHUNK, __ATOMIC_RELAXED);
+    if (chunk >= rc_region_end) {
+        return 0;
+    }
+    RcChunk *head = (RcChunk *)chunk;
+    head->class = class;
+    head->owner = w;
+    return chunk;
+}
+
 /* A zeroed block of `size` bytes. */
 static void *rc_block_new(size_t size) {
     if (size <= RC_SMALL && size > 0) {
+        Worker *w = worker;
         size_t class = (size + 15) / 16;
-        void *block = rc_lists[class];
+        void *block = w->lists[class];
+        // Run dry: what other threads freed comes back first.
+        if (block == NULL && __atomic_load_n(&w->remote[class], __ATOMIC_RELAXED) != NULL) {
+            block = __atomic_exchange_n(&w->remote[class], NULL, __ATOMIC_ACQUIRE);
+        }
         if (block != NULL) {
-            rc_lists[class] = *(void **)block;
+            w->lists[class] = *(void **)block;
             rc_zero(block, class);
             return block;
         }
         size_t room = class * 16;
-        if (rc_carve_end[class] - rc_carve[class] < room && rc_region_next < rc_region_end) {
-            uintptr_t chunk = rc_region_next;
-            rc_region_next += RC_CHUNK;
-            *(size_t *)chunk = class;
-            // The class word takes the chunk's first 16 bytes, keeping
-            // every block 16-byte aligned.
-            rc_carve[class] = chunk + 16;
-            rc_carve_end[class] = chunk + RC_CHUNK;
+        if (w->carve_end[class] - w->carve[class] < room) {
+            uintptr_t chunk = rc_chunk_take(w, class);
+            if (chunk != 0) {
+                // The header takes the chunk's first 16 bytes, keeping
+                // every block 16-byte aligned.
+                w->carve[class] = chunk + sizeof(RcChunk);
+                w->carve_end[class] = chunk + RC_CHUNK;
+            }
         }
-        if (rc_carve_end[class] - rc_carve[class] >= room) {
+        if (w->carve_end[class] - w->carve[class] >= room) {
             // Fresh pages from the kernel are already zero.
-            void *fresh = (void *)rc_carve[class];
-            rc_carve[class] += room;
+            void *fresh = (void *)w->carve[class];
+            w->carve[class] += room;
             return fresh;
         }
     }
@@ -143,13 +171,23 @@ static void *rc_block_new(size_t size) {
     return block;
 }
 
-/* Gives `block` back: to its class's list, or to free. */
+/* Gives `block` back: to its owner's list for its class, or to free. */
 static void rc_block_free(void *block) {
     uintptr_t at = (uintptr_t)block;
     if (at >= rc_region && at < rc_region_end) {
-        size_t class = *(size_t *)(at & ~(RC_CHUNK - 1));
-        *(void **)block = rc_lists[class];
-        rc_lists[class] = block;
+        RcChunk *chunk = rc_chunk_of(block);
+        Worker *owner = chunk->owner;
+        size_t class = chunk->class;
+        if (owner == worker) {
+            *(void **)block = owner->lists[class];
+            owner->lists[class] = block;
+            return;
+        }
+        void *head = __atomic_load_n(&owner->remote[class], __ATOMIC_RELAXED);
+        do {
+            *(void **)block = head;
+        } while (!__atomic_compare_exchange_n(&owner->remote[class], &head, block, true,
+                                              __ATOMIC_RELEASE, __ATOMIC_RELAXED));
         return;
     }
     free(block);
