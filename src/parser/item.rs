@@ -131,6 +131,11 @@ impl Parser<'_> {
             s.span = Span::new(start, s.span.end);
             return Ok(Item::Struct(s));
         }
+        // `blocking` is a word of its own only right after `extern`.
+        let blocking = match self.peek() {
+            TokenKind::Ident(word) if word == "blocking" => Some(self.bump()),
+            _ => None,
+        };
         let symbol = match self.peek() {
             TokenKind::Str(text) => {
                 let name = text.clone();
@@ -140,7 +145,7 @@ impl Parser<'_> {
             _ => None,
         };
         if !self.at(&TokenKind::Fun) {
-            let what = if symbol.is_some() {
+            let what = if symbol.is_some() || blocking.is_some() {
                 "`fun`"
             } else {
                 "`fun` or `type`"
@@ -157,6 +162,7 @@ impl Parser<'_> {
             visibility: None,
             name,
             symbol,
+            blocking,
             params,
             ret,
             span: Span::new(start, self.prev_end()),
@@ -376,6 +382,28 @@ mod tests {
         // `extern struct` declares a struct with C's layout, so a body is required.
         assert_eq!(errors("extern struct S;")[0], ("E0201", ";"));
         assert_eq!(errors("extern enum E {}")[0], ("E0201", "enum"));
+    }
+
+    #[test]
+    fn blocking_externs() {
+        assert_eq!(
+            program("extern blocking fun q(id: i64): i64;"),
+            "(extern blocking q ((id i64)) i64)"
+        );
+        assert_eq!(
+            program("public extern blocking \"sqlite3_step\" fun step(s: i64);"),
+            "(public extern blocking step \"sqlite3_step\" ((s i64)) void)"
+        );
+        // Anywhere else `blocking` is a name.
+        assert_eq!(
+            program("fun blocking(blocking: i64): i64 = blocking;"),
+            "(fun blocking ((blocking i64)) i64 (block blocking))"
+        );
+        assert_eq!(errors("extern blocking type T;")[0], ("E0201", "type"));
+        assert_eq!(
+            errors("extern blocking struct S {}")[0],
+            ("E0201", "struct")
+        );
     }
 
     #[test]

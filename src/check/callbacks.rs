@@ -76,6 +76,12 @@ impl Checker {
         let (mut written, mut types, mut plan) = (Vec::new(), Vec::new(), Vec::new());
         let (mut data, mut release, mut with_data) = (None::<Span>, None::<Span>, Vec::new());
         for p in &e.params {
+            // A helper thread can't run the Lugha code a callback is.
+            if e.blocking.is_some()
+                && (marker(&p.ty).is_some() || matches!(p.ty.kind, TypeKind::Fun(..)))
+            {
+                self.report(errors::blocking_callback(param_span(p)));
+            }
             match marker(&p.ty) {
                 Some("data") => {
                     if data.is_some() {

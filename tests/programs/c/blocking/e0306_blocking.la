@@ -1,0 +1,6 @@
+// One C function has one declaration in a program: `blocking` in one
+// place and not in another can't both hold.
+extern blocking fun slow(x: i64): i64;
+extern "slow" fun slow_plain(x: i64): i64;
+
+fun main() {}

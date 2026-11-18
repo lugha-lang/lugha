@@ -43,6 +43,7 @@ impl Checker {
             glob_clashes: Vec::new(),
             reexports: HashMap::new(),
             externs: HashMap::new(),
+            extern_blocking: HashMap::new(),
             callees: HashMap::new(),
             annotations: HashMap::new(),
             type_params: Vec::new(),

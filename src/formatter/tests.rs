@@ -57,6 +57,14 @@ fn if_else_chains_keep_else_on_the_closing_line() {
 }
 
 #[test]
+fn blocking_externs_keep_the_word() {
+    check(
+        "extern  blocking fun q(id:i64):i64;\nextern blocking \"sqlite3_step\" fun step(id:i64);",
+        "extern blocking fun q(id: i64): i64;\nextern blocking \"sqlite3_step\" fun step(id: i64);\n",
+    );
+}
+
+#[test]
 fn out_parameters_and_arguments_keep_out() {
     check(
         "extern fun f(c:i64,out n:u64):bool;\nfun g(){let mut n:u64=0;f(1,out n);}",

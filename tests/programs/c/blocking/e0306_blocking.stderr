@@ -1,0 +1,11 @@
+error[E0306]: C function `slow` is declared `blocking` in one place and not in another
+  --> tests/programs/c/blocking/e0306_blocking.la:4:19
+  |
+3 | extern blocking fun slow(x: i64): i64;
+  |                     ---- first declared here
+4 | extern "slow" fun slow_plain(x: i64): i64;
+  |                   ^^^^^^^^^^
+  |
+  = help: every declaration of a C function must agree on `blocking`
+
+For more about E0306, run `lughac explain E0306`.

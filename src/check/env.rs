@@ -131,6 +131,9 @@ impl Checker {
             if let Some(symbol) = renamed.filter(|s| !c_name(&s.name)) {
                 self.report(errors::bad_symbol(&symbol.name, symbol.span));
             }
+            if let Item::Extern(e) = item {
+                self.same_blocking(e.c_symbol(), e.blocking.is_some(), name.span);
+            }
             if is_extern && renamed.is_none() && text.starts_with("lugha_") {
                 self.report(errors::reserved_extern(text, name.span));
             } else if is_intrinsic(text) {

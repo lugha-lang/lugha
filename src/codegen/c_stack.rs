@@ -6,7 +6,9 @@
 //! `lugha_c_<n>(frame)`, which makes the original call, with the original
 //! call's attributes, and stores its result in the frame; the caller reads
 //! it back. A task's stack never holds C's frames, so C code can't run
-//! past a task stack's end, which has no guard page.
+//! past a task stack's end, which has no guard page. A C function marked
+//! [`BLOCKING`] goes through `lugha_rt_c_blocking` instead, which runs the
+//! thunk on a helper thread while the task waits.
 
 use inkwell::attributes::AttributeLoc;
 use inkwell::context::Context;
@@ -19,6 +21,9 @@ use inkwell::values::{
 
 /// What the thunks are named after, a number following.
 const THUNK: &str = "lugha_c_";
+
+/// The attribute on an `extern blocking fun`'s declaration.
+pub(super) const BLOCKING: &str = "lugha-blocking";
 
 /// Rewrites every call of a C function in `module` to run on the C stack.
 pub(super) fn calls_on_c_stack<'ctx>(context: &'ctx Context, module: &Module<'ctx>) {
@@ -38,9 +43,20 @@ pub(super) fn calls_on_c_stack<'ctx>(context: &'ctx Context, module: &Module<'ct
             }
         }
     }
-    let c_call = c_call(context, module);
+    let c_call = switch(context, module, "lugha_rt_c_call");
     for (n, (function, call)) in sites.into_iter().enumerate() {
-        rewrite(context, module, (function, call), c_call, n);
+        let callee = CallSiteValue::try_from(call)
+            .ok()
+            .and_then(|site| site.get_called_fn_value())
+            .expect("a direct call of a C function");
+        let marked = callee
+            .get_string_attribute(AttributeLoc::Function, BLOCKING)
+            .is_some();
+        let through = match marked {
+            true => switch(context, module, "lugha_rt_c_blocking"),
+            false => c_call,
+        };
+        rewrite(context, module, (function, call), through, n);
     }
 }
 
@@ -58,14 +74,15 @@ fn is_c(function: FunctionValue<'_>) -> bool {
         && !name.starts_with("llvm.")
 }
 
-/// `lugha_rt_c_call(thunk, frame)`, declared once.
-fn c_call<'ctx>(context: &'ctx Context, module: &Module<'ctx>) -> FunctionValue<'ctx> {
+/// The runtime's `name(thunk, frame)`, `lugha_rt_c_call` or
+/// `lugha_rt_c_blocking`, declared once.
+fn switch<'ctx>(context: &'ctx Context, module: &Module<'ctx>, name: &str) -> FunctionValue<'ctx> {
     let ptr = context.ptr_type(Default::default());
-    module.get_function("lugha_rt_c_call").unwrap_or_else(|| {
+    module.get_function(name).unwrap_or_else(|| {
         let ty = context
             .void_type()
             .fn_type(&[ptr.into(), ptr.into()], false);
-        module.add_function("lugha_rt_c_call", ty, Some(Linkage::External))
+        module.add_function(name, ty, Some(Linkage::External))
     })
 }
 

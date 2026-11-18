@@ -94,8 +94,13 @@ impl Printer<'_> {
             ]),
             Top::Item(Item::Extern(e)) => concat(vec![
                 text(format!(
-                    "{}extern {}fun {}",
+                    "{}extern {}{}fun {}",
                     visibility(e.visibility),
+                    if e.blocking.is_some() {
+                        "blocking "
+                    } else {
+                        ""
+                    },
                     // The symbol as written: re-escaping is the lexer's job, and a C name needs none.
                     e.symbol
                         .as_ref()

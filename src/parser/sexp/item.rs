@@ -97,8 +97,13 @@ fn item(item: &Item) -> String {
     match item {
         Item::Fun(f) => fun(f),
         Item::Extern(e) => format!(
-            "({}extern {}{} {} {})",
+            "({}extern {}{}{} {} {})",
             visibility(e.visibility),
+            if e.blocking.is_some() {
+                "blocking "
+            } else {
+                ""
+            },
             e.name.name,
             e.symbol
                 .as_ref()

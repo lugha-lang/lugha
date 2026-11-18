@@ -1,6 +1,6 @@
 ## FEATURE: `extern blocking fun`: a C function declared `blocking` runs on a helper thread while its task waits, so a slow C call (a database query, a compression library, a C client's network call) no longer stops every task; milestone 207.
 
-**Status:** proposed 2026-11-18.
+**Status:** approved 2026-11-18; built 2026-11-18 (milestone 207).
 
 ## OBJECTIVE
 ```
@@ -43,7 +43,14 @@ prints `tick 0`, `tick 1`, `tick 2`, then `row …`. Without `blocking`, the C c
 2. **Uncancellable waits** (design item 3) over copying arguments: arguments may be pointers C reads and writes, so a copy can't be made generally; Lugha already holds that C keeping a Lugha pointer past the call is undefined.
 3. **E0479 and the runtime guard** rather than allowing callbacks: PRP 6 brings callbacks on other threads with their full rules; until then, refusing is the safe default.
 4. **Agreement through E0306** rather than per-call-site marking: one C function has one declaration in the program's IR, so its calls agree.
-5. **No VS Code grammar change:** contextual words (`independent`, `within`) aren't highlighted specially today; `blocking` follows them. The language server's semantic tokens mark it as a keyword where it is one, as they do `extern`'s `type`.
+5. **No VS Code grammar change:** contextual words (`independent`, `within`) aren't highlighted specially today; `blocking` follows them. The language server's semantic tokens mark it as a keyword where it is one, the one word they mark by its place.
+
+## MADE DURING THE BUILD
+- **The runtime tests live in `tests/blocking_externs.rs`,** not `tests/callbacks.rs`, which would pass 500 lines; the case harness is the same.
+- **`lugha_rt_cb_enter` ends the program with `_exit`,** after flushing stdout: on a helper thread, exit handlers would let go of the program's values from the wrong thread.
+- **E0479 is reported per parameter** (each callback, `data` and `release`), so a declaration with all three shows three.
+- **`lugha_rt_c_blocking` is declared only in programs that call a `blocking` extern,** so other programs' IR is unchanged.
+- **The language server** marked no contextual word as a keyword before (the PRP said it did `extern`'s `type`; it doesn't); `blocking` after `extern` is now the one it marks.
 
 ## REQUIREMENTS
 
@@ -55,14 +62,14 @@ prints `tick 0`, `tick 1`, `tick 2`, then `row …`. Without `blocking`, the C c
 - Callbacks on helper or foreign threads, `Ring<T>`, `pinned` (PRP 6); cutting a blocking call short; several workers (PRP 5).
 
 ## TESTS
-- [ ] `tests/parser.rs`: `extern blocking fun` with and without a symbol; `blocking` still a name elsewhere.
-- [ ] `tests/fmt.rs`: the formatter keeps `blocking`.
-- [ ] `tests/programs/` (rejected programs): E0479 for a callback, `data` and `release` parameter; E0306 for a C function declared blocking and not.
-- [ ] `tests/callbacks.rs` (a C file of its own): ticks print while a blocking C function sleeps; a blocking C function writing an `out` parameter and reading a string; a deadline doesn't cut a blocking call short (the scope fails once it returns); a stored callback called during a blocking call ends the program with the message; a deterministic run keeps the call inline.
-- [ ] `tests/lsp_semantic_tokens.rs`: `blocking` is a keyword after `extern`.
-- [ ] Targeted: `--lib`, `parser`, `fmt`, `programs`, `callbacks`, `helpers`, `c_arrays`, `c_strings`, `extern_structs`, `out_params`, `explain`, `spec`, `lsp_semantic_tokens`, `arm`.
+- [x] `src/parser/item.rs`'s unit tests: `extern blocking fun` with and without a symbol; `blocking` still a name elsewhere.
+- [x] `src/formatter/tests.rs`: the formatter keeps `blocking`.
+- [x] `tests/programs/` (rejected programs): E0479 for a callback, `data` and `release` parameter; E0306 for a C function declared blocking and not.
+- [x] `tests/blocking_externs.rs` (a C file of its own): ticks print while a blocking C function sleeps; a blocking C function writing an `out` parameter and reading a string; a deadline doesn't cut a blocking call short (the scope fails once it returns); a stored callback called during a blocking call ends the program with the message; a deterministic run keeps the call inline.
+- [x] `src/driver/lsp/tokens.rs`'s unit tests: `blocking` is a keyword after `extern`.
+- [x] Targeted: `--lib`, `parser`, `fmt`, `programs`, `callbacks`, `helpers`, `c_arrays`, `c_strings`, `extern_structs`, `out_params`, `explain`, `spec`, `lsp_semantic_tokens`, `arm`.
 
 ## ACCEPTANCE
-- [ ] A blocking extern doesn't stop other tasks; rejected and guarded where Lugha code would run on a helper.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` clean; targeted tests pass.
-- [ ] Spec, CHANGELOG and the error page updated.
+- [x] A blocking extern doesn't stop other tasks; rejected and guarded where Lugha code would run on a helper.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` clean; targeted tests pass.
+- [x] Spec, CHANGELOG and the error page updated.

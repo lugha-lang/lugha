@@ -319,6 +319,9 @@ pub(super) struct Checker {
     reexports: HashMap<String, Vec<String>>,
     /// Every extern's C name: its signature and first declaration (E0306).
     externs: HashMap<String, (Vec<Type>, Type, Span)>,
+    /// Every C function's first declaration: whether it is `blocking`
+    /// (E0306 when another says otherwise).
+    extern_blocking: HashMap<String, (bool, Span)>,
     /// See `Checked::callees`.
     callees: HashMap<ExprId, String>,
     /// See `Checked::annotations`.

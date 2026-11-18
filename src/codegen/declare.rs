@@ -136,6 +136,13 @@ impl<'ctx> Lowerer<'ctx> {
                     (f, None)
                 }
             };
+            // The C-stack pass sends a `blocking` extern's calls to a helper.
+            if matches!(item, Item::Extern(e) if e.blocking.is_some()) {
+                let mark = self
+                    .context
+                    .create_string_attribute(super::c_stack::BLOCKING, "");
+                function.add_attribute(AttributeLoc::Function, mark);
+            }
             if !is_extern {
                 self.declare_owning(&key, function, &params, false);
             }

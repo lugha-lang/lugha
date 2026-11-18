@@ -127,6 +127,12 @@ pub(super) fn answer(text: &str, names: Option<(&Names, &str)>) -> SemanticToken
         let classified = match &token.kind {
             // The name in `@test`.
             TokenKind::Ident(_) if after_at => Some((Kind::Decorator, 0)),
+            // `extern blocking fun`: the one place the word is a keyword.
+            TokenKind::Ident(word)
+                if word == "blocking" && i > 0 && tokens[i - 1].kind == TokenKind::Extern =>
+            {
+                Some((Kind::Keyword, 0))
+            }
             TokenKind::Ident(word) => {
                 let (start, end) = (token.span.start, token.span.end);
                 let resolved = names
@@ -330,6 +336,14 @@ mod tests {
         let variant = Kind::EnumMember as u32;
         assert!(tokens.contains(&(3, 0, 4, variant, DEFAULT_LIBRARY)));
         assert!(tokens.contains(&(3, 5, 4, variant, DEFAULT_LIBRARY)));
+    }
+
+    #[test]
+    fn blocking_is_a_keyword_only_after_extern() {
+        let tokens = decoded("extern blocking fun f();\nfun blocking() {}\n");
+        let keyword = Kind::Keyword as u32;
+        assert!(tokens.contains(&(0, 7, 8, keyword, 0)), "{tokens:?}");
+        assert!(!tokens.contains(&(1, 4, 8, keyword, 0)), "{tokens:?}");
     }
 
     #[test]

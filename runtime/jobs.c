@@ -104,7 +104,7 @@ static void room_leave(void) {
 }
 
 /* Parks the current task until there is room to give a job; frees `job`
- * and unwinds when cancelled first. */
+ * and unwinds when cancelled first, unless the job holds the task. */
 static void room_wait(Job *job) {
     while (jobs_out >= JOBS_MOST) {
         current->wait_next = NULL;
@@ -114,7 +114,7 @@ static void room_wait(Job *job) {
             room_tail->wait_next = current;
         }
         room_tail = current;
-        current->cancellable = true;
+        current->cancellable = !job->holds_task;
         int64_t why = block();
         current->cancellable = false;
         if (why == CANCELLED) {
@@ -131,7 +131,7 @@ static void job_run(Job *job) {
         return;
     }
     ensure_started();
-    if (current->cancelled != REASON_NONE && !current->unwinding) {
+    if (!job->holds_task && current->cancelled != REASON_NONE && !current->unwinding) {
         job_free(job);
         cancel_unwind();
     }
@@ -143,7 +143,7 @@ static void job_run(Job *job) {
     jobs_out++;
     helper_event_open();
     helper_submit(job);
-    current->cancellable = true;
+    current->cancellable = !job->holds_task;
     for (;;) {
         int64_t why = block();
         if (job->waiter == NULL) {
@@ -157,4 +157,26 @@ static void job_run(Job *job) {
         }
     }
     current->cancellable = false;
+}
+
+/* On a helper: a `blocking` extern's thunk, on the helper's own stack. */
+static void c_blocking_job(Job *job) {
+    job->call(job->frame);
+}
+
+/* `lugha_rt_c_blocking(thunk, frame)`: generated code's call of a
+ * `blocking` extern. `thunk(frame)` runs on a helper thread while the task
+ * waits, uncancellably: the frame and what its pointers reach are the
+ * task's. Where a helper can't be used it runs as any C call does. */
+void lugha_rt_c_blocking(void (*thunk)(void *), void *frame) {
+    if (!helpers_allowed || virtual_time() || on_c_stack) {
+        lugha_rt_c_call(thunk, frame);
+        return;
+    }
+    Job *job = job_new(c_blocking_job);
+    job->call = thunk;
+    job->frame = frame;
+    job->holds_task = true;
+    job_run(job);
+    job_free(job);
 }

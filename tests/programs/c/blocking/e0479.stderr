@@ -1,0 +1,33 @@
+error[E0479]: a `blocking` extern can't take a callback: it runs on a helper thread
+  --> tests/programs/c/blocking/e0479.la:3:26
+  |
+3 | extern blocking fun each(f: fun(i64));
+  |                          ^^^^^^^^^^^
+  |
+  = help: Lugha code can't run on a helper thread; drop `blocking`, or call the callback's work after the call returns
+
+error[E0479]: a `blocking` extern can't take a callback: it runs on a helper thread
+  --> tests/programs/c/blocking/e0479.la:4:31
+  |
+4 | extern blocking fun with_data(f: fun(i64, data), u: data, d: release);
+  |                               ^^^^^^^^^^^^^^^^^
+  |
+  = help: Lugha code can't run on a helper thread; drop `blocking`, or call the callback's work after the call returns
+
+error[E0479]: a `blocking` extern can't take a callback: it runs on a helper thread
+  --> tests/programs/c/blocking/e0479.la:4:50
+  |
+4 | extern blocking fun with_data(f: fun(i64, data), u: data, d: release);
+  |                                                  ^^^^^^^
+  |
+  = help: Lugha code can't run on a helper thread; drop `blocking`, or call the callback's work after the call returns
+
+error[E0479]: a `blocking` extern can't take a callback: it runs on a helper thread
+  --> tests/programs/c/blocking/e0479.la:4:59
+  |
+4 | extern blocking fun with_data(f: fun(i64, data), u: data, d: release);
+  |                                                           ^^^^^^^^^^
+  |
+  = help: Lugha code can't run on a helper thread; drop `blocking`, or call the callback's work after the call returns
+
+For more about E0479, run `lughac explain E0479`.

@@ -163,6 +163,9 @@ pub struct ExternDecl {
     /// `extern "symbol" fun name(…)`: the C function's own name, the
     /// string's text and span.
     pub symbol: Option<Ident>,
+    /// The `blocking` of `extern blocking fun`: each call runs on a helper
+    /// thread while its task waits.
+    pub blocking: Option<Span>,
     /// Parameters in order.
     pub params: Vec<Param>,
     /// Declared return type; `None` means `void`.

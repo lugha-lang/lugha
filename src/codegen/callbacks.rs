@@ -269,6 +269,10 @@ impl<'ctx> Lowerer<'ctx> {
         self.function = Some(entry);
         self.builder
             .position_at_end(self.context.append_basic_block(entry, "entry"));
+        // Lugha code runs only on the program's thread, never on a helper
+        // running a `blocking` extern: the runtime checks before any runs.
+        let enter = self.runtime("lugha_rt_cb_enter", &[], None);
+        self.builder.build_call(enter, &[], "").expect(POSITIONED);
         let (all, sret): (Vec<BasicValueEnum>, _) = match &sig {
             Some(sig) => self.c_sig_params(sig, entry),
             None => (entry.get_param_iter().collect(), None),

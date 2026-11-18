@@ -37,6 +37,11 @@ struct Job {
     /* A counted object the job's descriptor belongs to (a `Dir`), kept
      * alive while the job runs; released by the worker. */
     void *hold;
+    /* A `blocking` extern's call: its thunk and frame. The task's wait for
+     * it can't be cut short, since C may use what the task holds. */
+    void (*call)(void *);
+    void *frame;
+    bool holds_task;
     /* Inputs: descriptors, numbers, copied text. */
     int fd;
     int fd2;
@@ -151,9 +156,25 @@ static void job_grow(char **buffer, size_t *cap, size_t len, size_t more) {
     *cap = bigger;
 }
 
+/* True on a helper thread, where Lugha code must never run. */
+static __thread bool on_helper;
+
+/* `lugha_rt_cb_enter()`: the first call of every C entry into Lugha (a
+ * callback). On a helper thread, running a `blocking` extern, Lugha code
+ * can't run: the program ends. No cleanups run, being on the wrong thread. */
+void lugha_rt_cb_enter(void) {
+    if (on_helper) {
+        fflush(stdout);
+        fputs("panic: a C callback ran on a helper thread, during a `blocking` extern call\n",
+              stderr);
+        _exit(101);
+    }
+}
+
 /* A helper: takes queued jobs one at a time, forever. */
 static void *helper_main(void *unused) {
     (void)unused;
+    on_helper = true;
     for (;;) {
         pthread_mutex_lock(&helper_lock);
         helpers_idle++;

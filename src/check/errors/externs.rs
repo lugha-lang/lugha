@@ -43,6 +43,27 @@ pub(in crate::check) fn callback_type(span: Span) -> Diagnostic {
     )
 }
 
+/// E0479: a `blocking` extern's callback (or its `data` or `release`).
+pub(in crate::check) fn blocking_callback(span: Span) -> Diagnostic {
+    Diagnostic::error(
+        "E0479",
+        "a `blocking` extern can't take a callback: it runs on a helper thread",
+        span,
+    )
+    .with_help("Lugha code can't run on a helper thread; drop `blocking`, or call the callback's work after the call returns")
+}
+
+/// E0306: one C function declared `blocking` in one place and not another.
+pub(in crate::check) fn blocking_mismatch(symbol: &str, span: Span, first: Span) -> Diagnostic {
+    Diagnostic::error(
+        "E0306",
+        format!("C function `{symbol}` is declared `blocking` in one place and not in another"),
+        span,
+    )
+    .with_label(first, "first declared here")
+    .with_help("every declaration of a C function must agree on `blocking`")
+}
+
 /// `extern "symbol"` with a symbol that isn't a usable C name.
 pub(in crate::check) fn bad_symbol(symbol: &str, span: Span) -> Diagnostic {
     Diagnostic::error(

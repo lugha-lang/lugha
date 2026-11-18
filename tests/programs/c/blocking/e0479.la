@@ -1,0 +1,6 @@
+// A `blocking` extern runs on a helper thread, where no Lugha code may
+// run: it can't take a callback, nor the `data` and `release` that go with one.
+extern blocking fun each(f: fun(i64));
+extern blocking fun with_data(f: fun(i64, data), u: data, d: release);
+
+fun main() {}

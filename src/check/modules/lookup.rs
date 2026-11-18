@@ -155,6 +155,22 @@ impl Checker {
         }
     }
 
+    /// E0306 unless every declaration of the C function `symbol`, renamed
+    /// ones included, agrees on `blocking`: one C function is one
+    /// declaration in the program.
+    pub(in crate::check) fn same_blocking(&mut self, symbol: &str, blocking: bool, span: Span) {
+        match self.extern_blocking.get(symbol) {
+            Some(&(first_blocking, first)) if first_blocking != blocking => {
+                self.report(errors::blocking_mismatch(symbol, span, first));
+            }
+            Some(_) => {}
+            None => {
+                self.extern_blocking
+                    .insert(symbol.to_string(), (blocking, span));
+            }
+        }
+    }
+
     /// E0304 for a `main` outside the main file.
     pub(in crate::check) fn main_belongs_in_the_main_file(&mut self, program: &Program) {
         for item in &program.items {
