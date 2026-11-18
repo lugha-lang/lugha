@@ -1,0 +1,14 @@
+// A deadlock names what each task waits on, and where its channel was made.
+fun waits(rx: Receiver<i64>): i64 {
+    match rx.recv() {
+        .Some(n) => n,
+        .None => 0,
+    }
+}
+
+fun main(root: Scope) {
+    let (never, nothing) = Chan<i64>.new(0);
+    let t = root.spawn(waits(nothing));
+    let (tx, rx) = Chan<i64>.new(0);
+    tx.send(1);
+}

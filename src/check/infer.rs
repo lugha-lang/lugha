@@ -156,7 +156,7 @@ pub(super) fn unbound(ty: &Type, names: &[&str], bound: &Bound) -> bool {
         | Type::Option(inner)
         | Type::Ref(inner)
         | Type::Task(inner)
-        | Type::Chan(inner) => unbound(inner, names, bound),
+        | Type::Chan(_, inner) => unbound(inner, names, bound),
         Type::Struct(_, args) | Type::Enum(_, args) | Type::Interface(_, args) => {
             args.iter().any(|a| unbound(a, names, bound))
         }
@@ -179,7 +179,7 @@ pub(super) fn unify(declared: &Type, actual: &Type, names: &[&str], bound: &mut 
         | (Type::Option(d), Type::Option(a))
         | (Type::Ref(d), Type::Ref(a))
         | (Type::Task(d), Type::Task(a))
-        | (Type::Chan(d), Type::Chan(a)) => {
+        | (Type::Chan(_, d), Type::Chan(_, a)) => {
             unify(d, a, names, bound);
         }
         (Type::Fun(dp, dr), Type::Fun(ap, ar)) => {

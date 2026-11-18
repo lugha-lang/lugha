@@ -51,18 +51,17 @@ impl Checker {
             let written = written.map(|t| Expect::of(Type::Ref(Box::new(t))));
             return Some(self.ref_new(call, name, args, written.as_ref().or(expect)));
         }
-        // `Chan.new()` and `Chan.buffered(n)`, unless the module has a `Chan`.
+        // `Chan<T>.new(n)` and `Chan<T>.unbounded()`, unless the module has a `Chan`.
         if let ExprKind::Name(t) = &base.kind
             && t == "Chan"
             && self.predeclared_task(t)
         {
             self.record(base, Type::Unit);
             self.record(callee, Type::Unit);
-            // `Chan<Job>.new()`: the written type is the channel's.
+            // `Chan<Job>.new(4)`: the written type is what it carries.
             let written = self.written_one(base, "Chan");
             self.carried(written.as_ref(), base.span);
-            let written = written.map(|t| Expect::of(Type::Chan(Box::new(t))));
-            return Some(self.chan_new(call, name, args, written.as_ref().or(expect)));
+            return Some(self.chan_new(call, name, args, written, expect));
         }
         // `Shape.area(c)`: an interface's item, called on its first argument.
         if let Some(key) = self.interface_named_by(base)
@@ -255,7 +254,8 @@ impl Checker {
             let help = self
                 .method(receiver, &name.name)
                 .map(|_| format!("call it on the type: `{receiver}.{}(…)`", name.name))
-                .or_else(|| self.default_help(&name.name));
+                .or_else(|| self.default_help(&name.name))
+                .or_else(|| super::channels::wrong_end(receiver, &name.name));
             self.report(errors::no_method(&name.name, receiver, name.span, help));
             return self.unchecked(args);
         };

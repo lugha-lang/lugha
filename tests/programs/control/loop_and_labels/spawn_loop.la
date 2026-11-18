@@ -1,9 +1,9 @@
 // A `loop` that never waits is preempted like any other loop, so the
 // task that ends it runs.
-fun spin(stop: Chan<bool>): i64 {
+fun spin(stop: Receiver<bool>): i64 {
     let mut turns = 0;
     loop {
-        if stop.try_recv().is_some() {
+        if let .Ready(_) = stop.try_recv() {
             break 1;
         }
         turns += 1;
@@ -11,10 +11,10 @@ fun spin(stop: Chan<bool>): i64 {
 }
 
 fun main(console: Console, root: Scope) {
-    let stop: Chan<bool> = Chan.buffered(1);
+    let (tell, stop) = Chan<bool>.new(1);
     let s = root.spawn(spin(stop));
     root.spawn(fun() {
-        stop.send(true);
+        tell.send(true);
     }());
     console.println(s.join().unwrap());
 }

@@ -9,6 +9,15 @@ pub type Structs = HashMap<String, Vec<(String, Type)>>;
 /// Every enum's variants and their payload types in declaration order, by enum name.
 pub type Enums = HashMap<String, Vec<(String, Vec<Type>)>>;
 
+/// Which end of a channel a handle is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum End {
+    /// `Sender<T>`: sends, and closes.
+    Send,
+    /// `Receiver<T>`: receives, and iterates.
+    Recv,
+}
+
 /// A type in the checker.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
@@ -45,8 +54,9 @@ pub enum Type {
     /// A green thread's handle, `Task<T>`, or a plain `Task` when `T` is
     /// `()`: copies share one task.
     Task(Box<Type>),
-    /// A channel, `Chan<T>`: copies share one channel.
-    Chan(Box<Type>),
+    /// One end of a channel, `Sender<T>` or `Receiver<T>`: copies share
+    /// one channel, whose two ends `Chan<T>.new(n)` makes.
+    Chan(End, Box<Type>),
     /// An actor's handle, by the actor's key: copies
     /// reach the same actor. Inside the actor its state is `Struct`.
     Actor(String),
@@ -131,7 +141,7 @@ impl Type {
             Type::Option(inner) => Type::Option(Box::new(inner.substitute(map))),
             Type::Ref(inner) => Type::Ref(Box::new(inner.substitute(map))),
             Type::Task(inner) => Type::Task(Box::new(inner.substitute(map))),
-            Type::Chan(inner) => Type::Chan(Box::new(inner.substitute(map))),
+            Type::Chan(end, inner) => Type::Chan(*end, Box::new(inner.substitute(map))),
             Type::Struct(key, args) => Type::Struct(key.clone(), all(args)),
             Type::Fun(params, ret) => Type::Fun(all(params), Box::new(ret.substitute(map))),
             Type::Enum(key, args) => Type::Enum(key.clone(), all(args)),
@@ -180,7 +190,7 @@ impl Type {
             | Type::Option(inner)
             | Type::Ref(inner)
             | Type::Task(inner)
-            | Type::Chan(inner) => inner.mentions_interface(),
+            | Type::Chan(_, inner) => inner.mentions_interface(),
             Type::Struct(_, args) | Type::Enum(_, args) => {
                 args.iter().any(Type::mentions_interface)
             }
@@ -199,7 +209,7 @@ impl Type {
             | Type::Option(inner)
             | Type::Ref(inner)
             | Type::Task(inner)
-            | Type::Chan(inner) => inner.mentions_param(name),
+            | Type::Chan(_, inner) => inner.mentions_param(name),
             Type::Struct(_, args) | Type::Enum(_, args) | Type::Interface(_, args) => {
                 args.iter().any(|a| a.mentions_param(name))
             }
@@ -304,7 +314,8 @@ impl fmt::Display for Type {
             Type::Ref(inner) => return write!(f, "Ref<{inner}>"),
             Type::Task(inner) if **inner == Type::Unit => "Task",
             Type::Task(inner) => return write!(f, "Task<{inner}>"),
-            Type::Chan(inner) => return write!(f, "Chan<{inner}>"),
+            Type::Chan(End::Send, inner) => return write!(f, "Sender<{inner}>"),
+            Type::Chan(End::Recv, inner) => return write!(f, "Receiver<{inner}>"),
             Type::Unit => "()",
             Type::Never => "never",
             Type::Error => "{error}",

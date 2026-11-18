@@ -1,11 +1,11 @@
 // Ten thousand green threads in one scope, each with its own stack; each
 // reports through a channel.
-fun one(done: Chan<i64>) {
+fun one(done: Sender<i64>) {
     done.send(1);
 }
 
 fun main(console: Console) {
-    let done: Chan<i64> = Chan.buffered(10000);
+    let (done, reports) = Chan<i64>.new(10000);
     let all = scope s {
         for i in 0..10000 {
             s.spawn(one(done));
@@ -13,7 +13,7 @@ fun main(console: Console) {
     };
     done.close();
     let mut total = 0;
-    while let .Some(n) = done.recv() {
+    while let .Some(n) = reports.recv() {
         total += n;
     }
     console.println("{total} {all.is_ok()}");

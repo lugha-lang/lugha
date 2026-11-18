@@ -109,7 +109,7 @@ impl Checker {
                     "compare boxes with `a.is(b)` (the same box) or `a.get() == b.get()` (the same contents)"
                         .to_string(),
                 ),
-                Type::Chan(_) => Some("`a.is(b)` tells whether both are the same channel".to_string()),
+                Type::Chan(_, _) => Some("`a.is(b)` tells whether both are the same channel".to_string()),
                 _ => None,
             };
             let types = if l == r { vec![l] } else { vec![l, r] };

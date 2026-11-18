@@ -340,7 +340,7 @@ pub(super) fn signature(name: &str, receiver: Option<bool>, params: &[Type], ret
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::check::test_util;
+    use crate::check::{End, test_util};
 
     const SRC: &str = "struct P<T> { x: T, n: i64 }
 impl P<T> { fun len(self): i64 = self.n; fun make(x: T): P<T> = P { x: x, n: 0 }; }
@@ -455,10 +455,14 @@ fun main() { }
     #[test]
     fn tasks_and_channels_have_their_methods() {
         let partial = test_util::partial(SRC);
-        let chan = names(&value_members(&partial, &Type::Chan(Box::new(Type::I64))));
-        for name in ["send", "recv", "try_recv", "close", "is"] {
-            assert!(chan.contains(&name.to_string()), "{name} in {chan:?}");
-        }
+        let end = |e| {
+            names(&value_members(
+                &partial,
+                &Type::Chan(e, Box::new(Type::I64)),
+            ))
+        };
+        assert_eq!(end(End::Send), ["close", "debug", "is", "send", "try_send"]);
+        assert_eq!(end(End::Recv), ["debug", "is", "recv", "try_recv"]);
         let task = names(&value_members(&partial, &Type::Task(Box::new(Type::I64))));
         assert_eq!(task, ["cancel", "debug", "join", "name"]);
     }
@@ -479,7 +483,8 @@ fun main() { }
             ),
             Type::Ref(Box::new(Type::I64)),
             Type::Task(Box::new(Type::I64)),
-            Type::Chan(Box::new(Type::I64)),
+            Type::Chan(End::Send, Box::new(Type::I64)),
+            Type::Chan(End::Recv, Box::new(Type::I64)),
         ];
         for name in CANDIDATES.iter().chain(&MORE_CANDIDATES) {
             let resolves = receivers

@@ -48,7 +48,7 @@ mod tests {
                 console.println(u == ());\n\
                 console.println(us.debug());\n\
                 console.println(\"{u.debug()} {o.debug()}\");\n\
-                let c: Chan<()> = Chan.new();\n\
+                let (c, r) = Chan<()>.new(0);\n\
                 let done = scope s { let t: Task<()> = s.spawn(log(\"t\")); let r: Result<(), Stopped> = t.join(); };\n\
                 let m: Map<string, ()> = Map { \"a\": () };\n\
             }");

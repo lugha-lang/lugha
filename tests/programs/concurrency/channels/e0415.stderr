@@ -1,0 +1,17 @@
+error[E0415]: no method `close` on `Receiver<i64>`
+  --> tests/programs/concurrency/channels/e0415.la:3:8
+  |
+3 |     rx.close();
+  |        ^^^^^
+  |
+  = help: only a `Sender` can `close`; this is the `Receiver` end
+
+error[E0415]: `Chan` has no `buffered`
+  --> tests/programs/concurrency/channels/e0415.la:4:25
+  |
+4 |     let old = Chan<i64>.buffered(2);
+  |                         ^^^^^^^^
+  |
+  = help: make a channel with `Chan<T>.new(n)`, holding up to `n` values (0: each handed over directly), or `Chan<T>.unbounded()`
+
+For more about E0415, run `lughac explain E0415`.

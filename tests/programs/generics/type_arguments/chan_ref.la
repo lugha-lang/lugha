@@ -1,8 +1,8 @@
 // Built-in generic types take written type arguments too.
 fun main(console: Console) {
-    let c = Chan<string>.buffered(2);
+    let (c, r) = Chan<string>.new(2);
     c.send("hi");
-    console.println(c.recv().debug());
+    console.println(r.recv().debug());
     let r = Ref<f32>.new(1.5);
     r.set(2.5);
     console.println(r.get());

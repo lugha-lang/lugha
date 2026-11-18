@@ -181,19 +181,19 @@
   "Spawn": {
     "prefix": "spawn",
     "body": [
-      "let ${1:t} = spawn fun() {",
+      "let ${1:r} = scope ${2:s} {",
+      "\t${2:s}.spawn(${3:console.println(\"in a task\")});",
       "\t$0",
-      "}();",
-      "${1:t}.join();"
+      "};"
     ],
-    "description": "Run a closure in a green thread, then wait for it (v17)"
+    "description": "A scope whose tasks finish before it does (v18)"
   },
   "Channel": {
     "prefix": "chan",
     "body": [
-      "let ${1:ch}: Chan<${2:i64}> = Chan.buffered(${3:1});"
+      "let (${1:tx}, ${2:rx}) = Chan<${3:i64}>.new(${4:1});"
     ],
-    "description": "A channel between green threads (v17)"
+    "description": "A channel between green threads: its sending and receiving ends (v18)"
   },
   "Select": {
     "prefix": "select",

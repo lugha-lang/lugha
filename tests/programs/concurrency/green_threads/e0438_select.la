@@ -1,5 +1,5 @@
 fun main(console: Console) {
-    let c: Chan<i64> = Chan.new();
+    let (tx, c) = Chan<i64>.new(0);
     select {
         m = c.recv() => console.println(m.debug()),
         after(10) => console.println("late"),

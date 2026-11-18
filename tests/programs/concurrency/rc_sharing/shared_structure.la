@@ -1,6 +1,10 @@
 // A structure sent to another task, which keeps a part of it, while the
 // sender keeps using its own: both ends drop it, in either order.
-struct Doc { title: string, lines: string[], tags: Map<string, i64> }
+struct Doc {
+    title: string,
+    lines: string[],
+    tags: Map<string, i64>,
+}
 
 fun summary(d: Doc): string = "{d.title}: {d.lines.len} lines, {d.tags.len} tags";
 
@@ -10,15 +14,15 @@ fun main(console: Console, root: Scope) {
         lines.push("line {i}");
     }
     let doc = Doc { title: "notes", lines: lines, tags: Map { "a": 1, "b": 2 } };
-    let to_worker: Chan<Doc> = Chan.new();
-    let back: Chan<string[]> = Chan.new();
+    let (to_worker, docs) = Chan<Doc>.new(0);
+    let (back, parts) = Chan<string[]>.new(0);
     let worker = root.spawn(fun(): string {
-        let d = to_worker.recv().unwrap();
+        let d = docs.recv().unwrap();
         back.send(d.lines);
         summary(d)
     }());
     to_worker.send(doc);
-    let mut got = back.recv().unwrap();
+    let mut got = parts.recv().unwrap();
     got.push("added by main");
     console.println(worker.join().unwrap());
     console.println("{got.len} {got[5]} {doc.lines.len}");

@@ -22,7 +22,7 @@ const NAMED: [&str; 4] = ["Option", "Result", "Map", "Set"];
 fn params_in(ty: &Type, out: &mut Vec<String>) {
     match ty {
         Type::Param(n) if !out.contains(n) => out.push(n.clone()),
-        Type::Array(t) | Type::Option(t) | Type::Ref(t) | Type::Task(t) | Type::Chan(t) => {
+        Type::Array(t) | Type::Option(t) | Type::Ref(t) | Type::Task(t) | Type::Chan(_, t) => {
             params_in(t, out)
         }
         Type::Struct(_, args) | Type::Enum(_, args) | Type::Interface(_, args) => {
@@ -282,7 +282,7 @@ impl Checker {
             Type::Fun(..) => "a function type",
             Type::Interface(..) => "an interface type",
             Type::Ref(_) => "a `Ref`",
-            Type::Task(_) | Type::Chan(_) | Type::Actor(_) => "a task, channel or actor",
+            Type::Task(_) | Type::Chan(_, _) | Type::Actor(_) => "a task, channel or actor",
             Type::Param(_) => {
                 return Some(format!(
                     "is for every type `{ty}`: a block is for one kind of type"

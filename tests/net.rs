@@ -113,7 +113,7 @@ fun main(console: Console, net: Net, root: Scope) {{
 fn many_clients_wait_without_blocking_each_other() {
     Case::new(&format!(
         "{ECHO}
-fun client(net: Net, addr: string, i: i64, done: Chan<i64>) {{
+fun client(net: Net, addr: string, i: i64, done: Sender<i64>) {{
     let conn = net.connect(addr).unwrap();
     conn.write(\"{{i}}\".to_bytes()).unwrap();
     let back = string_from_utf8(conn.read(64).unwrap()).unwrap();
@@ -121,7 +121,7 @@ fun client(net: Net, addr: string, i: i64, done: Chan<i64>) {{
     done.send(if back == \"{{i}}\" {{ 1 }} else {{ 0 }});
 }}
 
-fun ticker(ticks: Chan<i64>) {{
+fun ticker(ticks: Sender<i64>) {{
     for _ in 0..20 {{
         task.sleep(1);
     }}
@@ -132,15 +132,15 @@ fun main(console: Console, net: Net, root: Scope) {{
     let listener = net.listen(\"127.0.0.1:0\").unwrap();
     let addr = listener.addr();
     root.spawn(accept_all(console, listener, 200));
-    let ticks: Chan<i64> = Chan.buffered(1);
-    root.spawn(ticker(ticks));
-    let done: Chan<i64> = Chan.buffered(200);
+    let (tick, ticks) = Chan<i64>.new(1);
+    root.spawn(ticker(tick));
+    let (done, results) = Chan<i64>.new(200);
     for i in 0..200 {{
         root.spawn(client(net, addr, i, done));
     }}
     let mut ok = 0;
     for _ in 0..200 {{
-        ok += done.recv().unwrap();
+        ok += results.recv().unwrap();
     }}
     console.println(ok);
     console.println(ticks.recv().unwrap());

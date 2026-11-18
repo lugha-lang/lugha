@@ -36,9 +36,9 @@ fun main(console: Console, root: Scope) {
     console.println("{o.debug()} {u.debug()}");
     let t = Tick { at: 3, done: () };
     console.println(t.debug());
-    let done: Chan<()> = Chan.buffered(1);
+    let (done, dones) = Chan<()>.new(1);
     done.send(());
-    console.println(done.recv().debug());
+    console.println(dones.recv().debug());
     let task: Task<()> = root.spawn(log(console, "from a task"));
     let r: () = task.join().unwrap();
     console.println(r.debug());

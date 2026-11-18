@@ -134,6 +134,14 @@ impl<'ctx> Lowerer<'ctx> {
         slot: PointerValue<'ctx>,
         option: &Type,
     ) -> BasicValueEnum<'ctx> {
+        // A channel's receiver: the next value received.
+        if let Type::Chan(_, element) = ty {
+            let chan = self
+                .builder
+                .build_load(llvm_type(self.context, ty), slot, "chan")
+                .expect(POSITIONED);
+            return self.chan_receive(chan, element);
+        }
         let site = match ty {
             Type::Interface(interface, _) => {
                 let ptr = self.context.ptr_type(Default::default());

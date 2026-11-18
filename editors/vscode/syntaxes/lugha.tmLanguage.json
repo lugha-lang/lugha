@@ -124,7 +124,7 @@
     "builtin": {
       "patterns": [
         { "name": "support.constant.lugha", "match": "\\b(Some|None|Ok|Err)\\b" },
-        { "name": "support.type.lugha", "match": "\\b(Self|Option|Result|Ref|Task|Chan)\\b" }
+        { "name": "support.type.lugha", "match": "\\b(Self|Option|Result|Ref|Task|Chan|Sender|Receiver)\\b" }
       ]
     },
     "call": {

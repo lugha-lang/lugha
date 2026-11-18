@@ -1,0 +1,24 @@
+// `s.merge(receivers)`: one receiver fed by several, closed once all are.
+fun produce(out: Sender<i64>, from: i64) {
+    for i in from..from + 3 {
+        out.send(i);
+    }
+    out.close();
+}
+
+fun main(console: Console) {
+    let r = scope s {
+        let (a, ra) = Chan<i64>.new(0);
+        let (b, rb) = Chan<i64>.new(0);
+        let (c, rc) = Chan<i64>.new(2);
+        s.spawn(produce(a, 0));
+        s.spawn(produce(b, 10));
+        s.spawn(produce(c, 20));
+        let mut got: i64[] = [];
+        for x of s.merge([ra, rb, rc]) {
+            got.push(x);
+        }
+        got.sort()
+    };
+    console.println(r.unwrap().debug());
+}

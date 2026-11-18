@@ -1,8 +1,9 @@
 /*
  * chans.c — part of lugha_rt.c: channels and `select`.
  *
- * `Chan.new()` is unbuffered: a send waits for a receiver. `Chan.buffered(n)`
- * holds up to `n` values in a ring. Waiting senders and receivers queue as
+ * `Chan<T>.new(n)` holds up to `n` values in a ring; with 0 a send waits
+ * for a receiver. `Chan<T>.unbounded()` grows its ring as it fills. Both
+ * ends of a channel, `Sender` and `Receiver`, point at the one channel. Waiting senders and receivers queue as
  * `Waiter`s on their own stacks; a `select` queues one per arm, and the
  * first arm to fire wins (`dequeue` drops the rest).
  *
@@ -25,9 +26,13 @@ struct Waiter {
     Waiter *next;
 };
 
-/* A `Chan<T>` (a counted object). */
+/* A channel (a counted object), and where it was made. */
 typedef struct {
     int64_t cap;
+    bool unbounded;
+    const char *file;
+    int64_t line;
+    int64_t col;
     int64_t elem;
     int64_t len;
     int64_t head;
@@ -69,15 +74,18 @@ static void rc_chan_visit(void *object, int64_t op) {
     }
 }
 
-/* `Chan.new()` and `Chan.buffered(n)`. */
+/* `Chan<T>.new(n)`. */
 LughaChan *lugha_rt_chan_new(int64_t cap, int64_t elem, const char *file, int64_t line,
                              int64_t col) {
     if (cap < 0) {
-        chan_panic("negative channel buffer", file, line, col);
+        chan_panic("a channel's capacity can't be negative", file, line, col);
     }
     LughaChan *c = lugha_rt_alloc((int64_t)sizeof(LughaChan));
     c->cap = cap;
     c->elem = elem < 1 ? 1 : elem;
+    c->file = file;
+    c->line = line;
+    c->col = col;
     if (cap > 0) {
         if (cap > INT64_MAX / c->elem) {
             die("panic: out of memory\n");
@@ -87,6 +95,30 @@ LughaChan *lugha_rt_chan_new(int64_t cap, int64_t elem, const char *file, int64_
     }
     lugha_rt_rc_set_drop(c, rc_chan_visit);
     return c;
+}
+
+/* `Chan<T>.unbounded()`: a ring that grows when full. */
+LughaChan *lugha_rt_chan_unbounded(int64_t elem, const char *file, int64_t line, int64_t col) {
+    LughaChan *c = lugha_rt_chan_new(0, elem, file, line, col);
+    c->unbounded = true;
+    return c;
+}
+
+/* An unbounded channel's full ring doubles, its values first in order. */
+static void grow(LughaChan *c) {
+    int64_t cap = c->cap == 0 ? 8 : c->cap;
+    if (cap > INT64_MAX / 2 / c->elem) {
+        die("panic: out of memory\n");
+    }
+    cap = c->cap == 0 ? cap : cap * 2;
+    unsigned char *buf = lugha_rc_internal((size_t)(cap * c->elem));
+    for (int64_t i = 0; i < c->len; i++) {
+        memcpy(buf + i * c->elem, c->buf + ((c->head + i) % c->cap) * c->elem, (size_t)c->elem);
+    }
+    free(c->buf);
+    c->buf = buf;
+    c->cap = cap;
+    c->head = 0;
 }
 
 /* Generated code gives a new channel its element's visit (none when an element holds nothing counted). */
@@ -126,7 +158,7 @@ static void unqueue(Waiter **queue, Fiber *f) {
 }
 
 static bool can_send(LughaChan *c) {
-    if (c->closed || c->len < c->cap) {
+    if (c->closed || c->unbounded || c->len < c->cap) {
         return true;
     }
     for (Waiter *w = c->recvq; w != NULL; w = w->next) {
@@ -149,6 +181,16 @@ static bool can_recv(LughaChan *c) {
     return false;
 }
 
+/* Blocks, noting what on for a deadlock report. */
+static int64_t waiting(LughaChan *c, int32_t kind) {
+    current->waits_on = c;
+    current->wait_kind = kind;
+    int64_t fired = block();
+    current->waits_on = NULL;
+    current->wait_kind = WAIT_NONE;
+    return fired;
+}
+
 /* Sends without waiting; the caller made sure it can. */
 static void send_now(LughaChan *c, const void *value, const char *file, int64_t line,
                      int64_t col) {
@@ -161,6 +203,9 @@ static void send_now(LughaChan *c, const void *value, const char *file, int64_t 
         *r->ok = 1;
         wake(r->fiber, r->index);
         return;
+    }
+    if (c->len == c->cap) {
+        grow(c);
     }
     memcpy(c->buf + ((c->head + c->len) % c->cap) * c->elem, value, (size_t)c->elem);
     c->len++;
@@ -207,7 +252,7 @@ void lugha_rt_chan_send(LughaChan *c, const void *value, const char *file, int64
     Waiter w = {.fiber = current, .data = (void *)value, .ok = &ok, .index = 0};
     enqueue(&c->sendq, &w);
     current->cancellable = true;
-    int64_t fired = block();
+    int64_t fired = waiting(c, WAIT_SEND);
     if (fired == CANCELLED) {
         unqueue(&c->sendq, current);
     }
@@ -228,7 +273,7 @@ int32_t lugha_rt_chan_recv(LughaChan *c, void *out) {
     Waiter w = {.fiber = current, .data = out, .ok = &ok, .index = 0};
     enqueue(&c->recvq, &w);
     current->cancellable = true;
-    int64_t fired = block();
+    int64_t fired = waiting(c, WAIT_RECV);
     if (fired == CANCELLED) {
         unqueue(&c->recvq, current);
     }
@@ -236,13 +281,28 @@ int32_t lugha_rt_chan_recv(LughaChan *c, void *out) {
     return ok;
 }
 
-/* `c.try_recv()`: never waits. */
+/* `rx.try_recv()`: never waits. 1 with a value in `out`, 0 when empty,
+ * 2 once closed and empty. */
 int32_t lugha_rt_chan_try_recv(LughaChan *c, void *out) {
     ensure_started();
     if (can_recv(c)) {
-        return recv_now(c, out);
+        return recv_now(c, out) ? 1 : 2;
     }
     memset(out, 0, (size_t)c->elem);
+    return 0;
+}
+
+/* `tx.try_send(v)`: never waits. 0 sent, 1 full, 2 closed; unless sent,
+ * the value stays the caller's. */
+int32_t lugha_rt_chan_try_send(LughaChan *c, const void *value) {
+    ensure_started();
+    if (c->closed) {
+        return 2;
+    }
+    if (!can_send(c)) {
+        return 1;
+    }
+    send_now(c, value, "", 0, 0);
     return 0;
 }
 
@@ -321,7 +381,7 @@ int64_t lugha_rt_task_select(LughaCase *cases, int64_t n, int64_t timeout_ms, in
         add_sleeper(current, now_ns() + ns);
     }
     current->cancellable = true;
-    int64_t fired = block();
+    int64_t fired = waiting(n > 0 ? cases[0].chan : NULL, WAIT_SELECT);
     for (int64_t i = 0; i < n; i++) {
         unqueue(&cases[i].chan->recvq, current);
         unqueue(&cases[i].chan->sendq, current);

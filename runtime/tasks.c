@@ -114,7 +114,13 @@ struct Fiber {
     int64_t fired;
     /* The actor this fiber runs (actors.c), or NULL. */
     void *actor;
+    /* For a deadlock report: the channel it waits on (chans.c) and how
+     * (`WAIT_*`), or NULL and WAIT_NONE. */
+    void *waits_on;
+    int32_t wait_kind;
 };
+
+enum { WAIT_NONE, WAIT_RECV, WAIT_SEND, WAIT_SELECT };
 
 enum { WAITING = -1, TIMED_OUT = -2, DEFAULT_ARM = -1, CANCELLED = -3 };
 
@@ -358,8 +364,14 @@ static void switch_to(Fiber *next) {
 static void idle_wait(void);
 static void poll_ready_sockets(void);
 
+/* Each waiting task and what it waits on, after a deadlock (actors.c). */
+static void report_waits(void);
+
 static void deadlock(void) {
-    die("panic: deadlock: every green thread is waiting\n");
+    fflush(stdout);
+    fputs("panic: deadlock: every green thread is waiting\n", stderr);
+    report_waits();
+    exit(101);
 }
 
 /* Runs the next ready fiber; the current one has already queued itself, or

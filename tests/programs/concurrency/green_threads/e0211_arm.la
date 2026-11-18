@@ -1,5 +1,5 @@
 fun main() {
-    let c: Chan<i64> = Chan.new();
+    let (tx, c) = Chan<i64>.new(0);
     select {
         c.recv() => println("received"),
     }

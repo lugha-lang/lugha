@@ -36,7 +36,7 @@ pub(super) fn has_param(ty: &Type) -> bool {
         | Type::Option(inner)
         | Type::Ref(inner)
         | Type::Task(inner)
-        | Type::Chan(inner) => has_param(inner),
+        | Type::Chan(_, inner) => has_param(inner),
         Type::Struct(_, args) | Type::Enum(_, args) | Type::Interface(_, args) => {
             args.iter().any(has_param)
         }
@@ -95,7 +95,7 @@ pub(super) fn replace(ty: &Type, map: &HashMap<&str, &Type>) -> Type {
         Type::Option(inner) => Type::Option(Box::new(replace(inner, map))),
         Type::Ref(inner) => Type::Ref(Box::new(replace(inner, map))),
         Type::Task(inner) => Type::Task(Box::new(replace(inner, map))),
-        Type::Chan(inner) => Type::Chan(Box::new(replace(inner, map))),
+        Type::Chan(end, inner) => Type::Chan(*end, Box::new(replace(inner, map))),
         Type::Fun(params, ret) => Type::Fun(
             params.iter().map(|p| replace(p, map)).collect(),
             Box::new(replace(ret, map)),

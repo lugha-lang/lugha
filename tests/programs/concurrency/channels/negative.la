@@ -1,0 +1,4 @@
+fun main() {
+    let n = 0 - 2;
+    let (tx, rx) = Chan<i64>.new(n);
+}

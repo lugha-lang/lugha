@@ -1,9 +1,9 @@
 //! Green threads in the checker: `spawn call` is a `Task<T>` (a plain `Task` when the call returns
-//! nothing), `Task` and `Chan` are predeclared like `Ref`, and spawning a
+//! nothing), `Task`, `Chan`, `Sender` and `Receiver` are predeclared like `Ref`, and spawning a
 //! call that changes its receiver is E0438.
 
 use super::expr::Expect;
-use super::{Checker, Type, errors};
+use super::{Checker, End, Type, errors};
 use crate::ast::{Expr, ExprKind, spawned_call};
 use crate::span::Span;
 
@@ -12,16 +12,18 @@ use crate::span::Span;
 const COPY_CHANGES: [&str; 4] = ["E0501", "E0502", "E0508", "E0511"];
 
 impl Checker {
-    /// Whether `name` in a type or expression means the predeclared `Task`
-    /// or `Chan`: no `name` declared in this module, and not a local.
+    /// Whether `name` in a type or expression means the predeclared `Task`,
+    /// `Chan` (the maker), `Sender` or `Receiver`: no `name` declared in
+    /// this module, and not a local.
     pub(super) fn predeclared_task(&self, name: &str) -> bool {
-        matches!(name, "Task" | "Chan")
+        matches!(name, "Task" | "Chan" | "Sender" | "Receiver")
             && self.local(name).is_none()
             && self.named_type(&self.key(name)).is_none()
     }
 
-    /// A written `Task`, `Task<T>` or `Chan<T>` (`args` as written); `None`
-    /// when `name` is none of them or the module declares its own.
+    /// A written `Task`, `Task<T>`, `Sender<T>` or `Receiver<T>` (`args` as
+    /// written); `None` when `name` is none of them or the module declares
+    /// its own. `Chan` is only the maker: as a type it is E0305.
     pub(super) fn resolve_task_type(
         &mut self,
         name: &str,
@@ -35,11 +37,20 @@ impl Checker {
         Some(match (name, args.as_slice()) {
             ("Task", []) => Type::Task(Box::new(Type::Unit)),
             ("Task", [t]) => Type::Task(Box::new(t.clone())),
-            ("Chan", [t]) => {
+            ("Chan", _) => {
+                self.report(errors::unknown_type(name, span));
+                Type::Error
+            }
+            ("Sender" | "Receiver", [t]) => {
                 // A channel carries its elements to other tasks.
                 let head = format!("a channel can't carry `{t}` to another task");
                 self.must_send(t, &head, span);
-                Type::Chan(Box::new(t.clone()))
+                let end = if name == "Sender" {
+                    End::Send
+                } else {
+                    End::Recv
+                };
+                Type::Chan(end, Box::new(t.clone()))
             }
             _ => {
                 self.report(errors::type_args(name, 1, args.len(), span));
@@ -56,7 +67,11 @@ impl Checker {
         expect: Option<&Expect>,
         scope_error: &Type,
     ) -> Type {
-        self.uses_tasks = true;
+        // The prelude's own spawns (`s.merge`) run only through a scope
+        // the program made or took, which marks it already.
+        if !self.in_prelude() {
+            self.uses_tasks = true;
+        }
         self.effect("spawn", "starts a task", closure.span);
         // `let t: Task<u8> = spawn f(1)` types the call as a `u8`.
         let wanted = match expect.map(|e| &e.ty) {
@@ -182,7 +197,7 @@ mod tests {
                 let _ = scope s {
                     let a = s.spawn(p.area());
                     let b = s.spawn(P.make());
-                    let c: Chan<i64> = Chan.buffered(1);
+                    let (c, r) = Chan<i64>.new(1);
                     let d = s.spawn(fun() { c.send(1); }());
                     let ns = [P.make()];
                     let e = s.spawn(ns[0].area());
@@ -233,11 +248,11 @@ mod tests {
     }
 
     #[test]
-    fn written_task_and_chan_types() {
-        ok("fun f(t: Task<i64>, u: Task, c: Chan<string>) {}\nfun main() {}");
+    fn written_task_and_channel_types() {
+        ok("fun f(t: Task<i64>, u: Task, c: Sender<string>, d: Receiver<u8>) {}\nfun main() {}");
         assert_eq!(
-            errors("fun f(c: Chan) {}\nfun main() {}"),
-            [("E0418", "Chan")]
+            errors("fun f(c: Sender) {}\nfun main() {}"),
+            [("E0418", "Sender")]
         );
         assert_eq!(
             errors("fun f(t: Task<i64, i64>) {}\nfun main() {}"),

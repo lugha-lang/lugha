@@ -290,7 +290,7 @@ mod tests {
                 "`f` calls `spawn`, which starts a task",
             ),
             (
-                "let c: Chan<i64> = Chan.new(); 1",
+                "let c = Chan<i64>.new(0); 1",
                 "`f` calls `Chan.new`, which makes a channel",
             ),
             ("abs(1) as i64", "`f` calls `abs`, which calls C"),

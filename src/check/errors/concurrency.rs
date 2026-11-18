@@ -24,9 +24,14 @@ pub(in crate::check) fn bad_select(message: impl Into<String>, span: Span) -> Di
 }
 
 /// `Chan.new()` with nothing saying what it carries.
+/// E0415: `Chan.name(…)` that isn't one of the ways to make a channel.
+pub(in crate::check) fn chan_maker(name: &str, span: Span) -> Diagnostic {
+    Diagnostic::error("E0415", format!("`Chan` has no `{name}`"), span)
+}
+
 pub(in crate::check) fn chan_unknown(span: Span) -> Diagnostic {
     Diagnostic::error("E0412", "cannot infer what this channel carries", span)
-        .with_help("annotate it: `let c: Chan<i64> = Chan.new();`")
+        .with_help("write what it carries: `let (tx, rx) = Chan<i64>.new(4);`")
 }
 
 /// An actor used against its rules.

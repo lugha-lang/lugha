@@ -1,8 +1,8 @@
 error[E0475]: a channel can't carry `T` to another task: it is the type parameter `T`, not bounded `Sendable`
   --> tests/programs/concurrency/sendable/e0475_generic.la:1:39
   |
-1 | fun relay<T>(s: Scope, value: T, out: Chan<T>) {
-  |                                       ^^^^^^^
+1 | fun relay<T>(s: Scope, value: T, out: Sender<T>) {
+  |                                       ^^^^^^^^^
   |
   = help: add `Sendable` to its bounds: `<T: Sendable>`
 
@@ -14,7 +14,7 @@ error[E0475]: a `T` can't be passed to another task: it is the type parameter `T
   |
   = help: add `Sendable` to its bounds: `<T: Sendable>`
 
-error[E0475]: a `Chan<T>` can't be passed to another task: it is the type parameter `T`, not bounded `Sendable`
+error[E0475]: a `Sender<T>` can't be passed to another task: it is the type parameter `T`, not bounded `Sendable`
   --> tests/programs/concurrency/sendable/e0475_generic.la:2:13
   |
 2 |     s.spawn(out.send(value));

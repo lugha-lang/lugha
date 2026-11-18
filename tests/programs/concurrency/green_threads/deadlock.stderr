@@ -1,1 +1,2 @@
 panic: deadlock: every green thread is waiting
+  `main` waits to receive on the channel made at tests/programs/concurrency/green_threads/deadlock.la:3:19

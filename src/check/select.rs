@@ -46,7 +46,8 @@ impl Checker {
         result.map_or(Type::Never, |(ty, _)| ty)
     }
 
-    /// E0438 when a `recv` or `send` arm isn't on a channel.
+    /// E0438 when a `recv` or `send` arm isn't on a channel; the wrong
+    /// end is the method's own E0415.
     fn on_channel(&mut self, kind: &SelectKind, method: &str) {
         let Some(chan) = kind.channel() else {
             return;
@@ -54,7 +55,7 @@ impl Checker {
         let ty = self.types[chan.id.0 as usize]
             .clone()
             .unwrap_or(Type::Error);
-        if !matches!(ty, Type::Chan(_) | Type::Error) {
+        if !matches!(ty, Type::Chan(_, _) | Type::Error) {
             let message = format!("`{method}` in a `select` arm needs a channel, found `{ty}`");
             self.report(errors::bad_select(message, chan.span));
         }
@@ -101,7 +102,7 @@ mod tests {
     use crate::check::Type;
     use crate::check::test_util::{errors, let_type, ok};
 
-    const CHANS: &str = "fun main(console: Console) { let a: Chan<i64> = Chan.new(); let b: Chan<string> = Chan.buffered(1); ";
+    const CHANS: &str = "fun main(console: Console) { let (to_a, a) = Chan<i64>.new(0); let (b, from_b) = Chan<string>.new(1); ";
 
     #[test]
     fn select_arms_bind_and_agree() {
@@ -109,7 +110,7 @@ mod tests {
             "{CHANS}
             select {{
                 m = a.recv() => match m {{ .Some(n) => console.println(n), .None => console.println(\"closed\") }},
-                _ = b.recv() => console.println(\"b\"),
+                _ = from_b.recv() => console.println(\"b\"),
                 b.send(\"x\") => {{ console.println(\"sent\"); }}
                 after(500) => console.println(\"timed out\"),
             }}
@@ -121,7 +122,7 @@ mod tests {
         assert_eq!(let_type(&src, "v"), Type::Option(Box::new(Type::I64)));
         // A sent value is typed by the channel.
         ok(
-            "fun main() { let c: Chan<u8> = Chan.new(); select { c.send(200) => 0, default => 1 }; }",
+            "fun main() { let (c, r) = Chan<u8>.new(0); select { c.send(200) => 0, default => 1 }; }",
         );
     }
 
@@ -157,6 +158,9 @@ mod tests {
             impl S { fun recv(self): Option<i64> = None; }
             fun main() { let s = S {}; select { m = s.recv() => 1, default => 2 }; }";
         assert_eq!(errors(src), [("E0438", "s")]);
+        let wrong =
+            format!("{CHANS}select {{ m = to_a.recv() => 1, from_b.send(\"x\") => 2 }}; }}");
+        assert_eq!(errors(&wrong), [("E0415", "recv"), ("E0415", "send")]);
     }
 
     #[test]

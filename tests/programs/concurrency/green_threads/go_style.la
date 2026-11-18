@@ -2,7 +2,7 @@
 // closures count crosses back through a channel.
 fun main(console: Console, root: Scope) {
     let k = 2;
-    let counted: Chan<i64> = Chan.buffered(2);
+    let (counted, counts) = Chan<i64>.new(2);
     let t = root.spawn(fun(): i64 {
         counted.send(1);
         k * 10
@@ -14,7 +14,7 @@ fun main(console: Console, root: Scope) {
     u.join().unwrap();
     counted.close();
     let mut total = 0;
-    while let .Some(n) = counted.recv() {
+    while let .Some(n) = counts.recv() {
         total += n;
     }
     console.println(total);

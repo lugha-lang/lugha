@@ -179,11 +179,11 @@ impl<'ctx> Lowerer<'ctx> {
         {
             return self.ref_new(call, args).map(|v| Some(Value::Val(v)));
         }
-        // `Chan.new()` and `Chan.buffered(n)`.
+        // `Chan<T>.new(n)` and `Chan<T>.unbounded()`.
         if self
             .callees
             .get(&call.id)
-            .is_some_and(|k| k == crate::check::CHAN_NEW || k == crate::check::CHAN_BUFFERED)
+            .is_some_and(|k| k == crate::check::CHAN_NEW || k == crate::check::CHAN_UNBOUNDED)
         {
             return self.chan_new(call, args).map(|v| Some(Value::Val(v)));
         }
@@ -275,7 +275,7 @@ impl<'ctx> Lowerer<'ctx> {
         if let Type::Task(_) = base_type {
             return self.task_method(call, base, &name.name, args).map(Some);
         }
-        if let Type::Chan(_) = base_type {
+        if let Type::Chan(_, _) = base_type {
             return self.chan_method(call, base, &name.name, args).map(Some);
         }
         // A message to an actor.

@@ -1,1 +1,2 @@
 panic: deadlock: every green thread is waiting
+  actor `A` waits to receive on the channel made at tests/programs/concurrency/actors/deadlock.la:15:19

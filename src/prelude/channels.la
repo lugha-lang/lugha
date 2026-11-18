@@ -1,0 +1,50 @@
+// Channels: what `try_send` and `try_recv` give, and merging receivers.
+// The ends themselves, `Sender<T>` and `Receiver<T>`, are built in, and
+// `Chan<T>.new(n)` makes them.
+
+/** What `tx.try_send(v)` did: sent it, or gave it back because the channel was full or closed. */
+enum TrySend<T> {
+    Sent,
+    Full(T),
+    Closed(T),
+}
+
+/** What `rx.try_recv()` found: a value, nothing yet, or a closed and empty channel. */
+enum TryRecv<T> {
+    Ready(T),
+    Empty,
+    Closed,
+}
+
+impl Scope<E> {
+    /**
+     * One receiver fed by every one of `inputs`: a task of this scope
+     * forwards each input's values, and the merged channel closes once
+     * every input is closed and drained.
+     */
+    fun merge<T: Sendable>(self, inputs: Receiver<T>[]): Receiver<T> {
+        let (out, merged) = Chan<T>.new(0);
+        let (done, finished) = Chan<()>.new(inputs.len);
+        for input of inputs {
+            self.spawn($forward(input, out, done));
+        }
+        self.spawn($close_after(finished, inputs.len, out));
+        merged
+    }
+}
+
+/** `merge`'s forwarder: every value of `input` onto `out`, then a note on `done`. */
+fun $forward<T: Sendable>(input: Receiver<T>, out: Sender<T>, done: Sender<()>) {
+    for x of input {
+        out.send(x);
+    }
+    done.send(());
+}
+
+/** `merge`'s closer: once `n` forwarders are done, `out` closes. */
+fun $close_after<T: Sendable>(finished: Receiver<()>, n: i64, out: Sender<T>) {
+    for _ in 0..n {
+        let _ = finished.recv();
+    }
+    out.close();
+}

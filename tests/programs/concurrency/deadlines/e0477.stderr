@@ -1,7 +1,7 @@
 error[E0477]: a scope has one deadline: `within ms` or `until t`, not both
   --> tests/programs/concurrency/deadlines/e0477.la:2:31
   |
-2 |     let r = scope s within 10 until 20 {
+2 |     let r = scope s within 10 until 20 {};
   |                               ^^^^^
   |
   = help: a scope's settings come between its name and its body, each at most once: `scope conns independent limit 100 { … }`

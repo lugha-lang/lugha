@@ -1,6 +1,6 @@
 // Nothing can ever send: every green thread waits, which is a deadlock.
 fun main(console: Console) {
-    let c: Chan<i64> = Chan.new();
+    let (tx, c) = Chan<i64>.new(0);
     console.println("waiting");
     c.recv();
 }

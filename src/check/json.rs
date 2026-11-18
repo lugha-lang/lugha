@@ -23,7 +23,7 @@ pub(super) fn describe(why: &Unmet) -> String {
             Type::Interface(..) => "an interface value".to_string(),
             Type::Ref(_) => "a `Ref`".to_string(),
             Type::Task(_) => "a task".to_string(),
-            Type::Chan(_) => "a channel".to_string(),
+            Type::Chan(_, _) => "a channel".to_string(),
             Type::Actor(_) => "an actor's handle".to_string(),
             Type::Handle(_) => "a C handle".to_string(),
             other => format!("`{other}`"),

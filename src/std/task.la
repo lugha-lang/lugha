@@ -1,6 +1,7 @@
 /**
  * std.task: pausing the running green thread. Green
- * threads start with `spawn`; `Task` and `Chan` are predeclared.
+ * threads start with `s.spawn`; `Task`, `Chan`, `Sender` and `Receiver`
+ * are predeclared.
  */
 
 /**

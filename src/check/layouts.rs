@@ -61,7 +61,7 @@ impl Checker {
             | Type::Option(inner)
             | Type::Ref(inner)
             | Type::Task(inner)
-            | Type::Chan(inner) => {
+            | Type::Chan(_, inner) => {
                 return self.visit(inner, found, seen);
             }
             Type::Fun(params, ret) => {
@@ -157,7 +157,7 @@ fn depth(ty: &Type) -> usize {
         | Type::Option(inner)
         | Type::Ref(inner)
         | Type::Task(inner)
-        | Type::Chan(inner) => 1 + depth(inner),
+        | Type::Chan(_, inner) => 1 + depth(inner),
         Type::Fun(params, ret) => 1 + params.iter().chain([&**ret]).map(depth).max().unwrap_or(0),
         Type::Struct(_, args) | Type::Enum(_, args) | Type::Interface(_, args) => {
             args.iter().map(depth).max().map_or(0, |d| d + 1)

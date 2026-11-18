@@ -139,7 +139,7 @@ mod visibility;
 use std::collections::{HashMap, HashSet};
 
 pub use callbacks::{CParam, CParams};
-pub use channels::{CHAN_BUFFERED, CHAN_NEW};
+pub use channels::{CHAN_NEW, CHAN_UNBOUNDED};
 pub use checked::Checked;
 pub(crate) use concat::CONCAT;
 pub use conversions::{CONVERSIONS, int_bits};
@@ -170,7 +170,7 @@ pub use signatures::Sig;
 pub use slots::{indirect_slot, slot_names_variant};
 pub use templates::exact as template_exact;
 pub use tuples::elements as tuple_elements;
-pub use types::{Enums, FunOrigin, OwnFun, Structs, Type};
+pub use types::{End, Enums, FunOrigin, OwnFun, Structs, Type};
 
 use crate::ast::{ExprId, Program};
 use crate::diagnostic::Diagnostic;

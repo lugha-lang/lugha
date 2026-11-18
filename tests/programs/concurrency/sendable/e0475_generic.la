@@ -1,4 +1,4 @@
-fun relay<T>(s: Scope, value: T, out: Chan<T>) {
+fun relay<T>(s: Scope, value: T, out: Sender<T>) {
     s.spawn(out.send(value));
 }
 

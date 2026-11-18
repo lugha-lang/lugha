@@ -108,7 +108,7 @@ impl Checker {
             | Type::Option(inner)
             | Type::Ref(inner)
             | Type::Task(inner)
-            | Type::Chan(inner) => self.hidden_inside(inner, at),
+            | Type::Chan(_, inner) => self.hidden_inside(inner, at),
             Type::Fun(params, ret) => params
                 .iter()
                 .chain([&**ret])

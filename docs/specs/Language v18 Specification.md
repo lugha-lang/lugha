@@ -27,7 +27,7 @@ Nov 15, 2026 · @kithinji
 - Sizes in bytes: `8.kb()`, `64.mb()`, `1.gb()` on the integer types from `i16` and `u16` up, in powers of 1024, each keeping its receiver's type (milestone 174; section 5).
 - A discarded `Result` is an error (E0467): an expression statement of type `Result` must be handled (`?`, `match`) or dropped on purpose with `let _ = …;` (milestone 175; section 6).
 - Enum variants in patterns take a leading dot, `.Some(x)`, `.None`, `.Circle(r)`, and a bare name in a pattern is always a binding, at the top level too (E0212, E0468) (milestone 176; sections 3–4).
-- Type arguments may be written at a use, `pick<string>([])`, `xs.map<string>(f)`, `Chan<Job>.new()`, `Pair<u8> { … }`, `Option<i64>.None`, with `_` for one left to inference; `as` converts only where nothing can be lost, and `try_into`, `truncate`, `saturate`, `round`, `floor` and `ceil` name the rest (E0469) (milestone 177; sections 3–5).
+- Type arguments may be written at a use, `pick<string>([])`, `xs.map<string>(f)`, `Chan<Job>.new(4)`, `Pair<u8> { … }`, `Option<i64>.None`, with `_` for one left to inference; `as` converts only where nothing can be lost, and `try_into`, `truncate`, `saturate`, `round`, `floor` and `ceil` name the rest (E0469) (milestone 177; sections 3–5).
 - Maps and sets are written `Map { "ann": 31 }`, `Set { 1, 2 }`, `Map {}` and `Set {}`, through the prelude interfaces `FromEntries` and `FromItems`, which any type may implement; `#{…}` is gone (E0213, E0470) (milestone 178; sections 3–4).
 - The prelude's `Error: Display` is the shared error interface (`Result<T, Error>`, `?` from any error, `"{e}"`), implemented by `string` and std's errors; an interface that extends others is a value type, its table holding its ancestors' items (E0464 retired) (milestone 179; sections 4–6).
 - Capabilities, first step: `main` takes `args: string[]`, `console: Console` and `fs: Fs` by type; printing, reading input and files go through `Console` and `fs.cwd()`; `print`, `println`, `eprint`, `eprintln`, `read_line`, `read_file`, `write_file`, `append_file`, `args` and `exit` are gone (E0471) (milestone 180; sections 5–6).
@@ -42,11 +42,14 @@ Nov 15, 2026 · @kithinji
 - Process lockdown: seccomp and Landlock limit the whole process, C code and started programs included, to the capability kinds `main` took (milestone 189; section 6).
 - A panic unwinds its task, running the pending `defer`s and letting go of what each frame holds (milestone 194; sections 5, 6, 9), through unwind tables: only calls with something to clean up get a landing pad. Programs link libgcc's unwinder, as C programs do.
 - Scope policies (milestone 198; sections 3, 4, 6): settings between a scope's name and its body, each at most once: `independent` (a task's failure is printed as it happens, naming the task, and the scope runs on), `independent(f)` (each failure goes to `f`, in the failing task), `limit n` (`s.spawn` waits while `n` tasks run); `scope<E> s` fails with `Failure<E>`, every task's error converting to `E` (E0478). A `Failure` is a struct, `{ task, kind }`: the failing task's name (what `t.name(…)` set, else the called function's) and `.Error(E)` or `.Panic(string)`. A scoped task's failure is reported where it happens, a root task's error in full.
+- Channels with two ends (milestone 200; sections 4, 5, 6, 9): `Chan<T>.new(n)` gives `(Sender<T>, Receiver<T>)`, the capacity required (`0` hands each value over directly), and `Chan<T>.unbounded()` has no limit; `Chan` is no longer a type (E0305). Only a `Sender` sends and closes, only a `Receiver` receives (E0415 on the other end). `for x of rx` runs until the channel is closed and empty; `tx.try_send(v)` gives `.Sent`, `.Full(v)` or `.Closed(v)`, and `rx.try_recv()` `.Ready(v)`, `.Empty` or `.Closed` (the prelude's `TrySend` and `TryRecv`); `s.merge(receivers)` makes one receiver of several. A deadlock report names each waiting task and where its channel was made.
 - Time and shutdown (milestone 199; sections 3, 4, 5, 6, 9): a scope's deadline, `within ms` or `until t` (monotonic milliseconds, as `task.sleep` counts; one of the two, E0477), never later than its enclosing scope's: once it passes, the body and the scope's tasks are cancelled with `.Deadline`, and the scope fails with `f.kind` `.Deadline` unless something failed first; `s.remaining(): Option<i64>`. `shield within ms { … }` holds cancellation off for its block, at most `ms` (`shield` without `within` is E0211); one entered while its task unwinds (in a `defer`) is cut off at its deadline, and the code after it runs. The first Ctrl-C cancels the root scope's tasks and `main` with `.Shutdown`, their `defer`s run, and the program exits with 130; a second, or one in a program that never started a task, exits at once.
 - The sendable rule (milestone 197; sections 4, 6, 9): a value crossing to another task — a spawned call's arguments, captures and result, a channel's elements, an actor's fields, messages and replies — must be `Sendable`, a prelude `auto interface` worked out from a type's parts by its derive blocks: numbers, text, arrays, structs, enums and tuples of sendable parts, channels of them, actors, C handles, interface values whose interface requires `Sendable`, functions whose captures are, and `T: Sendable`. A `Ref` never is, nor a plain `fun(…)` value (E0475). The capabilities, what they open, and `Error` require `Sendable`, so their implementations must be. `impl Sendable`, `with Sendable` and `auto` outside the prelude are E0476. The library's handles keep their shared state in runtime cells instead of `Ref`s.
 - Function types are interfaces (milestone 196; sections 3, 4, 8): every function value has a type of its own, a struct of its captures, implementing its signature's interface `fun(A): R`. `fun(A): R` may be a bound, `<F: fun(i64): i64>`, which keeps the exact function (one instance per function passed, called directly); something an interface requires, `interface Pricing: fun(i64): i64 {}`, whose values are callable; and implemented by a struct, `impl fun(i64): i64 for Scale { fun call(self, x: i64): i64 = … }`, making it callable and convertible to the function type.
 - Scopes and cancellation (milestone 195; sections 3, 4, 6, 9): `scope s { … }` is an expression of type `Result<T, Failure>`, and every task starts in a scope, `s.spawn(work(x))`, or in the root scope `main` and tests may take (`root: Scope`). A scope waits for its tasks; the first failure (a task's panic or `Err`, or a panic in the body) cancels the rest and is the scope's value. Cancelling is invisible: a cancelled task unwinds at its next pause or preemption point, running its `defer`s. A task handle's `join()` gives `Result<V, Stopped>`; `cancel(why)` and `name(text)`. Scope and task handles are second-class (E0472); `spawn` alone starts only an actor (E0474).
 - Reference counting manages every program's memory (milestone 193; section 7), built behind a flag over milestones 190–192 (across tasks, channels and actors with values marked shared as they cross, then measured against the collector). The Boehm collector, `--memory` and `LUGHA_MEMORY` are gone. `Ref` cycles aren't freed.
+
+**Breaking:** a channel has two ends (milestone 200): `let c: Chan<i64> = Chan.buffered(4);` is `let (tx, rx) = Chan<i64>.new(4);`, and `Chan.new()` is `Chan<i64>.new(0)`; a parameter `c: Chan<T>` is `tx: Sender<T>` where it sends or closes, `rx: Receiver<T>` where it receives. `try_recv` gives a `TryRecv<T>`: `.is_none()` is `if let .Empty = rx.try_recv()`.
 
 **Breaking:** a scope's failure is a struct (milestone 198): `.Err(.Panic(m))` is `.Err(f) => match f.kind { .Panic(m) => … }`, and `f.task` names the task that failed; a `Failure` prints as ``task `fetch` failed: …``. A scoped task's panic no longer prints `panic: …` as it happens: its scope reports it, and a root task's prints as ``task `name` panicked: …``. `Scope` and `Failure` written alone mean `Scope<Error>` and `Failure<Error>`.
 
@@ -645,7 +648,7 @@ There is no null. Every string and array variable holds a valid object.
 - **No `==`:** `r == s` is E0404, with help: `r.is(s)` compares boxes, `r.get() == s.get()` contents. A struct, enum, tuple, array or `Option` holding a `Ref` has no `==` either, and isn't `Eq` (E0419).
 - **Recursion:** a type may hold itself through a `Ref`, as through an array: `struct Node { value: i64, next: Option<Ref<Node>> }`.
 
-**Tasks and channels** (v17, milestone 91). `Task` and `Chan` are predeclared in every module, as `Ref` is, unless the module declares its own. Both are shared handles: copying one copies the handle, so every copy names the same task or channel.
+**Tasks and channels** (v17, milestone 91; two ends since milestone 200). `Task`, `Sender`, `Receiver` and the maker `Chan` are predeclared in every module, as `Ref` is, unless the module declares its own. All are shared handles: copying one copies the handle, so every copy names the same task or channel.
 
 - **`scope s { body }`** (v18, milestone 195) has type `Result<T, Failure>`, `T` being the body's type (`()` for a body that never finishes); in the body `s` is a `Scope`. `Scope`, `Failure`, `Stopped` and `Reason` are prelude types: `Failure<E>` (milestone 198) is a struct, `{ task: string, kind: FailureKind<E> }`, the failing task's name and `.Error(E)` (it returned `Err`), `.Panic(string)` or `.Deadline` (milestone 199: the scope's deadline passed, `task` naming the scope), and `Scope` and `Failure` alone mean `Scope<Error>` and `Failure<Error>`; `Stopped` is `.Cancelled(Reason)`, `.Failed(Error)` or `.Panicked(string)`; `Reason` is `.SiblingFailed`, `.Parent`, `.Requested(string)`, `.Deadline` or `.Shutdown` (Ctrl-C; milestone 199). `Failure` and `Stopped` implement `Error`, so `scope s { … }?` and `t.join()?` pass them on. Used as a statement, a scope is a discarded `Result` (E0467).
 - **`s.spawn(call)`** has type `Task<T>`, `T` being the call's result type, or the plain type `Task` (no argument) when the call returns nothing; `s` must be a `Scope` (E0473). An expected `Task<U>` types the call as a `U` (`let t: Task<u8> = s.spawn(f(1));`). A call returning `Result<V, E>` needs `E` to implement `Error` (E0422): its `Err` fails the task. `spawn call` without a scope is E0474, unless the call gives an actor's state.
@@ -655,23 +658,28 @@ There is no null. Every string and array variable holds a valid object.
 - **A task's name** is what `t.name(text)` set, else the called function's simple name (`work`, `area` for `p.area()`, `closure` for a closure called on the spot); a failure of the body names the scope's handle.
 - **`t.join(): Result<V, Stopped>`** waits until the task has finished and gives a copy of its value, `V` being `T`, or the `Ok` type when `T` is a `Result`; joining again gives another copy at once. A plain `Task`'s `join` gives `Result<(), Stopped>`. **`t.cancel(why: string)`** stops the task with `.Requested(why)`; **`t.name(text: string)`** names it.
 - **Second-class handles** (v18): a `Scope` or a `Task` is passed as an argument and nothing else. A function returning one, a field, payload, element, tuple or map holding one, a closure capturing one (a spawned call's arguments among them) is E0472. A local holding one is fine.
-- **Sendable** (v18, milestone 197): a value crossing to another task must be `Sendable`. It crosses as a spawned call's argument (the receiver included), as something the call captures (a closure literal's captures included), as its result, as what a channel carries (checked where `Chan<T>` is written or made), and as an actor's field, message parameter or result. `Sendable` is the prelude's `auto interface Sendable {}`: its derive blocks (each number type, `bool`, `char`, `string`, `()`, C handles, `T[]` of a sendable `T`, structs, enums and tuples) apply to every type whose parts meet them, with no `with`. Besides: a channel is sendable when what it carries is; an actor's handle is; an interface value is when its interface requires `Sendable`; a function's own type is when its captures are (a named function captures nothing); `T` is when bounded `T: Sendable`. A `Ref`, a plain `fun(…)` value (which function, and what it captured, is hidden), `Scope` and `Task` never are. A value that isn't is E0475, naming its first part that isn't. `Console`, `Fs`, `Dir`, `File`, `Clock`, `Env`, `Proc`, `Entropy`, `Net`, `Listener`, `Conn`, `Udp` and `Error` require `Sendable`, so a type implementing one must be (E0475 at its `impl`), and a value converted to one must be: a function value only when the call site shows which function it is. `impl Sendable`, `with Sendable` and `auto interface` outside the prelude are E0476.
-- **Channels:**
+- **Sendable** (v18, milestone 197): a value crossing to another task must be `Sendable`. It crosses as a spawned call's argument (the receiver included), as something the call captures (a closure literal's captures included), as its result, as what a channel carries (checked where `Sender<T>` or `Receiver<T>` is written, or `Chan<T>.new` made), and as an actor's field, message parameter or result. `Sendable` is the prelude's `auto interface Sendable {}`: its derive blocks (each number type, `bool`, `char`, `string`, `()`, C handles, `T[]` of a sendable `T`, structs, enums and tuples) apply to every type whose parts meet them, with no `with`. Besides: a channel's ends are sendable when what it carries is; an actor's handle is; an interface value is when its interface requires `Sendable`; a function's own type is when its captures are (a named function captures nothing); `T` is when bounded `T: Sendable`. A `Ref`, a plain `fun(…)` value (which function, and what it captured, is hidden), `Scope` and `Task` never are. A value that isn't is E0475, naming its first part that isn't. `Console`, `Fs`, `Dir`, `File`, `Clock`, `Env`, `Proc`, `Entropy`, `Net`, `Listener`, `Conn`, `Udp` and `Error` require `Sendable`, so a type implementing one must be (E0475 at its `impl`), and a value converted to one must be: a function value only when the call site shows which function it is. `impl Sendable`, `with Sendable` and `auto interface` outside the prelude are E0476.
+- **Channels** (milestone 200 for the two ends): `Chan<T>.new(n)` makes a channel and gives its two ends, `(Sender<T>, Receiver<T>)`. `T` is written, or comes from the expected type (E0412 without either). `Chan` is only the maker: as a type it is E0305, and `Chan.f` for any other `f` is E0415.
 
 | Call | Result |
 | --- | --- |
-| `Chan.new(): Chan<T>` | an unbuffered channel: `send` waits until a receiver takes the value; `T` comes from the expected type (E0412 without one) |
-| `Chan.buffered(n: i64): Chan<T>` | a channel holding up to `n` values; `n == 0` is unbuffered, `n < 0` panics |
-| `c.send(v: T)` | waits for a receiver or room, then hands over a copy of `v`; panics when the channel is closed |
-| `c.recv(): Option<T>` | waits for a value; `None` once the channel is closed and empty |
-| `c.try_recv(): Option<T>` | a value if one is ready, without waiting; `None` otherwise |
-| `c.close()` | no more sends; waiting and later receivers get `None` after what is buffered, waiting senders panic; closing twice panics |
-| `c.is(d: Chan<T>): bool` | whether both are the same channel |
+| `Chan<T>.new(n: i64): (Sender<T>, Receiver<T>)` | a channel holding up to `n` values; with `0` each `send` waits until a receiver takes the value; `n < 0` panics |
+| `Chan<T>.unbounded(): (Sender<T>, Receiver<T>)` | a channel with no limit: `send` never waits for room |
+| `tx.send(v: T)` | waits for a receiver or room, then hands over a copy of `v`; panics when the channel is closed |
+| `tx.try_send(v: T): TrySend<T>` | without waiting: `.Sent`, or `.Full(v)` or `.Closed(v)`, giving the value back |
+| `tx.close()` | no more sends; waiting and later receivers get `None` after what is buffered, waiting senders panic; closing twice panics |
+| `rx.recv(): Option<T>` | waits for a value; `None` once the channel is closed and empty |
+| `rx.try_recv(): TryRecv<T>` | without waiting: `.Ready(v)`, `.Empty`, or `.Closed` once closed and empty |
+| `for x of rx { … }` | each value received, until the channel is closed and empty |
+| `s.merge(rs: Receiver<T>[]): Receiver<T>` | one receiver fed by each of `rs`, through tasks of the scope `s`; it closes once every one of `rs` is closed and drained (`T` sendable) |
+| `a.is(b): bool` | on either end: whether both are the same channel |
+
+Only a `Sender` closes, sends and tries to send; only a `Receiver` receives (E0415 on the other end, with help). Nothing closes a channel by itself. `TrySend` and `TryRecv` are prelude enums.
 
 - **Plain `self`:** like a box's, these methods change the task or channel, not the handle, so none needs `let mut`.
-- **No `==`:** tasks and channels are not `Eq` (E0404, E0419); `c.is(d)` compares channels. They print as `<task>` and `<chan>`.
+- **No `==`:** tasks and channels' ends are not `Eq` (E0404, E0419); `a.is(b)` compares channels. They print as `<task>` and `<chan>`.
 - **`s.spawn` of a call that changes its receiver** — `push`, `pop` or `clear` on an array, a `mut self` method, `swap` — is E0438: the new task gets its own copy (as a closure does), so nobody would see the change.
-- **`select`** is an expression: each arm's value agrees with the first arm that has one, as in `match`. A `recv` arm's name is the `Option<T>` received, in scope in that arm only. A `select` needs at least one `recv` or `send` arm, has at most one `after` and at most one `default`, and never both (E0438); the value of a `recv` or `send` arm must be a `Chan` (E0438); `after` takes an `i64` of milliseconds.
+- **`select`** is an expression: each arm's value agrees with the first arm that has one, as in `match`. A `recv` arm's name is the `Option<T>` received, in scope in that arm only. A `select` needs at least one `recv` or `send` arm, has at most one `after` and at most one `default`, and never both (E0438); a `recv` arm is on a `Receiver` and a `send` arm on a `Sender` (E0438 for something else, E0415 for the other end); `after` takes an `i64` of milliseconds.
 
 **Actors** (v17, milestone 92). An actor is state that one green thread owns, and the methods that run there:
 
@@ -886,7 +894,7 @@ Strings are bytes: every position is a byte offset, and `slice` can cut a multi-
 
 **Using a generic.**
 - **Type arguments:** a generic type is written with all its arguments in type positions: `Stack<i64>`, `Option<Vec2>`, `Pair<string, f64>`. A wrong count, or a bare `Stack` in a type position, is E0418.
-- **Written type arguments** (v18): optional, at generic calls (`pick<string>([])`), function values (`bigger<i64>`), a method's own parameters (`xs.map<string>(f)`), associated functions and built-in constructors of generic types (`Stack<i64>.new()`, `Chan<Job>.new()`, `Ref<f32>.new(1.5)`), struct literals (`Pair<u8> { a: 1, b: 2 }`) and variants (`Shape<f64>.Circle(r)`, and through `Option`'s name, `Option<i64>.None`, `Option<u8>.Some(7)`). They bind their parameters before inference runs; `_` leaves one to inference (`conv<_, u8>(x, 3)`). The list gives every parameter or is E0418 (`` `two` takes 2 type arguments but 1 was given ``), as is a list on something without type parameters (a plain function, a local, a field); an argument that misses its bound is E0419 (E0451 for a derivable interface), and one the code contradicts is E0403 at the argument it contradicts.
+- **Written type arguments** (v18): optional, at generic calls (`pick<string>([])`), function values (`bigger<i64>`), a method's own parameters (`xs.map<string>(f)`), associated functions and built-in constructors of generic types (`Stack<i64>.new()`, `Chan<Job>.new(4)`, `Ref<f32>.new(1.5)`), struct literals (`Pair<u8> { a: 1, b: 2 }`) and variants (`Shape<f64>.Circle(r)`, and through `Option`'s name, `Option<i64>.None`, `Option<u8>.Some(7)`). They bind their parameters before inference runs; `_` leaves one to inference (`conv<_, u8>(x, 3)`). The list gives every parameter or is E0418 (`` `two` takes 2 type arguments but 1 was given ``), as is a list on something without type parameters (a plain function, a local, a field); an argument that misses its bound is E0419 (E0451 for a derivable interface), and one the code contradicts is E0403 at the argument it contradicts.
 - **Inference:** at a call, a struct literal, a variant or an associated function, the type arguments not written are inferred. They come first from the expected type, then from the arguments that can be typed alone, then from the ones that can't (number literals, `None`, `[]`, and (v17) calls only their result can type, associated functions included (`Cmd.none()` for `fun none(): Cmd<M>` in `impl Cmd<M>`) — a call whose result's type parameter only such arguments could fix, `column([text("a")])`, a list or `Some` of them, and a tuple holding one, `("a", text("a"))`, count too), so `max(x, 3)` with `x: u8` makes `3` a `u8`, a struct literal's fields take their types from each other in any order (`App { init: (0, Cmd.none()), update: step }`), and `pair(text("a"), v)` with `v: View<Msg>` makes `text`'s `M` a `Msg`. A method call whose receiver is such a call, when the method's result mentions the receiver type's own parameters, waits too, and passes its expected type to the receiver: the parameters the expected type fixes in the result give the receiver's type, the rest left open (v17). When the method returns the receiver's own type (`fun pad(self, n: i64): Node<M>` in `impl Node<M>`): `fun a(): Node<Msg> = leaf("x").pad(8).pad(2);`, `[leaf("x").pad(8)]` where a `Node<Msg>[]` is expected; when it returns one of them (milestone 148), as `unwrap` and `expect` on `Option<T>` and `Result<T, E>` do: `let p: Person = json.decode(v).unwrap();`, `json.decode(v).unwrap() == q`, and with `fun first(self): T` in `impl Pair<T>`, `let n: u8 = zeros().first();`. In a list literal with no expected type, when the first element is such a call, the first element that can be typed alone gives the element type (v17): `[text("a"), button("+", Msg.Inc)]` is a `View<Msg>[]`. A method's `impl` parameters come from its receiver: `s.push(1)` on a `Stack<string>` is E0401.
 - **Can't infer:** a parameter still undecided is E0412, with help to annotate: `let s: Stack<i64> = Stack.new();`.
 - **Bounds at a use:** a type argument that doesn't satisfy its bound is E0419 (`Num`, `Float`, `Eq` on a parameter or a `Ref`), E0422 (a struct or enum that didn't ask for `Eq` or `Ord`) or E0451 (a part with no `derive` block, named by its path: `largest([[1]])` fails because `i64[]` is not `Ord`). `Ord` holds for the integers, `char`, `string`, `()`, tuples of `Ord` elements, type parameters declared `Ord`, and a struct or enum that asks or implements it, below.
@@ -1270,7 +1278,7 @@ A v0 program is a single `.la` file containing top-level items: functions, exter
 - **Blocking calls:** reading input, files, `Proc` and `extern` calls run to completion on the one OS thread, so every green thread waits for them. Sockets (`Net`, milestone 110) don't: a thread waiting to accept, connect, read or write is parked until its socket is ready, and the others run; when no thread is ready, the program waits for a socket or the next sleeper.
 - **The end:** when `main` returns, the root scope's tasks finish, then the program exits with `main`'s code (milestone 195). A panic in a task fails its scope (section 6); one the program never catches — in `main`, or in a root-scope task — ends it with its message and exit code 101.
 - **Ctrl-C** (milestone 199): the first SIGINT cancels the root scope's tasks and `main` with `.Shutdown`, whether or not the program took anything for signals; they unwind at their next pause or preemption point, running their `defer`s, and the program exits with 130 once `main` has unwound. A second SIGINT, or one in a program that never started a task, exits with 130 at once.
-- **Deadlock:** when no green thread can run, none is sleeping, none waits on a socket and one waits, the program panics with `panic: deadlock: every green thread is waiting` (no location), exit 101.
+- **Deadlock:** when no green thread can run, none is sleeping, none waits on a socket and one waits, the program panics with `panic: deadlock: every green thread is waiting` (no location), exit 101. Then (milestone 200) one line per task waiting on a channel names it, how it waits and where the channel was made: ``  `worker` waits to receive on the channel made at main.la:3:20`` (`to send on`, `in a select, on`; an actor as ``actor `Name` ``, `main` as `` `main` ``).
 - **Actors** (milestone 92) are green threads that take messages from an unbounded mailbox one at a time: messages from one caller in the order sent, from several in the order they arrive. A panic inside an actor's method prints its message, as any panic does, and unwinds the actor's stack, running its `defer`s (v18, milestone 194), but ends only that actor: the caller waiting for that message's result, and every later caller, panics with ``actor `Counter` panicked`` at its call; a call to a stopped actor panics with ``actor `Counter` has stopped``. A stack overflow inside an actor still ends the program. Tasks keep the rule above. Actors waiting on each other are a deadlock.
 
 **The standard library** (v15). Version 15 has `std.math` and `std.random` (and had `std.env`, `std.process` and `std.fs`, which became the `Env`, `Proc` and `Dir` capabilities in v18, milestones 181 and 182); version 17 adds `std.task`, `std.time`, `std.net` (the `Net` capability since milestone 183), `std.tls`, `std.crypto`, `std.http`, `std.toml` and `std.json`.
@@ -1364,7 +1372,7 @@ An integer goes to a float function through a cast: `math.sqrt(n as f64)`; `math
 
 **Names.** Each module has its own namespace for functions, structs, enums, interfaces and externs, so two modules may each declare `Point`; duplicates within a module are a compile error. Intrinsics and the built-in names `Option`, `Some`, `None`, `Eq` and `Ord` are visible in every module, and no program may declare them (E0302). Methods live in their type's namespace, so a function `dist` and a method `Point.dist` can coexist. No local may be named like a type or an imported module (E0311, section 4). Local variables may shadow function names. Names resolve from the innermost scope outward: block scopes, then function parameters, then the module's own items and named imports (v11), then imported module names. In messages a type from another module is shown with its full module path (`shapes.circle.Circle`); a main-file type keeps its bare name. `main` belongs in the main file (E0304 elsewhere).
 
-`std.task` (v17, milestone 91). Pausing the running green thread; `spawn`, `Task` and `Chan` need no import.
+`std.task` (v17, milestone 91). Pausing the running green thread; `spawn`, `Task`, `Chan`, `Sender` and `Receiver` need no import.
 
 | Function | Effect |
 | --- | --- |
@@ -1792,8 +1800,9 @@ The compiler, `lughac`, is written in Rust with inkwell. It turns one `.la` file
 | `lugha_rt_task_yield()` / `lugha_rt_task_sleep(ms)` (v17) | `task.yield_now()` and `task.sleep(ms)` |
 | `lugha_rt_task_preempt()` and the global `lugha_rt_task_budget` (v17) | The countdown generated code decrements at function entries and loop heads; at zero it calls `lugha_rt_task_preempt`, which refills it and yields |
 | `lugha_rt_task_select(cases, n, timeout, has_default, file, line, col)` (v17) | `select` over `n` cases `{ chan, kind, data, ok }` (kind 0 receive, 1 send); the case that ran, −1 for `default`, −2 for `after` |
-| `lugha_rt_chan_new(cap, elem, file, line, col)` (v17) | A channel of `elem`-byte values, buffering `cap` |
-| `lugha_rt_chan_send(c, value, file, line, col)` / `lugha_rt_chan_recv(c, out)` / `lugha_rt_chan_try_recv(c, out)` / `lugha_rt_chan_close(c, file, line, col)` (v17) | A channel's operations on values in element layout; receives return 1 for a value, 0 for closed (or, for `try_recv`, nothing ready) |
+| `lugha_rt_chan_new(cap, elem, file, line, col)` (v17), `lugha_rt_chan_unbounded(elem, file, line, col)` (v18) | A channel of `elem`-byte values, buffering `cap` (a negative `cap` panics), or growing its buffer as it fills; it keeps where it was made, for deadlock reports; generated code gives both ends the one channel |
+| `lugha_rt_chan_try_send(c, value)` (v18) | `tx.try_send(v)`: 0 sent, 1 full, 2 closed; unless sent, the value stays the caller's |
+| `lugha_rt_chan_send(c, value, file, line, col)` / `lugha_rt_chan_recv(c, out)` / `lugha_rt_chan_try_recv(c, out)` / `lugha_rt_chan_close(c, file, line, col)` (v17) | A channel's operations on values in element layout; receives return 1 for a value, 0 for closed (or, for `try_recv`, nothing ready); `try_recv` gives 1 with a value, 0 when empty, 2 once closed and empty (v18) |
 | `lugha_rt_actor_spawn(state, name)` (v17) | A new actor holding `state` (a counted block) on its own green thread; returns its handle |
 | `lugha_rt_actor_call(a, handler, args, size, file, line, col)` / `lugha_rt_actor_cast(a, handler, args, file, line, col)` (v17) | Queue a message; a call waits and returns its result's address, and panics in the caller if the actor stopped or panicked |
 | `lugha_rt_actor_stop(a, file, line, col)` / `lugha_rt_actor_join(a)` (v17) | `stop()`; `join()`, which returns the panic's text or `NULL` |
@@ -2048,7 +2057,7 @@ Name and type errors, reported by the checker:
 | E0472 | A scope or task handle kept (v18) | `fun f(s: Scope): Scope = s;`; `[s.spawn(f())]`; `struct K { t: Task<i64> }`; a closure capturing `s` |
 | E0473 | `spawn` through something that isn't a scope (v18) | `x.spawn(f())` with `x: i64` |
 | E0474 | A task started without a scope (v18) | `spawn work()` where `work` doesn't make an actor |
-| E0475 | A value that can't cross to another task (v18) | `s.spawn(f(r))` with `r: Ref<i64>`; `Chan<Ref<i64>>`; a closure capturing a `Ref`, spawned; `impl Console for S` with `S` holding a `Ref`; an unbounded `T` sent |
+| E0475 | A value that can't cross to another task (v18) | `s.spawn(f(r))` with `r: Ref<i64>`; `Chan<Ref<i64>>.new(1)`; a closure capturing a `Ref`, spawned; `impl Console for S` with `S` holding a `Ref`; an unbounded `T` sent |
 | E0476 | Claiming `Sendable` (v18) | `impl Sendable for P {}`; `struct P { … } with Sendable`; `auto interface` outside the prelude |
 | E0477 | A scope setting that doesn't exist, said twice, or two deadlines (v18) | `scope s quickly { … }`; `scope s limit 1 limit 2 { … }`; `scope s within 10 until 20 { … }` (milestone 199) |
 | E0478 | A task's error that its scope can't hold (v18) | `s.spawn(f())` with `f` failing with `string` in a `scope<SyncError> s` |
@@ -3812,7 +3821,7 @@ fun main(console: Console) {
 // ordinary function.
 fun square(n: i64): i64 = n * n;
 
-fun produce(out: Chan<i64>, count: i64) {
+fun produce(out: Sender<i64>, count: i64) {
     for i in 1..count + 1 {
         out.send(i * 10);
     }
@@ -3826,33 +3835,33 @@ fun main(console: Console, root: Scope) {
     let k = 2;
     let t = root.spawn(fun(): string { "closure {k}" }());
     console.println(t.join().unwrap());
-    let c: Chan<i64> = Chan.buffered(2);
-    root.spawn(produce(c, 3));
+    let (tx, rx) = Chan<i64>.new(2);
+    root.spawn(produce(tx, 3));
     let mut sum = 0;
-    while let .Some(v) = c.recv() {
+    for v of rx {
         sum += v;
     }
     console.println(sum);
 }
 ```
 
-**Select and deadlock** (milestone 91). Prints `quick: Some("late")`, `timed out`, `None`, `waiting` on four lines, exits with 101 after `panic: deadlock: every green thread is waiting` on stderr.
+**Select and deadlock** (milestone 91). Prints `quick: Some("late")`, `timed out`, `None`, `waiting` on four lines, exits with 101 after `panic: deadlock: every green thread is waiting` on stderr, then a line naming `main` waiting on `empty`'s channel.
 
 ```
 // `select` waits on several channels at once; `after` gives up, and
 // `default` never waits. A deadlock is a panic.
 import std.task;
 
-fun later(c: Chan<string>, ms: i64) {
+fun later(c: Sender<string>, ms: i64) {
     task.sleep(ms);
     c.send("late");
 }
 
 fun main(console: Console, root: Scope) {
-    let quick: Chan<string> = Chan.new();
-    let slow: Chan<string> = Chan.new();
-    root.spawn(later(quick, 5));
-    root.spawn(later(slow, 100));
+    let (to_quick, quick) = Chan<string>.new(0);
+    let (to_slow, slow) = Chan<string>.new(0);
+    root.spawn(later(to_quick, 5));
+    root.spawn(later(to_slow, 100));
     select {
         m = quick.recv() => console.println("quick: {m.debug()}"),
         m = slow.recv() => console.println("slow: {m.debug()}"),
@@ -3861,7 +3870,7 @@ fun main(console: Console, root: Scope) {
         m = slow.recv() => console.println("slow: {m.debug()}"),
         after(20) => console.println("timed out"),
     }
-    let empty: Chan<i64> = Chan.new();
+    let (never, empty) = Chan<i64>.new(0);
     let got = select {
         m = empty.recv() => m,
         default => None,
@@ -4192,7 +4201,7 @@ The spec is implemented in five milestones, each ending in a program that runs. 
 | 174 | Sizes (v18) | `kb()`, `mb()`, `gb()` on integers, in powers of 1024 | `tests/programs/numbers/sizes` (done) |
 | 175 | Discarded `Result` (v18) | an expression statement of type `Result` is E0467; `let _ = …;` drops one | `tests/programs/errors/discarded_result` (done) |
 | 176 | Dotted variants (v18) | `.Some(x)`, `.None`, `.Circle(r)` in every pattern; a bare name always binds; E0212, E0468 | `tests/programs/patterns/dot_variants` (done) |
-| 177 | Type arguments and lossless `as` (v18) | `max<i64>(a, b)`, `Chan<Job>.new()`, `Pair<u8> { … }`, `Option<i64>.None`; `as` only without loss; `try_into`, `truncate`, `saturate`, `round`, `floor`, `ceil`; E0469 | `tests/programs/generics/type_arguments`, `tests/programs/numbers/conversions` (done) |
+| 177 | Type arguments and lossless `as` (v18) | `max<i64>(a, b)`, `Chan<Job>.new(4)`, `Pair<u8> { … }`, `Option<i64>.None`; `as` only without loss; `try_into`, `truncate`, `saturate`, `round`, `floor`, `ceil`; E0469 | `tests/programs/generics/type_arguments`, `tests/programs/numbers/conversions` (done) |
 | 178 | Collection literals (v18) | `Map { "a": 1 }`, `Set { 1, 2 }`, `Map {}`; `FromEntries` and `FromItems`; `#{…}` removed; E0213, E0470 | `tests/programs/collections/literals` (done) |
 | 179 | `Error` and extending interfaces as values (v18) | `interface Error: Display`, `impl Error for string` and std's errors; an interface that extends others is a value type; E0464 retired | `tests/programs/interfaces/extending_values` (done) |
 | 180 | Capabilities, first step (v18) | `main` takes `string[]`, `Console`, `Fs`; `Console`, `Fs`, `Dir`; `print`, `println`, `eprint`, `eprintln`, `read_line`, `read_file`, `write_file`, `append_file`, `args`, `exit` removed (E0471) | `tests/programs/capabilities/console_fs` (done) |
@@ -4215,6 +4224,7 @@ The spec is implemented in five milestones, each ending in a program that runs. 
 | 197 | The sendable rule (v18) | `auto interface Sendable` and its derive blocks; checks at spawned calls (arguments, captures, result), channels, actors, conversions and `impl`s; capabilities and `Error` require `Sendable`; `T: Sendable`; `std.http`'s `Handler`; the library's handles on runtime cells; E0475, E0476 | `tests/programs/concurrency/sendable/` (done) |
 | 198 | Scope policies (v18) | `independent`, `independent(f)`, `limit n`; `scope<E>` and `Failure<E>`; `Failure` a struct with the task's name; task names; a scoped task's entry catching its own unwind; a root task's failure printed in full; E0477, E0478 | `tests/programs/concurrency/scope_policies/` (done) |
 | 199 | Time and shutdown (v18) | `within ms`, `until t`, `s.remaining()`; `.Deadline` failures and reasons; deadlines nesting; `shield within ms { … }`, a shield in a `defer` cut off at its deadline; Ctrl-C cancelling the root scope with `.Shutdown`, exit 130; E0211 for `shield` without `within` | `tests/programs/concurrency/deadlines/`, `tests/interrupt.rs` (done) |
+| 200 | Channels with two ends (v18) | `Chan<T>.new(n)` and `Chan<T>.unbounded()` giving `Sender<T>` and `Receiver<T>`; `try_send` and `try_recv` as `TrySend`/`TryRecv`; `for x of rx`; `s.merge`; `select` on the ends; deadlock reports naming channels' places | `tests/programs/concurrency/channels/` (done) |
 
 In milestones 1 and 2, every value can be treated as `i64`, so codegen can start before the type checker exists. Until milestone 4 provides `lugha_rt_panic`, integer `+`, `-` and `*` wrap, and `/` and `%` stop the program with a trap on a zero divisor or `MIN / -1`. Milestone 3 then replaces that assumption with real types. The process exit code is the low 8 bits of `main`'s result, so milestone tests use results below 256.
 

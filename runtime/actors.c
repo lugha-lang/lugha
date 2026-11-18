@@ -263,3 +263,28 @@ LughaString *lugha_rt_actor_join(LughaActor *a) {
     lugha_rt_rc_retain(a->panic);
     return a->panic;
 }
+
+/* After a deadlock: each task or actor waiting on a channel, and where the
+ * channel was made. */
+static void report_waits(void) {
+    for (Fiber *f = live; f != NULL; f = f->next_live) {
+        LughaChan *c = f->waits_on;
+        if (c == NULL) {
+            continue;
+        }
+        const char *how = f->wait_kind == WAIT_SEND   ? "to send on"
+                          : f->wait_kind == WAIT_RECV ? "to receive on"
+                                                      : "in a select, on";
+        LughaString *task = f->task != NULL ? f->task->name : NULL;
+        LughaActor *actor = f->actor;
+        if (task != NULL) {
+            fprintf(stderr, "  `%.*s`", (int)task->len, task->bytes);
+        } else if (actor != NULL) {
+            fprintf(stderr, "  actor `%s`", actor->name);
+        } else {
+            fputs("  `main`", stderr);
+        }
+        fprintf(stderr, " waits %s the channel made at %s:%" PRId64 ":%" PRId64 "\n", how, c->file,
+                c->line, c->col);
+    }
+}

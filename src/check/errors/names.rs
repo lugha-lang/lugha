@@ -48,6 +48,10 @@ pub(in crate::check) fn unknown_type(name: &str, span: Span) -> Diagnostic {
     // Rust habit: recursion needs no box in Lugha.
     if name == "Box" {
         d.with_help("recursive enums need no `Box`; write the type itself")
+    } else if name == "Chan" {
+        d.with_help(
+            "a channel has two ends: `Sender<T>` sends and closes, `Receiver<T>` receives; `let (tx, rx) = Chan<T>.new(n);`",
+        )
     } else {
         d
     }

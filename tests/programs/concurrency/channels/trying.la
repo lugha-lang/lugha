@@ -1,0 +1,13 @@
+// `try_send` and `try_recv` never wait: what they did, or why not.
+fun main(console: Console) {
+    let (tx, rx) = Chan<i64>.new(1);
+    console.println(rx.try_recv().debug());
+    console.println(tx.try_send(5).debug());
+    console.println(tx.try_send(6).debug());
+    console.println(rx.try_recv().debug());
+    tx.close();
+    console.println(rx.try_recv().debug());
+    console.println(tx.try_send(7).debug());
+    let (direct, taken) = Chan<i64>.new(0);
+    console.println(direct.try_send(1).debug());
+}

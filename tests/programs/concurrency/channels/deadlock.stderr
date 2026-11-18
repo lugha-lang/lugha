@@ -1,0 +1,3 @@
+panic: deadlock: every green thread is waiting
+  `waits` waits to receive on the channel made at tests/programs/concurrency/channels/deadlock.la:10:28
+  `main` waits to send on the channel made at tests/programs/concurrency/channels/deadlock.la:12:20

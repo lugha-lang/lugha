@@ -17,12 +17,12 @@ fun build(seed: i64): i64 {
     sum
 }
 
-fun add_build(seed: i64, sums: Chan<i64>) {
+fun add_build(seed: i64, sums: Sender<i64>) {
     sums.send(build(seed));
 }
 
 fun main(console: Console) {
-    let sums: Chan<i64> = Chan.buffered(50);
+    let (sums, results) = Chan<i64>.new(50);
     let built = scope s {
         for seed in 0..50 {
             s.spawn(add_build(seed, sums));
@@ -30,7 +30,7 @@ fun main(console: Console) {
     };
     sums.close();
     let mut total = 0;
-    while let .Some(n) = sums.recv() {
+    while let .Some(n) = results.recv() {
         total += n;
     }
     console.println("{total} {built.is_ok()}");

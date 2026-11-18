@@ -1,0 +1,1 @@
+panic: a channel's capacity can't be negative at tests/programs/concurrency/channels/negative.la:3:20

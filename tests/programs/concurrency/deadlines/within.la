@@ -1,6 +1,6 @@
 // Past its deadline a scope cancels its tasks — waiting or busy — and its
 // body, with `.Deadline`; their defers run, and the scope fails.
-fun waits(console: Console, c: Chan<i64>): i64 {
+fun waits(console: Console, c: Receiver<i64>): i64 {
     defer console.println("waiter: stopped");
     match c.recv() {
         .Some(n) => n,
@@ -16,7 +16,7 @@ fun busy(): i64 {
 }
 
 fun main(console: Console) {
-    let c: Chan<i64> = Chan.new();
+    let (tx, c) = Chan<i64>.new(0);
     let r = scope s within 30 {
         console.println("time left: {s.remaining().unwrap() > 0}");
         s.spawn(waits(console, c));

@@ -39,6 +39,10 @@ const KNOWN: &[(&str, &str)] = &[
         "concurrency/green_threads/deadlock.la",
         "the waiting tasks aren't unwound",
     ),
+    (
+        "concurrency/channels/deadlock.la",
+        "the waiting tasks aren't unwound",
+    ),
     // Running out of stack, or a fault in C, ends the program from a signal
     // handler: nothing unwinds, and no report is printed.
     (

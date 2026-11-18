@@ -304,7 +304,7 @@ mod tests {
         }
         // Channels and other handles may cross; plain data too.
         ok("actor B { n: i64 }
-            actor A { c: Chan<i64>, b: B, fun f(self, xs: string[]): (i64, bool) = (1, true); }
+            actor A { c: Sender<i64>, b: B, fun f(self, xs: string[]): (i64, bool) = (1, true); }
             fun main() {}");
     }
 

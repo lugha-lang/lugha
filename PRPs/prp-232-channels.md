@@ -1,6 +1,6 @@
 ## FEATURE: Channels with two ends: `Chan<T>.new(n)` giving a `Sender<T>` and a `Receiver<T>`, a required capacity, `unbounded()`, only senders closing, receivers as iterators, `try_send`/`try_recv` as enums, `s.merge(receivers)`, and deadlock reports naming where channels were made; milestone 200.
 
-**Status:** proposed 2026-11-18.
+**Status:** approved 2026-11-18; built 2026-11-18 (milestone 200).
 
 ## OBJECTIVE
 ```
@@ -38,7 +38,7 @@ prints `a`, `b`, `c`, `closed: late`.
 ### The two ends
 1. **`Chan<T>.new(n)`** returns `(Sender<T>, Receiver<T>)`, two handles on one channel holding up to `n` values; `0` hands each value over directly (today's `Chan.new()`). `n` is an `i64`; a negative `n` panics. **`Chan<T>.unbounded()`** has no limit. `T` comes from the type argument, or from the expected type (`let (tx, rx): (Sender<i64>, Receiver<i64>) = Chan.new(1);`), else E0412 as today.
 2. **`Sender<T>`:** `send(v)` (waits while full; on a closed channel it panics), `try_send(v): TrySend<T>`, `close()` (closing twice panics, as today), `is(other)`.
-3. **`Receiver<T>`:** `recv(): Option<T>` (`None` only once closed and empty), `try_recv(): TryRecv<T>`, `is(other)`, and it implements `Iter<T>` (`next` is `recv`), so `for x of rx` and the iterator helpers work. `close` on a receiver is E0415, with help: only a `Sender` closes.
+3. **`Receiver<T>`:** `recv(): Option<T>` (`None` only once closed and empty), `try_recv(): TryRecv<T>`, `is(other)`, and `for x of rx` loops over it (`next` is `recv`). It doesn't convert to an `Iter<T>` value, so the iterator helpers (`rx.map(f)`) aren't on it yet. `close` on a receiver is E0415, with help: only a `Sender` closes.
 4. **`TryRecv<T>`** is `.Ready(T) | .Empty | .Closed`; **`TrySend<T>`** is `.Sent | .Full(T) | .Closed(T)`, the value given back. Both are prelude enums.
 5. **`Chan` is no longer a type**, only the maker: `Chan<T>` written as a type is E0305 (unknown type) with help naming `Sender<T>` and `Receiver<T>`; `Chan.buffered(n)` is E0415 and `Chan.new()` without a capacity E0405, each with help showing `Chan<T>.new(n)`.
 6. **`select`** keeps its arms on the ends: `m = rx.recv()`, `tx.send(v)`, `after(ms)`, `default`. The pick among ready arms stays fair and seeded.
@@ -59,6 +59,15 @@ prints `a`, `b`, `c`, `closed: late`.
 6. **Old forms are errors with help, not silent aliases:** `Chan<T>` as a type, `Chan.new()`, `Chan.buffered(n)`, `close` on a receiver. Programs migrate: every `.la` in `tests/programs`, the programs inside `tests/*.rs`, `bench/programs/chanping`, the spec's §10 programs, and the prelude and std.
 7. **No new error codes:** each misuse fits E0415 (no such method), E0305 (unknown type) or E0405 (wrong number of arguments), with help.
 
+8. **Made during the build:**
+   - `for x of rx` is built in, not an `Iter<T>` implementation: a built-in type can't become an interface value yet, so `rx.map(f)` and the other helpers wait for that.
+   - A wrong end in `select` (`tx.recv()` as an arm) is the method's E0415 alone, not E0438 as well.
+   - A `spawn` inside the prelude (`merge`'s) doesn't mark a program as using tasks: it runs only through a scope the program made or took, which marks it.
+   - The deadlock report names an actor as ``actor `A` `` (its report lives in `actors.c`, which sees both channels and actors).
+   - The VS Code extension's `chan` snippet makes two ends, its stale `spawn` snippet (bare `spawn`, gone since scopes) became a scope, and its grammar knows `Sender` and `Receiver` (0.35.0): `tests/snippets.rs` compiles every snippet.
+   - `src/codegen/select.rs` takes `select` from `codegen/channels.rs`, which passed 500 lines (the user's choice).
+   - A stale fixture from milestone 199 (`deadlines/e0477.stderr`, its program reformatted after the output was recorded) is fixed here.
+
 ## REQUIREMENTS
 
 ### Must Do
@@ -72,12 +81,12 @@ prints `a`, `b`, `c`, `closed: late`.
 - Actors' bounded mailboxes: the next PRP.
 
 ## TESTS
-- [ ] Checker unit tests: the ends' types and methods; `T` from the type argument and from the expected type; `close` on a receiver, `Chan<T>` as a type, `Chan.buffered`, `Chan.new()` without a capacity (each its error and help); sendable.
-- [ ] `tests/programs/concurrency/channels/`: capacity 0 and n; `unbounded`; `for x of rx` ending at close; `try_send` (`.Sent`, `.Full(v)`, `.Closed(v)`) and `try_recv` (`.Ready`, `.Empty`, `.Closed`); `select` on ends; `merge` of three producers; a negative capacity's panic; a deadlock report naming a channel.
-- [ ] Every migrated program keeps its output.
-- [ ] Targeted: `--lib`, `programs`, `leaks`, `spec`, `explain`, `comments`, `tasks_runtime`, `snippets`, `net`, `udp`, `tls_over_conn`, `fmt_corpus`.
+- [x] Checker unit tests: the ends' types and methods; `T` from the type argument and from the expected type; `close` on a receiver, `Chan<T>` as a type, `Chan.buffered`, `Chan.new()` without a capacity (each its error and help); sendable.
+- [x] `tests/programs/concurrency/channels/`: capacity 0 and n; `unbounded`; `for x of rx` ending at close; `try_send` (`.Sent`, `.Full(v)`, `.Closed(v)`) and `try_recv` (`.Ready`, `.Empty`, `.Closed`); `select` on ends; `merge` of three producers; a negative capacity's panic; a deadlock report naming a channel.
+- [x] Every migrated program keeps its output.
+- [x] Targeted: `--lib`, `programs`, `leaks`, `spec`, `explain`, `comments`, `tasks_runtime`, `snippets`, `net`, `udp`, `tls_over_conn`, `fmt_corpus`.
 
 ## ACCEPTANCE
-- [ ] The objective program prints as shown; every channel program migrated and passing.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` clean; targeted tests pass.
-- [ ] Spec, CHANGELOG and error pages updated.
+- [x] The objective program prints as shown; every channel program migrated and passing.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` clean; targeted tests pass.
+- [x] Spec, CHANGELOG and error pages updated.

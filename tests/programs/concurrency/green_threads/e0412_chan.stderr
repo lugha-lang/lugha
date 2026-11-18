@@ -1,9 +1,9 @@
 error[E0412]: cannot infer what this channel carries
-  --> tests/programs/concurrency/green_threads/e0412_chan.la:2:13
+  --> tests/programs/concurrency/green_threads/e0412_chan.la:2:20
   |
-2 |     let c = Chan.new();
-  |             ^^^^^^^^^^
+2 |     let (tx, rx) = Chan.new(0);
+  |                    ^^^^^^^^^^^
   |
-  = help: annotate it: `let c: Chan<i64> = Chan.new();`
+  = help: write what it carries: `let (tx, rx) = Chan<i64>.new(4);`
 
 For more about E0412, run `lughac explain E0412`.

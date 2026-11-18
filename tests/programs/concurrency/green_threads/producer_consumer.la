@@ -1,6 +1,6 @@
 // A buffered channel: the producer runs ahead by up to two values, then
 // closes the channel; the consumer drains it.
-fun produce(console: Console, out: Chan<string>, count: i64) {
+fun produce(console: Console, out: Sender<string>, count: i64) {
     for i in 0..count {
         out.send("item {i}");
         console.println("sent {i}");
@@ -9,8 +9,8 @@ fun produce(console: Console, out: Chan<string>, count: i64) {
 }
 
 fun main(console: Console, root: Scope) {
-    let c: Chan<string> = Chan.buffered(2);
-    root.spawn(produce(console, c, 5));
+    let (tx, c) = Chan<string>.new(2);
+    root.spawn(produce(console, tx, 5));
     while let .Some(item) = c.recv() {
         console.println("got {item}");
     }

@@ -36,7 +36,7 @@ fn counted_in(ty: &Type, structs: &Structs, enums: &Enums, path: &mut Vec<String
         | Type::Fun(..)
         | Type::Own(_)
         | Type::Interface(..)
-        | Type::Chan(_)
+        | Type::Chan(_, _)
         | Type::Task(_)
         | Type::Actor(_) => true,
         Type::Handle(key) => key == crate::check::RESOURCE,
@@ -82,7 +82,7 @@ pub(super) fn pointer_counted(ty: &Type) -> bool {
         Type::String
             | Type::Array(_)
             | Type::Ref(_)
-            | Type::Chan(_)
+            | Type::Chan(_, _)
             | Type::Task(_)
             | Type::Actor(_)
     ) || matches!(ty, Type::Handle(k) if k == crate::check::RESOURCE)

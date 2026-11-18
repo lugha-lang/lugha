@@ -6,23 +6,35 @@ interface Shape {
     fun area(self): f64;
 }
 
-struct Square { side: f64 }
+struct Square {
+    side: f64,
+}
 
 impl Shape for Square {
     fun area(self): f64 = self.side * self.side;
 }
 
-struct Pair<A, B> { a: A, b: B }
+struct Pair<A, B> {
+    a: A,
+    b: B,
+}
 
-enum Tree { Leaf, Node(Tree, i64, Tree) }
+enum Tree {
+    Leaf,
+    Node(Tree, i64, Tree),
+}
 
-struct Secret { key: string }
+struct Secret {
+    key: string,
+}
 
 impl Debug for Secret {
     fun debug(self): string = "Secret(…)";
 }
 
-struct Label { text: string }
+struct Label {
+    text: string,
+}
 
 impl Display for Label {
     fun show(self): string = self.text;
@@ -57,7 +69,7 @@ fun main(console: Console, root: Scope) {
     let l = Label { text: "hi" };
     console.println("{l} {l.debug()} {to_string(l)}");
     let t = root.spawn(double(2));
-    let c: Chan<i64> = Chan.new();
+    let (c, rx) = Chan<i64>.new(0);
     console.println("{t.debug()} {c.debug()}");
     console.println(t.join().unwrap());
 }

@@ -112,6 +112,13 @@ impl Checker {
         if matches!(ty, Type::Error | Type::Never) {
             return None;
         }
+        // A channel's receiver gives what it receives until closed and empty.
+        if let Type::Chan(super::End::Recv, element) = ty {
+            return Some(Iteration {
+                element: (**element).clone(),
+                default: None,
+            });
+        }
         let offered = self.offered(ty, "next")?;
         let Type::Option(element) = offered.ret else {
             return None;

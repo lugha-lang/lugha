@@ -198,7 +198,7 @@ impl<'ctx> Lowerer<'ctx> {
             // A handle shows its type, never its address.
             (None, Type::Handle(key)) => self.string_literal(&format!("<{}>", bare(key))).into(),
             (None, Type::Task(_)) => self.string_literal("<task>").into(),
-            (None, Type::Chan(_)) => self.string_literal("<chan>").into(),
+            (None, Type::Chan(_, _)) => self.string_literal("<chan>").into(),
             (None, Type::Actor(key)) => self
                 .string_literal(&format!("<actor {}>", bare(key)))
                 .into(),

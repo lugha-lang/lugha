@@ -76,17 +76,17 @@ fn ipv6_loopback_works_when_the_machine_has_it() {
 
 #[test]
 fn a_timeout_parks_only_its_green_thread() {
-    let out = run("fun tick(c: Chan<i64>) {
+    let out = run("fun tick(c: Sender<i64>) {
     c.send(1);
 }
 
 fun main(console: Console, net: Net, root: Scope) {
     let u = net.udp_bind(\"127.0.0.1:0\").unwrap();
     u.set_timeout(200);
-    let c: Chan<i64> = Chan.new();
+    let (c, r) = Chan<i64>.new(0);
     root.spawn(tick(c));
     console.println(u.recv_from(100).debug());
-    console.println(c.recv().debug());
+    console.println(r.recv().debug());
 }");
     assert_eq!(out, "Err(\"timed out\")\nSome(1)\n");
 }

@@ -72,7 +72,7 @@ fn a_recursive_enum_is_counted_through_its_box() {
 fn values_crossing_to_another_task_are_marked_shared() {
     let ir = ir_rc(
         "fun work(xs: string[]): string[] = xs;\n\
-         fun main() { let c: Chan<string[]> = Chan.buffered(1); c.send([\"a\"]); \
+         fun main() { let (c, r) = Chan<string[]>.new(1); c.send([\"a\"]); \
          let _ = scope s { let t = s.spawn(work([\"b\"])); let r = t.join(); }; }",
     );
     let main = body(&ir, "main");

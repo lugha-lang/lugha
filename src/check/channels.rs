@@ -1,39 +1,67 @@
-//! Channels in the checker:
-//! `Chan.new()` and `Chan.buffered(n)` make a `Chan<T>` whose `T` comes
-//! from the expected type; `send`, `recv`, `try_recv`, `close` and `is`
-//! are built-in methods (`check::builtins`).
+//! Channels in the checker: `Chan<T>.new(n)` and `Chan<T>.unbounded()`
+//! make a channel and give its two ends, `(Sender<T>, Receiver<T>)`, `T`
+//! written or taken from the expected type. Each end's methods are
+//! built in (`check::builtins`); `Chan` itself is only the maker.
 
 use super::expr::Expect;
-use super::{Checker, Type, errors};
+use super::{Checker, End, Type, errors};
 use crate::ast::{Expr, Ident};
 
-/// What codegen finds `Chan.new()` by in `Checked::callees`.
+/// What codegen finds `Chan<T>.new(n)` by in `Checked::callees`.
 pub const CHAN_NEW: &str = "$Chan.new";
-/// What codegen finds `Chan.buffered(n)` by in `Checked::callees`.
-pub const CHAN_BUFFERED: &str = "$Chan.buffered";
+/// What codegen finds `Chan<T>.unbounded()` by in `Checked::callees`.
+pub const CHAN_UNBOUNDED: &str = "$Chan.unbounded";
+/// The prelude's `TrySend<T>`, what `try_send` gives.
+pub const TRY_SEND: &str = "$prelude.TrySend";
+/// The prelude's `TryRecv<T>`, what `try_recv` gives.
+pub const TRY_RECV: &str = "$prelude.TryRecv";
+
+/// How a channel is made, for help on the old ways.
+const MAKE: &str = "make a channel with `Chan<T>.new(n)`, holding up to `n` values (0: each handed over directly), or `Chan<T>.unbounded()`";
+
+/// The element type `(Sender<T>, Receiver<T>)` carries.
+fn ends_element(ty: &Type) -> Option<&Type> {
+    match super::tuples::elements(ty)? {
+        [Type::Chan(End::Send, t), Type::Chan(End::Recv, _)] => Some(t),
+        _ => None,
+    }
+}
+
+/// Help for `name` called on the wrong end of a channel.
+pub(super) fn wrong_end(receiver: &Type, name: &str) -> Option<String> {
+    match (receiver, name) {
+        (Type::Chan(End::Recv, _), "send" | "try_send" | "close") => Some(format!(
+            "only a `Sender` can `{name}`; this is the `Receiver` end"
+        )),
+        (Type::Chan(End::Send, _), "recv" | "try_recv") => Some(format!(
+            "only a `Receiver` can `{name}`; this is the `Sender` end"
+        )),
+        _ => None,
+    }
+}
 
 impl Checker {
-    /// `Chan.new()` or `Chan.buffered(n)`; any other `Chan.f(…)` is E0415.
+    /// `Chan<T>.new(n)` or `Chan<T>.unbounded()`, `written` being `T` if
+    /// written; any other `Chan.f(…)` is E0415.
     pub(super) fn chan_new(
         &mut self,
         call: &Expr,
         name: &Ident,
         args: &[Expr],
+        written: Option<Type>,
         expect: Option<&Expect>,
     ) -> Type {
         let (key, arity) = match name.name.as_str() {
-            "new" => (CHAN_NEW, 0),
-            "buffered" => (CHAN_BUFFERED, 1),
+            "new" => (CHAN_NEW, 1),
+            "unbounded" => (CHAN_UNBOUNDED, 0),
             _ => {
-                let help =
-                    Some("make a channel with `Chan.new()` or `Chan.buffered(n)`".to_string());
-                let chan = Type::Chan(Box::new(Type::Error));
-                self.report(errors::no_method(&name.name, &chan, name.span, help));
+                self.report(errors::chan_maker(&name.name, name.span).with_help(MAKE));
                 return self.unchecked(args);
             }
         };
         if args.len() != arity {
-            self.report(errors::arity(&name.name, arity, args.len(), call.span));
+            let wrong = errors::arity(&name.name, arity, args.len(), call.span);
+            self.report(wrong.with_help(MAKE));
             return self.unchecked(args);
         }
         if let [size] = args {
@@ -41,14 +69,22 @@ impl Checker {
         }
         self.callees.insert(call.id, key.to_string());
         self.effect("Chan.new", "makes a channel", call.span);
-        match expect.map(|e| &e.ty) {
-            Some(Type::Chan(inner)) => Type::Chan(inner.clone()),
-            Some(Type::Error) => Type::Error,
+        let element = match (written, expect.map(|e| &e.ty)) {
+            (Some(t), _) => t,
+            (None, Some(Type::Error)) => return Type::Error,
+            (None, Some(ty)) if ends_element(ty).is_some() => {
+                ends_element(ty).expect("matched").clone()
+            }
             _ => {
                 self.report(errors::chan_unknown(call.span));
-                Type::Error
+                return Type::Error;
             }
-        }
+        };
+        let ends = vec![
+            Type::Chan(End::Send, Box::new(element.clone())),
+            Type::Chan(End::Recv, Box::new(element)),
+        ];
+        self.tuple_type(ends)
     }
 }
 
@@ -58,52 +94,61 @@ mod tests {
     use crate::check::test_util::{errors, let_type, ok};
 
     #[test]
-    fn channels_are_made_and_used() {
+    fn a_channel_is_two_ends() {
         ok("fun main() {
-            let c: Chan<i64> = Chan.new();
-            c.send(1);
-            let v: Option<i64> = c.recv();
-            let w = c.try_recv();
-            c.close();
-            let same = c.is(c);
-            let d: Chan<string> = Chan.buffered(4);
-            let bytes: Chan<u8> = Chan.new();
-            bytes.send(255);
+            let (tx, rx) = Chan<i64>.new(1);
+            tx.send(1);
+            let v: Option<i64> = rx.recv();
+            let w = rx.try_recv();
+            let t = tx.try_send(2);
+            tx.close();
+            let same = tx.is(tx);
+            let (utx, urx) = Chan<string>.unbounded();
+            for s of urx { let n = s.len; }
         }");
-        let src = "fun main() { let c: Chan<i64> = Chan.new(); let v = c.recv(); }";
+        let src = "fun main() { let (tx, rx) = Chan<i64>.new(0); let v = rx.recv(); let w = rx.try_recv(); let t = tx.try_send(1); let a = tx; let b = rx; }";
         assert_eq!(let_type(src, "v"), Type::Option(Box::new(Type::I64)));
-        ok("fun drain(c: Chan<i64>): i64 {
+        assert_eq!(let_type(src, "w").to_string(), "TryRecv<i64>");
+        assert_eq!(let_type(src, "t").to_string(), "TrySend<i64>");
+        assert_eq!(let_type(src, "a").to_string(), "Sender<i64>");
+        assert_eq!(let_type(src, "b").to_string(), "Receiver<i64>");
+        ok("fun drain(rx: Receiver<i64>): i64 {
                 let mut sum = 0;
-                while let .Some(x) = c.recv() { sum += x; }
+                for x of rx { sum += x; }
                 sum
             }
+            fun make(): (Sender<i64>, Receiver<i64>) = Chan.new(2);
             fun main() {}");
     }
 
     #[test]
-    fn a_channel_needs_its_type_written() {
+    fn what_a_channel_carries_must_be_known() {
         assert_eq!(
-            errors("fun main() { let c = Chan.new(); }"),
-            [("E0412", "Chan.new()")]
+            errors("fun main() { let (tx, rx) = Chan.new(0); }"),
+            [("E0412", "Chan.new(0)")]
         );
     }
 
     #[test]
     fn channel_mistakes() {
-        let pre = "fun main() { let c: Chan<i64> = Chan.new(); ";
+        let pre = "fun main() { let (tx, rx) = Chan<i64>.new(0); ";
         for (body, code, at) in [
-            ("c.send(\"x\"); }", "E0403", "\"x\""),
-            ("let d: Chan<i64> = Chan.make(); }", "E0415", "make"),
-            (
-                "let d: Chan<i64> = Chan.buffered(\"x\"); }",
-                "E0403",
-                "\"x\"",
-            ),
-            ("let d: Chan<i64> = Chan.new(1); }", "E0405", "Chan.new(1)"),
-            ("let b = c == c; }", "E0404", "c == c"),
+            ("tx.send(\"x\"); }", "E0403", "\"x\""),
+            ("rx.close(); }", "E0415", "close"),
+            ("rx.send(1); }", "E0415", "send"),
+            ("tx.recv(); }", "E0415", "recv"),
+            ("let d = Chan<i64>.make(); }", "E0415", "make"),
+            ("let d = Chan<i64>.buffered(1); }", "E0415", "buffered"),
+            ("let d = Chan<i64>.new(\"x\"); }", "E0403", "\"x\""),
+            ("let d = Chan<i64>.new(); }", "E0405", "Chan<i64>.new()"),
+            ("let b = tx == tx; }", "E0404", "tx == tx"),
         ] {
             let src = format!("{pre}{body}");
             assert_eq!(errors(&src), [(code, at)], "{body}");
         }
+        assert_eq!(
+            errors("fun f(c: Chan<i64>) {}\nfun main() {}"),
+            [("E0305", "Chan<i64>")]
+        );
     }
 }

@@ -111,7 +111,7 @@ impl Checker {
             | Type::Interface(..)
             | Type::Ref(_)
             | Type::Task(_)
-            | Type::Chan(_)
+            | Type::Chan(_, _)
             | Type::Actor(_) => false,
             _ => true,
         }
@@ -157,7 +157,7 @@ impl Checker {
             | Type::Interface(..)
             | Type::Ref(_)
             | Type::Task(_)
-            | Type::Chan(_)
+            | Type::Chan(_, _)
             | Type::Actor(_) => return true,
             Type::Array(inner) | Type::Option(inner) => return self.holds_fun_in(inner, seen),
             // Recursive types meet themselves again: one look is enough.

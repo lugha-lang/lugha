@@ -1,0 +1,12 @@
+// `select` waits on receivers and senders alike.
+fun main(console: Console) {
+    let (tx, rx) = Chan<string>.new(1);
+    select {
+        tx.send("hi") => console.println("sent"),
+        m = rx.recv() => console.println("got {m.debug()}"),
+    }
+    select {
+        m = rx.recv() => console.println("got {m.debug()}"),
+        after(10) => console.println("timed out"),
+    }
+}

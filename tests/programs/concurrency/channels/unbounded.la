@@ -1,0 +1,15 @@
+// An unbounded channel never makes a sender wait; its buffer grows.
+fun main(console: Console) {
+    let (tx, rx) = Chan<string>.unbounded();
+    for i in 0..1_000 {
+        tx.send("value {i}");
+    }
+    tx.close();
+    let mut n = 0;
+    let mut last = "";
+    for v of rx {
+        n += 1;
+        last = v;
+    }
+    console.println("{n} {last}");
+}

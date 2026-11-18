@@ -14,7 +14,7 @@ import std.tls;
 /** One end of an in-memory connection: what one end writes, the other
  * reads. `open` holds one token until the end is closed, so closing twice
  * closes the channel once. */
-struct Pipe { inbox: Chan<u8[]>, outbox: Chan<u8[]>, open: Chan<bool> }
+struct Pipe { inbox: Receiver<u8[]>, outbox: Sender<u8[]>, open: Receiver<bool> }
 
 impl Conn for Pipe {
     fun read(self, max: i64): Result<u8[], string> = match self.inbox.recv() {
@@ -29,7 +29,7 @@ impl Conn for Pipe {
     fun peer(self): string = "pipe:1";
     fun addr(self): string = "pipe:0";
     fun close(self) {
-        if self.open.try_recv().is_some() {
+        if let .Ready(_) = self.open.try_recv() {
             self.outbox.close();
         }
     }
@@ -37,14 +37,14 @@ impl Conn for Pipe {
 
 /** A network of one TLS server, in this program: no socket anywhere. Each
  * connection's other end goes to the server through `calls`. */
-struct Loopback { calls: Chan<Pipe> }
+struct Loopback { calls: Sender<Pipe> }
 
 impl Net for Loopback {
     fun connect_timeout(self, addr: string, ms: i64): Result<Conn, string> {
-        let there = Chan<u8[]>.buffered(64);
-        let back = Chan<u8[]>.buffered(64);
-        self.calls.send(Pipe { inbox: there, outbox: back, open: token() });
-        Ok(Pipe { inbox: back, outbox: there, open: token() })
+        let (to_there, there) = Chan<u8[]>.new(64);
+        let (to_back, back) = Chan<u8[]>.new(64);
+        self.calls.send(Pipe { inbox: there, outbox: to_back, open: token() });
+        Ok(Pipe { inbox: back, outbox: to_there, open: token() })
     }
     fun listen(self, addr: string): Result<Listener, string> = Err("loopback only");
     fun resolve(self, name: string): Result<string[], string> = Ok(["127.0.0.1"]);
@@ -54,14 +54,14 @@ impl Net for Loopback {
 }
 
 /** A channel holding one token: an end that is still open. */
-fun token(): Chan<bool> {
-    let t: Chan<bool> = Chan.buffered(1);
+fun token(): Receiver<bool> {
+    let (t, r) = Chan<bool>.new(1);
     t.send(true);
-    t
+    r
 }
 
 /** The server: each connection in turn, until `calls` closes. */
-fun answering(calls: Chan<Pipe>, cert: string, key: string) {
+fun answering(calls: Receiver<Pipe>, cert: string, key: string) {
     while let .Some(conn) = calls.recv() {
         answer(conn, cert, key);
     }
@@ -95,8 +95,8 @@ impl Net for Offline {
 fun main(console: Console, fs: Fs, root: Scope) {
     let cert = fs.cwd().read_file("cert.pem").unwrap();
     let key = fs.cwd().read_file("key.pem").unwrap();
-    let calls: Chan<Pipe> = Chan.buffered(1);
-    root.spawn(answering(calls, cert, key));
+    let (calls, incoming) = Chan<Pipe>.new(1);
+    root.spawn(answering(incoming, cert, key));
     defer calls.close();
     let net = Loopback { calls: calls };
     let mut opts = tls.options();

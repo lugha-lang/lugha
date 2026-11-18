@@ -1,14 +1,14 @@
 // `select` picks a ready arm, sends, times out, or takes `default`.
 import std.task;
 
-fun later(c: Chan<string>, ms: i64, text: string) {
+fun later(c: Sender<string>, ms: i64, text: string) {
     task.sleep(ms);
     c.send(text);
 }
 
 fun main(console: Console, root: Scope) {
-    let a: Chan<string> = Chan.new();
-    let b: Chan<i64> = Chan.buffered(1);
+    let (to_a, a) = Chan<string>.new(0);
+    let (b, from_b) = Chan<i64>.new(1);
     // Nothing is ready: `default`.
     let first = select {
         m = a.recv() => "a",
@@ -20,14 +20,14 @@ fun main(console: Console, root: Scope) {
         b.send(7) => console.println("sent 7"),
         m = a.recv() => console.println("unexpected"),
     }
-    console.println(b.try_recv().debug());
+    console.println(from_b.try_recv().debug());
     // Nobody sends in time: `after`.
     select {
         m = a.recv() => console.println("unexpected"),
         after(20) => console.println("timed out"),
     }
     // A sender arrives while waiting.
-    root.spawn(later(a, 5, "late hello"));
+    root.spawn(later(to_a, 5, "late hello"));
     select {
         m = a.recv() => match m {
             .Some(text) => console.println(text),
@@ -36,7 +36,7 @@ fun main(console: Console, root: Scope) {
         after(2000) => console.println("too slow"),
     }
     // A closed channel's arm fires with `None`.
-    a.close();
+    to_a.close();
     select {
         m = a.recv() => console.println("closed gives {m.debug()}"),
     }

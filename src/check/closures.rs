@@ -128,7 +128,7 @@ impl Checker {
 fn unknown(ty: &Type) -> bool {
     match ty {
         Type::Error => true,
-        Type::Array(t) | Type::Option(t) | Type::Ref(t) | Type::Task(t) | Type::Chan(t) => {
+        Type::Array(t) | Type::Option(t) | Type::Ref(t) | Type::Task(t) | Type::Chan(_, t) => {
             unknown(t)
         }
         Type::Struct(_, args) | Type::Enum(_, args) | Type::Interface(_, args) => {
@@ -219,11 +219,11 @@ mod tests {
             "fun main() { let a = 1; let b = 2; let f = fun(x: i64): i64 = b + a + b + x; \
                           let g = fun(): i64 { let h = fun(): i64 = a; h() }; }",
         );
-        // The prelude's closures (`sort`'s) capture nothing: leave them out.
+        // Only this program's closures: the prelude's capture other names.
         let mut all: Vec<Vec<String>> = checked
             .captures
             .values()
-            .filter(|c| !c.is_empty())
+            .filter(|c| !c.is_empty() && c.iter().all(|n| n == "a" || n == "b"))
             .cloned()
             .collect();
         all.sort();

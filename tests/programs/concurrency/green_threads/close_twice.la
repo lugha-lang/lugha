@@ -1,5 +1,5 @@
 fun main() {
-    let c: Chan<i64> = Chan.new();
+    let (c, rx) = Chan<i64>.new(0);
     c.close();
     c.close();
 }

@@ -44,7 +44,7 @@ impl Checker {
             // One task owns an actor's state; others only send it messages.
             Type::Actor(_) => Some(None),
             // A channel is sendable when what it carries is.
-            Type::Chan(inner) => Some(self.unmet_derived(SENDABLE, inner, path, seen)),
+            Type::Chan(_, inner) => Some(self.unmet_derived(SENDABLE, inner, path, seen)),
             Type::Interface(key, _) => match self.requires_sendable(key) {
                 true => Some(None),
                 false => fail(),
@@ -224,9 +224,9 @@ mod tests {
             "struct Job { id: i64, tags: string[], at: (i64, Option<string>) }
             enum Step { Go(Job), Stop }
             actor A { n: i64, fun get(self): i64 = self.n; }
-            fun work(j: Job, s: Step, c: Chan<Job>, a: A, console: Console): i64 = j.id;
+            fun work(j: Job, s: Step, c: Sender<Job>, a: A, console: Console): i64 = j.id;
             fun main(console: Console) {
-                let c: Chan<Job> = Chan.new();
+                let (c, jobs) = Chan<Job>.new(0);
                 let a = spawn A { n: 1 };
                 let k = 2;
                 let r = scope s {
@@ -253,7 +253,7 @@ mod tests {
             ["E0475"]
         );
         assert_eq!(
-            codes("fun main() { let c: Chan<Ref<i64>> = Chan.new(); }"),
+            codes("fun main() { let c = Chan<Ref<i64>>.new(0); }"),
             ["E0475"]
         );
         assert_eq!(
@@ -288,12 +288,14 @@ mod tests {
     #[test]
     fn generic_values_cross_when_bounded() {
         ok(
-            "fun send<T: Sendable>(s: Scope, v: T, c: Chan<T>) { s.spawn(c.send(v)); }\nfun main() {}",
+            "fun send<T: Sendable>(s: Scope, v: T, c: Sender<T>) { s.spawn(c.send(v)); }\nfun main() {}",
         );
         assert!(
-            codes("fun send<T>(s: Scope, v: T, c: Chan<T>) { s.spawn(c.send(v)); }\nfun main() {}")
-                .iter()
-                .all(|c| *c == "E0475")
+            codes(
+                "fun send<T>(s: Scope, v: T, c: Sender<T>) { s.spawn(c.send(v)); }\nfun main() {}"
+            )
+            .iter()
+            .all(|c| *c == "E0475")
         );
     }
 

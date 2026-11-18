@@ -1,21 +1,21 @@
 // chanping: two tasks bounce a counter over two unbuffered channels, n
 // round trips. Stresses channel sends and receives and task switches.
 
-fun main(args: string[], console: Console) {
+fun main(args: string[], console: Console, root: Scope) {
     let n = parse_i64(args[1]).unwrap();
-    let ping: Chan<i64> = Chan.new();
-    let pong: Chan<i64> = Chan.new();
-    let echo = spawn fun() {
-        while let .Some(v) = ping.recv() {
+    let (ping, pings) = Chan<i64>.new(0);
+    let (pong, pongs) = Chan<i64>.new(0);
+    let echo = root.spawn(fun() {
+        for v of pings {
             pong.send(v + 1);
         }
-    }();
+    }());
     let mut v = 0;
     for i in 0..n {
         ping.send(v);
-        v = pong.recv().unwrap();
+        v = pongs.recv().unwrap();
     }
     ping.close();
-    echo.join();
+    echo.join().unwrap();
     console.println(v);
 }

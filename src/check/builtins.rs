@@ -2,8 +2,9 @@
 //! strings, the wrapping and counting methods on integers, and the methods
 //! of boxes, tasks, channels and actors.
 
-use super::Type;
+use super::channels::{TRY_RECV, TRY_SEND};
 use super::methods::Method;
+use super::{End, Type};
 use crate::span::Span;
 
 /// `push`, `pop` and `clear` on an array, with a
@@ -23,16 +24,24 @@ pub(super) fn builtin(receiver: &Type, name: &str) -> Option<Method> {
             (vec![f], Type::Unit, false)
         }
         (Type::Ref(_), "is") => (vec![receiver.clone()], Type::Bool, false),
-        // A task's result, and a channel's API besides `Chan.new` and
-        // `Chan.buffered`; plain `self`, as for boxes.
+        // A task's result, and each end of a channel's API besides
+        // `Chan<T>.new(n)`; plain `self`, as for boxes.
         (Type::Task(inner), "join") => (Vec::new(), super::scopes::joined(inner), false),
         (Type::Task(_), "cancel" | "name") => (vec![Type::String], Type::Unit, false),
-        (Type::Chan(inner), "send") => (vec![(**inner).clone()], Type::Unit, false),
-        (Type::Chan(inner), "recv" | "try_recv") => {
-            (Vec::new(), Type::Option(inner.clone()), false)
+        (Type::Chan(End::Send, inner), "send") => (vec![(**inner).clone()], Type::Unit, false),
+        (Type::Chan(End::Send, inner), "try_send") => {
+            let tried = Type::Enum(TRY_SEND.to_string(), vec![(**inner).clone()]);
+            (vec![(**inner).clone()], tried, false)
         }
-        (Type::Chan(_), "close") => (Vec::new(), Type::Unit, false),
-        (Type::Chan(_), "is") => (vec![receiver.clone()], Type::Bool, false),
+        (Type::Chan(End::Send, _), "close") => (Vec::new(), Type::Unit, false),
+        (Type::Chan(End::Recv, inner), "recv") => (Vec::new(), Type::Option(inner.clone()), false),
+        // An iterator: `for x of rx` runs until the channel is closed and empty.
+        (Type::Chan(End::Recv, inner), "next") => (Vec::new(), Type::Option(inner.clone()), true),
+        (Type::Chan(End::Recv, inner), "try_recv") => {
+            let tried = Type::Enum(TRY_RECV.to_string(), vec![(**inner).clone()]);
+            (Vec::new(), tried, false)
+        }
+        (Type::Chan(_, _), "is") => (vec![receiver.clone()], Type::Bool, false),
         // Every actor handle's own messages.
         (Type::Actor(_), "stop") => (Vec::new(), Type::Unit, false),
         (Type::Actor(_), "join") => (Vec::new(), Type::Option(Box::new(Type::String)), false),

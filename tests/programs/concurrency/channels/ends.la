@@ -1,0 +1,23 @@
+// A channel's two ends: the producer has the `Sender` and closes it; the
+// consumer loops over the `Receiver` until it is closed and empty.
+fun produce(jobs: Sender<string>, paths: string[]) {
+    for p of paths {
+        jobs.send(p);
+    }
+    jobs.close();
+}
+
+fun main(console: Console) {
+    let (jobs, queue) = Chan<string>.new(4);
+    let r = scope s {
+        s.spawn(produce(jobs, ["a", "b", "c"]));
+        for p of queue {
+            console.println(p);
+        }
+    };
+    match jobs.try_send("late") {
+        .Sent => console.println("sent"),
+        .Full(v) => console.println("full: {v}"),
+        .Closed(v) => console.println("closed: {v}"),
+    }
+}

@@ -1,13 +1,13 @@
 // Fan out squares to green threads in a scope: each sends its square
 // back, and the scope ends once every one has.
-fun square(n: i64, out: Chan<i64>) {
+fun square(n: i64, out: Sender<i64>) {
     out.send(n * n);
 }
 
 fun cube(n: i64): i64 = n * n * n;
 
 fun main(console: Console) {
-    let squares: Chan<i64> = Chan.buffered(5);
+    let (squares, results) = Chan<i64>.new(5);
     let fanned = scope s {
         for i in 1..6 {
             s.spawn(square(i, squares));
@@ -15,7 +15,7 @@ fun main(console: Console) {
     };
     squares.close();
     let mut total = 0;
-    while let .Some(n) = squares.recv() {
+    while let .Some(n) = results.recv() {
         total += n;
     }
     console.println("{total} {fanned.is_ok()}");

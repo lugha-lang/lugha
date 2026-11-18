@@ -1,0 +1,9 @@
+error[E0305]: cannot find type `Chan`
+  --> tests/programs/concurrency/channels/e0305.la:1:14
+  |
+1 | fun drain(c: Chan<i64>) {}
+  |              ^^^^^^^^^
+  |
+  = help: a channel has two ends: `Sender<T>` sends and closes, `Receiver<T>` receives; `let (tx, rx) = Chan<T>.new(n);`
+
+For more about E0305, run `lughac explain E0305`.

@@ -31,7 +31,7 @@ const STATEMENTS: [&str; 11] = [
 ];
 
 /// What a statement snippet's defaults may name.
-const LOCALS: &str = "    let x = 1;\n    let xs = [1, 2, 3];\n    let cond = true;\n    let o: Option<i64> = Some(1);\n    let c: Chan<i64> = Chan.buffered(1);\n";
+const LOCALS: &str = "    let x = 1;\n    let xs = [1, 2, 3];\n    let cond = true;\n    let o: Option<i64> = Some(1);\n    let (tx, c) = Chan<i64>.new(1);\n";
 
 fn snippets() -> Vec<(String, String)> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("editors/vscode/snippets/lugha.json");

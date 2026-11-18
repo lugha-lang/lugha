@@ -48,7 +48,7 @@ pub(super) fn llvm_type<'ctx>(context: &'ctx Context, ty: &Type) -> BasicTypeEnu
         | Type::Ref(_)
         | Type::Handle(_)
         | Type::Task(_)
-        | Type::Chan(_)
+        | Type::Chan(_, _)
         | Type::Actor(_) => context.ptr_type(AddressSpace::default()).into(),
         // Declared by `declare_enums` before anything is lowered.
         Type::Enum(_, _) | Type::Option(_) => context

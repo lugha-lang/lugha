@@ -384,6 +384,7 @@ fn a_deadlock_panics() {
     assert_eq!(
         err,
         "panic: deadlock: every green thread is waiting
+  `main` waits to receive on the channel made at m:1:1
 "
     );
     assert_eq!(code, Some(101));

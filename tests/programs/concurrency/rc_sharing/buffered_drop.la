@@ -1,16 +1,16 @@
 // A channel dropped while values still wait in its buffer: they go with it.
-fun fill(n: i64): Chan<string[]> {
-    let c: Chan<string[]> = Chan.buffered(n);
+fun fill(n: i64): (Sender<string[]>, Receiver<string[]>) {
+    let (c, r) = Chan<string[]>.new(n);
     for i in 0..n {
         c.send(["value", "{i}"]);
     }
-    c
+    (c, r)
 }
 
 fun main(console: Console) {
-    let c = fill(4);
-    console.println(c.recv().unwrap().debug());
-    let d = fill(3);
+    let (c, r) = fill(4);
+    console.println(r.recv().unwrap().debug());
+    let (d, rd) = fill(3);
     d.close();
     console.println("dropped with values inside");
 }

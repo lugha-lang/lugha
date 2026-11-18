@@ -1,5 +1,5 @@
 // An unbuffered channel hands each value over: `send` waits for `recv`.
-fun ponger(console: Console, pings: Chan<i64>, pongs: Chan<i64>) {
+fun ponger(console: Console, pings: Receiver<i64>, pongs: Sender<i64>) {
     while let .Some(n) = pings.recv() {
         console.println("pong {n}");
         pongs.send(n + 1);
@@ -8,16 +8,16 @@ fun ponger(console: Console, pings: Chan<i64>, pongs: Chan<i64>) {
 }
 
 fun main(console: Console, root: Scope) {
-    let pings: Chan<i64> = Chan.new();
-    let pongs: Chan<i64> = Chan.new();
-    let t = root.spawn(ponger(console, pings, pongs));
+    let (ping, pings) = Chan<i64>.new(0);
+    let (pong, pongs) = Chan<i64>.new(0);
+    let t = root.spawn(ponger(console, pings, pong));
     let mut n = 0;
     for i in 0..3 {
         console.println("ping {n}");
-        pings.send(n);
+        ping.send(n);
         n = pongs.recv().unwrap();
     }
-    pings.close();
+    ping.close();
     t.join().unwrap();
     console.println(n);
 }

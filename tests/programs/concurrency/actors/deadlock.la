@@ -1,6 +1,6 @@
 // Two actors waiting on each other's replies: a deadlock, reported.
 actor A {
-    other: Chan<B>,
+    other: Receiver<B>,
     fun ask(self): i64 {
         let b = self.other.recv().unwrap();
         b.ask()
@@ -12,7 +12,7 @@ actor B {
 }
 
 fun main(console: Console) {
-    let c: Chan<B> = Chan.new();
+    let (tx, c) = Chan<B>.new(0);
     let a = spawn A { other: c };
     console.println("asking");
     console.println(a.ask());
