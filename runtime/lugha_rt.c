@@ -119,6 +119,7 @@ static void panic_end(const char *text, size_t len);
 static void panic_unwind(const char *text, size_t len);
 static bool panic_caught(void);
 static void install_interrupt_handler(void);
+static void sched_init(void);
 struct Panic;
 static void resume_unwind(struct Panic *panic);
 /* What a counted object's visit does with what it holds: let go of it (the
@@ -145,6 +146,7 @@ void lugha_rt_init(int32_t argc, char **argv) {
     program_argv = argv;
     install_stack_overflow_handler();
     install_interrupt_handler();
+    sched_init();
     lugha_rc_start();
 }
 

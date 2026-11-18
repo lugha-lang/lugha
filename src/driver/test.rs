@@ -20,7 +20,7 @@ use crate::codegen::Cpu;
 use super::Output;
 use super::fmt::{display, la_files};
 use super::pipeline::{Failure, TempDir};
-use super::{test_build, test_json};
+use super::{test_build, test_json, test_report};
 use crate::lexer::{self, TokenKind};
 
 /// What `lughac test` was asked to run.
@@ -39,6 +39,8 @@ pub(super) struct Request<'a> {
     pub json: bool,
     /// `--cpu`: the level the test executables are built for.
     pub cpu: Cpu,
+    /// `--shuffle`: plain tests pick ready tasks at random from this seed.
+    pub shuffle: Option<u64>,
 }
 
 impl Request<'_> {
@@ -58,18 +60,18 @@ impl Request<'_> {
 /// One test to run: its name as reported, its file's executable, where
 /// it is declared, whether it is an integration test, and the fresh folder
 /// it is given (made just before it runs, removed after).
-struct Job {
-    name: String,
+pub(super) struct Job {
+    pub name: String,
     test: String,
     exe: PathBuf,
-    file: String,
-    line: usize,
+    pub file: String,
+    pub line: usize,
     integration: bool,
     folder: PathBuf,
 }
 
 /// How one test ended.
-enum Outcome {
+pub(super) enum Outcome {
     Passed,
     /// Exited with this code (101 for a panic), with its output.
     Failed {
@@ -174,59 +176,42 @@ pub(super) fn test(request: &Request, out: &mut Output) -> u8 {
     }
     let (mut passed, mut failed, mut skipped) = (0, 0, 0);
     // `--json` reports each test as it finishes, for an editor's live view.
+    // A drawn seed is said first, so the run can be repeated.
+    if let Some(seed) = request.shuffle
+        && !request.json
+    {
+        out.print(&format!("shuffle seed {seed}\n"));
+    }
     let outcomes = run_all(
         &jobs,
-        (request.timeout, request.integration),
+        (request.timeout, request.integration, request.shuffle),
         |job, outcome, took| {
             if request.json
-                && let Some(line) = json_result(job, outcome, took, request.timeout)
+                && let Some(line) =
+                    test_report::json_result(job, outcome, (took, request.timeout), request.shuffle)
             {
                 out.print(&line);
             }
         },
     );
     for (job, outcome) in jobs.iter().zip(&outcomes) {
-        if request.json {
-            match outcome {
-                Outcome::Passed => passed += 1,
-                Outcome::Skipped(_) => skipped += 1,
-                Outcome::NotStarted(why) => {
-                    out.error(&format!("cannot run test `{}`: {why}", job.name));
-                    code = 2;
-                }
-                _ => failed += 1,
-            }
-            continue;
-        }
         match outcome {
-            Outcome::Passed => {
-                passed += 1;
-                out.print(&format!("test {} ... ok\n", job.name));
-            }
-            Outcome::Skipped(reason) => {
-                skipped += 1;
-                out.print(&format!("test {} ... skipped ({reason})\n", job.name));
-            }
+            Outcome::Passed => passed += 1,
+            Outcome::Skipped(_) => skipped += 1,
             Outcome::NotStarted(why) => {
                 out.error(&format!("cannot run test `{}`: {why}", job.name));
                 code = 2;
+                continue;
             }
-            Outcome::TimedOut => {
-                failed += 1;
-                let secs = request.timeout.as_secs();
-                out.print(&format!(
-                    "test {} ... FAILED (timed out after {secs} s)\n",
-                    job.name
-                ));
-            }
-            Outcome::Failed {
-                code: exit,
-                stdout,
-                stderr,
-            } => {
-                failed += 1;
-                out.print(&failure(&job.name, *exit, stdout, stderr));
-            }
+            _ => failed += 1,
+        }
+        if !request.json {
+            out.print(&test_report::line(
+                job,
+                outcome,
+                request.timeout,
+                request.shuffle,
+            ));
         }
     }
     let summary = match request.json {
@@ -238,6 +223,13 @@ pub(super) fn test(request: &Request, out: &mut Output) -> u8 {
         code = code.max(1);
     }
     code
+}
+
+/// A seed for `--shuffle` given none: from the clock, then printed.
+pub(super) fn draw_seed() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(1, |d| d.as_nanos() as u64 % 1_000_000)
 }
 
 /// Whether `file` holds a test `request` wants: with no filters every
@@ -296,45 +288,11 @@ fn list(request: &Request, files: &[PathBuf], out: &mut Output) -> u8 {
     code
 }
 
-/// The `--json` line for a finished test; `None` for one that never started.
-fn json_result(job: &Job, outcome: &Outcome, took: Duration, timeout: Duration) -> Option<String> {
-    let (status, message, at, output) = match outcome {
-        Outcome::Passed => ("passed", None, None, ""),
-        Outcome::Skipped(reason) => ("skipped", Some(reason.clone()), None, ""),
-        Outcome::TimedOut => {
-            let message = format!("timed out after {} s", timeout.as_secs());
-            ("timed_out", Some(message), None, "")
-        }
-        Outcome::Failed {
-            code,
-            stdout,
-            stderr,
-        } => match test_json::panic_of(stderr) {
-            Some(panic) => ("failed", Some(panic.message), panic.at, stdout.as_str()),
-            None => {
-                let message = code.map_or("killed".to_string(), |c| format!("exit code {c}"));
-                ("failed", Some(message), None, stdout.as_str())
-            }
-        },
-        Outcome::NotStarted(_) => return None,
-    };
-    Some(test_json::result_line(&test_json::Result {
-        name: &job.name,
-        file: &job.file,
-        line: job.line,
-        status,
-        message,
-        at,
-        output,
-        ms: took.as_millis(),
-    }))
-}
-
 /// Runs every job, up to one per CPU at a time, telling `done` about each
 /// as it finishes (on this thread); the outcomes in job order.
 fn run_all(
     jobs: &[Job],
-    (timeout, integration): (Duration, bool),
+    (timeout, integration, shuffle): (Duration, bool, Option<u64>),
     mut done: impl FnMut(&Job, &Outcome, Duration),
 ) -> Vec<Outcome> {
     let workers = thread::available_parallelism()
@@ -356,7 +314,7 @@ fn run_all(
                     let started = Instant::now();
                     let outcome = match job.integration && !integration {
                         true => Outcome::Skipped("integration: run with --integration".to_string()),
-                        false => run_one(job, timeout),
+                        false => run_one(job, timeout, shuffle),
                     };
                     // The receiver lives until every result is in.
                     let _ = send.send((i, outcome, started.elapsed()));
@@ -378,7 +336,7 @@ fn run_all(
 /// Runs one test as its own process, capturing what it prints, with its
 /// fresh folder (`LUGHA_TEST_DIR`), removed afterwards. A plain test runs in
 /// that folder; an integration test where `lughac test` was started.
-fn run_one(job: &Job, timeout: Duration) -> Outcome {
+fn run_one(job: &Job, timeout: Duration, shuffle: Option<u64>) -> Outcome {
     if let Err(error) = std::fs::create_dir(&job.folder) {
         return Outcome::NotStarted(format!("cannot make the test's folder: {error}"));
     }
@@ -389,8 +347,12 @@ fn run_one(job: &Job, timeout: Duration) -> Outcome {
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    // A plain test runs deterministic, on virtual time; an integration
+    // test, given the real world, on its time.
     if !job.integration {
         command.current_dir(&job.folder);
+        let mode = shuffle.map_or("deterministic".to_string(), |s| format!("shuffle:{s}"));
+        command.env("LUGHA_SCHED", mode);
     }
     let outcome = run_child(command.spawn(), timeout);
     // Best effort: the run's temporary folder, removed at the end, holds it too.
@@ -454,24 +416,6 @@ fn wait(child: &mut Child, timeout: Duration) -> Option<std::io::Result<std::pro
     }
 }
 
-/// The report of a failed test: its panic (or exit code), then its output.
-fn failure(name: &str, code: Option<i32>, stdout: &str, stderr: &str) -> String {
-    let mut text = match code {
-        Some(101) | None => format!("test {name} ... FAILED\n"),
-        Some(code) => format!("test {name} ... FAILED (exit code {code})\n"),
-    };
-    for line in stderr.lines() {
-        text.push_str(&format!("    {line}\n"));
-    }
-    if !stdout.is_empty() {
-        text.push_str("    --- output ---\n");
-        for line in stdout.lines() {
-            text.push_str(&format!("    {line}\n"));
-        }
-    }
-    text
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -485,17 +429,5 @@ mod tests {
         ));
         // Doesn't lex, mentions it: built, so the error is reported.
         assert!(has_tests("@test fun t() { ` }"));
-    }
-
-    #[test]
-    fn a_failure_shows_the_panic_then_the_output() {
-        assert_eq!(
-            failure("m.t", Some(101), "hi\n", "panic: no at m.la:1:1\n"),
-            "test m.t ... FAILED\n    panic: no at m.la:1:1\n    --- output ---\n    hi\n"
-        );
-        assert_eq!(
-            failure("m.t", Some(3), "", ""),
-            "test m.t ... FAILED (exit code 3)\n"
-        );
     }
 }

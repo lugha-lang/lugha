@@ -95,6 +95,9 @@ pub(super) enum Command {
         /// The x86-64 level the test executables are built for
         #[arg(long, value_enum, default_value = "x86-64")]
         cpu: CpuLevel,
+        /// Run plain tests with ready tasks picked at random from SEED (drawn if not given)
+        #[arg(long, value_name = "SEED", num_args = 0..=1, require_equals = true)]
+        shuffle: Option<Option<u64>>,
     },
     /// Explain an error or warning code, or list every code
     Explain {

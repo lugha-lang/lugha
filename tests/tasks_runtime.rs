@@ -126,6 +126,9 @@ int main(int argc, char **argv) {
     } else if (!strcmp(test, "sleep")) {
         void *a = spawn(sleeper, (void *)30), *b = spawn(sleeper, (void *)10), *c = spawn(sleeper, (void *)20);
         join(a); join(b); join(c);
+    } else if (!strcmp(test, "long_sleep")) {
+        void *a = spawn(sleeper, (void *)60000), *b = spawn(sleeper, (void *)30000);
+        join(a); join(b);
     } else if (!strcmp(test, "buffered")) {
         void *c = lugha_rt_chan_new(2, 8, "m", 1, 1);
         spawn(producer, c);
@@ -226,6 +229,37 @@ fn run(case: &str) -> (String, String, Option<i32>) {
         String::from_utf8_lossy(&out.stderr).into_owned(),
         out.status.code(),
     )
+}
+
+/// `run` with the scheduler's mode set, as `lughac test` sets it.
+fn run_in(case: &str, mode: &str) -> (String, Option<i32>, std::time::Duration) {
+    let started = std::time::Instant::now();
+    let out = Command::new(harness())
+        .arg(case)
+        .env("LUGHA_SCHED", mode)
+        .output()
+        .expect("harness runs");
+    (
+        String::from_utf8_lossy(&out.stdout).into_owned(),
+        out.status.code(),
+        started.elapsed(),
+    )
+}
+
+#[test]
+fn virtual_time_jumps_to_the_next_sleeper() {
+    for mode in ["deterministic", "shuffle:7"] {
+        let (out, code, took) = run_in("long_sleep", mode);
+        assert_eq!(
+            (out.as_str(), code),
+            ("slept 30000\nslept 60000\n", Some(0)),
+            "{mode}"
+        );
+        assert!(
+            took.as_secs() < 10,
+            "{mode}: a minute of sleeping took {took:?}"
+        );
+    }
 }
 
 fn prints(case: &str, expected: &str) {

@@ -21,6 +21,7 @@ mod stdout;
 mod test;
 mod test_build;
 mod test_json;
+mod test_report;
 mod update;
 
 use std::ffi::OsString;
@@ -174,6 +175,7 @@ where
             list,
             json,
             cpu,
+            shuffle,
         } => Ok(test::test(
             &test::Request {
                 paths,
@@ -184,6 +186,7 @@ where
                 list: *list,
                 json: *json,
                 cpu: (*cpu).into(),
+                shuffle: shuffle.map(|seed| seed.unwrap_or_else(test::draw_seed)),
             },
             &mut out,
         )),

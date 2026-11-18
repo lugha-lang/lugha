@@ -54,6 +54,17 @@ static void idle_wait(void) {
     if (at < 0 && net_waiting == 0 && interrupts == 0) {
         deadlock();
     }
+    // Virtual time: what sockets have ready, without waiting; else, since
+    // nothing else can happen, time jumps to the next timer.
+    if (virtual_time()) {
+        if (net_waiting > 0) {
+            poll_sockets(at < 0 ? -1 : 0);
+        }
+        if (ready_head == NULL && at > virtual_ns) {
+            virtual_ns = at;
+        }
+        return;
+    }
     int64_t wait = at < 0 ? -1 : at - now_ns();
     if (net_waiting > 0) {
         poll_sockets(wait < 0 && at >= 0 ? 0 : wait);

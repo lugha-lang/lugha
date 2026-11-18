@@ -85,6 +85,8 @@ pub(super) struct Result<'a> {
     pub at: Option<(String, usize, usize)>,
     pub output: &'a str,
     pub ms: u128,
+    /// The `--shuffle` seed the test ran with.
+    pub seed: Option<u64>,
 }
 
 /// One `--json` result line.
@@ -104,6 +106,9 @@ pub(super) fn result_line(r: &Result) -> String {
             ",\"at\":{{\"file\":{},\"line\":{line},\"col\":{col}}}",
             string(file)
         ));
+    }
+    if let Some(seed) = r.seed {
+        out.push_str(&format!(",\"seed\":{seed}"));
     }
     out.push_str(&format!(
         ",\"output\":{},\"ms\":{}}}\n",
@@ -235,6 +240,7 @@ mod tests {
             at: None,
             output: "a\nb",
             ms: 3,
+            seed: None,
         };
         assert_eq!(
             result_line(&r),

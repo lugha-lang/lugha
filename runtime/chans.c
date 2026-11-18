@@ -325,6 +325,9 @@ void lugha_rt_chan_close(LughaChan *c, const char *file, int64_t line, int64_t c
 }
 
 static uint64_t pick(uint64_t n) {
+    if (sched_mode == MODE_SHUFFLE) {
+        return shuffle_next() % n;
+    }
     pick_state ^= pick_state << 13;
     pick_state ^= pick_state >> 7;
     pick_state ^= pick_state << 17;

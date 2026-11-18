@@ -240,7 +240,59 @@ __asm__(".text\n"
 #error "green threads need a stack switch for this architecture (x86-64 and AArch64 have one)"
 #endif
 
+/* How the scheduler runs, as `LUGHA_SCHED` says (`lughac test` sets it):
+ * normal (real time, ready tasks first in, first out), deterministic
+ * (virtual time, which jumps to the next timer once every task waits and
+ * no I/O is ready), or shuffle (deterministic, each next ready task picked
+ * at random from a seed, as `select`'s ready arm is). */
+enum { MODE_NORMAL, MODE_DETERMINISTIC, MODE_SHUFFLE };
+static int sched_mode;
+static int64_t virtual_ns;
+static uint64_t shuffle_state;
+
+/* Reads the mode once, as the runtime starts; anything else is normal. */
+static void sched_init(void) {
+    const char *mode = getenv("LUGHA_SCHED");
+    if (mode == NULL) {
+        return;
+    }
+    if (strcmp(mode, "deterministic") == 0) {
+        sched_mode = MODE_DETERMINISTIC;
+        return;
+    }
+    if (strncmp(mode, "shuffle:", 8) == 0 && mode[8] >= '0' && mode[8] <= '9') {
+        char *end;
+        errno = 0;
+        unsigned long long seed = strtoull(mode + 8, &end, 10);
+        if (errno == 0 && *end == '\0') {
+            sched_mode = MODE_SHUFFLE;
+            /* splitmix64, so nearby seeds give unrelated orders; never
+             * zero, or the generator would stay there. */
+            uint64_t z = (uint64_t)seed + 0x9e3779b97f4a7c15u;
+            z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9u;
+            z = (z ^ (z >> 27)) * 0x94d049bb133111ebu;
+            shuffle_state = (z ^ (z >> 31)) | 1;
+        }
+    }
+}
+
+static bool virtual_time(void) {
+    return sched_mode != MODE_NORMAL;
+}
+
+/* The shuffle's next number (xorshift64). */
+static uint64_t shuffle_next(void) {
+    shuffle_state ^= shuffle_state << 13;
+    shuffle_state ^= shuffle_state >> 7;
+    shuffle_state ^= shuffle_state << 17;
+    return shuffle_state;
+}
+
+/* Monotonic nanoseconds: real, or the virtual clock. */
 static int64_t now_ns(void) {
+    if (virtual_time()) {
+        return virtual_ns;
+    }
     struct timespec t;
     clock_gettime(CLOCK_MONOTONIC, &t);
     return (int64_t)t.tv_sec * 1000000000 + t.tv_nsec;
@@ -269,11 +321,27 @@ static void make_ready(Fiber *f) {
 }
 
 static Fiber *pop_ready(void) {
+    Fiber *prev = NULL;
     Fiber *f = ready_head;
+    // Shuffled: any ready task, from the seed.
+    if (sched_mode == MODE_SHUFFLE && f != NULL) {
+        uint64_t n = 0;
+        for (Fiber *g = ready_head; g != NULL; g = g->next) {
+            n++;
+        }
+        for (uint64_t k = shuffle_next() % n; k > 0; k--) {
+            prev = f;
+            f = f->next;
+        }
+    }
     if (f != NULL) {
-        ready_head = f->next;
-        if (ready_head == NULL) {
-            ready_tail = NULL;
+        if (prev == NULL) {
+            ready_head = f->next;
+        } else {
+            prev->next = f->next;
+        }
+        if (ready_tail == f) {
+            ready_tail = prev;
         }
     }
     return f;

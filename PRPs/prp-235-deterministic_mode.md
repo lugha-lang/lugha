@@ -1,6 +1,6 @@
 ## FEATURE: Deterministic mode and virtual time for tests: `lughac test` runs plain tests on virtual time that jumps to the next timer when every task waits, and `--shuffle=SEED` reorders the ready queue from a seed so a race shows up and repeats; milestone 203, the first of phase 6.
 
-**Status:** proposed 2026-11-18.
+**Status:** approved 2026-11-18; built 2026-11-18 (milestone 203).
 
 ## OBJECTIVE
 ```
@@ -68,6 +68,8 @@ $ lughac test --shuffle=7 --filter two_writers   (fails the same way, every time
 6. **`lughac run` gets no mode flag yet:** the Draft asks for it in tests; a flag on `run` can follow when it is wanted.
 7. **`src/driver/test.rs` splits** (it is at 501 lines): how a finished test is reported (`failure`, `json_result` and the line printing, about 120 lines) moves to `src/driver/test_report.rs`.
 
+8. **Made during the build:** the shuffle's generator is seeded through splitmix64, so nearby seeds give unrelated orders (seeding it directly made seeds 1–6 all pick the same way); the scheduling modes are named `MODE_*` in the runtime, since `SCHED_*` belongs to the C library's `sched.h`.
+
 ## REQUIREMENTS
 
 ### Must Do
@@ -80,11 +82,11 @@ $ lughac test --shuffle=7 --filter two_writers   (fails the same way, every time
 - A mode for `lughac run`.
 
 ## TESTS
-- [ ] `tests/test_runner.rs` (or a new `tests/test_modes.rs`): a plain test sleeping minutes finishes in well under a second; deadlines and `after` fire in virtual time; an integration test still sleeps really; `--shuffle=SEED` fails a test that depends on FIFO order, the same way twice, naming the seed; `--shuffle` alone prints a seed; a test without races passes under several seeds.
-- [ ] The C harness (`tests/tasks_runtime.rs`): virtual time jumping to the next sleeper; a seeded pick repeating.
-- [ ] Targeted: `--lib`, `test_runner`, `test_groups`, `test_capabilities`, `tasks_runtime`, `programs`, `spec`, `comments`.
+- [x] `tests/test_runner.rs` (or a new `tests/test_modes.rs`): a plain test sleeping minutes finishes in well under a second; deadlines and `after` fire in virtual time; an integration test still sleeps really; `--shuffle=SEED` fails a test that depends on FIFO order, the same way twice, naming the seed; `--shuffle` alone prints a seed; a test without races passes under several seeds.
+- [x] The C harness (`tests/tasks_runtime.rs`): virtual time jumping to the next sleeper; a seeded pick repeating.
+- [x] Targeted: `--lib`, `test_runner`, `test_groups`, `test_capabilities`, `tasks_runtime`, `programs`, `spec`, `comments`.
 
 ## ACCEPTANCE
-- [ ] The objective's tests behave as shown.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` clean; targeted tests pass.
-- [ ] Spec, CHANGELOG and CLAUDE.md updated.
+- [x] The objective's tests behave as shown.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` clean; targeted tests pass.
+- [x] Spec, CHANGELOG and CLAUDE.md updated.
