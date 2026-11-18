@@ -1,0 +1,14 @@
+// A tuple `let` may shadow earlier names, of any type: each name it binds
+// is a new variable, and the earlier one is let go of with its block.
+fun main(console: Console) {
+    let r: Result<i64, string> = Err("no");
+    console.println(r.debug());
+    let (c, r) = ("yes", [2, 3]);
+    console.println("{c} {r.debug()}");
+    let xs = [1];
+    let (xs, n) = (["a", "b"], xs.len);
+    console.println("{xs.debug()} {n}");
+    let (a, a2) = (1, 2);
+    let (a, b) = ("one", a + a2);
+    console.println("{a} {b}");
+}

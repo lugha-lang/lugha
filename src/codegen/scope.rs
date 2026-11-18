@@ -43,6 +43,17 @@ impl<'ctx> Scopes<'ctx> {
         scope.insert(name.to_string(), local);
     }
 
+    /// Ends the innermost scope, its names joining the one around it,
+    /// where they shadow what was there.
+    pub(super) fn pop_into_outer(&mut self) {
+        let inner = self.stack.pop().expect("a scope to end");
+        let outer = self
+            .stack
+            .last_mut()
+            .expect("locals are declared inside a block");
+        outer.extend(inner);
+    }
+
     /// The innermost binding of `name`; the checker guarantees one exists.
     pub(super) fn lookup(&self, name: &str) -> Local<'ctx> {
         self.find(name)
