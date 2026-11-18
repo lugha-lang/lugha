@@ -4,7 +4,7 @@
  * Every green thread runs on the program's one OS thread (M:1), so nothing
  * here locks: a switch happens only inside these functions, when a thread
  * waits (`join`, a channel, `select`, `sleep`), yields, or is preempted by
- * the countdown generated code keeps in `lugha_rt_task_budget`.
+ * the countdown generated code keeps at its stack's top (stacks.c).
  *
  * Each green thread is a `Fiber`: a stack from the pool (stacks.c) and the
  * stack pointer saved while it is switched out. `main` is a fiber too. A
@@ -70,8 +70,10 @@ struct Fiber {
     void *code;
     void *env;
     LughaTask *task;
-    /* True while a panic or a cancellation unwinds this fiber's stack. */
+    /* True while a panic or a cancellation unwinds this fiber's stack;
+     * and while what unwinds is a stack overflow (stacks.c). */
     bool unwinding;
+    bool overflowed;
     /* The scope that started it (scopes.c), and the innermost scope whose
      * body it runs, or NULL. */
     void *started_in;
@@ -125,7 +127,6 @@ enum { WAIT_NONE, WAIT_RECV, WAIT_SEND, WAIT_SELECT };
 
 enum { WAITING = -1, TIMED_OUT = -2, DEFAULT_ARM = -1, CANCELLED = -3, PARKING = -4 };
 
-int64_t lugha_rt_task_budget = TASK_BUDGET;
 
 /* The running fiber, of the running worker. */
 #define current (worker->running)

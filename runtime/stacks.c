@@ -8,14 +8,19 @@
  * its pages back (`MADV_DONTNEED`) and waits in a pool for the next task.
  * Stacks never move.
  *
- * There are no guard pages: every Lugha function's entry compares the
- * stack pointer with `lugha_rt_stack_limit`, the running task's stack
- * bottom plus `STACK_RESERVE`, set at each switch, and below it calls
- * `lugha_rt_stack_low`, which panics with `stack overflow`. The panic
- * unwinds, with the limit lowered so the frames' cleanups have room; a
- * second overflow there ends the program, as a panic while unwinding does.
- * A fiber without a pooled stack (a C harness's `main`) has the limit 0:
- * nothing is checked.
+ * Every stack Lugha code runs on (a task's, `main`'s, a worker's C stack)
+ * is aligned to its size, a power of two, so the stack pointer alone says
+ * where its stack begins and ends, on whatever thread it runs:
+ *
+ *   - There are no guard pages: every Lugha function's entry tests
+ *     `(sp & lugha_rt_stack_mask) < STACK_RESERVE` and below it calls
+ *     `lugha_rt_stack_low`, which panics with `stack overflow`. The panic
+ *     unwinds, its frames' cleanups allowed down to `STACK_UNWIND_ROOM`; a
+ *     second overflow there ends the program, as a panic while unwinding
+ *     does.
+ *   - The top 16 bytes hold the task's step budget, the countdown each
+ *     function entry and loop iteration takes one from: at
+ *     `(sp | lugha_rt_stack_mask) - 15`, so it moves with the task.
  *
  * A fragment, not compiled on its own: joined after tasks.c, whose fibers
  * it uses, and before spawn.c, which takes stacks from it.
@@ -29,9 +34,9 @@
 #define REGION_STACKS 64
 #define SMALLEST_STACK (1024 * 1024)
 
-/* The running code's lowest usable stack address: below it, generated
- * code calls `lugha_rt_stack_low`. 0 checks nothing. */
-uintptr_t lugha_rt_stack_limit;
+/* A stack's size less one, fixed by the first region: generated code finds
+ * the running stack's bottom and top through it. */
+uintptr_t lugha_rt_stack_mask;
 
 /* A task stack's size, settled by the first region; the unused rest of
  * the newest region; and finished tasks' stacks, ready again. */
@@ -49,12 +54,14 @@ static char *new_stack(void) {
         return free_stacks[--free_count];
     }
     while (region_left == 0) {
-        char *region = mmap(NULL, stack_size * REGION_STACKS, PROT_READ | PROT_WRITE,
+        // One stack more than it holds, so its stacks can start aligned.
+        char *region = mmap(NULL, stack_size * (REGION_STACKS + 1), PROT_READ | PROT_WRITE,
                             MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
         if (region != MAP_FAILED) {
-            region_next = region;
+            region_next = (char *)(((uintptr_t)region + stack_size - 1) & ~(stack_size - 1));
             region_left = REGION_STACKS;
             stacks_sized = true;
+            lugha_rt_stack_mask = stack_size - 1;
             break;
         }
         // A small address space: smaller stacks, settled before the first.
@@ -99,26 +106,39 @@ static void reap(void) {
     free(dead);
 }
 
-/* The limit for code running on `f`'s stack. */
-static uintptr_t stack_limit_of(const Fiber *f) {
-    return f->map == NULL ? 0 : (uintptr_t)f->map + STACK_RESERVE;
+/* Where code on `stack` starts: its top, less the budget's 16 bytes. */
+static char *stack_top(char *stack) {
+    return stack + stack_size - 16;
 }
 
-/* After an unwind stopped (a scope or shield caught it): the running
- * fiber's own limit again, which an overflow had lowered. */
-static void stack_limit_restore(void) {
+/* The step budget of the stack `sp` is on. */
+static int64_t *budget_of(uintptr_t sp) {
+    return (int64_t *)((sp | lugha_rt_stack_mask) - 15);
+}
+
+/* A full slice for the code on `stack`. */
+static void budget_fill(char *stack) {
+    *budget_of((uintptr_t)stack) = TASK_BUDGET;
+}
+
+/* After an unwind stopped (a scope or shield caught it): an overflow the
+ * running fiber was unwinding from is over. */
+static void overflow_over(void) {
     if (current != NULL) {
-        lugha_rt_stack_limit = stack_limit_of(current);
+        current->overflowed = false;
     }
 }
 
-/* Called by a function's entry below the limit: a panic that unwinds,
- * with room kept for its cleanups. */
+/* Called by a function's entry when its stack has less than
+ * `STACK_RESERVE` left: a `stack overflow` panic, which unwinds; while it
+ * unwinds, cleanups may go on down to `STACK_UNWIND_ROOM`. */
 void lugha_rt_stack_low(void) {
-    if (current != NULL && current->map != NULL) {
-        lugha_rt_stack_limit = (uintptr_t)current->map + STACK_UNWIND_ROOM;
-    } else {
-        lugha_rt_stack_limit = 0;
+    uintptr_t left = (uintptr_t)__builtin_frame_address(0) & lugha_rt_stack_mask;
+    if (current != NULL && current->overflowed && left >= STACK_UNWIND_ROOM) {
+        return;
+    }
+    if (current != NULL) {
+        current->overflowed = true;
     }
     panic_with("stack overflow", 14);
 }
@@ -174,26 +194,35 @@ __asm__(".text\n"
         ".size lugha_rt_on_stack, .-lugha_rt_on_stack\n");
 #endif
 
-/* Where C's calls start on the C stack (NULL: they stay where they are,
- * as in a C harness's `main`). */
-static char *c_stack_top;
+/* Pages kept inaccessible at a C stack's bottom: C has no entry checks,
+ * so an overflow there faults, and the handler (stack.c) reports it. */
+#define C_STACK_GUARD C_GUARD_SIZE
+
+/* The calling thread's C stack: a pooled stack, aligned like any other,
+ * with its bottom pages made a guard. */
+static void c_stack_make(void) {
+    char *stack = new_stack();
+    if (mprotect(stack, C_STACK_GUARD, PROT_NONE) != 0) {
+        die("panic: can't make a C stack\n");
+    }
+    budget_fill(stack);
+    worker->c_stack_guard = (uintptr_t)stack;
+    worker->c_stack_top = stack_top(stack);
+}
 
 /* `lugha_rt_c_call(thunk, frame)`: generated code's call of a C function,
- * `thunk(frame)`, run on the C stack; a callback's Lugha code there checks
- * against the C stack's end, and can't wait. Already on the C stack (C
- * calling back into Lugha, which calls C again), it runs in place. */
+ * `thunk(frame)`, run on the running worker's C stack; a callback's Lugha
+ * code there checks against that stack's end, and can't wait. Already on
+ * the C stack (C calling back into Lugha, which calls C again), it runs in
+ * place. */
 void lugha_rt_c_call(void (*thunk)(void *), void *frame) {
-    if (worker->on_c_stack || c_stack_top == NULL) {
+    if (worker->on_c_stack || worker->c_stack_top == NULL) {
         thunk(frame);
         return;
     }
-    uintptr_t limit = lugha_rt_stack_limit;
     worker->on_c_stack = true;
-    // `stack_low` (stack.c) is the process stack's end, once known.
-    lugha_rt_stack_limit = stack_low == 0 ? 0 : stack_low + STACK_RESERVE;
-    lugha_rt_on_stack(thunk, frame, c_stack_top);
+    lugha_rt_on_stack(thunk, frame, worker->c_stack_top);
     worker->on_c_stack = false;
-    lugha_rt_stack_limit = limit;
 }
 
 /* `main`'s call, run on its pooled stack. */
@@ -214,15 +243,12 @@ static void main_on_stack(void *p) {
  * exit code. The process's own stack stays for C. The scheduler isn't
  * started: a program without tasks still has none. */
 int32_t lugha_rt_main(int32_t argc, char **argv, int32_t (*entry)(int32_t, char **)) {
-    // C's calls run below this frame, on the process's own stack.
-    char here;
-    c_stack_top = (char *)(((uintptr_t)&here - 4096) & ~(uintptr_t)15);
     main_fiber.map = new_stack();
-    main_fiber.top = main_fiber.map + stack_size;
-    lugha_rt_stack_limit = stack_limit_of(&main_fiber);
+    main_fiber.top = stack_top(main_fiber.map);
+    budget_fill(main_fiber.map);
+    c_stack_make();
     MainCall call = {entry, argc, argv, 0};
     lugha_rt_on_stack(main_on_stack, &call, main_fiber.top);
-    lugha_rt_stack_limit = 0;
     return call.code;
 }
 

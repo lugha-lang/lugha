@@ -5,8 +5,9 @@
 //! first, by the spawning thread: each becomes a hidden
 //! capture, and the closure body reads it instead of evaluating the
 //! argument again. `join` copies the stored result out. In a program with
-//! `spawn`, every function entry and loop iteration counts down
-//! `lugha_rt_task_budget` and calls `lugha_rt_task_preempt` at zero.
+//! `spawn`, every function entry and loop iteration counts down the running
+//! task's budget, the top word of its stack, and calls
+//! `lugha_rt_task_preempt` at zero.
 
 use inkwell::IntPredicate;
 use inkwell::module::Linkage;
@@ -274,17 +275,7 @@ impl<'ctx> Lowerer<'ctx> {
             return;
         }
         let i64_type = self.context.i64_type();
-        let budget = match self.module.get_global("lugha_rt_task_budget") {
-            Some(global) => global,
-            None => {
-                let global = self
-                    .module
-                    .add_global(i64_type, None, "lugha_rt_task_budget");
-                global.set_linkage(Linkage::External);
-                global
-            }
-        };
-        let at = budget.as_pointer_value();
+        let at = self.budget_word();
         let left = self
             .builder
             .build_load(i64_type, at, "budget")
@@ -310,6 +301,77 @@ impl<'ctx> Lowerer<'ctx> {
             .expect(POSITIONED);
         self.branch(go_on);
         self.builder.position_at_end(go_on);
+    }
+}
+
+impl<'ctx> Lowerer<'ctx> {
+    /// The running task's budget: the word at `(sp | mask) - 15`, the top
+    /// of whichever stack the code runs on (every one is aligned to its
+    /// size, `lugha_rt_stack_mask` + 1). No thread's storage is read, so a
+    /// task moved to another thread keeps counting its own.
+    fn budget_word(&mut self) -> inkwell::values::PointerValue<'ctx> {
+        let i64_type = self.context.i64_type();
+        let sp = self.stack_pointer();
+        let mask = self.stack_mask();
+        let top = self
+            .builder
+            .build_or(sp, mask, "stack.top")
+            .expect(POSITIONED);
+        let word = self
+            .builder
+            .build_int_sub(top, i64_type.const_int(15, false), "budget.at")
+            .expect(POSITIONED);
+        self.builder
+            .build_int_to_ptr(
+                word,
+                self.context.ptr_type(Default::default()),
+                "budget.ptr",
+            )
+            .expect(POSITIONED)
+    }
+
+    /// The stack pointer, read where it is (`llvm.read_register`), which
+    /// neither makes a frame nor counts as a side effect.
+    fn stack_pointer(&mut self) -> inkwell::values::IntValue<'ctx> {
+        let i64_type = self.context.i64_type();
+        let name = match self.target {
+            super::Target::X86_64Linux => "rsp",
+            super::Target::Aarch64Linux => "sp",
+        };
+        let read = inkwell::intrinsics::Intrinsic::find("llvm.read_register")
+            .and_then(|i| i.get_declaration(&self.module, &[i64_type.into()]))
+            .expect("LLVM has llvm.read_register");
+        let register = self
+            .context
+            .metadata_node(&[self.context.metadata_string(name).into()]);
+        let site = self
+            .builder
+            .build_call(read, &[register.into()], "sp")
+            .expect(POSITIONED);
+        match site.try_as_basic_value() {
+            ValueKind::Basic(v) => v.into_int_value(),
+            ValueKind::Instruction(_) => unreachable!("llvm.read_register returns the register"),
+        }
+    }
+
+    /// `lugha_rt_stack_mask`, a stack's size less one: set before any Lugha
+    /// code runs and never changed.
+    fn stack_mask(&mut self) -> inkwell::values::IntValue<'ctx> {
+        let i64_type = self.context.i64_type();
+        let global = match self.module.get_global("lugha_rt_stack_mask") {
+            Some(global) => global,
+            None => {
+                let global = self
+                    .module
+                    .add_global(i64_type, None, "lugha_rt_stack_mask");
+                global.set_linkage(Linkage::External);
+                global
+            }
+        };
+        self.builder
+            .build_load(i64_type, global.as_pointer_value(), "stack.mask")
+            .expect(POSITIONED)
+            .into_int_value()
     }
 }
 
@@ -403,7 +465,7 @@ mod tests {
     #[test]
     fn only_programs_that_spawn_count_down() {
         let plain = ir("fun main() { let mut i = 0; while i < 3 { i += 1; } }");
-        assert!(!plain.contains("lugha_rt_task_budget"), "{plain}");
+        assert!(!plain.contains("budget.at"), "{plain}");
         let spawning = ir(
             "fun f() {}\nfun main() { let _ = scope s { s.spawn(f()); }; let mut i = 0; while i < 3 { i += 1; } }",
         );
@@ -411,5 +473,13 @@ mod tests {
             spawning.contains("call void @lugha_rt_task_preempt()"),
             "{spawning}"
         );
+        // The countdown is the stack's top word, found from the stack
+        // pointer: no thread's storage, nothing a moved task could miss.
+        assert!(spawning.contains("@llvm.read_register.i64"), "{spawning}");
+        assert!(
+            spawning.contains("%budget.at = sub i64 %stack.top, 15"),
+            "{spawning}"
+        );
+        assert!(!spawning.contains("lugha_rt_task_budget"), "{spawning}");
     }
 }

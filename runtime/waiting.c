@@ -116,10 +116,8 @@ static void wake_due_sleepers(void) {
     }
 }
 
-/* Task stacks and the limit (stacks.c). */
+/* Gives a finished fiber's stack back (stacks.c). */
 static void reap(void);
-static uintptr_t stack_limit_of(const Fiber *f);
-extern uintptr_t lugha_rt_stack_limit;
 
 /* What the fiber landing on a worker does first, before its own code: the
  * fiber it replaced is saved now, so its park completes and, had it
@@ -139,7 +137,6 @@ static void switch_to(Fiber *next, bool parking) {
         worker->parking = prev;
     }
     current = next;
-    lugha_rt_stack_limit = stack_limit_of(next);
     lugha_rt_task_swap(&prev->sp, next->sp);
     /* Back on `prev`'s stack: another fiber ran and switched back. */
     landed();

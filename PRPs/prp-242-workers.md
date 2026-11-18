@@ -1,6 +1,6 @@
 ## FEATURE: Tasks on every core: one worker thread per core runs tasks in parallel, sharing one run queue, with the runtime's shared state under one lock; milestone 210, the first of two workers PRPs.
 
-**Status:** proposed 2026-11-18.
+**Status:** approved 2026-11-18.
 
 ## OBJECTIVE
 ```

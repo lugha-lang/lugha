@@ -15,16 +15,22 @@ static char alternate_stack[64 * 1024];
 /* How close to the stack's lowest address a fault counts as an overflow. */
 #define GUARD_WINDOW (64 * 1024)
 
-/* A fault next to the process stack's end (the C stack, with the kernel's
- * guard below it; task stacks check at each function's entry) is a stack
- * overflow: reported, without unwinding. Anything else keeps the default action, so a real
- * memory error in C code still kills the process with SIGSEGV. */
+/* How much of a worker's C stack is its guard (stacks.c). */
+#define C_GUARD_SIZE (64 * 1024)
+
+/* A fault in the faulting thread's C stack guard (C runs there; Lugha
+ * stacks check at each function's entry), or next to the process stack's
+ * end, is a stack overflow: reported, without unwinding. Anything else
+ * keeps the default action, so a real memory error in C code still kills
+ * the process with SIGSEGV. */
 static void on_segv(int signal, siginfo_t *info, void *context) {
     (void)context;
     uintptr_t at = (uintptr_t)info->si_addr;
+    uintptr_t guard = worker->c_stack_guard;
+    bool c_overflow = guard != 0 && at >= guard && at < guard + C_GUARD_SIZE;
     bool main_overflow =
         stack_low != 0 && at + GUARD_WINDOW >= stack_low && at < stack_low + GUARD_WINDOW;
-    if (main_overflow) {
+    if (c_overflow || main_overflow) {
         /* Not async-signal-safe, but it keeps earlier output, as other panics
          * do; if the overflow happened inside stdio this can hang instead of
          * exiting, which is acceptable for a program already out of stack. */

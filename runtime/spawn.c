@@ -110,7 +110,8 @@ LughaTask *lugha_rt_task_spawn(void (*entry)(void *, void *, void *), void *code
     lugha_rt_rc_mark(task);
     Fiber *f = lugha_rc_internal(sizeof(Fiber));
     f->map = new_stack();
-    f->top = f->map + stack_size;
+    f->top = stack_top(f->map);
+    budget_fill(f->map);
     f->entry = entry;
     f->code = code;
     f->env = env;
@@ -190,7 +191,11 @@ void lugha_rt_task_sleep(int64_t ms) {
 
 /* Called by generated code when its countdown reaches zero. */
 void lugha_rt_task_preempt(void) {
-    lugha_rt_task_budget = TASK_BUDGET;
+    // Only on a stack of the runtime's: a C harness's `main` runs on the
+    // process's own, which has no budget word.
+    if (current == NULL || current->map != NULL || worker->on_c_stack) {
+        *budget_of((uintptr_t)__builtin_frame_address(0)) = TASK_BUDGET;
+    }
     // A C callback runs on the C stack, which no other task may take.
     if (worker->on_c_stack) {
         return;

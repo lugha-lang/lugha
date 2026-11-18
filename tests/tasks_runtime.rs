@@ -24,7 +24,7 @@ void *lugha_rt_task_join(void *task);
 void lugha_rt_task_yield(void);
 void lugha_rt_task_sleep(int64_t ms);
 void lugha_rt_task_preempt(void);
-extern int64_t lugha_rt_task_budget;
+extern uintptr_t lugha_rt_stack_mask;
 void *lugha_rt_chan_new(int64_t cap, int64_t elem, const char *file, int64_t line, int64_t col);
 void lugha_rt_chan_send(void *c, const void *value, const char *file, int64_t line, int64_t col);
 int32_t lugha_rt_chan_recv(void *c, void *out);
@@ -102,7 +102,9 @@ static int64_t churn(void *env) {
 }
 static int64_t spin(void *env) {
     volatile int64_t *flag = env;
-    while (!*flag) { if (--lugha_rt_task_budget <= 0) lugha_rt_task_preempt(); }
+    /* As generated code counts: the budget at its stack's top. */
+    int64_t *budget = (int64_t *)(((uintptr_t)__builtin_frame_address(0) | lugha_rt_stack_mask) - 15);
+    while (!*flag) { if (--*budget <= 0) lugha_rt_task_preempt(); }
     return 1;
 }
 static int64_t setter(void *env) { *(volatile int64_t *)env = 1; return 0; }

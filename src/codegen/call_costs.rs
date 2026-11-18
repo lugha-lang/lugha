@@ -4,10 +4,11 @@
 //! every program, with tasks or without, where a spent countdown only
 //! yields when another task is ready.
 //!
-//! A task's stack has no guard pages: its entry compares the stack pointer
-//! with the running task's `lugha_rt_stack_limit` (0 for code on a stack
-//! the runtime didn't make), and below it `lugha_rt_stack_low` panics with
-//! `stack overflow`, which unwinds.
+//! A task's stack has no guard pages: its entry tests how far the stack
+//! pointer is above its stack's bottom, `sp & lugha_rt_stack_mask` (every
+//! stack Lugha code runs on is aligned to its size), and with less than
+//! `STACK_RESERVE` left `lugha_rt_stack_low` panics with `stack overflow`,
+//! which unwinds.
 
 use inkwell::IntPredicate;
 use inkwell::context::Context;
@@ -22,9 +23,14 @@ use super::lower::{Lowerer, POSITIONED};
 /// The attribute marking a Lugha function whose entry checks the stack.
 const STACK_CHECK: &str = "lugha-stack-check";
 
+/// What a function's entry wants left on its stack, as the runtime's
+/// `STACK_RESERVE` (`runtime/stacks.c`): below it, `stack overflow`.
+const STACK_RESERVE: u64 = 256 * 1024;
+
 /// The stack check at the entry of every marked function `module` still
-/// defines, once optimised: the stack pointer (`llvm.stacksave`, needing
-/// no frame pointer) against `lugha_rt_stack_limit`, with the call of
+/// defines, once optimised: the stack pointer's offset in its stack
+/// (`llvm.stacksave`, needing no frame pointer, masked with
+/// `lugha_rt_stack_mask`) against `STACK_RESERVE`, with the call of
 /// `lugha_rt_stack_low` on the cold side. The check takes a new first
 /// block, and the function's slots (its first block's `alloca`s) move into
 /// it, so they stay its fixed slots.
@@ -42,13 +48,11 @@ pub(super) fn insert_stack_checks<'ctx>(context: &'ctx Context, module: &Module<
     }
     let i64_type = context.i64_type();
     let ptr = context.ptr_type(Default::default());
-    let limit = module
-        .get_global("lugha_rt_stack_limit")
-        .unwrap_or_else(|| {
-            let global = module.add_global(i64_type, None, "lugha_rt_stack_limit");
-            global.set_linkage(Linkage::External);
-            global
-        });
+    let mask = module.get_global("lugha_rt_stack_mask").unwrap_or_else(|| {
+        let global = module.add_global(i64_type, None, "lugha_rt_stack_mask");
+        global.set_linkage(Linkage::External);
+        global
+    });
     let low = module
         .get_function("lugha_rt_stack_low")
         .unwrap_or_else(|| {
@@ -84,12 +88,18 @@ pub(super) fn insert_stack_checks<'ctx>(context: &'ctx Context, module: &Module<
         let at = builder
             .build_ptr_to_int(sp.into_pointer_value(), i64_type, "sp.at")
             .expect(POSITIONED);
-        let floor = builder
-            .build_load(i64_type, limit.as_pointer_value(), "stack.limit")
+        let mask = builder
+            .build_load(i64_type, mask.as_pointer_value(), "stack.mask")
             .expect(POSITIONED)
             .into_int_value();
+        let left = builder.build_and(at, mask, "stack.left").expect(POSITIONED);
         let below = builder
-            .build_int_compare(IntPredicate::ULT, at, floor, "stack.below")
+            .build_int_compare(
+                IntPredicate::ULT,
+                left,
+                i64_type.const_int(STACK_RESERVE, false),
+                "stack.below",
+            )
             .expect(POSITIONED);
         builder
             .build_conditional_branch(below, cold, body)
@@ -162,6 +172,10 @@ mod tests {
             let fib = &ir[at..at + ir[at..].find("\n}").expect("a body ends")];
             assert!(fib.contains("@llvm.stacksave"), "{fib}");
             assert!(fib.contains("call void @lugha_rt_stack_low()"), "{fib}");
+            // How far into its own stack: no limit kept per thread.
+            assert!(fib.contains("and i64 %sp.at, %stack.mask"), "{fib}");
+            assert!(fib.contains("icmp ult i64 %stack.left, 262144"), "{fib}");
+            assert!(!ir.contains("lugha_rt_stack_limit"), "{fib}");
             assert!(!fib.contains("@llvm.frameaddress"), "{fib}");
         }
     }
@@ -172,7 +186,7 @@ mod tests {
             let at = ir.find("define i64 @lugha_fn_fib(").expect("defined");
             ir[at..at + ir[at..].find("\n}").expect("a body ends")].to_string()
         };
-        assert!(fib_at(&ir_calls(FIB)).contains("@lugha_rt_task_budget"));
-        assert!(!ir_rc(FIB).contains("lugha_rt_task_budget"));
+        assert!(fib_at(&ir_calls(FIB)).contains("%budget.at"));
+        assert!(!ir_rc(FIB).contains("budget.at"));
     }
 }

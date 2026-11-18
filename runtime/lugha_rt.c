@@ -165,6 +165,11 @@ typedef struct Worker {
     /* True while C runs, or a C callback's Lugha code (stacks.c): on the C
      * stack, which no other task may run on. */
     bool on_c_stack;
+    /* Its C stack's top (NULL: C runs where it is called, as in a C
+     * harness), and the lowest address of the guard below it, where a
+     * fault is C overflowing it (stack.c). */
+    char *c_stack_top;
+    uintptr_t c_stack_guard;
     /* Objects marked shared whose contents are still to be marked (rc.c):
      * marking walks a list, not the stack, so a long chain can't overflow
      * it; between the freeze calls, marking makes objects immortal. */

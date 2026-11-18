@@ -182,7 +182,7 @@ void lugha_rt_shield_exit(void) {
  * goes on once the `defer` around the shield ends; any other goes on past
  * the shield (`lugha_rt_shield_end`). */
 void lugha_rt_shield_caught(void) {
-    stack_limit_restore();
+    overflow_over();
     Panic *caught = current->in_flight;
     if (current->shield_outer != NULL) {
         current->in_flight = current->shield_outer;
