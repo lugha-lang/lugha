@@ -160,8 +160,8 @@ impl<'ctx> Lowerer<'ctx> {
                 return self.task_os_call(op, args);
             }
             // `$os.seed()` in `std.random`, `$os.env(name)` in `std.env`, ….
-            ExprKind::Call(callee, args) if crate::check::hash_op(callee).is_some() => {
-                self.hash_call(args)?
+            ExprKind::Call(callee, args) if let Some(op) = crate::check::hash_op(callee) => {
+                self.hash_call(op, args)?
             }
             // `derive.fields(x, ctx, f)` and the rest in derive blocks.
             ExprKind::Call(_, args) if let Some(op) = self.derive_calls.get(&expr.id).cloned() => {

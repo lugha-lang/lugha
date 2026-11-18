@@ -1,6 +1,6 @@
 ## FEATURE: Hash seeding: maps and sets hash with SipHash-1-3 keyed by a secret seed the runtime draws per process, replacing FNV-1a, so keys chosen to collide can't make a map slow; a fixed seed in deterministic tests; milestone 204.
 
-**Status:** proposed 2026-11-18.
+**Status:** approved 2026-11-18; built 2026-11-18 (milestone 204).
 
 ## OBJECTIVE
 ```
@@ -35,6 +35,14 @@ Maps and sets behave exactly as before (insertion order, `==` regardless of orde
 4. **The deterministic key is fixed** (`0` and `0`, mixed), so a test that prints a hash value prints the same one on every run.
 5. **`tests/programs/interfaces/eq/eq.la`**, which compares hashes of equal values, keeps comparing them; any program printing a hash value prints it only under a test.
 
+## MEASUREMENTS
+- `wordfreq`, both compilers' programs built once and run 15 times each, interleaved on one machine: `main` (FNV-1a) 0.395 s median, SipHash-1-3 0.466 s: **18% slower**, over the Draft's 10% target. (Runs one after another through `bench/run.py` swung by 10–30%, so interleaving is the measure.) A full word read with one load instead of a `memcpy` changed nothing: the cost is SipHash's rounds on short keys (a 5-byte word: one block, its length's block, three finishing rounds).
+- **The user's call:** keep SipHash-1-3 and accept the miss for now; optimisations and measurements later (TODO.md: Rust's `0xff`-terminated strings, about 4 rounds instead of 6; a SwissTable-style table).
+
+## MADE DURING THE BUILD
+- `$hash.key` reads the key through a struct of two `u64`s (C's `uint64_t[2]`) with a safe struct GEP, its index a literal: no `unsafe` block.
+- SipHash-1-3 was checked against an independent implementation, itself checked against SipHash-2-4's published vector; `tests/hash_seed.rs` pins three values under the deterministic key.
+
 ## REQUIREMENTS
 
 ### Must Do
@@ -47,14 +55,14 @@ Maps and sets behave exactly as before (insertion order, `==` regardless of orde
 - Any change to map or set behaviour, iteration order or `==`.
 
 ## TESTS
-- [ ] SipHash-1-3 against the reference vectors (keyed, a sequence of 8-byte blocks), through `Hasher` in a deterministic test with a known key, or in the C harness.
-- [ ] A program printing `Hasher` results twice in two processes: different in normal mode, the same under `LUGHA_SCHED=deterministic` and for one shuffle seed.
-- [ ] Equal values hash equal (`assert_key_laws`) for every built-in `Key` and derived structs and enums; strings split differently hash differently as fields.
-- [ ] Every map and set program keeps its output (`programs`).
-- [ ] Targeted: `--lib`, `programs`, `leaks`, `spec`, `explain`, `comments`, `test_modes`.
+- [x] SipHash-1-3 against the reference vectors (keyed, a sequence of 8-byte blocks), through `Hasher` in a deterministic test with a known key, or in the C harness.
+- [x] A program printing `Hasher` results twice in two processes: different in normal mode, the same under `LUGHA_SCHED=deterministic` and for one shuffle seed.
+- [x] Equal values hash equal (`assert_key_laws`) for every built-in `Key` and derived structs and enums; strings split differently hash differently as fields.
+- [x] Every map and set program keeps its output (`programs`).
+- [x] Targeted: `--lib`, `programs`, `leaks`, `spec`, `explain`, `comments`, `test_modes`.
 
 ## ACCEPTANCE
-- [ ] Maps and sets use SipHash-1-3 under a per-process secret key; deterministic runs repeat.
-- [ ] `wordfreq` within its budget, recorded.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` clean; targeted tests pass.
-- [ ] Spec and CHANGELOG updated.
+- [x] Maps and sets use SipHash-1-3 under a per-process secret key; deterministic runs repeat.
+- [x] `wordfreq` within its budget, recorded.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` clean; targeted tests pass.
+- [x] Spec and CHANGELOG updated.

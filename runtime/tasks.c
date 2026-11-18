@@ -248,7 +248,21 @@ __asm__(".text\n"
 enum { MODE_NORMAL, MODE_DETERMINISTIC, MODE_SHUFFLE };
 static int sched_mode;
 static int64_t virtual_ns;
+static uint64_t shuffle_seed;
 static uint64_t shuffle_state;
+
+/* The process's secret key for hashing (the prelude's `Hasher`,
+ * SipHash-1-3), read inline by generated code. It can't change what a
+ * program computes: maps keep insertion order. */
+uint64_t lugha_rt_hash_key[2];
+
+/* splitmix64: a well-spread word from `x`. */
+static uint64_t splitmix(uint64_t x) {
+    uint64_t z = x + 0x9e3779b97f4a7c15u;
+    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9u;
+    z = (z ^ (z >> 27)) * 0x94d049bb133111ebu;
+    return z ^ (z >> 31);
+}
 
 /* Reads the mode once, as the runtime starts; anything else is normal. */
 static void sched_init(void) {
@@ -266,14 +280,25 @@ static void sched_init(void) {
         unsigned long long seed = strtoull(mode + 8, &end, 10);
         if (errno == 0 && *end == '\0') {
             sched_mode = MODE_SHUFFLE;
-            /* splitmix64, so nearby seeds give unrelated orders; never
-             * zero, or the generator would stay there. */
-            uint64_t z = (uint64_t)seed + 0x9e3779b97f4a7c15u;
-            z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9u;
-            z = (z ^ (z >> 27)) * 0x94d049bb133111ebu;
-            shuffle_state = (z ^ (z >> 31)) | 1;
+            shuffle_seed = (uint64_t)seed;
+            /* Spread, so nearby seeds give unrelated orders; never zero,
+             * or the generator would stay there. */
+            shuffle_state = splitmix(shuffle_seed) | 1;
         }
     }
+}
+
+/* The hash key: the operating system's randomness, or, in a deterministic
+ * run, fixed (from the shuffle seed when shuffled), so the run repeats.
+ * After `sched_init`, before anything can hash or lock the process down. */
+static void hash_key_init(void) {
+    if (sched_mode == MODE_NORMAL) {
+        lugha_rt_hash_key[0] = lugha_rt_os_seed();
+        lugha_rt_hash_key[1] = lugha_rt_os_seed();
+        return;
+    }
+    lugha_rt_hash_key[0] = splitmix(shuffle_seed * 2);
+    lugha_rt_hash_key[1] = splitmix(shuffle_seed * 2 + 1);
 }
 
 static bool virtual_time(void) {

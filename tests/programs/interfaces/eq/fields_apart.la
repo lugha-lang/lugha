@@ -1,0 +1,27 @@
+// Equal values hash equal under the run's key, and a string's end is
+// part of its hash: fields split differently hash differently.
+fun hashed<T: Key>(x: T): u64 {
+    let mut h = Hasher.new();
+    h.add(x);
+    h.finish()
+}
+
+struct Name {
+    first: string,
+    last: string,
+}
+
+impl Key for Name = derive;
+
+fun main(console: Console) {
+    console.println(hashed(("ab", "c")) != hashed(("a", "bc")));
+    console.println(hashed(("ab", "c")) == hashed(("ab", "c")));
+    let a = Name { first: "ann", last: "lee" };
+    let b = Name { first: "ann", last: "lee" };
+    console.println(hashed(a) == hashed(b));
+    assert_key_laws(a, b);
+    assert_key_laws("a longer string than eight bytes", "a longer string than eight bytes");
+    assert_key_laws(-3, -3);
+    let m: Map<Name, i64> = Map { a: 1 };
+    console.println(m[b]);
+}
