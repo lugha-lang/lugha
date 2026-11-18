@@ -250,6 +250,8 @@ void lugha_rt_lockdown(int64_t kinds) {
     bool private = prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == 0;
     int landlock = private ? lock_landlock(kinds) : 0;
     int seccomp = private ? lock_seccomp(kinds) : 0;
+    // Helper threads started from now on are limited as this one is.
+    helpers_allowed = true;
     const char *report = getenv("LUGHA_LOCKDOWN");
     if (report != NULL && strcmp(report, "report") == 0) {
         fprintf(stderr, "lockdown: seccomp %s; landlock %s", seccomp ? "applied" : "not applied",

@@ -41,6 +41,7 @@
 #include <stddef.h>
 #include <sys/prctl.h>
 #include <sys/epoll.h>
+#include <sys/eventfd.h>
 #include <sys/mman.h>
 #include <sys/random.h>
 #include <sys/socket.h>
@@ -121,6 +122,7 @@ static bool panic_caught(void);
 static void install_interrupt_handler(void);
 static void sched_init(void);
 static void hash_key_init(void);
+static void helpers_init(void);
 struct Panic;
 static void resume_unwind(struct Panic *panic);
 /* What a counted object's visit does with what it holds: let go of it (the
@@ -149,6 +151,7 @@ void lugha_rt_init(int32_t argc, char **argv) {
     install_interrupt_handler();
     sched_init();
     hash_key_init();
+    helpers_init();
     lugha_rc_start();
 }
 

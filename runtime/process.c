@@ -14,6 +14,10 @@
  *   just ends the input.
  * - Death by signal n is code 128 + n. There is no timeout and no output
  *   limit.
+ * - Everything from starting the child to waiting for it runs on a helper
+ *   thread (helpers.c), with copies of the command, arguments and input,
+ *   while the task waits; a task cancelled meanwhile stops waiting, and the
+ *   helper still waits for the child, so no zombie is left.
  *
  * A fragment, not compiled on its own: lughac's `link` module joins it after
  * the core (lugha_rt.c), whose includes (`<spawn.h>`, `<poll.h>`,
@@ -23,11 +27,11 @@
 
 extern char **environ;
 
-/* A growing byte buffer for one of the child's outputs. */
+/* A growing byte buffer for one of the child's outputs, from `malloc`. */
 typedef struct {
     char *bytes;
-    int64_t len;
-    int64_t cap;
+    size_t len;
+    size_t cap;
 } Captured;
 
 /* Fails with `message` (and, when `cmd` is given, `cmd: ` before it). */
@@ -44,23 +48,163 @@ static int32_t spawn_fail(LughaString **error, const char *cmd, const char *mess
 
 /* Reads what `fd` has into `into`; false at end of input or on an error. */
 static bool drain(int fd, Captured *into) {
-    if (into->len == into->cap) {
-        if (into->cap > INT64_MAX / 2) {
-            die("panic: out of memory\n");
-        }
-        int64_t cap = into->cap * 2;
-        char *bigger = rt_scratch(cap);
-        memcpy(bigger, into->bytes, (size_t)into->len);
-        rt_scratch_done(into->bytes);
-        into->bytes = bigger;
-        into->cap = cap;
-    }
-    ssize_t got = read(fd, into->bytes + into->len, (size_t)(into->cap - into->len));
+    job_grow(&into->bytes, &into->cap, into->len, 4096);
+    ssize_t got = read(fd, into->bytes + into->len, into->cap - into->len);
     if (got > 0) {
-        into->len += got;
+        into->len += (size_t)got;
         return true;
     }
     return got < 0 && (errno == EINTR || errno == EAGAIN);
+}
+
+/* Feeds `input` to the child's stdin while draining its stdout and stderr
+ * into `out` and `err`, until all three are closed; the descriptors are
+ * closed here. */
+static void spawn_pump(int in_fd, int out_fd, int err_fd, const char *input, size_t input_len,
+                       Captured *out, Captured *err) {
+    /* Writes may fail with EPIPE; block SIGPIPE so that can't kill us. */
+    sigset_t pipe_signal, before;
+    sigemptyset(&pipe_signal);
+    sigaddset(&pipe_signal, SIGPIPE);
+    pthread_sigmask(SIG_BLOCK, &pipe_signal, &before);
+    size_t written = 0;
+    if (in_fd >= 0) {
+        fcntl(in_fd, F_SETFL, fcntl(in_fd, F_GETFL) | O_NONBLOCK);
+        if (input_len == 0) {
+            close(in_fd);
+            in_fd = -1;
+        }
+    }
+    while (out_fd >= 0 || err_fd >= 0 || in_fd >= 0) {
+        struct pollfd fds[3];
+        nfds_t n = 0;
+        int at_out = -1, at_err = -1, at_in = -1;
+        if (out_fd >= 0) { at_out = (int)n; fds[n++] = (struct pollfd){out_fd, POLLIN, 0}; }
+        if (err_fd >= 0) { at_err = (int)n; fds[n++] = (struct pollfd){err_fd, POLLIN, 0}; }
+        if (in_fd >= 0) { at_in = (int)n; fds[n++] = (struct pollfd){in_fd, POLLOUT, 0}; }
+        if (poll(fds, n, -1) < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            break;
+        }
+        if (at_out >= 0 && fds[at_out].revents != 0 && !drain(out_fd, out)) {
+            close(out_fd);
+            out_fd = -1;
+        }
+        if (at_err >= 0 && fds[at_err].revents != 0 && !drain(err_fd, err)) {
+            close(err_fd);
+            err_fd = -1;
+        }
+        if (at_in >= 0 && fds[at_in].revents != 0) {
+            ssize_t put = write(in_fd, input + written, input_len - written);
+            if (put > 0) {
+                written += (size_t)put;
+            }
+            bool more = put >= 0 || errno == EINTR || errno == EAGAIN;
+            if (!more || written == input_len) {
+                close(in_fd);
+                in_fd = -1;
+            }
+        }
+    }
+    /* A SIGPIPE raised while blocked is still pending: take it before
+     * unblocking, so it can't end this program. */
+    sigset_t pending;
+    sigpending(&pending);
+    if (sigismember(&pending, SIGPIPE)) {
+        struct timespec now = {0, 0};
+        sigtimedwait(&pipe_signal, NULL, &now);
+    }
+    pthread_sigmask(SIG_SETMASK, &before, NULL);
+}
+
+/* On a helper: starts `argv[0]` with `argv` (mode `flags`, input `in`),
+ * serves its pipes and waits for it: its code in `value` and its outputs
+ * in `out` and `out2`, or the failure in `err`. */
+static void spawn_job(Job *job) {
+    int mode = job->flags;
+    bool capture = mode != 0;
+    int in_pipe[2] = {-1, -1}, out_pipe[2] = {-1, -1}, err_pipe[2] = {-1, -1};
+    posix_spawn_file_actions_t actions;
+    posix_spawn_file_actions_init(&actions);
+    if (capture) {
+        if (pipe2(out_pipe, O_CLOEXEC) != 0 || pipe2(err_pipe, O_CLOEXEC) != 0 ||
+            (mode == 2 && pipe2(in_pipe, O_CLOEXEC) != 0)) {
+            job->err = errno;
+            for (int k = 0; k < 2; k++) {
+                if (out_pipe[k] >= 0) close(out_pipe[k]);
+                if (err_pipe[k] >= 0) close(err_pipe[k]);
+                if (in_pipe[k] >= 0) close(in_pipe[k]);
+            }
+            posix_spawn_file_actions_destroy(&actions);
+            return;
+        }
+        if (mode == 2) {
+            posix_spawn_file_actions_adddup2(&actions, in_pipe[0], 0);
+        } else {
+            posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0);
+        }
+        posix_spawn_file_actions_adddup2(&actions, out_pipe[1], 1);
+        posix_spawn_file_actions_adddup2(&actions, err_pipe[1], 2);
+    }
+    // A helper blocks every signal, and a child takes its starter's mask:
+    // the child starts with none blocked, as one started by the worker did.
+    posix_spawnattr_t attr;
+    posix_spawnattr_init(&attr);
+    sigset_t none;
+    sigemptyset(&none);
+    posix_spawnattr_setsigmask(&attr, &none);
+    posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETSIGMASK);
+    pid_t pid;
+    int spawned = posix_spawnp(&pid, job->argv[0], &actions, &attr, job->argv, environ);
+    posix_spawnattr_destroy(&attr);
+    posix_spawn_file_actions_destroy(&actions);
+    if (capture) {
+        close(out_pipe[1]);
+        close(err_pipe[1]);
+        if (mode == 2) {
+            close(in_pipe[0]);
+        }
+    }
+    if (spawned != 0) {
+        if (capture) {
+            close(out_pipe[0]);
+            close(err_pipe[0]);
+            if (mode == 2) {
+                close(in_pipe[1]);
+            }
+        }
+        job->err = spawned;
+        return;
+    }
+    Captured out = {NULL, 0, 0};
+    Captured err = {NULL, 0, 0};
+    if (capture) {
+        spawn_pump(mode == 2 ? in_pipe[1] : -1, out_pipe[0], err_pipe[0], job->in, job->in_len,
+                   &out, &err);
+    }
+    // Waited for even when its task stopped waiting: no zombie is left.
+    int status = 0;
+    while (waitpid(pid, &status, 0) < 0) {
+        if (errno != EINTR) {
+            job->err = errno;
+            free(out.bytes);
+            free(err.bytes);
+            return;
+        }
+    }
+    if (WIFEXITED(status)) {
+        job->value = WEXITSTATUS(status);
+    } else if (WIFSIGNALED(status)) {
+        job->value = 128 + WTERMSIG(status);
+    } else {
+        job->value = 0;
+    }
+    job->out = out.bytes;
+    job->out_len = out.len;
+    job->out2 = err.bytes;
+    job->out2_len = err.len;
 }
 
 /* `$os.spawn(cmd, args, input, mode)`: runs `cmd` with `args` and waits.
@@ -81,144 +225,33 @@ int32_t lugha_rt_spawn(const LughaString *cmd, const LughaArray *args, const Lug
             return spawn_fail(error, NULL, text);
         }
     }
-    /* argv: the command, the arguments, NULL. Lugha strings end in NUL. */
-    char **argv = rt_scratch((args->len + 2) * (int64_t)sizeof(char *));
-    argv[0] = (char *)cmd->bytes;
-    for (int64_t i = 0; i < args->len; i++) {
-        argv[i + 1] = (char *)list[i]->bytes;
+    /* The job's own copies: argv (the command, the arguments, NULL) and
+     * the input. */
+    Job *job = job_new(spawn_job);
+    job->argv = calloc((size_t)args->len + 2, sizeof(char *));
+    if (job->argv == NULL) {
+        die("panic: out of memory\n");
     }
-    argv[args->len + 1] = NULL;
-
-    bool capture = mode != 0;
-    int in_pipe[2] = {-1, -1}, out_pipe[2] = {-1, -1}, err_pipe[2] = {-1, -1};
-    posix_spawn_file_actions_t actions;
-    posix_spawn_file_actions_init(&actions);
-    if (capture) {
-        if (pipe2(out_pipe, O_CLOEXEC) != 0 || pipe2(err_pipe, O_CLOEXEC) != 0 ||
-            (mode == 2 && pipe2(in_pipe, O_CLOEXEC) != 0)) {
-            int failed = errno;
-            for (int k = 0; k < 2; k++) {
-                if (out_pipe[k] >= 0) close(out_pipe[k]);
-                if (err_pipe[k] >= 0) close(err_pipe[k]);
-                if (in_pipe[k] >= 0) close(in_pipe[k]);
-            }
-            posix_spawn_file_actions_destroy(&actions);
-            rt_scratch_done(argv);
-            return spawn_fail(error, cmd->bytes, strerror(failed));
-        }
-        if (mode == 2) {
-            posix_spawn_file_actions_adddup2(&actions, in_pipe[0], 0);
-        } else {
-            posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0);
-        }
-        posix_spawn_file_actions_adddup2(&actions, out_pipe[1], 1);
-        posix_spawn_file_actions_adddup2(&actions, err_pipe[1], 2);
+    job->argv[0] = job_copy(cmd->bytes, (size_t)cmd->len);
+    for (int64_t i = 0; i < args->len; i++) {
+        job->argv[i + 1] = job_copy(list[i]->bytes, (size_t)list[i]->len);
+    }
+    job->flags = mode;
+    if (mode == 2) {
+        job->in = job_copy(input->bytes, (size_t)input->len);
+        job->in_len = (size_t)input->len;
     }
     /* What this program printed so far comes before what the child prints. */
     fflush(NULL);
-    pid_t pid;
-    int spawned = posix_spawnp(&pid, cmd->bytes, &actions, NULL, argv, environ);
-    /* posix_spawnp has copied the arguments into the new process. */
-    rt_scratch_done(argv);
-    posix_spawn_file_actions_destroy(&actions);
-    if (capture) {
-        close(out_pipe[1]);
-        close(err_pipe[1]);
-        if (mode == 2) {
-            close(in_pipe[0]);
-        }
+    job_run(job);
+    if (job->err != 0) {
+        int32_t failed = spawn_fail(error, cmd->bytes, strerror(job->err));
+        job_free(job);
+        return failed;
     }
-    if (spawned != 0) {
-        if (capture) {
-            close(out_pipe[0]);
-            close(err_pipe[0]);
-            if (mode == 2) {
-                close(in_pipe[1]);
-            }
-        }
-        return spawn_fail(error, cmd->bytes, strerror(spawned));
-    }
-
-    Captured stdout_bytes = {rt_scratch(4096), 0, 4096};
-    Captured stderr_bytes = {rt_scratch(4096), 0, 4096};
-    if (capture) {
-        /* Writes may fail with EPIPE; block SIGPIPE so that can't kill us. */
-        sigset_t pipe_signal, before;
-        sigemptyset(&pipe_signal);
-        sigaddset(&pipe_signal, SIGPIPE);
-        pthread_sigmask(SIG_BLOCK, &pipe_signal, &before);
-        int64_t written = 0;
-        int in_fd = mode == 2 ? in_pipe[1] : -1;
-        if (in_fd >= 0) {
-            fcntl(in_fd, F_SETFL, fcntl(in_fd, F_GETFL) | O_NONBLOCK);
-            if (input->len == 0) {
-                close(in_fd);
-                in_fd = -1;
-            }
-        }
-        int out_fd = out_pipe[0], err_fd = err_pipe[0];
-        while (out_fd >= 0 || err_fd >= 0 || in_fd >= 0) {
-            struct pollfd fds[3];
-            nfds_t n = 0;
-            int at_out = -1, at_err = -1, at_in = -1;
-            if (out_fd >= 0) { at_out = (int)n; fds[n++] = (struct pollfd){out_fd, POLLIN, 0}; }
-            if (err_fd >= 0) { at_err = (int)n; fds[n++] = (struct pollfd){err_fd, POLLIN, 0}; }
-            if (in_fd >= 0) { at_in = (int)n; fds[n++] = (struct pollfd){in_fd, POLLOUT, 0}; }
-            if (poll(fds, n, -1) < 0) {
-                if (errno == EINTR) {
-                    continue;
-                }
-                break;
-            }
-            if (at_out >= 0 && fds[at_out].revents != 0 && !drain(out_fd, &stdout_bytes)) {
-                close(out_fd);
-                out_fd = -1;
-            }
-            if (at_err >= 0 && fds[at_err].revents != 0 && !drain(err_fd, &stderr_bytes)) {
-                close(err_fd);
-                err_fd = -1;
-            }
-            if (at_in >= 0 && fds[at_in].revents != 0) {
-                ssize_t put = write(in_fd, input->bytes + written, (size_t)(input->len - written));
-                if (put > 0) {
-                    written += put;
-                }
-                bool more = put >= 0 || errno == EINTR || errno == EAGAIN;
-                if (!more || written == input->len) {
-                    close(in_fd);
-                    in_fd = -1;
-                }
-            }
-        }
-        /* A SIGPIPE raised while blocked is still pending: take it before
-         * unblocking, so it can't end this program. */
-        sigset_t pending;
-        sigpending(&pending);
-        if (sigismember(&pending, SIGPIPE)) {
-            struct timespec now = {0, 0};
-            sigtimedwait(&pipe_signal, NULL, &now);
-        }
-        pthread_sigmask(SIG_SETMASK, &before, NULL);
-    }
-    int status = 0;
-    while (waitpid(pid, &status, 0) < 0) {
-        if (errno != EINTR) {
-            int failed = errno;
-            rt_scratch_done(stdout_bytes.bytes);
-            rt_scratch_done(stderr_bytes.bytes);
-            return spawn_fail(error, cmd->bytes, strerror(failed));
-        }
-    }
-    if (WIFEXITED(status)) {
-        *code = WEXITSTATUS(status);
-    } else if (WIFSIGNALED(status)) {
-        *code = 128 + WTERMSIG(status);
-    } else {
-        *code = 0;
-    }
-    *out = bytes_of(stdout_bytes.bytes, stdout_bytes.len);
-    *err = bytes_of(stderr_bytes.bytes, stderr_bytes.len);
-    rt_scratch_done(stdout_bytes.bytes);
-    rt_scratch_done(stderr_bytes.bytes);
+    *code = job->value;
+    *out = bytes_of(job->out, (int64_t)job->out_len);
+    *err = bytes_of(job->out2, (int64_t)job->out2_len);
+    job_free(job);
     return 1;
 }

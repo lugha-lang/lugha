@@ -1,6 +1,6 @@
 ## FEATURE: Helper threads: the runtime's blocking work (files and folders, reading input, name lookups, starting and waiting for programs) runs on a bounded pool of helper threads while its task waits, so the other tasks keep running; milestone 206.
 
-**Status:** proposed 2026-11-18.
+**Status:** approved 2026-11-18; built 2026-11-18 (milestone 206).
 
 ## OBJECTIVE
 ```
@@ -58,6 +58,18 @@ prints `tick 0`, `tick 1`, `tick 2`, then `slept`. Today `run` holds the only OS
 - **`runtime/lockdown.c`:** unchanged, but the pool's start depends on it (decision 8 of the design), and a test checks a helper is refused what lockdown refuses: a program without `Fs` started from a helper can't read a file outside its capabilities.
 - Every descriptor the runtime opens is already close-on-exec, which matters more now that two programs can start at once from two helpers.
 
+## MEASUREMENTS
+A 13-byte file read 100,000 times, one task, `-O2`: inline 0.30–0.31 s (~3 µs a read), on a helper 1.93–2.35 s (~21 µs). The cost is the two wake-ups across threads per call. Recorded (`bench/RESULTS.md`) and accepted, as decision 7 says; the fix is in TODO.md: each call tried in place first (`RESOLVE_CACHED`, `RWF_NOWAIT`), handed over only when it would wait.
+
+## MADE DURING THE BUILD
+- **A started program's signal mask:** a child takes its starter's mask, and a helper blocks every signal, so `spawn_job` gives the child an empty mask (`POSIX_SPAWN_SETSIGMASK`), as a child started by the worker had. Without it the child would ignore Ctrl-C and `SIGTERM`.
+- **File streams use a copy of the descriptor** (`F_DUPFD_CLOEXEC`): a task cancelled mid-read may close its `File`, and the number could otherwise go to a new file while the helper still reads or writes it. A `Dir`'s jobs keep the `Dir` itself alive instead (a count held until the job comes back).
+- **A descriptor a job opened for a task that stopped waiting is closed** when the job comes back (a job's `drop`), as a `getaddrinfo` list is freed.
+- **Numeric-only lookups stay inline** (`AI_NUMERICHOST`, UDP's addresses): they never wait.
+- **A C callback's work runs inline**, since it can't wait.
+- **`jobs.c` owns the scheduler's `epoll` set**, which net.c's sockets now share; it's joined after unwind.c, which it needs for `cancel_unwind`.
+- **Lockdown's test:** `tests/lockdown.rs`'s `started_programs_share_the_limits` now starts its programs from a helper thread, so it is the check that helpers are limited; no new case was needed.
+
 ## REQUIREMENTS
 
 ### Must Do
@@ -69,14 +81,14 @@ prints `tick 0`, `tick 1`, `tick 2`, then `slept`. Today `run` holds the only OS
 - `extern blocking` (PRP-239); several workers (PRP 5); `io_uring` (deferred, DEF-10); DNS without threads or `pidfd` (deferred, DEF-11).
 
 ## TESTS
-- [ ] `tests/helpers.rs`: a program's ticks print while another task's `proc.run("sleep", …)` waits; while `read_line` waits on a pipe the test fills late; while a `File` read waits on a FIFO.
-- [ ] `tests/helpers.rs`: a task waiting on `run` cancelled by `within` ends its scope at the deadline; a hundred tasks each reading a file all succeed (the queue bound and on-demand threads); `LUGHA_HELPERS=0` and `=x` fail at start with the message.
-- [ ] `tests/lockdown.rs`: a file read on a helper is refused what lockdown refuses.
-- [ ] `tests/test_modes.rs`: a deterministic run with files and `run` repeats exactly.
-- [ ] Targeted: `--lib`, `programs`, `leaks`, `spec`, `tasks_runtime`, `test_modes`, `lockdown`, `net`, `dir_race`, `fs_time`, `interrupt`, `test_capabilities`.
+- [x] `tests/helpers.rs`: a program's ticks print while another task's `proc.run("sleep", …)` waits; while `read_line` waits on a pipe the test fills late; while a `File` read waits on a FIFO.
+- [x] `tests/helpers.rs`: a task waiting on `run` cancelled by `within` ends its scope at the deadline; a hundred tasks each reading a file all succeed (the queue bound and on-demand threads); `LUGHA_HELPERS=0` and `=x` fail at start with the message.
+- [x] `tests/lockdown.rs`: a file read on a helper is refused what lockdown refuses.
+- [x] `tests/test_modes.rs`: a deterministic run with files and `run` repeats exactly.
+- [x] Targeted: `--lib`, `programs`, `leaks`, `spec`, `tasks_runtime`, `test_modes`, `lockdown`, `net`, `dir_race`, `fs_time`, `interrupt`, `test_capabilities`.
 
 ## ACCEPTANCE
-- [ ] Blocking runtime work no longer stops other tasks; deterministic runs repeat; cancelled tasks don't wait for their jobs.
-- [ ] The measurement recorded.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` clean; targeted tests pass.
-- [ ] Spec, CHANGELOG, TODO and the prelude's docs updated.
+- [x] Blocking runtime work no longer stops other tasks; deterministic runs repeat; cancelled tasks don't wait for their jobs.
+- [x] The measurement recorded.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` clean; targeted tests pass.
+- [x] Spec, CHANGELOG, TODO and the prelude's docs updated.

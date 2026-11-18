@@ -31,7 +31,8 @@ What's next. Shipped work is in CHANGELOG.md (and the spec's §11 milestone tabl
 ## Concurrency (v17)
 
 - [ ] Built-in supervisors (restart policies), links/monitors; generic actors; actors as interface values; bounded mailboxes; actors on several OS threads; a stack overflow inside an actor ending only that actor.
-- [ ] Non-blocking input and output (a waiting read pauses only its green thread); green threads on several OS threads.
+- [ ] Green threads on several OS threads.
+- [ ] **Helper threads: quick calls inline.** A small file read through a helper costs about 21 µs against 3 µs inline (`bench/RESULTS.md`): try each call in place first and hand it over only when the kernel says it would wait (`openat2`'s `RESOLVE_CACHED`, `preadv2`'s `RWF_NOWAIT`), and measure again.
 
 ## Portability — one platform at a time
 

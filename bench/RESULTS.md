@@ -314,3 +314,14 @@ Each program built once by the previous compiler (`main`) and once by this one, 
 
 With the check inserted before optimising, nbody was +11%: a function inlined into a loop checked on every turn. fib pays a load, a compare and a branch per call, which does little else; fib and fannkuch miss the 3% target, accepted for now (TODO.md).
 
+## 2026-11-18 — helper threads (PRP-238, milestone 206)
+
+`dir.read_file` of a 13-byte file 100,000 times, one task, at `-O2`, three runs each: inline (`LUGHA_SCHED=deterministic`, which is how every read ran before) against a helper thread.
+
+| how    | 100,000 reads | one read |
+|--------|---------------|----------|
+| inline | 0.30–0.31 s   | ~3 µs    |
+| helper | 1.93–2.35 s   | ~21 µs   |
+
+Each read hands its job to a helper and is woken back through the `epoll` set: two wake-ups across threads, which cost far more than reading a cached file. Recorded and accepted for now; the fix (TODO.md) tries each call in place first and hands it over only when the kernel says it would wait.
+

@@ -11,7 +11,6 @@
 
 enum { NET_MAX_READ = 16 * 1024 * 1024, NET_BACKLOG = 128, NET_EVENTS = 64 };
 
-static int net_epoll = -1;
 /* Green threads parked on a socket. */
 static int64_t net_waiting;
 
@@ -31,6 +30,10 @@ static void poll_sockets(int64_t wait_ns) {
     struct epoll_event events[NET_EVENTS];
     int n = epoll_wait(net_epoll, events, NET_EVENTS, ms);
     for (int i = 0; i < n; i++) {
+        if (events[i].data.ptr == &helper_tag) {
+            jobs_collect();
+            continue;
+        }
         Fiber *f = events[i].data.ptr;
         if (f != NULL && f->fired == WAITING) {
             wake(f, 0);
@@ -39,7 +42,7 @@ static void poll_sockets(int64_t wait_ns) {
 }
 
 static void poll_ready_sockets(void) {
-    if (net_waiting > 0) {
+    if (net_waiting > 0 || jobs_out > 0) {
         poll_sockets(0);
     }
 }
@@ -51,7 +54,7 @@ static void idle_wait(void) {
     if (timer >= 0 && (at < 0 || timer < at)) {
         at = timer;
     }
-    if (at < 0 && net_waiting == 0 && interrupts == 0) {
+    if (at < 0 && net_waiting == 0 && jobs_out == 0 && interrupts == 0) {
         deadlock();
     }
     // Virtual time: what sockets have ready, without waiting; else, since
@@ -66,7 +69,7 @@ static void idle_wait(void) {
         return;
     }
     int64_t wait = at < 0 ? -1 : at - now_ns();
-    if (net_waiting > 0) {
+    if (net_waiting > 0 || jobs_out > 0) {
         poll_sockets(wait < 0 && at >= 0 ? 0 : wait);
     } else if (wait > 0) {
         struct timespec t = {.tv_sec = wait / 1000000000, .tv_nsec = wait % 1000000000};
@@ -87,12 +90,7 @@ static int wait_fd(int fd, uint32_t events, int64_t deadline) {
     if (current->cancelled != REASON_NONE && !current->unwinding) {
         return WAIT_CANCELLED;
     }
-    if (net_epoll < 0) {
-        net_epoll = epoll_create1(EPOLL_CLOEXEC);
-        if (net_epoll < 0) {
-            die("panic: epoll_create1 failed\n");
-        }
-    }
+    io_open();
     struct epoll_event ev = {.events = events | EPOLLONESHOT, .data = {.ptr = current}};
     if (epoll_ctl(net_epoll, EPOLL_CTL_MOD, fd, &ev) != 0 &&
         epoll_ctl(net_epoll, EPOLL_CTL_ADD, fd, &ev) != 0) {
@@ -121,6 +119,46 @@ static int64_t net_deadline(int64_t timeout_ms) {
     }
     int64_t ns = timeout_ms > INT64_MAX / 2000000 ? INT64_MAX / 2 : timeout_ms * 1000000;
     return now_ns() + ns;
+}
+
+/* On a helper: `getaddrinfo` of the job's host (`path`) and port (`path2`,
+ * or none) for stream sockets with flags `flags`: the list in `found`, the
+ * resolver's code in `value`. */
+static void net_lookup_job(Job *job) {
+    // One socket type, so each address comes once per family, not per protocol.
+    struct addrinfo hints = {.ai_family = AF_UNSPEC, .ai_socktype = SOCK_STREAM};
+    hints.ai_flags = job->flags;
+    struct addrinfo *list = NULL;
+    job->value = getaddrinfo(job->path, job->path2, &hints, &list);
+    job->found = list;
+}
+
+static void net_lookup_drop(Job *job) {
+    if (job->found != NULL) {
+        freeaddrinfo(job->found);
+    }
+}
+
+/* `host` (`len` bytes, no NUL) and `port` (or NULL) looked up with `flags`:
+ * on a helper thread, unless only numbers are allowed, which never waits.
+ * The resolver's code, and the list in `*out` for the caller to free. */
+static int net_lookup(const char *host, size_t len, const char *port, int flags,
+                      struct addrinfo **out) {
+    Job *job = job_new(net_lookup_job);
+    job->drop = net_lookup_drop;
+    job->path = job_copy(host, len);
+    job->path2 = port == NULL ? NULL : job_copy(port, strlen(port));
+    job->flags = flags;
+    if (flags & AI_NUMERICHOST) {
+        job->run(job);
+    } else {
+        job_run(job);
+    }
+    int code = (int)job->value;
+    *out = job->found;
+    job->found = NULL;
+    job_free(job);
+    return code;
 }
 
 /* `addr` ("host:port", "[ipv6-address]:port") resolved with `getaddrinfo`
@@ -152,13 +190,7 @@ static const char *net_resolve(const LughaString *addr, int flags, struct addrin
     if (atol(port) > 65535) {
         return "port must be a number from 0 to 65535";
     }
-    char *name = rt_scratch((int64_t)host_len + 1);
-    memcpy(name, host, host_len);
-    name[host_len] = 0;
-    struct addrinfo hints = {.ai_family = AF_UNSPEC, .ai_socktype = SOCK_STREAM};
-    hints.ai_flags = flags;
-    int code = getaddrinfo(name, port, &hints, out);
-    rt_scratch_done(name);
+    int code = net_lookup(host, host_len, port, flags, out);
     return code == 0 ? NULL : gai_strerror(code);
 }
 

@@ -1,8 +1,8 @@
 /*
  * resolve.c — part of lugha_rt.c: `Net`'s name lookup, and telling public
  * addresses from private ones for `net.only`.
- * `getaddrinfo` blocks the OS thread while it runs, as `net_connect`'s
- * lookup does. Every failure comes back as 0 and the resolver's message.
+ * The lookup runs on a helper thread, as `net_connect`'s does (net.c's
+ * `net_lookup`). Every failure comes back as 0 and the resolver's message.
  *
  * A fragment, not compiled on its own: joined after net.c (`net_error`).
  */
@@ -19,15 +19,9 @@ int32_t lugha_rt_net_resolve(const LughaString *name, int64_t numeric, LughaStri
     if (memchr(name->bytes, 0, (size_t)name->len) != NULL) {
         return net_error(error, "name contains a NUL byte");
     }
-    char *host = rt_scratch(name->len + 1);
-    memcpy(host, name->bytes, (size_t)name->len);
-    host[name->len] = 0;
-    // One socket type, so each address comes once per family, not per protocol.
-    struct addrinfo hints = {.ai_family = AF_UNSPEC, .ai_socktype = SOCK_STREAM};
-    hints.ai_flags = numeric ? AI_NUMERICHOST : 0;
     struct addrinfo *list = NULL;
-    int code = getaddrinfo(host, NULL, &hints, &list);
-    rt_scratch_done(host);
+    int code = net_lookup(name->bytes, (size_t)name->len, NULL, numeric ? AI_NUMERICHOST : 0,
+                          &list);
     if (code != 0) {
         return net_error(error, gai_strerror(code));
     }

@@ -26,9 +26,10 @@ pub use self::inputs::{Plan, PlanError};
 
 /// The runtime's source files, in the order they are joined: the core first,
 /// since it holds every `#include`, then the fragments that rely on it.
-pub const RUNTIME_PARTS: [(&str, &str); 34] = [
+pub const RUNTIME_PARTS: [(&str, &str); 36] = [
     ("lugha_rt.c", include_str!("../../runtime/lugha_rt.c")),
     ("stack.c", include_str!("../../runtime/stack.c")),
+    ("helpers.c", include_str!("../../runtime/helpers.c")),
     ("print.c", include_str!("../../runtime/print.c")),
     ("input.c", include_str!("../../runtime/input.c")),
     ("format.c", include_str!("../../runtime/format.c")),
@@ -60,6 +61,7 @@ pub const RUNTIME_PARTS: [(&str, &str); 34] = [
     ("chans.c", include_str!("../../runtime/chans.c")),
     ("actors.c", include_str!("../../runtime/actors.c")),
     ("unwind.c", include_str!("../../runtime/unwind.c")),
+    ("jobs.c", include_str!("../../runtime/jobs.c")),
     ("cmem.c", include_str!("../../runtime/cmem.c")),
     ("net.c", include_str!("../../runtime/net.c")),
     ("resolve.c", include_str!("../../runtime/resolve.c")),
@@ -221,6 +223,7 @@ pub const RUNTIME_SYMBOLS: [&str; 146] = [
 pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/lugha_rt.c"),
     include_str!("../../runtime/stack.c"),
+    include_str!("../../runtime/helpers.c"),
     include_str!("../../runtime/print.c"),
     include_str!("../../runtime/input.c"),
     include_str!("../../runtime/format.c"),
@@ -249,6 +252,7 @@ pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/chans.c"),
     include_str!("../../runtime/actors.c"),
     include_str!("../../runtime/unwind.c"),
+    include_str!("../../runtime/jobs.c"),
     include_str!("../../runtime/cmem.c"),
     include_str!("../../runtime/net.c"),
     include_str!("../../runtime/resolve.c"),

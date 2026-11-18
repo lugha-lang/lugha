@@ -11,6 +11,10 @@
  * Making, removing, renaming, and what a path names (its kind, size, mode,
  * syncing) are in dir_names.c, joined right after.
  *
+ * Every lookup, read and write runs on a helper thread (helpers.c) while
+ * the task waits, the `Dir` kept alive until the job is done; checking a
+ * path and making Lugha values stay on the task.
+ *
  * Descriptors are close-on-exec, so a started program inherits none. A
  * `Dir`'s descriptor lives in a small counted object and is closed when the
  * last `Dir` holding it is gone. The working folder's `Dir` is opened once
@@ -91,17 +95,43 @@ static bool dir_path_ok(const LughaString *path, LughaString **error) {
     return true;
 }
 
-/* `path` opened beneath `dir`, or -1 with the message set. */
-static int dir_open_beneath(const void *dir, const LughaString *path, int flags, mode_t mode,
-                            LughaString **error) {
+/* A job on `path` beneath `dir`, the folder kept alive while it runs; or
+ * NULL with the message set (an empty path, a NUL byte). */
+static Job *dir_job(void (*run)(Job *), const void *dir, const LughaString *path,
+                    LughaString **error) {
     if (!dir_path_ok(path, error)) {
-        return -1;
+        return NULL;
     }
-    int fd = dir_resolve(((const LughaDir *)dir)->fd, path->bytes, flags, mode);
+    Job *job = job_new(run);
+    job->fd = ((const LughaDir *)dir)->fd;
+    job->hold = (void *)dir;
+    job->path = job_copy(path->bytes, (size_t)path->len);
+    return job;
+}
+
+/* On a helper: the job's path opened beneath its folder, or -1 with the
+ * failure kept. */
+static int dir_job_open(Job *job, int flags, mode_t mode) {
+    int fd = dir_resolve(job->fd, job->path, flags, mode);
     if (fd < 0) {
-        dir_fail(error, errno);
+        job->err = errno;
+        job->lookup = true;
     }
     return fd;
+}
+
+/* A done job's failure as the message, 0; the job freed. */
+static int32_t dir_job_failed(Job *job, LughaString **error) {
+    int32_t failed = job->lookup ? dir_fail(error, job->err) : fs_fail(error, strerror(job->err));
+    job_free(job);
+    return failed;
+}
+
+/* A descriptor a job opened (`fd2`) that its caller never took. */
+static void dir_job_drop(Job *job) {
+    if (job->fd2 >= 0) {
+        close(job->fd2);
+    }
 }
 
 /* `path` opened as a folder handle (`O_PATH | O_DIRECTORY`) from the
@@ -115,6 +145,30 @@ static int dir_open_plain(const char *path) {
     }
 }
 
+/* On a helper: the job's path opened from the working folder (`fd2`). */
+static void dir_plain_job(Job *job) {
+    job->fd2 = dir_open_plain(job->path);
+    if (job->fd2 < 0) {
+        job->err = errno;
+    }
+}
+
+/* `path` (NUL-free) opened from the working folder as a `Dir`: 1, or 0
+ * and the message. */
+static int32_t dir_plain(const char *path, size_t len, void **out, LughaString **error) {
+    Job *job = job_new(dir_plain_job);
+    job->drop = dir_job_drop;
+    job->path = job_copy(path, len);
+    job_run(job);
+    if (job->fd2 < 0) {
+        return dir_job_failed(job, error);
+    }
+    *out = dir_wrap(job->fd2);
+    job->fd2 = -1;
+    job_free(job);
+    return 1;
+}
+
 /* The working folder's `Dir`, opened at the first `fs.cwd()` and held
  * here until exit, when the runtime lets go of it. */
 static LughaDir *dir_working;
@@ -126,13 +180,18 @@ static void dir_working_done(void) {
 /* `$os.dir_cwd()`: the working folder, confined like any `Dir`. */
 int32_t lugha_rt_dir_cwd(void **out, LughaString **error) {
     if (dir_working == NULL) {
-        int fd = dir_open_plain(".");
-        if (fd < 0) {
-            return fs_fail(error, strerror(errno));
+        void *opened;
+        if (!dir_plain(".", 1, &opened, error)) {
+            return 0;
         }
-        dir_working = dir_wrap(fd);
-        // Registered after the report at exit, so it runs before it.
-        atexit(dir_working_done);
+        // Another task may have opened it while this one waited.
+        if (dir_working != NULL) {
+            lugha_rt_rc_release(opened);
+        } else {
+            dir_working = opened;
+            // Registered after the report at exit, so it runs before it.
+            atexit(dir_working_done);
+        }
     }
     // The caller gets a holder of its own.
     lugha_rt_rc_retain(dir_working);
@@ -146,74 +205,94 @@ int32_t lugha_rt_dir_open(const LughaString *path, void **out, LughaString **err
     if (!dir_path_ok(path, error)) {
         return 0;
     }
-    int fd = dir_open_plain(path->bytes);
-    if (fd < 0) {
-        return fs_fail(error, strerror(errno));
+    return dir_plain(path->bytes, (size_t)path->len, out, error);
+}
+
+/* On a helper: the job's path opened beneath its folder with `flags` and
+ * mode 0666 when it creates (`fd2`). */
+static void dir_open_job(Job *job) {
+    job->fd2 = dir_job_open(job, job->flags, 0666);
+}
+
+/* `path` opened beneath `dir` with `flags`: 1 and the descriptor, or 0
+ * and the message. */
+static int32_t dir_open_fd(void *dir, const LughaString *path, int flags, int *fd,
+                           LughaString **error) {
+    Job *job = dir_job(dir_open_job, dir, path, error);
+    if (job == NULL) {
+        return 0;
     }
-    *out = dir_wrap(fd);
+    job->drop = dir_job_drop;
+    job->flags = flags;
+    job_run(job);
+    if (job->fd2 < 0) {
+        return dir_job_failed(job, error);
+    }
+    *fd = job->fd2;
+    job->fd2 = -1;
+    job_free(job);
     return 1;
 }
 
 /* `$os.dir_sub(dir, path)`: a folder beneath `dir`, a narrower `Dir`. */
 int32_t lugha_rt_dir_sub(void *dir, const LughaString *path, void **out, LughaString **error) {
-    int fd = dir_open_beneath(dir, path, O_PATH | O_DIRECTORY, 0, error);
-    if (fd < 0) {
+    int fd;
+    if (!dir_open_fd(dir, path, O_PATH | O_DIRECTORY, &fd, error)) {
         return 0;
     }
     *out = dir_wrap(fd);
     return 1;
 }
 
-/* Everything readable from `fd`, which it closes: 1 and the bytes in a
- * `malloc`ed buffer (`*len` of them), or 0 and the message. */
-static int32_t dir_slurp(int fd, char **data, size_t *len, LughaString **error) {
-    size_t cap = 4096;
-    char *buffer = malloc(cap);
-    if (buffer == NULL) {
-        die("panic: out of memory\n");
+/* On a helper: everything readable from the job's path, in `out`. */
+static void dir_slurp_job(Job *job) {
+    int fd = dir_job_open(job, O_RDONLY, 0);
+    if (fd < 0) {
+        return;
     }
-    size_t used = 0;
+    size_t cap = 0;
     for (;;) {
-        if (used == cap) {
-            cap *= 2;
-            char *bigger = realloc(buffer, cap);
-            if (bigger == NULL) {
-                die("panic: out of memory\n");
-            }
-            buffer = bigger;
-        }
-        ssize_t got = read(fd, buffer + used, cap - used);
+        job_grow(&job->out, &cap, job->out_len, 4096);
+        ssize_t got = read(fd, job->out + job->out_len, cap - job->out_len);
         if (got < 0 && errno == EINTR) {
             continue;
         }
         if (got < 0) {
-            int saved = errno;
-            close(fd);
-            free(buffer);
-            return fs_fail(error, strerror(saved));
+            job->err = errno;
+            break;
         }
         if (got == 0) {
             break;
         }
-        used += (size_t)got;
+        job->out_len += (size_t)got;
     }
     close(fd);
-    *data = buffer;
-    *len = used;
-    return 1;
+}
+
+/* The whole file at `path` beneath `dir`, done: the job, or NULL with the
+ * message set. */
+static Job *dir_slurp(void *dir, const LughaString *path, LughaString **error) {
+    Job *job = dir_job(dir_slurp_job, dir, path, error);
+    if (job == NULL) {
+        return NULL;
+    }
+    job_run(job);
+    if (job->err != 0) {
+        dir_job_failed(job, error);
+        return NULL;
+    }
+    return job;
 }
 
 /* `$os.dir_read_bytes(dir, path)`: the whole file as bytes. */
 int32_t lugha_rt_dir_read_bytes(void *dir, const LughaString *path, LughaArray **out,
                                 LughaString **error) {
-    int fd = dir_open_beneath(dir, path, O_RDONLY, 0, error);
-    char *data;
-    size_t len;
-    if (fd < 0 || !dir_slurp(fd, &data, &len, error)) {
+    Job *job = dir_slurp(dir, path, error);
+    if (job == NULL) {
         return 0;
     }
-    *out = bytes_of(data, (int64_t)len);
-    free(data);
+    *out = bytes_of(job->out, (int64_t)job->out_len);
+    job_free(job);
     return 1;
 }
 
@@ -221,15 +300,37 @@ int32_t lugha_rt_dir_read_bytes(void *dir, const LughaString *path, LughaArray *
  * they are, never checked as UTF-8 here. */
 int32_t lugha_rt_dir_read_text(void *dir, const LughaString *path, LughaString **out,
                                LughaString **error) {
-    int fd = dir_open_beneath(dir, path, O_RDONLY, 0, error);
-    char *data;
-    size_t len;
-    if (fd < 0 || !dir_slurp(fd, &data, &len, error)) {
+    Job *job = dir_slurp(dir, path, error);
+    if (job == NULL) {
         return 0;
     }
-    *out = string_of(data, (int64_t)len);
-    free(data);
+    *out = string_of(job->out == NULL ? "" : job->out, (int64_t)job->out_len);
+    job_free(job);
     return 1;
+}
+
+/* On a helper: `in` written to the job's path, opened with `flags`. */
+static void dir_write_job(Job *job) {
+    int fd = dir_job_open(job, job->flags, 0666);
+    if (fd < 0) {
+        return;
+    }
+    size_t done = 0;
+    while (done < job->in_len) {
+        ssize_t n = write(fd, job->in + done, job->in_len - done);
+        if (n < 0 && errno == EINTR) {
+            continue;
+        }
+        if (n < 0) {
+            job->err = errno;
+            close(fd);
+            return;
+        }
+        done += (size_t)n;
+    }
+    if (close(fd) != 0 && errno != EINTR) {
+        job->err = errno;
+    }
 }
 
 /* `$os.dir_write(dir, path, bytes, append)`: replaces the file's contents
@@ -237,85 +338,81 @@ int32_t lugha_rt_dir_read_text(void *dir, const LughaString *path, LughaString *
  * when missing; the bytes written. */
 int32_t lugha_rt_dir_write(void *dir, const LughaString *path, const LughaArray *bytes,
                            int64_t append, int64_t *count, LughaString **error) {
-    int flags = O_WRONLY | O_CREAT | (append ? O_APPEND : O_TRUNC);
-    int fd = dir_open_beneath(dir, path, flags, 0666, error);
-    if (fd < 0) {
+    Job *job = dir_job(dir_write_job, dir, path, error);
+    if (job == NULL) {
         return 0;
     }
-    int64_t done = 0;
-    while (done < bytes->len) {
-        ssize_t n = write(fd, bytes->elems + done, (size_t)(bytes->len - done));
-        if (n < 0 && errno == EINTR) {
-            continue;
-        }
-        if (n < 0) {
-            int saved = errno;
-            close(fd);
-            return fs_fail(error, strerror(saved));
-        }
-        done += n;
+    job->flags = O_WRONLY | O_CREAT | (append ? O_APPEND : O_TRUNC);
+    job->in = job_copy((const char *)bytes->elems, (size_t)bytes->len);
+    job->in_len = (size_t)bytes->len;
+    job_run(job);
+    if (job->err != 0) {
+        return dir_job_failed(job, error);
     }
-    if (close(fd) != 0 && errno != EINTR) {
-        return fs_fail(error, strerror(errno));
-    }
+    job_free(job);
     *count = bytes->len;
     return 1;
+}
+
+/* On a helper: every entry's name but `.` and `..`, each ending in NUL,
+ * in `out`, and how many in `value`. */
+static void dir_list_job(Job *job) {
+    int fd = dir_job_open(job, O_RDONLY | O_DIRECTORY, 0);
+    if (fd < 0) {
+        return;
+    }
+    DIR *listing = fdopendir(fd);
+    if (listing == NULL) {
+        job->err = errno;
+        close(fd);
+        return;
+    }
+    size_t cap = 0;
+    for (;;) {
+        errno = 0;
+        struct dirent *entry = readdir(listing);
+        if (entry == NULL) {
+            job->err = errno;
+            break;
+        }
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+        size_t n = strlen(entry->d_name) + 1;
+        job_grow(&job->out, &cap, job->out_len, n);
+        memcpy(job->out + job->out_len, entry->d_name, n);
+        job->out_len += n;
+        job->value++;
+    }
+    closedir(listing);
 }
 
 /* `$os.dir_list(dir, path)`: every entry's name as bytes, without `.` and
  * `..`, in the order the system gives them. */
 int32_t lugha_rt_dir_list(void *dir, const LughaString *path, LughaArray **out,
                           LughaString **error) {
-    int fd = dir_open_beneath(dir, path, O_RDONLY | O_DIRECTORY, 0, error);
-    if (fd < 0) {
+    Job *job = dir_job(dir_list_job, dir, path, error);
+    if (job == NULL) {
         return 0;
     }
-    DIR *listing = fdopendir(fd);
-    if (listing == NULL) {
-        int saved = errno;
-        close(fd);
-        return fs_fail(error, strerror(saved));
+    job_run(job);
+    if (job->err != 0) {
+        return dir_job_failed(job, error);
     }
-    int64_t len = 0;
-    int64_t cap = 16;
-    LughaArray **names = rt_scratch(cap * (int64_t)sizeof(LughaArray *));
-    for (;;) {
-        errno = 0;
-        struct dirent *entry = readdir(listing);
-        if (entry == NULL) {
-            break;
-        }
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-            continue;
-        }
-        if (len == cap) {
-            if (cap > INT64_MAX / 2 / (int64_t)sizeof(LughaArray *)) {
-                die("panic: out of memory\n");
-            }
-            LughaArray **bigger = rt_scratch(2 * cap * (int64_t)sizeof(LughaArray *));
-            memcpy(bigger, names, (size_t)len * sizeof(LughaArray *));
-            rt_scratch_done(names);
-            names = bigger;
-            cap *= 2;
-        }
-        names[len++] = bytes_of(entry->d_name, (int64_t)strlen(entry->d_name));
-    }
-    int failed = errno;
-    closedir(listing);
-    if (failed != 0) {
-        for (int64_t i = 0; i < len; i++) {
-            lugha_rt_rc_release(names[i]);
-        }
-        rt_scratch_done(names);
-        return fs_fail(error, strerror(failed));
-    }
+    int64_t len = job->value;
     LughaArray *array =
         lugha_rt_alloc((int64_t)sizeof(LughaArray) + len * (int64_t)sizeof(LughaArray *));
     array->len = len;
     array->cap = len;
     rt_holds_pointers(array);
-    memcpy(array->elems, names, (size_t)len * sizeof(LughaArray *));
-    rt_scratch_done(names);
+    LughaArray **names = (LughaArray **)array->elems;
+    const char *name = job->out;
+    for (int64_t i = 0; i < len; i++) {
+        size_t n = strlen(name);
+        names[i] = bytes_of(name, (int64_t)n);
+        name += n + 1;
+    }
+    job_free(job);
     *out = array;
     return 1;
 }
@@ -327,26 +424,42 @@ int32_t lugha_rt_dir_file(void *dir, const LughaString *path, int64_t mode, int6
     int flags = mode == 0   ? O_RDONLY
                 : mode == 1 ? O_WRONLY | O_CREAT | O_TRUNC
                             : O_WRONLY | O_CREAT | O_APPEND;
-    int fd = dir_open_beneath(dir, path, flags, 0666, error);
-    if (fd < 0) {
+    int fd;
+    if (!dir_open_fd(dir, path, flags, &fd, error)) {
         return 0;
     }
     *out = fd;
     return 1;
 }
 
+/* On a helper: where the job's folder is now, in `out`. */
+static void dir_path_job(Job *job) {
+    char self[64];
+    snprintf(self, sizeof self, "/proc/self/fd/%d", job->fd);
+    job->out = malloc(4096);
+    if (job->out == NULL) {
+        die("panic: out of memory\n");
+    }
+    ssize_t n = readlink(self, job->out, 4096);
+    if (n < 0) {
+        job->err = errno;
+    } else if (n == 4096) {
+        job->err = ENAMETOOLONG;
+    } else {
+        job->out_len = (size_t)n;
+    }
+}
+
 /* `$os.dir_path(dir)`: where the folder is now, as bytes. */
 int32_t lugha_rt_dir_path(void *dir, LughaArray **out, LughaString **error) {
-    char self[64];
-    snprintf(self, sizeof self, "/proc/self/fd/%d", ((LughaDir *)dir)->fd);
-    char target[4096];
-    ssize_t n = readlink(self, target, sizeof target);
-    if (n < 0) {
-        return fs_fail(error, strerror(errno));
+    Job *job = job_new(dir_path_job);
+    job->fd = ((LughaDir *)dir)->fd;
+    job->hold = dir;
+    job_run(job);
+    if (job->err != 0) {
+        return dir_job_failed(job, error);
     }
-    if ((size_t)n == sizeof target) {
-        return fs_fail(error, strerror(ENAMETOOLONG));
-    }
-    *out = bytes_of(target, (int64_t)n);
+    *out = bytes_of(job->out, (int64_t)job->out_len);
+    job_free(job);
     return 1;
 }

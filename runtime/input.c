@@ -74,18 +74,27 @@ static LughaString *string_of(const char *bytes, int64_t len) {
     return s;
 }
 
+/* On a helper: the next line of stdin, `value` its length (-1 at the end
+ * or on an error), `out` the bytes. */
+static void read_line_job(Job *job) {
+    size_t cap = 0;
+    job->value = (int64_t)getline(&job->out, &cap, stdin);
+}
+
 /* `read_line()`: 1 and the next stdin line without its `\n` (and a `\r`
  * before it) in `*out`, or 0 at the end of input or on a read error.
- * Stdout is flushed first, so a prompt written with `print` shows. */
+ * Stdout is flushed first, so a prompt written with `print` shows; the
+ * read runs on a helper thread, so other tasks run while it waits. */
 int32_t lugha_rt_read_line(LughaString **out) {
     fflush(stdout);
-    char *line = NULL;
-    size_t cap = 0;
-    ssize_t n = getline(&line, &cap, stdin);
-    if (n < 0) {
-        free(line);
+    Job *job = job_new(read_line_job);
+    job_run(job);
+    if (job->value < 0) {
+        job_free(job);
         return 0;
     }
+    ssize_t n = (ssize_t)job->value;
+    const char *line = job->out;
     if (n > 0 && line[n - 1] == '\n') {
         n--;
     }
@@ -93,7 +102,7 @@ int32_t lugha_rt_read_line(LughaString **out) {
         n--;
     }
     *out = string_of(line, n);
-    free(line);
+    job_free(job);
     return 1;
 }
 
