@@ -30,6 +30,12 @@ const KNOWN: &[(&str, &str)] = &[
         "concurrency/deadlines/shield_value_lost.la",
         "a shield's value lost while unwinding ends the program unwound halfway",
     ),
+    // A panic in `main` ends the program with its root scope's tasks
+    // (here an actor's) still held.
+    (
+        "concurrency/actors/after_stop.la",
+        "`main` panics while the root scope holds the actor's task",
+    ),
     // A deadlock ends the program with every task still waiting.
     (
         "concurrency/actors/deadlock.la",

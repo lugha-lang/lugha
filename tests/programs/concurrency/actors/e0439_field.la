@@ -2,7 +2,7 @@ actor Counter {
     count: i64,
 }
 
-fun main(console: Console) {
-    let c = spawn Counter { count: 0 };
+fun main(console: Console, root: Scope) {
+    let c = root.spawn(Counter { count: 0 });
     console.println(c.count);
 }

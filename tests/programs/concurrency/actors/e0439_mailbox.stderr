@@ -1,0 +1,9 @@
+error[E0439]: a mailbox holds a positive whole number of messages, written as a literal: `mailbox 100`
+  --> tests/programs/concurrency/actors/e0439_mailbox.la:1:19
+  |
+1 | actor Log mailbox 0 {
+  |                   ^
+  |
+  = help: an actor is started in a scope, `s.spawn(Counter { … })`, and reached only through its methods; what crosses its boundary is copied and may hold no `Ref`
+
+For more about E0439, run `lughac explain E0439`.

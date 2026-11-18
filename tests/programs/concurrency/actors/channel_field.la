@@ -8,11 +8,11 @@ actor Echo {
 
 fun main(console: Console) {
     let (out, lines) = Chan<string>.new(4);
-    let e = spawn Echo { out: out };
-    e.say("hi");
-    e.say("there");
-    e.stop();
-    e.join();
+    let r = scope s {
+        let e = s.spawn(Echo { out: out });
+        e.say("hi");
+        e.say("there");
+    };
     out.close();
     while let .Some(line) = lines.recv() {
         console.println(line);

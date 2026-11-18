@@ -20,8 +20,8 @@ fun work(g: Gauge) {
     g.leave();
 }
 
-fun main(console: Console) {
-    let g = spawn Gauge { now: 0, most: 0 };
+fun main(console: Console, root: Scope) {
+    let g = root.spawn(Gauge { now: 0, most: 0 });
     let r = scope s limit 2 {
         for i in 0..6 {
             s.spawn(work(g));

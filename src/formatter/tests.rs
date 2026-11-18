@@ -329,6 +329,10 @@ fn actors_keep_fields_and_methods_in_order() {
         "fun main(){let c=spawn Counter{count:0};}",
         "fun main() {\n    let c = spawn Counter { count: 0 };\n}\n",
     );
+    check(
+        "actor Log mailbox 10_000{n:i64}",
+        "actor Log mailbox 10_000 {\n    n: i64,\n}\n",
+    );
 }
 
 #[test]

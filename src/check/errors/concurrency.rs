@@ -37,7 +37,7 @@ pub(in crate::check) fn chan_unknown(span: Span) -> Diagnostic {
 /// An actor used against its rules.
 pub(in crate::check) fn actor_misuse(message: impl Into<String>, span: Span) -> Diagnostic {
     Diagnostic::error("E0439", message, span).with_help(
-        "an actor is started with `spawn` and reached only through its methods; \
+        "an actor is started in a scope, `s.spawn(Counter { … })`, and reached only through its methods; \
          what crosses its boundary is copied and may hold no `Ref`",
     )
 }
@@ -66,7 +66,15 @@ pub(in crate::check) fn not_a_scope(ty: &crate::check::Type, span: Span) -> Diag
 pub(in crate::check) fn unscoped_task(span: Span) -> Diagnostic {
     Diagnostic::error("E0474", "a task starts in a scope", span).with_help(
         "start it through a scope's handle, `scope s { s.spawn(work(x)) }`, or through the \
-         root scope `main` takes (`root: Scope`); `spawn` alone starts an actor",
+         root scope `main` takes (`root: Scope`)",
+    )
+}
+
+/// E0474: an actor started without a scope.
+pub(in crate::check) fn unscoped_actor(span: Span) -> Diagnostic {
+    Diagnostic::error("E0474", "an actor starts in a scope", span).with_help(
+        "start it through a scope's handle, `s.spawn(Counter { count: 0 })`, or through the \
+         root scope `main` takes (`root: Scope`); the scope stops it once its tasks are done",
     )
 }
 

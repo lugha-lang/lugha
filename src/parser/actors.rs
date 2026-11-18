@@ -27,6 +27,14 @@ impl Parser<'_> {
         let name = self.ident("actor name")?;
         // Parsed so the checker can say actors aren't generic (E0439).
         let type_params = self.type_params()?;
+        // `mailbox n`: `mailbox` is a word only here.
+        let mailbox = match self.peek() {
+            TokenKind::Ident(w) if w == "mailbox" => {
+                self.bump();
+                Some(Box::new(self.cond()?))
+            }
+            _ => None,
+        };
         let open = self.expect(&TokenKind::LBrace)?;
         let params: Vec<Ident> = type_params.iter().map(|p| p.name.clone()).collect();
         let body = self.in_impl(&name, &params, |p| p.actor_body(open));
@@ -48,6 +56,7 @@ impl Parser<'_> {
             c_layout: None,
             union: None,
             actor: Some(keyword),
+            mailbox,
             derives: Vec::new(),
         };
         let methods = ImplDecl {
@@ -150,6 +159,14 @@ mod tests {
         assert_eq!(
             program("actor A { n: i64, fun new(): Self = Self { n: 0 }; }"),
             "(actor A (n i64))\n(actor-methods A (fun new () A (block (struct-lit A (n 0)))))"
+        );
+    }
+
+    #[test]
+    fn a_mailbox_size_follows_the_name() {
+        assert_eq!(
+            program("actor Log mailbox 100 { n: i64 }"),
+            "(actor Log (mailbox 100) (n i64))\n(actor-methods Log)"
         );
     }
 

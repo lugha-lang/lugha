@@ -1,7 +1,7 @@
 // A fake `Dir` writes only the core; `write_file`, `append_file` and
 // `make_dirs` come from the interface's defaults. Its files are fakes too.
 // A capability may be handed to other tasks, so the fakes' state lives in
-// actors, each owned by one task.
+// an actor, owned by one task, and a file's lines in a channel.
 actor Store {
     files: Map<string, u8[]>,
     folders: string[],
@@ -12,25 +12,16 @@ actor Store {
     fun made(self): string[] = self.folders;
 }
 
-actor Lines {
-    left: string[],
-    fun next(mut self): Option<string> {
-        if self.left.len == 0 {
-            return None;
-        }
-        let first = self.left[0];
-        self.left = self.left.iter().skip(1).collect();
-        Some(first)
-    }
-}
-
 struct Memory { store: Store }
 
-struct Tape { lines: Lines }
+struct Tape { lines: Receiver<string> }
 
 impl File for Tape {
     fun read(self, max: i64): Result<u8[], string> = Ok([]);
-    fun read_line(self): Result<Option<string>, string> = Ok(self.lines.next());
+    fun read_line(self): Result<Option<string>, string> = match self.lines.try_recv() {
+        .Ready(line) => Ok(Some(line)),
+        _ => Ok(None),
+    };
     fun write(self, bytes: u8[]): Result<(), string> = Err("read-only tape");
     fun close(self) {}
 }
@@ -71,7 +62,12 @@ impl Dir for Memory {
     fun sync(self, path: string): Result<(), string> = Ok(());
     fun open(self, path: string): Result<File, string> {
         let text = self.read_file(path)?;
-        Ok(Tape { lines: spawn Lines { left: text.split("\n") } })
+        let (tx, lines) = Chan<string>.unbounded();
+        for line of text.split("\n") {
+            tx.send(line);
+        }
+        tx.close();
+        Ok(Tape { lines: lines })
     }
     fun create(self, path: string): Result<File, string> = Err("not here");
     fun append(self, path: string): Result<File, string> = Err("not here");
@@ -85,8 +81,8 @@ fun save(dir: Dir): Result<(), string> {
     Ok(())
 }
 
-fun main(console: Console) {
-    let m = Memory { store: spawn Store { files: Map {}, folders: [] } };
+fun main(console: Console, root: Scope) {
+    let m = Memory { store: root.spawn(Store { files: Map {}, folders: [] }) };
     console.println(save(m).debug());
     console.println(m.store.made().debug());
     console.println(m.read_file("note").debug());

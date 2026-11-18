@@ -28,8 +28,8 @@ fun relay<T: Sendable>(s: Scope, value: T, out: Sender<T>) {
 
 fun later(s: Scope, f: Task2): i64 = s.spawn(f()).join().unwrap();
 
-fun main(console: Console) {
-    let tally = spawn Tally { count: 0 };
+fun main(console: Console, root: Scope) {
+    let tally = root.spawn(Tally { count: 0 });
     let (out, lines_in) = Chan<string>.new(4);
     let k = 40;
     let r = scope s {

@@ -1,0 +1,5 @@
+actor Log mailbox 0 {
+    lines: string[],
+}
+
+fun main() {}

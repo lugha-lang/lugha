@@ -192,6 +192,7 @@ impl Parser<'_> {
             c_layout: None,
             union: None,
             actor: None,
+            mailbox: None,
             derives,
         })
     }

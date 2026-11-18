@@ -2,25 +2,20 @@
 // knows `Net` runs without touching the network; HTTP over it too.
 import std.http;
 
-/** What an echo connection was told, owned by one task: a `Conn` may cross to others. */
-actor Said {
-    bytes: u8[],
-    closed: bool,
-    fun add(mut self, more: u8[]) { self.bytes = self.bytes + more; }
-    fun take(mut self): u8[] {
-        let got = self.bytes;
-        self.bytes = [];
-        got
-    }
-    fun close(mut self) { self.closed = true; }
-}
-
-struct Echo { said: Said }
+/** An echo connection: what it is told waits in a channel, whose ends may
+ * cross to other tasks as a `Conn` may. */
+struct Echo { said: Sender<u8[]>, heard: Receiver<u8[]> }
 
 impl Conn for Echo {
-    fun read(self, max: i64): Result<u8[], string> = Ok(self.said.take());
+    fun read(self, max: i64): Result<u8[], string> {
+        let mut got: u8[] = [];
+        while let .Ready(bytes) = self.heard.try_recv() {
+            got = got + bytes;
+        }
+        Ok(got)
+    }
     fun write(self, bytes: u8[]): Result<(), string> {
-        self.said.add(bytes);
+        self.said.send(bytes);
         Ok(())
     }
     fun set_timeout(self, ms: i64) {}
@@ -48,7 +43,8 @@ struct Offline {}
 impl Net for Offline {
     fun connect_timeout(self, addr: string, ms: i64): Result<Conn, string> {
         if addr.starts_with("echo") {
-            return Ok(Echo { said: spawn Said { bytes: [], closed: false } });
+            let (said, heard) = Chan<u8[]>.unbounded();
+            return Ok(Echo { said: said, heard: heard });
         }
         // By name, or by the address its `resolve` gives, as a narrowed network connects.
         if addr.starts_with("web") || addr == "10.0.0.1:80" {

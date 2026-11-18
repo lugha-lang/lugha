@@ -4,7 +4,7 @@ error[E0439]: an actor's message can't take a `mut` parameter: messages carry va
 6 | actor A { x: i64, fun take(self, mut n: i64) {} }
   |                                  ^^^
   |
-  = help: an actor is started with `spawn` and reached only through its methods; what crosses its boundary is copied and may hold no `Ref`
+  = help: an actor is started in a scope, `s.spawn(Counter { … })`, and reached only through its methods; what crosses its boundary is copied and may hold no `Ref`
 
 error[E0438]: `spawn` of a call that changes its receiver or a `mut` argument: the new thread would change its own copy
    --> tests/programs/functions/mut_params/not_here.la:14:24

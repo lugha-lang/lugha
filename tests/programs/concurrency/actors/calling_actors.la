@@ -15,9 +15,9 @@ actor Worker {
     }
 }
 
-fun main(console: Console) {
-    let log = spawn Logger { lines: [] };
-    let w = spawn Worker { log: log, done: 0 };
+fun main(console: Console, root: Scope) {
+    let log = root.spawn(Logger { lines: [] });
+    let w = root.spawn(Worker { log: log, done: 0 });
     console.println(w.work("a"));
     console.println(w.work("b"));
     for line of log.dump() {

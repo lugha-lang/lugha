@@ -138,6 +138,7 @@ mod visibility;
 
 use std::collections::{HashMap, HashSet};
 
+pub use actors::mailbox_size;
 pub use callbacks::{CParam, CParams};
 pub use channels::{CHAN_NEW, CHAN_UNBOUNDED};
 pub use checked::Checked;

@@ -1,1 +1,0 @@
-panic: division by zero at tests/programs/concurrency/actors/counter.la:8:61

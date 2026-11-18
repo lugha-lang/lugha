@@ -20,13 +20,20 @@ use super::value::{Value, is_aggregate};
 use crate::ast::Expr;
 use crate::check::Type;
 
+/// How many messages may wait for an actor declared without `mailbox n`.
+const DEFAULT_MAILBOX: u64 = 1024;
+
 impl<'ctx> Lowerer<'ctx> {
-    /// `spawn Counter { … }` or `spawn Counter.new(…)`: the state, made by
-    /// the spawning thread, moved to a counted block and handed to a new actor.
+    /// `s.spawn(Counter { … })` or `s.spawn(Counter.new(…))`: the state,
+    /// made by the spawning thread, moved to a counted block and handed to
+    /// a new actor, whose loop runs as a task of the scope `scope` (its
+    /// record), so the scope's policy meets its failure as any task's.
     pub(super) fn spawn_actor(
         &mut self,
         key: &str,
         operand: &Expr,
+        scope: BasicValueEnum<'ctx>,
+        scope_error: &Type,
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
         let state_type = Type::Struct(key.to_string(), Vec::new());
         let state = self.get(operand, &state_type)?;
@@ -41,11 +48,73 @@ impl<'ctx> Lowerer<'ctx> {
         let block = self.new_object(size, drop, "state");
         self.store_element(block, &state_type, state);
         let name = self.actor_name(key);
-        Ok(self.call_rt("lugha_rt_actor_spawn", &[block.into(), name.into()], true))
+        let mailbox = self.mailbox(key);
+        let values = [block.into(), name.into(), mailbox.into()];
+        let actor = self.call_rt("lugha_rt_actor_new", &values, true);
+        // The task's closure is the runtime's loop, its environment the
+        // actor: one holder more than the handle.
+        let ptr = self.context.ptr_type(Default::default());
+        let run = self
+            .module
+            .get_function("lugha_rt_actor_run")
+            .unwrap_or_else(|| {
+                let fn_type = self.context.void_type().fn_type(&[ptr.into()], false);
+                self.module
+                    .add_function("lugha_rt_actor_run", fn_type, None)
+            });
+        let handle = Type::Actor(key.to_string());
+        self.rc_retain(actor, &handle);
+        let pair = self.context.struct_type(&[ptr.into(), ptr.into()], false);
+        let pair = self
+            .builder
+            .build_insert_value(
+                pair.get_undef(),
+                run.as_global_value().as_pointer_value(),
+                0,
+                "run",
+            )
+            .expect("a pair has 2 fields");
+        let pair = self
+            .builder
+            .build_insert_value(pair, actor, 1, "run")
+            .expect("a pair has 2 fields")
+            .into_struct_value();
+        let simple = key.rsplit('.').next().unwrap_or(key).to_string();
+        let task = self.start_task(scope, scope_error, pair, &Type::Unit, &simple)?;
+        self.call_rt("lugha_rt_actor_started", &[task, actor], false);
+        // The scope holds the task; the actor's handle is what `spawn` gives.
+        self.rc_release(task, &Type::Task(Box::new(Type::Unit)));
+        Ok(actor)
+    }
+
+    /// The constant `lugha_actor_<key>.$mailbox`: how many messages may
+    /// wait for the actor (`mailbox n`, or the default).
+    fn mailbox(&self, key: &str) -> inkwell::values::IntValue<'ctx> {
+        let name = format!("lugha_actor_{}.$mailbox", crate::check::symbol(key));
+        let i64_type = self.context.i64_type();
+        self.module
+            .get_global(&name)
+            .and_then(|g| g.get_initializer())
+            .map(|v| v.into_int_value())
+            .unwrap_or_else(|| i64_type.const_int(DEFAULT_MAILBOX, false))
+    }
+
+    /// Records actor `key`'s mailbox size, `mailbox n` or the default, for
+    /// the places that start it.
+    pub(super) fn declare_mailbox(&mut self, key: &str, mailbox: Option<&Expr>) {
+        let size = mailbox
+            .and_then(crate::check::mailbox_size)
+            .unwrap_or(DEFAULT_MAILBOX);
+        let name = format!("lugha_actor_{}.$mailbox", crate::check::symbol(key));
+        let i64_type = self.context.i64_type();
+        let global = self.module.add_global(i64_type, None, &name);
+        global.set_linkage(Linkage::Internal);
+        global.set_constant(true);
+        global.set_initializer(&i64_type.const_int(size, false));
     }
 
     /// A method call on a handle: a call or a cast, or one of the built-in
-    /// `stop`, `join` and `is`.
+    /// `stop` and `is`.
     pub(super) fn actor_method(
         &mut self,
         call: &Expr,
@@ -62,7 +131,6 @@ impl<'ctx> Lowerer<'ctx> {
                 self.call_rt("lugha_rt_actor_stop", &values, false);
                 return Ok(Value::Void);
             }
-            "join" => return Ok(Value::Val(self.actor_join(call, handle))),
             "is" => {
                 let other = self.get(&args[0], &ty)?.into_pointer_value();
                 let same = self
@@ -135,19 +203,6 @@ impl<'ctx> Lowerer<'ctx> {
                 Ok(Value::Void)
             }
         }
-    }
-
-    /// `a.join()`: `None` once stopped, `Some(message)` once panicked.
-    fn actor_join(&mut self, call: &Expr, handle: BasicValueEnum<'ctx>) -> BasicValueEnum<'ctx> {
-        let message = self.call_rt("lugha_rt_actor_join", &[handle], true);
-        let panicked = self
-            .builder
-            .build_is_not_null(message.into_pointer_value(), "panicked")
-            .expect(POSITIONED);
-        let option = self.ty(call);
-        let some = self.construct_values(&option, "Some", vec![message]);
-        let none = self.construct_values(&option, "None", Vec::new());
-        self.choose(panicked, some, none)
     }
 
     /// `lugha_actor_<method>(state, args, result)`, made once per method.
@@ -288,9 +343,10 @@ mod tests {
     #[test]
     fn calls_wait_and_casts_do_not() {
         let ir = ir(&format!(
-            "{COUNTER}fun main() {{ let c = spawn Counter {{ count: 0 }}; c.add(1); let n = c.get(); }}"
+            "{COUNTER}fun main(root: Scope) {{ let c = root.spawn(Counter {{ count: 0 }}); c.add(1); let n = c.get(); }}"
         ));
-        assert!(ir.contains("call ptr @lugha_rt_actor_spawn("), "{ir}");
+        assert!(ir.contains("call ptr @lugha_rt_actor_new("), "{ir}");
+        assert!(ir.contains("@lugha_rt_actor_run"), "{ir}");
         assert!(ir.contains("call void @lugha_rt_actor_cast(ptr %"), "{ir}");
         assert!(ir.contains("@lugha_actor_Counter.add"), "{ir}");
         assert!(ir.contains("call ptr @lugha_rt_actor_call(ptr %"), "{ir}");
@@ -303,7 +359,7 @@ mod tests {
     #[test]
     fn a_handler_calls_the_method_on_the_state() {
         let ir = ir(&format!(
-            "{COUNTER}fun main() {{ let c = spawn Counter {{ count: 0 }}; c.add(1); }}"
+            "{COUNTER}fun main(root: Scope) {{ let c = root.spawn(Counter {{ count: 0 }}); c.add(1); }}"
         ));
         let handler = &ir[ir
             .find("define internal void @lugha_actor_Counter.add")

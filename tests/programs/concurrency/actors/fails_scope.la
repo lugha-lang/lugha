@@ -1,0 +1,34 @@
+// An actor's panic fails its scope, and its caller panics in turn;
+// under `independent` both are reported and the scope runs on.
+actor Account {
+    balance: i64,
+    fun withdraw(mut self, n: i64): i64 {
+        if n > self.balance {
+            panic("insufficient funds");
+        }
+        self.balance -= n;
+        self.balance
+    }
+}
+fun main(console: Console) {
+    let r = scope s {
+        let a = s.spawn(Account { balance: 10 });
+        a.withdraw(3)
+    };
+    console.println(r.debug());
+    let r2 = scope s {
+        let a = s.spawn(Account { balance: 10 });
+        s.spawn(a.withdraw(30));
+        1
+    };
+    match r2 {
+        .Ok(n) => console.println("ok {n}"),
+        .Err(f) => console.println("{f}"),
+    }
+    let r3 = scope s independent {
+        let a = s.spawn(Account { balance: 10 });
+        s.spawn(a.withdraw(30));
+        2
+    };
+    console.println(r3.debug());
+}

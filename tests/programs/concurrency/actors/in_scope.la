@@ -1,0 +1,26 @@
+// An actor in a scope, its mailbox bounded: senders wait while 4 are
+// queued, and the scope stops the actor once its tasks are done.
+actor Tally mailbox 4 {
+    count: i64,
+    fun add(mut self, n: i64) {
+        self.count += n;
+    }
+    fun total(self): i64 = self.count;
+}
+
+fun work(t: Tally, n: i64) {
+    t.add(n);
+}
+
+fun main(console: Console) {
+    let r = scope s {
+        let tally = s.spawn(Tally { count: 0 });
+        let _ = scope w {
+            for i in 1..11 {
+                w.spawn(work(tally, i));
+            }
+        };
+        tally.total()
+    };
+    console.println(r.unwrap());
+}

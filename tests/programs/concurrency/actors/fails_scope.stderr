@@ -1,0 +1,2 @@
+task `Account` panicked: insufficient funds at tests/programs/concurrency/actors/fails_scope.la:7:13
+task `withdraw` panicked: actor `Account` panicked at tests/programs/concurrency/actors/fails_scope.la:30:17

@@ -1,0 +1,9 @@
+error[E0415]: no method `join` on `Counter`
+  --> tests/programs/concurrency/actors/e0415_join.la:7:7
+  |
+7 |     c.join();
+  |       ^^^^
+  |
+  = help: an actor ends with its scope, which reports its failure: there is nothing to join
+
+For more about E0415, run `lughac explain E0415`.

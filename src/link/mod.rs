@@ -66,7 +66,7 @@ pub const RUNTIME_PARTS: [(&str, &str); 33] = [
 ];
 
 /// Every runtime function codegen may call; `lugha_rt.c` defines them all.
-pub const RUNTIME_SYMBOLS: [&str; 142] = [
+pub const RUNTIME_SYMBOLS: [&str; 143] = [
     "lugha_rt_init",
     "lugha_rt_read_line",
     "lugha_rt_eprint",
@@ -137,11 +137,12 @@ pub const RUNTIME_SYMBOLS: [&str; 142] = [
     "lugha_rt_chan_try_send",
     "lugha_rt_chan_unbounded",
     "lugha_rt_chan_close",
-    "lugha_rt_actor_spawn",
+    "lugha_rt_actor_new",
+    "lugha_rt_actor_run",
+    "lugha_rt_actor_started",
     "lugha_rt_actor_call",
     "lugha_rt_actor_cast",
     "lugha_rt_actor_stop",
-    "lugha_rt_actor_join",
     "lugha_rt_net_listen",
     "lugha_rt_net_connect",
     "lugha_rt_net_resolve",

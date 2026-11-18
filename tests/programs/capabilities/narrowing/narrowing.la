@@ -70,8 +70,8 @@ fun tried(console: Console, label: string, r: Result<Conn, string>) {
     }
 }
 
-fun main(console: Console, env: Env) {
-    let rec = Recorder { log: spawn Log { lines: [] } };
+fun main(console: Console, env: Env, root: Scope) {
+    let rec = Recorder { log: root.spawn(Log { lines: [] }) };
     let api = rec.only("API.Example.com:443");
     tried(console, "api", api.connect("api.example.com:443"));
     tried(console, "other host", api.connect("example.org:443"));

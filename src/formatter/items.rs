@@ -208,6 +208,10 @@ impl Printer<'_> {
             self.ident(&s.name),
             self.type_params(&s.type_params)
         );
+        let head = match &s.mailbox {
+            Some(n) => concat(vec![text(head), text("mailbox "), self.expr(n), text(" ")]),
+            None => text(head),
+        };
         let mut members: Vec<Member> = s.fields.iter().map(Member::Field).collect();
         members.extend(i.methods.iter().map(Member::Method));
         let span_of = |m: &Member| match m {
@@ -234,7 +238,7 @@ impl Printer<'_> {
                 Member::Method(f) => p.fun(f),
             },
         );
-        concat(vec![text(head), self.braced(body)])
+        concat(vec![head, self.braced(body)])
     }
 
     /// The text between the `{` after `from` and the `}` ending `span`.

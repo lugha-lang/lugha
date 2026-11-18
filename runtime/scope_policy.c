@@ -69,6 +69,8 @@ int32_t lugha_rt_task_caught(LughaString **text) {
         free(caught->text);
         free(caught);
     }
+    // An actor's callers and queued messages learn how it ended.
+    actor_task_ended(how == 2);
     return how;
 }
 
@@ -86,7 +88,7 @@ void lugha_rt_task_panicked(LughaString *text, int32_t fails) {
 
 /* `s.spawn(…)` under `limit n`: waits while `n` of its tasks run. */
 static void scope_room(LughaScope *s) {
-    while (s->limit > 0 && s->running >= s->limit) {
+    while (s->limit > 0 && s->running - s->actors >= s->limit) {
         lugha_rt_cancel_point();
         s->limit_waiter = current;
         current->cancellable = true;

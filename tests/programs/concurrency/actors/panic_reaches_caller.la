@@ -3,8 +3,8 @@ actor Parser {
     fun parse(self, text: string): i64 = parse_i64(text).unwrap();
 }
 
-fun main(console: Console) {
-    let p = spawn Parser {};
+fun main(console: Console, root: Scope) {
+    let p = root.spawn(Parser {});
     console.println(p.parse("42"));
     console.println(p.parse("forty-two"));
     console.println("never printed");

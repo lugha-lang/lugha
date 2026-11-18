@@ -41,6 +41,7 @@ Nov 15, 2026 · @kithinji
 - The `ffi` permission: a package declaring C code (`extern`, `[link]`) builds only when the program's `lugha.toml` grants it `allow = ["ffi"]`, a grant covering the package's dependencies too (E0333); `lugha.lock`'s `[ffi]` table and `lughac update` show who may run C (milestone 188; section 6).
 - Process lockdown: seccomp and Landlock limit the whole process, C code and started programs included, to the capability kinds `main` took (milestone 189; section 6).
 - A panic unwinds its task, running the pending `defer`s and letting go of what each frame holds (milestone 194; sections 5, 6, 9), through unwind tables: only calls with something to clean up get a landing pad. Programs link libgcc's unwinder, as C programs do.
+- Actors in scopes (milestone 201; sections 3, 4, 6, 9): `s.spawn(Counter { … })` starts an actor in a scope, which stops it once its body and other tasks are done and cancels it with them; an actor's panic fails its scope as a task's does; `join` on an actor is gone. A mailbox holds 1,024 messages, or `actor Logger mailbox 10_000 { … }`'s; a call or cast to a full one waits for room.
 - Scope policies (milestone 198; sections 3, 4, 6): settings between a scope's name and its body, each at most once: `independent` (a task's failure is printed as it happens, naming the task, and the scope runs on), `independent(f)` (each failure goes to `f`, in the failing task), `limit n` (`s.spawn` waits while `n` tasks run); `scope<E> s` fails with `Failure<E>`, every task's error converting to `E` (E0478). A `Failure` is a struct, `{ task, kind }`: the failing task's name (what `t.name(…)` set, else the called function's) and `.Error(E)` or `.Panic(string)`. A scoped task's failure is reported where it happens, a root task's error in full.
 - Channels with two ends (milestone 200; sections 4, 5, 6, 9): `Chan<T>.new(n)` gives `(Sender<T>, Receiver<T>)`, the capacity required (`0` hands each value over directly), and `Chan<T>.unbounded()` has no limit; `Chan` is no longer a type (E0305). Only a `Sender` sends and closes, only a `Receiver` receives (E0415 on the other end). `for x of rx` runs until the channel is closed and empty; `tx.try_send(v)` gives `.Sent`, `.Full(v)` or `.Closed(v)`, and `rx.try_recv()` `.Ready(v)`, `.Empty` or `.Closed` (the prelude's `TrySend` and `TryRecv`); `s.merge(receivers)` makes one receiver of several. A deadlock report names each waiting task and where its channel was made.
 - Time and shutdown (milestone 199; sections 3, 4, 5, 6, 9): a scope's deadline, `within ms` or `until t` (monotonic milliseconds, as `task.sleep` counts; one of the two, E0477), never later than its enclosing scope's: once it passes, the body and the scope's tasks are cancelled with `.Deadline`, and the scope fails with `f.kind` `.Deadline` unless something failed first; `s.remaining(): Option<i64>`. `shield within ms { … }` holds cancellation off for its block, at most `ms` (`shield` without `within` is E0211); one entered while its task unwinds (in a `defer`) is cut off at its deadline, and the code after it runs. The first Ctrl-C cancels the root scope's tasks and `main` with `.Shutdown`, their `defer`s run, and the program exits with 130; a second, or one in a program that never started a task, exits at once.
@@ -48,6 +49,8 @@ Nov 15, 2026 · @kithinji
 - Function types are interfaces (milestone 196; sections 3, 4, 8): every function value has a type of its own, a struct of its captures, implementing its signature's interface `fun(A): R`. `fun(A): R` may be a bound, `<F: fun(i64): i64>`, which keeps the exact function (one instance per function passed, called directly); something an interface requires, `interface Pricing: fun(i64): i64 {}`, whose values are callable; and implemented by a struct, `impl fun(i64): i64 for Scale { fun call(self, x: i64): i64 = … }`, making it callable and convertible to the function type.
 - Scopes and cancellation (milestone 195; sections 3, 4, 6, 9): `scope s { … }` is an expression of type `Result<T, Failure>`, and every task starts in a scope, `s.spawn(work(x))`, or in the root scope `main` and tests may take (`root: Scope`). A scope waits for its tasks; the first failure (a task's panic or `Err`, or a panic in the body) cancels the rest and is the scope's value. Cancelling is invisible: a cancelled task unwinds at its next pause or preemption point, running its `defer`s. A task handle's `join()` gives `Result<V, Stopped>`; `cancel(why)` and `name(text)`. Scope and task handles are second-class (E0472); `spawn` alone starts only an actor (E0474).
 - Reference counting manages every program's memory (milestone 193; section 7), built behind a flag over milestones 190–192 (across tasks, channels and actors with values marked shared as they cross, then measured against the collector). The Boehm collector, `--memory` and `LUGHA_MEMORY` are gone. `Ref` cycles aren't freed.
+
+**Breaking:** an actor starts in a scope (milestone 201): `let c = spawn Counter { count: 0 };` is `let c = root.spawn(Counter { count: 0 });` with `root: Scope`, or `s.spawn(…)` in `scope s { … }`; `c.join()` is gone, and the scope's `Result` says whether the actor panicked.
 
 **Breaking:** a channel has two ends (milestone 200): `let c: Chan<i64> = Chan.buffered(4);` is `let (tx, rx) = Chan<i64>.new(4);`, and `Chan.new()` is `Chan<i64>.new(0)`; a parameter `c: Chan<T>` is `tx: Sender<T>` where it sends or closes, `rx: Receiver<T>` where it receives. `try_recv` gives a `TryRecv<T>`: `.is_none()` is `if let .Empty = rx.try_recv()`.
 
@@ -558,7 +561,7 @@ The bit operators sit between comparisons and `+ -`, as in Rust, so `flags & MAS
 
 **Generic headers.** Type parameters follow the name, like Rust and TypeScript: `fun max<T: Ord>(a: T, b: T): T`. An `impl` names its type's parameters without bounds, `impl Stack<T> { … }`; the bounds come from the type's declaration. Type arguments may be written at a use (v18, section 4): after a name or a member name, `<` begins them only when a list of types closed by `>` follows and the token after the `>` is `(`, `.`, `{`, `)`, `,`, `;`, `]`, `}` or the end of the input; otherwise it is a comparison. So `f(a < b, c > (d))` passes `a` the type arguments `b, c` (write `f((a < b), (c > d))` for comparisons), while `f(a < b, c > d)` compares. `Stack::<i64>` is E0207, with help `Stack<i64>`.
 
-**Actors** (v17, milestone 92). `actor_decl = [ visibility ] "actor" IDENT "{" { [ visibility ] IDENT ":" type "," | fun_decl } "}"` declares an actor at the top level: its fields (each followed by `,` unless last) and methods, in any order. Inside the body `Self`, and the actor's own name, mean its state. Anything else in the body is E0201.
+**Actors** (v17, milestone 92). `actor_decl = [ visibility ] "actor" IDENT [ "mailbox" INT ] "{" { [ visibility ] IDENT ":" type "," | fun_decl } "}"` declares an actor at the top level (`mailbox n`: milestone 201; `mailbox` is a word only there): its fields (each followed by `,` unless last) and methods, in any order. Inside the body `Self`, and the actor's own name, mean its state. Anything else in the body is E0201.
 
 **Scopes, `spawn` and `select`** (v17; scopes v18, milestone 195). `scope s { … }` names a scope `s` for its block; `scope` is a keyword only where a name and `{` follow it, and a name everywhere else. A task starts through a scope's handle: `s.spawn(…)` takes one expression, which must be a call: `s.spawn(work(x))`, `s.spawn(m.f(x))`, `s.spawn(p.area())`, `s.spawn(fun() { … }())`. `spawn` alone takes the whole postfix expression after it, which must be a struct literal (an actor's state, milestone 92) or end in a call (one giving an actor's state, else E0474 from the checker): `spawn Counter { count: 0 }`, `spawn Counter.new(3)`. Anything else after `spawn` or inside `.spawn(…)` (`s.spawn(f)`, `spawn 1 + f()`, `spawn f()?`) is E0211. A `select` arm is one of `name = c.recv()` (or `_ = c.recv()`), `c.send(v)`, `after(ms)` or `default`, then `=>` and its value, separated as `match` arms are; any other arm is E0211, and the `select` keeps reading at the next arm. `after` and `default` are names everywhere else.
 
@@ -692,10 +695,12 @@ actor Counter {
 }
 ```
 
-- **The state** is a struct of the fields; inside the methods `self` is the state and `self.helper()` an ordinary call. The state exists only there and right after `spawn`: a literal of it, or a call returning it, anywhere else is E0439.
-- **The handle:** outside the actor's body, the actor's name (`Counter`, or `m.Counter` from another module) is the type of a handle. `spawn Counter { count: 0 }` and `spawn Counter.new(10)` start an actor and give one. Copies of a handle reach the same actor; handles aren't `Eq` (E0404, E0419; `a.is(b)` compares them) and print as `<actor Counter>`.
+- **The state** is a struct of the fields; inside the methods `self` is the state and `self.helper()` an ordinary call. The state exists only there and where it is spawned: a literal of it, or a call returning it, anywhere else is E0439.
+- **The handle:** outside the actor's body, the actor's name (`Counter`, or `m.Counter` from another module) is the type of a handle. `s.spawn(Counter { count: 0 })` and `s.spawn(Counter.new(10))` (v18, milestone 201) start an actor in the scope `s` and give one; `spawn` without a scope is E0474. Handles are first-class: unlike a `Scope` or a `Task` they may be stored, sent and returned. Copies of a handle reach the same actor; handles aren't `Eq` (E0404, E0419; `a.is(b)` compares them) and print as `<actor Counter>`.
 - **Messages:** a call of a method with a receiver on a handle is a message. A method with a result makes the caller wait for it (a copy); one without is queued, and the caller goes on. A `mut self` method needs no `let mut` handle. Associated functions aren't messages (E0415). The method's visibility applies as for any method.
-- **Built-in:** every handle has `stop()` (a message like the others: what is queued before it still runs, then the actor ends), `join(): Option<string>` (waits until the actor has ended: `None` if it stopped, `Some(message)` if it panicked) and `is(other)`. An actor may not declare methods with these names (E0439).
+- **Built-in:** every handle has `stop()` (a message like the others: what is queued before it still runs, then the actor ends) and `is(other)`. An actor may not declare methods with these names (E0439). `join` is gone (milestone 201; E0415): the actor's scope reports how it ended.
+- **Its scope** (milestone 201) stops the actor once the scope's body and its other tasks are done (a `stop` after the queued messages), and waits for it to end. Leaving the scope early, its failure, its deadline or Ctrl-C cancel the actor with the tasks: idle, it ends at once; in a handler, it unwinds there as a task does. An actor's panic fails its scope as a task's does (`Failure.task` the actor's type), or under `independent` is reported. Actors don't count toward `limit n`.
+- **The mailbox** (milestone 201) holds 1,024 messages, or the declaration's `mailbox n` (a positive integer literal; E0439 otherwise). A call or a cast to a full mailbox waits for room, a pause point; `stop` is queued past the limit.
 - **Private fields:** reading or assigning an actor's field through a handle is E0439.
 - **Sharing nothing:** an actor's fields, and its methods' parameters and results, may not hold a `Ref`: a `Ref`, a function value (a closure may have captured one), an interface value (the value inside may hold one), or a type containing any of these is E0439. Channels, tasks and other handles may cross. Values crossing are copied as arguments are.
 - **No type parameters** on an actor or its methods (E0439).
@@ -1279,7 +1284,7 @@ A v0 program is a single `.la` file containing top-level items: functions, exter
 - **The end:** when `main` returns, the root scope's tasks finish, then the program exits with `main`'s code (milestone 195). A panic in a task fails its scope (section 6); one the program never catches — in `main`, or in a root-scope task — ends it with its message and exit code 101.
 - **Ctrl-C** (milestone 199): the first SIGINT cancels the root scope's tasks and `main` with `.Shutdown`, whether or not the program took anything for signals; they unwind at their next pause or preemption point, running their `defer`s, and the program exits with 130 once `main` has unwound. A second SIGINT, or one in a program that never started a task, exits with 130 at once.
 - **Deadlock:** when no green thread can run, none is sleeping, none waits on a socket and one waits, the program panics with `panic: deadlock: every green thread is waiting` (no location), exit 101. Then (milestone 200) one line per task waiting on a channel names it, how it waits and where the channel was made: ``  `worker` waits to receive on the channel made at main.la:3:20`` (`to send on`, `in a select, on`; an actor as ``actor `Name` ``, `main` as `` `main` ``).
-- **Actors** (milestone 92) are green threads that take messages from an unbounded mailbox one at a time: messages from one caller in the order sent, from several in the order they arrive. A panic inside an actor's method prints its message, as any panic does, and unwinds the actor's stack, running its `defer`s (v18, milestone 194), but ends only that actor: the caller waiting for that message's result, and every later caller, panics with ``actor `Counter` panicked`` at its call; a call to a stopped actor panics with ``actor `Counter` has stopped``. A stack overflow inside an actor still ends the program. Tasks keep the rule above. Actors waiting on each other are a deadlock.
+- **Actors** (milestone 92) are tasks of their scope (milestone 201) that take messages from a bounded mailbox one at a time: messages from one caller in the order sent, from several in the order they arrive. A panic inside an actor's method unwinds the actor's stack, running its `defer`s (v18, milestone 194), ends the actor and fails its scope as a task's panic does; the caller waiting for that message's result, and every later caller, panics with ``actor `Counter` panicked`` at its call; a call to an actor that has ended otherwise (stopped, or cancelled with its scope) panics with ``actor `Counter` has stopped``. A stack overflow inside an actor still ends the program. Tasks keep the rule above. Actors waiting on each other are a deadlock.
 
 **The standard library** (v15). Version 15 has `std.math` and `std.random` (and had `std.env`, `std.process` and `std.fs`, which became the `Env`, `Proc` and `Dir` capabilities in v18, milestones 181 and 182); version 17 adds `std.task`, `std.time`, `std.net` (the `Net` capability since milestone 183), `std.tls`, `std.crypto`, `std.http`, `std.toml` and `std.json`.
 
@@ -1803,9 +1808,9 @@ The compiler, `lughac`, is written in Rust with inkwell. It turns one `.la` file
 | `lugha_rt_chan_new(cap, elem, file, line, col)` (v17), `lugha_rt_chan_unbounded(elem, file, line, col)` (v18) | A channel of `elem`-byte values, buffering `cap` (a negative `cap` panics), or growing its buffer as it fills; it keeps where it was made, for deadlock reports; generated code gives both ends the one channel |
 | `lugha_rt_chan_try_send(c, value)` (v18) | `tx.try_send(v)`: 0 sent, 1 full, 2 closed; unless sent, the value stays the caller's |
 | `lugha_rt_chan_send(c, value, file, line, col)` / `lugha_rt_chan_recv(c, out)` / `lugha_rt_chan_try_recv(c, out)` / `lugha_rt_chan_close(c, file, line, col)` (v17) | A channel's operations on values in element layout; receives return 1 for a value, 0 for closed (or, for `try_recv`, nothing ready); `try_recv` gives 1 with a value, 0 when empty, 2 once closed and empty (v18) |
-| `lugha_rt_actor_spawn(state, name)` (v17) | A new actor holding `state` (a counted block) on its own green thread; returns its handle |
+| `lugha_rt_actor_new(state, name, capacity)`, `lugha_rt_actor_run(actor)`, `lugha_rt_actor_started(task, actor)` (v18) | A new actor holding `state` (a counted block), its mailbox holding `capacity` messages; its loop, the closure of the task generated code starts in the scope, so the scope's policy meets its failure; the task noted as the actor's, which its scope stops once the scope's other tasks are done |
 | `lugha_rt_actor_call(a, handler, args, size, file, line, col)` / `lugha_rt_actor_cast(a, handler, args, file, line, col)` (v17) | Queue a message; a call waits and returns its result's address, and panics in the caller if the actor stopped or panicked |
-| `lugha_rt_actor_stop(a, file, line, col)` / `lugha_rt_actor_join(a)` (v17) | `stop()`; `join()`, which returns the panic's text or `NULL` |
+| `lugha_rt_actor_stop(a, file, line, col)` (v17) | `stop()`, queued past the mailbox's limit |
 | `lugha_rt_cb_pin(code, env)` / `lugha_rt_cb_release(pinned)` (v16) | A copy of a function value C can keep as a callback's user data, scanned but never collected; freeing it when C releases the callback |
 | `lugha_rt_panic(msg, file, line, col)` | Print the panic message and `exit(101)` |
 | `lugha_rt_str_concat(a, b)` | Implement string `+` |
@@ -2020,7 +2025,7 @@ Name and type errors, reported by the checker:
 | E0434 | A misused test | `@test fun t(n: i64) {}`, `@test fun t(): i64 = 1;`, a generic test, `@test fun t(fs: Fs) {}` (`Fs` and `Proc` only with `@test(integration)`); calling a test or using it as a value |
 | E0435 | A malformed callback declaration | `extern fun f(cb: fun(i64), u: data);` (nothing takes `data`); `extern fun f(cb: fun(data));` (no `data` parameter); `release` without `data`; `fun f(x: data)` outside an extern |
 | E0436 | A function with captures passed to a callback without `data` | `sort(xs, fun(a, b) = a * k < b)` where `sort`'s comparator is `fun(i64, i64): i32` |
-| E0439 | An actor used against its rules | `c.count` through a handle; a message's `mut` parameter (v18); `Counter { count: 0 }` outside `spawn`; `actor A<T>`; `fun stop(self)` in an actor (a `Ref` crossing its boundary: E0475, v18) |
+| E0439 | An actor used against its rules | `c.count` through a handle; a message's `mut` parameter (v18); `Counter { count: 0 }` outside a spawn; `actor A<T>`; `fun stop(self)` in an actor (a `Ref` crossing its boundary: E0475, v18); `actor A mailbox 0` (milestone 201) |
 | E0438 | A `spawn` that changes a copy, or a malformed `select` | `spawn xs.push(1)`, `spawn bump(mut c)` (v18), `spawn p.bump()` with `mut self`; `select { default => 1 }`; two `default`s or `after`s; `after` with `default`; `m = s.recv()` with `s` not a `Chan` |
 | E0440 | `..base` of another type | `P { x: 1.0, ..q }` where `q` is a `Q` |
 | E0441 | Retired in v18 (a float as a map key or set value; now E0451) | never reported |
@@ -2056,7 +2061,7 @@ Name and type errors, reported by the checker:
 | E0471 | Touching the world without a capability (v18) | `println(x)` (take `console: Console`); `read_file(p)` (take `fs: Fs`); `args()`; `exit(1)` |
 | E0472 | A scope or task handle kept (v18) | `fun f(s: Scope): Scope = s;`; `[s.spawn(f())]`; `struct K { t: Task<i64> }`; a closure capturing `s` |
 | E0473 | `spawn` through something that isn't a scope (v18) | `x.spawn(f())` with `x: i64` |
-| E0474 | A task started without a scope (v18) | `spawn work()` where `work` doesn't make an actor |
+| E0474 | A task or an actor started without a scope (v18) | `spawn work()`; `spawn Counter { count: 0 }` (milestone 201) |
 | E0475 | A value that can't cross to another task (v18) | `s.spawn(f(r))` with `r: Ref<i64>`; `Chan<Ref<i64>>.new(1)`; a closure capturing a `Ref`, spawned; `impl Console for S` with `S` holding a `Ref`; an unbounded `T` sent |
 | E0476 | Claiming `Sendable` (v18) | `impl Sendable for P {}`; `struct P { … } with Sendable`; `auto interface` outside the prelude |
 | E0477 | A scope setting that doesn't exist, said twice, or two deadlines (v18) | `scope s quickly { … }`; `scope s limit 1 limit 2 { … }`; `scope s within 10 until 20 { … }` (milestone 199) |
@@ -3881,12 +3886,13 @@ fun main(console: Console, root: Scope) {
 }
 ```
 
-**Actors** (milestone 92). Prints `100`, `true`, `true` on three lines, exits with 0, after `panic: insufficient funds` on stderr from the account actor only.
+**Actors** (milestone 92; in scopes since milestone 201). Prints `100`, `true`, `true` on three lines, exits with 0.
 
 ```
-// Actors (v17): state that one green thread owns, reached only through
+// Actors (v17; in scopes, v18): state that one green thread owns, reached only through
 // messages. A void method is queued; a method with a result waits for it.
-// A panic ends only its actor, and `join` says how an actor ended.
+// An actor starts in a scope, which stops it once the scope's tasks are
+// done; its panic fails the scope.
 actor Account {
     balance: i64,
     fun deposit(mut self, amount: i64) { self.balance += amount; }
@@ -3906,17 +3912,21 @@ fun customer(account: Account) {
 }
 
 fun main(console: Console) {
-    let account = spawn Account { balance: 0 };
-    scope s {
-        s.spawn(customer(account));
-        s.spawn(customer(account));
-    }.unwrap();
-    console.println(account.total());
-    account.withdraw(500);
-    console.println(account.join().is_some());
-    let other = spawn Account { balance: 7 };
-    other.stop();
-    console.println(other.join().is_none());
+    let r = scope s {
+        let account = s.spawn(Account { balance: 0 });
+        scope c {
+            c.spawn(customer(account));
+            c.spawn(customer(account));
+        }.unwrap();
+        console.println(account.total());
+        account.withdraw(500);
+    };
+    console.println(r.is_err());
+    let r = scope s {
+        let other = s.spawn(Account { balance: 7 });
+        other.stop();
+    };
+    console.println(r.is_ok());
 }
 ```
 
@@ -4225,6 +4235,7 @@ The spec is implemented in five milestones, each ending in a program that runs. 
 | 198 | Scope policies (v18) | `independent`, `independent(f)`, `limit n`; `scope<E>` and `Failure<E>`; `Failure` a struct with the task's name; task names; a scoped task's entry catching its own unwind; a root task's failure printed in full; E0477, E0478 | `tests/programs/concurrency/scope_policies/` (done) |
 | 199 | Time and shutdown (v18) | `within ms`, `until t`, `s.remaining()`; `.Deadline` failures and reasons; deadlines nesting; `shield within ms { … }`, a shield in a `defer` cut off at its deadline; Ctrl-C cancelling the root scope with `.Shutdown`, exit 130; E0211 for `shield` without `within` | `tests/programs/concurrency/deadlines/`, `tests/interrupt.rs` (done) |
 | 200 | Channels with two ends (v18) | `Chan<T>.new(n)` and `Chan<T>.unbounded()` giving `Sender<T>` and `Receiver<T>`; `try_send` and `try_recv` as `TrySend`/`TryRecv`; `for x of rx`; `s.merge`; `select` on the ends; deadlock reports naming channels' places | `tests/programs/concurrency/channels/` (done) |
+| 201 | Actors in scopes (v18) | `s.spawn(Counter { … })`; scopes stopping their actors after their tasks, cancelling them, and reporting their panics; `join` gone; bounded mailboxes, `mailbox n`; E0474 for an actor | `tests/programs/concurrency/actors/` (done) |
 
 In milestones 1 and 2, every value can be treated as `i64`, so codegen can start before the type checker exists. Until milestone 4 provides `lugha_rt_panic`, integer `+`, `-` and `*` wrap, and `/` and `%` stop the program with a trap on a zero divisor or `MIN / -1`. Milestone 3 then replaces that assumption with real types. The process exit code is the low 8 bits of `main`'s result, so milestone tests use results below 256.
 

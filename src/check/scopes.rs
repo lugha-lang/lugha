@@ -145,8 +145,8 @@ impl Checker {
         }
     }
 
-    /// `s.spawn(call)` starts a task (E0439 for an actor), and `spawn`
-    /// alone an actor (E0474 for a task).
+    /// `s.spawn(call)` starts a task, and `s.spawn(Counter { … })` an
+    /// actor; `spawn` without a scope is E0474.
     pub(super) fn spawn_in(
         &mut self,
         expr: &Expr,
@@ -164,9 +164,8 @@ impl Checker {
             self.used(expr, "$prelude.$report_failure", &[]);
         }
         match (&ty, scope) {
-            (Type::Actor(_), Some(_)) => {
-                let message = "an actor starts with `spawn` alone: `spawn Counter { count: 0 }`";
-                self.report(errors::actor_misuse(message, expr.span));
+            (Type::Actor(_), None) => {
+                self.report(errors::unscoped_actor(expr.span));
                 Type::Error
             }
             (Type::Task(_), None) => {

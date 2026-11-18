@@ -12,16 +12,15 @@ use crate::lexer::TokenKind;
 use crate::span::Span;
 
 impl Parser<'_> {
-    /// `spawn Actor { … }` or `spawn Actor.new(…)`, at `spawn`: the
-    /// operand in a closure with no parameters. Whether a call starts an
-    /// actor is the checker's to say: a task starts in a scope.
+    /// `spawn` without a scope, at `spawn`: parsed as `s.spawn(…)` is, so
+    /// the checker can say a task or an actor starts in a scope (E0474).
     pub(super) fn spawn_expr(&mut self) -> PResult<Expr> {
         let start = self.bump().start;
         let call = self.nested(|p| p.postfix())?;
         if !matches!(call.kind, ExprKind::StructLit(_) | ExprKind::Call(..)) {
-            let message = "`spawn` needs an actor's state or the call making it";
-            let help = "write `spawn Counter { count: 0 }`; a task starts in a scope: \
-                        `scope s { s.spawn(work(x)) }`";
+            let message = "`spawn` needs the call a new task runs, or an actor's state";
+            let help = "both start in a scope: `scope s { s.spawn(work(x)) }`, \
+                        `s.spawn(Counter { count: 0 })`";
             let d = Diagnostic::error("E0211", message, call.span).with_help(help);
             return Err(self.error(d));
         }
@@ -29,18 +28,19 @@ impl Parser<'_> {
         Ok(self.mk(start, ExprKind::Spawn(None, Box::new(closure))))
     }
 
-    /// `.spawn(call)` after `scope`, at the `.`: the call in a closure,
-    /// started in that scope.
+    /// `.spawn(call)` after `scope`, at the `.`: the call (or an actor's
+    /// state) in a closure, started in that scope.
     pub(super) fn scoped_spawn(&mut self, start: usize, scope: Expr) -> PResult<Expr> {
         self.bump();
         self.bump();
         let open = self.expect(&TokenKind::LParen)?;
         let call = self.expr()?;
         self.close(open, &TokenKind::RParen)?;
-        if !matches!(call.kind, ExprKind::Call(..)) {
-            let message = "`spawn` needs the call the new task runs";
+        if !matches!(call.kind, ExprKind::Call(..) | ExprKind::StructLit(_)) {
+            let message = "`spawn` needs the call the new task runs, or an actor's state";
             let help = "write the call, `s.spawn(work(x))`, or call a closure on the spot: \
-                        `s.spawn(fun() { … }())`";
+                        `s.spawn(fun() { … }())`; an actor starts from its state: \
+                        `s.spawn(Counter { count: 0 })`";
             let d = Diagnostic::error("E0211", message, call.span).with_help(help);
             return Err(self.error(d));
         }
@@ -305,6 +305,10 @@ mod tests {
         assert_eq!(
             expr("spawn Counter { count: 0 }"),
             "(spawn (struct-lit Counter (count 0)))"
+        );
+        assert_eq!(
+            expr("s.spawn(Counter { count: 0 })"),
+            "(spawn s (struct-lit Counter (count 0)))"
         );
         assert_eq!(
             expr("(spawn f()).join()"),

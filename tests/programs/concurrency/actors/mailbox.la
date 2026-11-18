@@ -1,0 +1,23 @@
+// A full mailbox makes a sender wait for room; `stop` is queued past the
+// limit, after the messages already waiting.
+import std.task;
+
+actor Log mailbox 2 {
+    lines: string[],
+    fun add(mut self, line: string) {
+        task.sleep(1);
+        self.lines.push(line);
+    }
+    fun count(self): i64 = self.lines.len;
+}
+
+fun main(console: Console, root: Scope) {
+    let log = root.spawn(Log { lines: [] });
+    for i in 0..10 {
+        log.add("line {i}");
+    }
+    console.println(log.count());
+    log.add("last");
+    log.stop();
+    console.println("stopped");
+}

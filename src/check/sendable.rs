@@ -225,9 +225,9 @@ mod tests {
             enum Step { Go(Job), Stop }
             actor A { n: i64, fun get(self): i64 = self.n; }
             fun work(j: Job, s: Step, c: Sender<Job>, a: A, console: Console): i64 = j.id;
-            fun main(console: Console) {
+            fun main(console: Console, root: Scope) {
                 let (c, jobs) = Chan<Job>.new(0);
-                let a = spawn A { n: 1 };
+                let a = root.spawn(A { n: 1 });
                 let k = 2;
                 let r = scope s {
                     s.spawn(work(Job { id: 1, tags: [], at: (1, None) }, Step.Stop, c, a, console));

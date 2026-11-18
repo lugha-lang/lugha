@@ -28,18 +28,8 @@ impl<'ctx> Lowerer<'ctx> {
         scope: Option<&Expr>,
         closure: &Expr,
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
-        // `spawn Counter { … }` starts an actor.
-        if let Type::Actor(key) = self.ty(expr) {
-            return self.spawn_actor(&key, spawned_call(closure));
-        }
-        let Type::Task(result) = self.ty(expr) else {
-            unreachable!("checked: `spawn` makes a `Task` or an actor")
-        };
-        let ExprKind::Closure(c) = &closure.kind else {
-            unreachable!("the parser wraps a spawned call in a closure")
-        };
         let Some(scope) = scope else {
-            unreachable!("the parser starts a task only in a scope")
+            unreachable!("checked: a task or an actor starts only in a scope")
         };
         // What its tasks fail with: `E` in `Scope<E>`.
         let scope_error = match self.ty(scope) {
@@ -51,6 +41,16 @@ impl<'ctx> Lowerer<'ctx> {
             .builder
             .build_extract_value(handle, 0, "scope")
             .expect("a scope has 1 field");
+        // `s.spawn(Counter { … })` starts an actor, a task of the scope.
+        if let Type::Actor(key) = self.ty(expr) {
+            return self.spawn_actor(&key, spawned_call(closure), scope, &scope_error);
+        }
+        let Type::Task(result) = self.ty(expr) else {
+            unreachable!("checked: `spawn` makes a `Task` or an actor")
+        };
+        let ExprKind::Closure(c) = &closure.kind else {
+            unreachable!("the parser wraps a spawned call in a closure")
+        };
         self.scopes.push();
         let mut hidden = Vec::new();
         for early in evaluated_first(spawned_call(closure)) {
@@ -80,12 +80,27 @@ impl<'ctx> Lowerer<'ctx> {
         }
         self.scopes.pop();
         let pair = pair?.into_struct_value();
+        // Its name, for its failures: the called function's, until `name`.
+        let named = task_name(spawned_call(closure));
+        self.start_task(scope, &scope_error, pair, &result, named)
+    }
+
+    /// Starts a task in the scope `scope` (its record) running the closure
+    /// `pair`, which returns `result`; `named` is its name for failures.
+    pub(super) fn start_task(
+        &mut self,
+        scope: BasicValueEnum<'ctx>,
+        scope_error: &Type,
+        pair: inkwell::values::StructValue<'ctx>,
+        result: &Type,
+        named: &str,
+    ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
         // The closure, and what its arguments
         // reach, cross to the new task: marked shared, its holder the task's.
-        let fun = Type::Fun(Vec::new(), result.clone());
+        let fun = Type::Fun(Vec::new(), Box::new(result.clone()));
         self.rc_mark(pair.into(), &fun);
 
-        let entry = self.task_entry(&result, &scope_error);
+        let entry = self.task_entry(result, scope_error);
         let code = self
             .builder
             .build_extract_value(pair, 0, "code")
@@ -94,9 +109,9 @@ impl<'ctx> Lowerer<'ctx> {
             .builder
             .build_extract_value(pair, 1, "env")
             .expect("a pair has 2 fields");
-        let size = match *result {
+        let size = match result {
             Type::Unit | Type::Never => 1,
-            ref ty => self.element_size(ty).max(1),
+            ty => self.element_size(ty).max(1),
         };
         let ptr = self.context.ptr_type(Default::default());
         let spawn = self.runtime(
@@ -125,9 +140,9 @@ impl<'ctx> Lowerer<'ctx> {
             unreachable!("lugha_rt_task_spawn_in returns the task")
         };
         debug_assert!(task.get_type() == ptr.into());
-        let visit = match *result {
+        let visit = match result {
             Type::Unit | Type::Never => None,
-            ref ty => self.rc_box_drop(ty),
+            ty => self.rc_box_drop(ty),
         };
         let visit = match visit {
             Some(f) => f.as_global_value().as_pointer_value(),
@@ -142,8 +157,6 @@ impl<'ctx> Lowerer<'ctx> {
             .build_call(setup, &[task.into(), visit.into()], "")
             .expect(POSITIONED);
 
-        // Its name, for its failures: the called function's, until `name`.
-        let named = task_name(spawned_call(closure));
         let named = self.string_literal(named);
         self.rt(
             "lugha_rt_task_name",

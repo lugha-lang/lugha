@@ -1,6 +1,6 @@
 ## FEATURE: Actors in scopes: `s.spawn(Counter { … })` starts an actor in a scope, which stops it once the scope's tasks are done and reports its failure; `join` on an actor goes; bounded mailboxes, 1,024 by default or `actor Logger mailbox 10_000 { … }`; milestone 201.
 
-**Status:** proposed 2026-11-18.
+**Status:** approved 2026-11-18; built 2026-11-18 (milestone 201).
 
 ## OBJECTIVE
 ```
@@ -55,6 +55,15 @@ Once `s`'s body and tasks are done, `s` stops `tally` (after the messages alread
 6. **No new error codes:** a bare `spawn` of an actor is E0474 (a task outside a scope already is), `join` E0415, a bad `mailbox` E0439.
 7. **`Failure.task` names an actor by its type** (`Counter`), as a task is named by its function.
 
+8. **Made during the build:**
+   - An actor's loop runs as an ordinary task of its scope: generated code starts it through the same entry as any task, with the runtime's `lugha_rt_actor_run` as its closure and the actor as its environment, so catching its unwind, the scope's policies and the root scope's reporting apply unchanged.
+   - The mailbox size travels as an internal constant beside the actor's handlers (`lugha_actor_<Name>.$mailbox`), so codegen needs no new state.
+   - A scope waits in two steps: until only its actors run, then, having stopped them, until they end.
+   - Spawning an actor still waits for room under `limit n` like any `spawn`; once started it holds no slot.
+   - A deadlock report names an actor as ``actor `A` `` even now that it has a task.
+   - The C harness's four actor cases (`tests/tasks_runtime.rs`) drove actors without a scope; they are gone, their behaviour covered by the actor programs.
+   - Three capability fakes made an actor per connection or file inside an interface method, where no scope is in reach; they keep that state in a channel instead.
+
 ## REQUIREMENTS
 
 ### Must Do
@@ -67,12 +76,12 @@ Once `s`'s body and tasks are done, `s` stops `tally` (after the messages alread
 - `Rejected` for remote mailboxes: distribution.
 
 ## TESTS
-- [ ] Checker unit tests: `s.spawn` of an actor's state; E0474 for bare `spawn`; `join` E0415; `mailbox` (a literal, positive; E0439 otherwise).
-- [ ] `tests/programs/concurrency/actors/`: an actor stopped by its scope after its tasks; a panicking actor failing its scope (and under `independent`); a scope cancelled while an actor waits in a handler, its callers seeing `has stopped`; a full mailbox making a sender wait; `stop` past a full mailbox; the root scope stopping its actors when `main` returns.
-- [ ] Every migrated program keeps its output, or its new expected output where `join` went.
-- [ ] Targeted: `--lib`, `programs`, `leaks`, `spec`, `explain`, `comments`, `tasks_runtime`, and the test files whose embedded programs use actors.
+- [x] Checker unit tests: `s.spawn` of an actor's state; E0474 for bare `spawn`; `join` E0415; `mailbox` (a literal, positive; E0439 otherwise).
+- [x] `tests/programs/concurrency/actors/`: an actor stopped by its scope after its tasks; a panicking actor failing its scope (and under `independent`); a scope cancelled while an actor waits in a handler, its callers seeing `has stopped`; a full mailbox making a sender wait; `stop` past a full mailbox; the root scope stopping its actors when `main` returns.
+- [x] Every migrated program keeps its output, or its new expected output where `join` went.
+- [x] Targeted: `--lib`, `programs`, `leaks`, `spec`, `explain`, `comments`, `tasks_runtime`, and the test files whose embedded programs use actors.
 
 ## ACCEPTANCE
-- [ ] Actors start in scopes, stop with them, fail them, and their mailboxes are bounded.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` clean; targeted tests pass.
-- [ ] Spec, CHANGELOG and error pages updated.
+- [x] Actors start in scopes, stop with them, fail them, and their mailboxes are bounded.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` clean; targeted tests pass.
+- [x] Spec, CHANGELOG and error pages updated.

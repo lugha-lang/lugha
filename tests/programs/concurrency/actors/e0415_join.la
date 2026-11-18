@@ -1,0 +1,8 @@
+actor Counter {
+    count: i64,
+}
+
+fun main(root: Scope) {
+    let c = root.spawn(Counter { count: 0 });
+    c.join();
+}

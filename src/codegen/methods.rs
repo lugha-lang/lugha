@@ -42,6 +42,11 @@ impl<'ctx> Lowerer<'ctx> {
     /// (`lugha_fn_geometry/Vec2.len` in a module), receiver first.
     pub(super) fn declare_methods(&mut self, unit: &Unit) {
         for item in &unit.program.items {
+            if let Item::Struct(s) = item
+                && s.actor.is_some()
+            {
+                self.declare_mailbox(&qualify(unit.path, &s.name.name), s.mailbox.as_deref());
+            }
             let Item::Impl(i) = item else { continue };
             // The prelude's and std's methods are listed instances, compiled
             // when reached; so are a built-in type's block's.

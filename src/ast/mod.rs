@@ -200,6 +200,8 @@ pub struct StructDecl {
     /// its methods follow as an `impl` with `actor` set. `span` is the
     /// whole actor.
     pub actor: Option<Span>,
+    /// An actor's `mailbox n`: how many messages may wait for it.
+    pub mailbox: Option<Box<Expr>>,
     /// `with I, J` after the closing brace: the interfaces it derives.
     pub derives: Vec<Bound>,
 }

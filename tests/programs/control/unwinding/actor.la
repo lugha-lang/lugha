@@ -1,5 +1,5 @@
-// A panicking actor unwinds its handler, running its defers; `join` reports
-// the panic as before, and the program goes on.
+// A panicking actor unwinds its handler, running its defers; its scope
+// reports the panic, and the program goes on.
 
 actor Worker {
     done: i64,
@@ -14,13 +14,14 @@ actor Worker {
 }
 
 fun main(console: Console) {
-    let w = spawn Worker { done: 0 };
-    w.run(console, false);
-    w.run(console, true);
-    w.stop();
-    match w.join() {
-        .None => console.println("finished"),
-        .Some(why) => console.println("joined after: {why}"),
+    let r = scope s {
+        let w = s.spawn(Worker { done: 0 });
+        w.run(console, false);
+        w.run(console, true);
+    };
+    match r {
+        .Ok(_) => console.println("finished"),
+        .Err(f) => console.println("ended after: {f}"),
     }
     console.println("main goes on");
 }

@@ -338,7 +338,7 @@ fn extern_types_and_actors_carry_their_docs() {
     let main = "/** A C window. */\npublic extern type Win;\n\n\
                 /** Counts. */\nactor Counter {\n    n: i64,\n    fun get(self): i64 = self.n;\n}\n\n\
                 fun keep(w: Win) {}\n\
-                fun main(console: Console) {\n    let c = spawn Counter { n: 0 };\n    console.println(c.get());\n}\n";
+                fun main(console: Console, root: Scope) {\n    let c = root.spawn(Counter { n: 0 });\n    console.println(c.get());\n}\n";
     let t = Temp::with(&[("main.la", main)]);
     let uri = t.uri("main.la");
     let mut s = Server::start(&t, json!({}));

@@ -12,14 +12,12 @@ fun customer(account: Account, times: i64) {
     }
 }
 
-fun main(console: Console) {
-    let account = spawn Account { balance: 0 };
+fun main(console: Console, root: Scope) {
+    let account = root.spawn(Account { balance: 0 });
     let deposits = scope s {
         for c in 0..10 {
             s.spawn(customer(account, 100));
         }
     };
     console.println("{account.total()} {deposits.is_ok()}");
-    account.stop();
-    console.println(account.join().debug());
 }

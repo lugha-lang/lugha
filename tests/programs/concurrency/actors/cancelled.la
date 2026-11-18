@@ -1,0 +1,26 @@
+// A deadline cancels an actor inside a handler, with the scope's tasks:
+// the handler unwinds, running its `defer`s.
+import std.task;
+
+actor Slow {
+    n: i64,
+    fun work(self, console: Console): i64 {
+        defer console.println("handler unwound");
+        task.sleep(10_000);
+        1
+    }
+}
+
+fun ask(console: Console, s: Slow): i64 = s.work(console);
+
+fun main(console: Console) {
+    let r = scope s within 30 {
+        let slow = s.spawn(Slow { n: 0 });
+        let t = s.spawn(ask(console, slow));
+        t.join()
+    };
+    match r {
+        .Ok(_) => console.println("?"),
+        .Err(f) => console.println("{f}"),
+    }
+}

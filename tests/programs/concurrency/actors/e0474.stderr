@@ -1,0 +1,9 @@
+error[E0474]: an actor starts in a scope
+  --> tests/programs/concurrency/actors/e0474.la:6:13
+  |
+6 |     let c = spawn Counter { count: 0 };
+  |             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = help: start it through a scope's handle, `s.spawn(Counter { count: 0 })`, or through the root scope `main` takes (`root: Scope`); the scope stops it once its tasks are done
+
+For more about E0474, run `lughac explain E0474`.

@@ -1,0 +1,15 @@
+// When `main` returns, the root scope stops its actors after their queued
+// messages: what was sent still runs.
+actor Printer {
+    console: Console,
+    fun say(self, text: string) {
+        self.console.println(text);
+    }
+}
+
+fun main(console: Console, root: Scope) {
+    let p = root.spawn(Printer { console: console });
+    p.say("one");
+    p.say("two");
+    console.println("main returns");
+}

@@ -1,9 +1,9 @@
-error[E0211]: `spawn` needs an actor's state or the call making it
+error[E0211]: `spawn` needs the call a new task runs, or an actor's state
   --> tests/programs/concurrency/green_threads/e0211_spawn.la:4:19
   |
 4 |     let t = spawn work;
   |                   ^^^^
   |
-  = help: write `spawn Counter { count: 0 }`; a task starts in a scope: `scope s { s.spawn(work(x)) }`
+  = help: both start in a scope: `scope s { s.spawn(work(x)) }`, `s.spawn(Counter { count: 0 })`
 
 For more about E0211, run `lughac explain E0211`.

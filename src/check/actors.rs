@@ -12,7 +12,15 @@ use crate::ast::{Expr, ExprKind, Ident, Item, Program};
 use crate::span::Span;
 
 /// A handle's built-in methods; an actor may not declare them.
-const BUILT_IN: [&str; 3] = ["stop", "join", "is"];
+const BUILT_IN: [&str; 2] = ["stop", "is"];
+
+/// The size `mailbox n` gives, when `n` is a positive integer literal.
+pub fn mailbox_size(n: &Expr) -> Option<u64> {
+    match n.kind {
+        ExprKind::Int(v) if v > 0 => Some(v),
+        _ => None,
+    }
+}
 
 impl Checker {
     /// `ty` as written outside actor `ty`'s own body: its handle.
@@ -88,9 +96,12 @@ impl Checker {
             .method(&state, &name.name)
             .filter(|m| m.receiver.is_some())
         else {
-            let help = Some(
-                "an actor's own methods and `stop`, `join` and `is` are its messages".to_string(),
-            );
+            let help = if name.name == "join" {
+                "an actor ends with its scope, which reports its failure: there is nothing to join"
+            } else {
+                "an actor's own methods and `stop` and `is` are its messages"
+            };
+            let help = Some(help.to_string());
             self.report(errors::no_method(
                 &name.name,
                 &Type::Actor(key.to_string()),
@@ -127,6 +138,12 @@ impl Checker {
                     if let Some(first) = s.type_params.first() {
                         let message = "an actor can't have type parameters";
                         self.report(errors::actor_misuse(message, first.name.span));
+                    }
+                    if let Some(n) = &s.mailbox
+                        && mailbox_size(n).is_none()
+                    {
+                        let message = "a mailbox holds a positive whole number of messages, written as a literal: `mailbox 100`";
+                        self.report(errors::actor_misuse(message, n.span));
                     }
                     let fields = self.structs[&key].fields.clone();
                     for (field, (_, ty)) in s.fields.iter().zip(&fields) {
@@ -228,51 +245,58 @@ mod tests {
     #[test]
     fn spawn_gives_a_handle_and_calls_are_messages() {
         let src = format!(
-            "{COUNTER}fun main() {{ let c = spawn Counter {{ count: 0 }}; c.add(5); let n = c.get(); }}"
+            "{COUNTER}fun main(root: Scope) {{ let c = root.spawn(Counter {{ count: 0 }}); c.add(5); let n = c.get(); }}"
         );
         assert_eq!(let_type(&src, "c"), Type::Actor("Counter".into()));
         assert_eq!(let_type(&src, "n"), Type::I64);
-        let src =
-            format!("{COUNTER}fun main() {{ let c = spawn Counter.new(3); let j = c.join(); }}");
-        assert_eq!(let_type(&src, "c"), Type::Actor("Counter".into()));
-        assert_eq!(let_type(&src, "j"), Type::Option(Box::new(Type::String)));
+        // `join` is gone: the actor's scope reports how it ended.
+        let src = format!(
+            "{COUNTER}fun main(root: Scope) {{ let c = root.spawn(Counter.new(3)); c.join(); }}"
+        );
+        assert_eq!(errors(&src), [("E0415", "join")]);
         ok(&format!(
             "{COUNTER}fun total(cs: Counter[]): i64 {{
                 let mut t = 0;
                 for c of cs {{ t += c.get(); }}
                 t
             }}
-            fun main() {{ let c = spawn Counter.new(1); c.stop(); let same = c.is(c); let t = total([c]); }}"
+            fun main(root: Scope) {{ let c = root.spawn(Counter.new(1)); c.stop(); let same = c.is(c); let t = total([c]); }}"
         ));
     }
 
     #[test]
     fn a_handle_needs_no_let_mut_for_mut_self_messages() {
         ok(&format!(
-            "{COUNTER}fun main() {{ let c = spawn Counter.new(0); let n = c.bump(); }}"
+            "{COUNTER}fun main(root: Scope) {{ let c = root.spawn(Counter.new(0)); let n = c.bump(); }}"
         ));
     }
 
     #[test]
     fn handles_are_not_eq() {
-        let src =
-            format!("{COUNTER}fun main() {{ let c = spawn Counter.new(0); let b = c == c; }}");
+        let src = format!(
+            "{COUNTER}fun main(root: Scope) {{ let c = root.spawn(Counter.new(0)); let b = c == c; }}"
+        );
         assert_eq!(errors(&src), [("E0404", "c == c")]);
     }
 
     #[test]
     fn actor_misuse_is_e0439() {
         for (body, at) in [
-            ("let c = spawn Counter.new(0); let n = c.count;", "count"),
-            ("let c = spawn Counter.new(0); c.count = 1;", "count"),
+            (
+                "let c = root.spawn(Counter.new(0)); let n = c.count;",
+                "count",
+            ),
+            ("let c = root.spawn(Counter.new(0)); c.count = 1;", "count"),
             ("let s = Counter { count: 0 };", "Counter { count: 0 }"),
             ("let s = Counter.new(0);", "Counter.new(0)"),
         ] {
-            let src = format!("{COUNTER}fun main() {{ {body} }}");
+            let src = format!("{COUNTER}fun main(root: Scope) {{ {body} }}");
             assert_eq!(errors(&src), [("E0439", at)], "{body}");
         }
         assert_eq!(
-            errors("struct P { x: i64 }\nfun main() { let p = spawn P { x: 1 }; }"),
+            errors(
+                "struct P { x: i64 }\nfun main(root: Scope) { let p = root.spawn(P { x: 1 }); }"
+            ),
             [("E0439", "P { x: 1 }")]
         );
     }
@@ -283,6 +307,8 @@ mod tests {
             ("actor A<T> { x: T }", "T"),
             ("actor A { x: i64, fun stop(self) {} }", "stop"),
             ("actor A { x: i64, fun f<T>(self, t: T) {} }", "T"),
+            ("actor A mailbox 0 { x: i64 }", "0"),
+            ("actor A mailbox \"big\" { x: i64 }", "\"big\""),
         ] {
             let src = format!("{actor}\nfun main() {{}}");
             assert_eq!(errors(&src)[0], ("E0439", at), "{actor}");
@@ -309,11 +335,27 @@ mod tests {
     }
 
     #[test]
+    fn an_actor_starts_in_a_scope() {
+        ok(&format!(
+            "actor Log mailbox 10 {{ n: i64 }}\n{COUNTER}fun main() {{ let r = scope s {{ let c = s.spawn(Counter.new(0)); let l = s.spawn(Log {{ n: 0 }}); }}; }}"
+        ));
+        assert_eq!(
+            errors(&format!(
+                "{COUNTER}fun main() {{ let c = spawn Counter.new(0); }}"
+            )),
+            [("E0474", "spawn Counter.new(0)")]
+        );
+    }
+
+    #[test]
     fn unknown_messages_are_e0415() {
-        let src = format!("{COUNTER}fun main() {{ let c = spawn Counter.new(0); c.reset(); }}");
+        let src = format!(
+            "{COUNTER}fun main(root: Scope) {{ let c = root.spawn(Counter.new(0)); c.reset(); }}"
+        );
         assert_eq!(errors(&src), [("E0415", "reset")]);
-        let src =
-            format!("{COUNTER}fun main() {{ let c = spawn Counter.new(0); let d = c.new(1); }}");
+        let src = format!(
+            "{COUNTER}fun main(root: Scope) {{ let c = root.spawn(Counter.new(0)); let d = c.new(1); }}"
+        );
         assert_eq!(errors(&src), [("E0415", "new")]);
     }
 
@@ -324,7 +366,7 @@ mod tests {
             .into_iter()
             .map(|m| m.name)
             .collect();
-        for name in ["add", "get", "bump", "stop", "join", "is"] {
+        for name in ["add", "get", "bump", "stop", "is"] {
             assert!(names.contains(&name.to_string()), "{name} in {names:?}");
         }
         assert!(!names.contains(&"count".to_string()), "{names:?}");

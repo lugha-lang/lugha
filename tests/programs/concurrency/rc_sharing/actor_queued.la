@@ -7,10 +7,12 @@ actor Log {
 }
 
 fun main(console: Console) {
-    let log = spawn Log { lines: [] };
-    for i in 0..5 {
-        log.add("line {i}");
-    }
-    log.stop();
-    console.println(log.join().is_none());
+    let r = scope s {
+        let log = s.spawn(Log { lines: [] });
+        for i in 0..5 {
+            log.add("line {i}");
+        }
+        log.stop();
+    };
+    console.println(r.is_ok());
 }

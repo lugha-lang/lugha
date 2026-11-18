@@ -137,7 +137,11 @@ fn item(item: &Item) -> String {
             } else {
                 "struct"
             };
-            format!("({p}{kind} {}{tp}{fields})", s.name.name)
+            let mailbox = match &s.mailbox {
+                Some(n) => format!(" (mailbox {})", super::expr(n)),
+                None => String::new(),
+            };
+            format!("({p}{kind} {}{tp}{mailbox}{fields})", s.name.name)
         }
         Item::Enum(e) => {
             let variants: String = e

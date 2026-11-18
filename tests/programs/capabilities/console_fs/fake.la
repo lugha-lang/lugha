@@ -27,8 +27,8 @@ fun greet(console: Console, name: string) {
     }
 }
 
-fun main(console: Console) {
-    let lines = spawn Lines { all: [] };
+fun main(console: Console, root: Scope) {
+    let lines = root.spawn(Lines { all: [] });
     greet(Recorder { lines: lines }, "fake");
     console.println(lines.get().debug());
     lines.stop();

@@ -38,8 +38,11 @@ enum {
 typedef struct LughaScope {
     struct LughaScope *outer;
     Fiber *owner;
-    /* Tasks started and not yet finished. */
+    /* Tasks started and not yet finished, how many of them are actors,
+     * and how many its owner waits to see left. */
     int64_t running;
+    int64_t actors;
+    int64_t wait_left;
     bool owner_waiting;
     /* Every task it started, through `scope_next`; it holds each. */
     LughaTask *tasks;
@@ -82,6 +85,8 @@ static void cancel_tasks(LughaScope *s, int32_t reason);
 static void scope_room(LughaScope *s);
 static bool shielded(Fiber *f);
 static bool shield_cut_off(void);
+static void scope_stop_actors(LughaScope *s);
+static void actor_task_ended(bool panicked);
 static void deadline_start(LughaScope *s, int64_t within, int64_t until);
 static void deadline_stop(LughaScope *s);
 
@@ -138,15 +143,24 @@ static void scope_fail(LughaScope *s, int32_t outcome, void *table, void *box,
     }
 }
 
-/* Waits until every task `s` started has finished. Its owner waits even
- * if cancelled: nothing outlives its scope. */
-static void scope_wait(LughaScope *s) {
-    while (s->running > 0) {
+/* Waits until no more than `left` of `s`'s tasks still run. */
+static void scope_wait_until(LughaScope *s, int64_t left) {
+    while (s->running > left) {
         s->owner_waiting = true;
+        s->wait_left = left;
         current->cancellable = false;
         block();
     }
     s->owner_waiting = false;
+}
+
+/* Waits until every task `s` started has finished: first all but its
+ * actors, which may still be called, then, once they are stopped, the
+ * actors. Its owner waits even if cancelled: nothing outlives its scope. */
+static void scope_wait(LughaScope *s) {
+    scope_wait_until(s, s->actors);
+    scope_stop_actors(s);
+    scope_wait_until(s, 0);
 }
 
 /* A task `f` ran has finished: its scope counts it, and wakes the owner
@@ -162,11 +176,14 @@ static void scope_task_done(Fiber *f) {
         return;
     }
     s->running--;
-    if (s->running == 0 && s->owner_waiting) {
+    if (f->actor != NULL) {
+        s->actors--;
+    }
+    if (s->running <= s->wait_left && s->owner_waiting) {
         wake(s->owner, 0);
     }
     // A `spawn` waiting for room under `limit n`.
-    if (s->limit_waiter != NULL && s->running < s->limit) {
+    if (s->limit_waiter != NULL && s->running - s->actors < s->limit) {
         Fiber *waiter = s->limit_waiter;
         s->limit_waiter = NULL;
         wake(waiter, 0);

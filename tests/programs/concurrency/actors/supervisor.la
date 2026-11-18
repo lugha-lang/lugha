@@ -1,5 +1,6 @@
-// A hand-written supervisor: `join` says whether the worker crashed, so it
-// starts a new one until the work is done.
+// A hand-written supervisor: each attempt runs in a scope of its own,
+// whose failure says the worker crashed, so it starts a new one until the
+// work is done.
 actor Worker {
     attempt: i64,
     fun run(self, console: Console) {
@@ -12,15 +13,19 @@ actor Worker {
 
 fun main(console: Console) {
     let mut attempt = 1;
-    while true {
-        let w = spawn Worker { attempt: attempt };
-        w.run(console);
-        w.stop();
-        match w.join() {
-            .None => {
+    loop {
+        let tried = scope s {
+            let w = s.spawn(Worker { attempt: attempt });
+            w.run(console);
+        };
+        match tried {
+            .Ok(_) => {
                 break;
             }
-            .Some(why) => console.println("restarting after: {why}"),
+            .Err(f) => match f.kind {
+                .Panic(why) => console.println("restarting after: {why}"),
+                _ => console.println("restarting"),
+            },
         }
         attempt += 1;
     }

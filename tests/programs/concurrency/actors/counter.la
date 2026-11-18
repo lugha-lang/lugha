@@ -1,5 +1,5 @@
-// An actor: casts are queued, calls wait for the reply, a panic ends only
-// the actor, and `join` says how it ended.
+// An actor: casts are queued, calls wait for the reply, and a panic ends
+// the actor and fails its scope, which reports it.
 public actor Counter {
     count: i64,
     fun new(start: i64): Counter = Counter { count: start };
@@ -9,13 +9,20 @@ public actor Counter {
 }
 
 fun main(console: Console) {
-    let c = spawn Counter.new(10);
-    c.add(5);
-    console.println(c.get());
-    c.divide(0);
-    console.println(c.join().debug());
-    let d = spawn Counter { count: 0 };
-    d.stop();
-    console.println(d.join().debug());
-    console.println(d.debug());
+    let r = scope s {
+        let c = s.spawn(Counter.new(10));
+        c.add(5);
+        console.println(c.get());
+        c.divide(0);
+    };
+    match r {
+        .Ok(_) => console.println("?"),
+        .Err(f) => console.println("{f.task} failed"),
+    }
+    let r = scope s {
+        let d = s.spawn(Counter { count: 0 });
+        d.stop();
+        d.debug()
+    };
+    console.println(r.debug());
 }
