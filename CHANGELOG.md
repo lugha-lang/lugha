@@ -48,6 +48,7 @@ Never deleted. Older entries are never modified.
 - `crypto.CryptoError` has two new variants, `NotAuthentic` and `BadKey(string)`: a `match` naming every variant must add them.
 
 ### Fixed
+- A type written in a signature whose argument must meet a bound given by a block, `S<string>` for `struct S<K: Key>` or `D<i64>` for `D<T: Display>`, was reported as not meeting it: signatures are read before the blocks, so such checks now wait until every block is in, as one in a body always did. A parameter missing a derivable bound there (`Set<U>` with `T: Ord`) is now E0451, naming the bound, as in a body.
 - A tuple `let` shadowing an earlier name (`let r = …; let (c, r) = …;`) stored into the earlier variable's slot: it leaked when the types matched and could crash when they didn't. Each name a `let` pattern binds is now a new variable.
 - Writing inside a map entry (`m["a"].x = 5`, `n["a"][0] = 3`, `n["a"].push(4)`, `swap(n["a"], …)`, `for x of mut n["a"]`) crashed lughac in codegen; it is now E0502, as for an element a type's `index` returned, with help that copies the entry out and writes it back. `for x of mut g[i]` through `index` is E0502 too. The E0404 help for `m[k] += v` and `a[i] += v` quotes the program's own element and value.
 

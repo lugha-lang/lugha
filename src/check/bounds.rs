@@ -19,6 +19,18 @@ impl Checker {
 
     /// E0419 for the first argument that doesn't meet its parameter's bounds.
     pub(super) fn meets_bounds(&mut self, generics: &[Generic], args: &[Type], span: Span) -> bool {
+        // Before every block is in, a bound met through one (`Key` or
+        // `Display` on a built-in type, a struct's derived `Eq`) can't be
+        // told yet: the check runs once they are, as written here.
+        if !self.asking.settled {
+            self.asking.bounds.push(super::derive_with::Deferred {
+                generics: generics.to_vec(),
+                args: args.to_vec(),
+                span,
+                type_params: self.type_params.clone(),
+            });
+            return true;
+        }
         for (g, arg) in generics.iter().zip(args) {
             // The interfaces come first: `Ord` extends `Eq`, and a type
             // missing `Ord` is reported as missing it, not as missing `Eq`.
@@ -27,14 +39,6 @@ impl Checker {
                 // A derivable interface (`json.Json`) is met through its
                 // derive blocks: E0450 names the part
                 // that isn't data.
-                // `Ord` on a type written before the derive blocks are in
-                // (a struct's own bound): checked once they are.
-                if !self.asking.settled && interface.key == super::derive::ORD {
-                    self.asking
-                        .bounds
-                        .push((arg.clone(), interface.key.clone(), span));
-                    continue;
-                }
                 if self.derives.derivable(&interface.key) {
                     if !self.meets_derived(&interface.key, arg, span) {
                         return false;
@@ -67,11 +71,6 @@ impl Checker {
                 .any(|i| i.key == super::derive::ORD);
             if ord && super::derive::compared_through_eq(arg) {
                 // `Ord` was checked, and a type meeting it meets `Eq`.
-            } else if g.bounds.eq && super::derive::compared_through_eq(arg) && !self.asking.settled
-            {
-                // Before the derive blocks are in: checked once they are.
-                let eq = super::derive::EQ.to_string();
-                self.asking.bounds.push((arg.clone(), eq, span));
             } else if g.bounds.eq && super::derive::compared_through_eq(arg) {
                 if !self.meets_derived(super::derive::EQ, arg, span) {
                     return false;
@@ -202,7 +201,8 @@ mod tests {
         ));
         assert_eq!(
             errors(&format!("{set}fun g<U>(s: Set<U>) {{}}\nfun main() {{}}")),
-            [("E0419", "Set<U>")]
+            // A parameter without the bound, as in a body: write `U: Ord`.
+            [("E0451", "Set<U>")]
         );
         let d = diagnostics(&format!("{set}fun f(s: Set<i64[]>) {{}}\nfun main() {{}}"));
         assert_eq!(
@@ -248,5 +248,16 @@ mod tests {
             ),
             Type::I64
         );
+    }
+
+    #[test]
+    fn a_signature_s_type_arguments_meet_bounds_given_by_blocks() {
+        // `Key` and `Display` reach `string` and `i64` through blocks, which
+        // are collected after the signatures.
+        ok("struct S<K: Key> { k: K }\nstruct D<T: Display> { t: T }\n\
+            fun f(s: S<string>, i: S<i64>, d: D<string>) {}\nfun main() {}");
+        let src = "struct S<K: Key> { k: K }\nstruct F { f: fun(i64): i64 }\n\
+                   fun f(s: S<F>) {}\nfun main() {}";
+        assert_eq!(errors(src)[0].0, "E0451");
     }
 }

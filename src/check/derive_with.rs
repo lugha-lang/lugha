@@ -26,12 +26,21 @@ pub(super) struct Asking {
     /// Map and set keys written before every type has said what it
     /// derives: checked for `Key` once it has.
     pub keys: Vec<(Type, Span)>,
-    /// Derivable bounds met by types written before the declarations are
-    /// in, with the interface's key: checked once they are.
-    pub bounds: Vec<(Type, String, Span)>,
+    /// Bounds checked before the declarations are in: checked once they
+    /// are.
+    pub bounds: Vec<Deferred>,
     /// True once every module's declarations are in: keys are checked at
     /// once from then on.
     pub settled: bool,
+}
+
+/// A `meets_bounds` check made before every block was in, kept with the
+/// type parameters in scope there.
+pub(super) struct Deferred {
+    pub generics: Vec<super::generics::Generic>,
+    pub args: Vec<Type>,
+    pub span: Span,
+    pub type_params: Vec<super::generics::Generic>,
 }
 
 /// Where an interface that a listed one extends is asked for: nowhere
@@ -336,11 +345,11 @@ impl Checker {
         for (key, at) in std::mem::take(&mut self.asking.keys) {
             self.meets_derived(super::derive::KEY, &key, at);
         }
-        for (ty, interface, at) in std::mem::take(&mut self.asking.bounds) {
-            // A type parameter's bounds were known where it was written.
-            if !super::generics::has_param(&ty) {
-                self.meets_derived(&interface, &ty, at);
-            }
+        for d in std::mem::take(&mut self.asking.bounds) {
+            // The parameters in scope where it was written.
+            let saved = std::mem::replace(&mut self.type_params, d.type_params);
+            self.meets_bounds(&d.generics, &d.args, d.span);
+            self.type_params = saved;
         }
     }
 }
