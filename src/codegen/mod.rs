@@ -106,7 +106,7 @@ mod upcast;
 mod value;
 
 pub use self::emit::{
-    CallCosts, Cpu, OptLevel, emit_ir, emit_ir_for, emit_ir_modules, emit_ir_with, emit_object,
+    Cpu, Instruments, OptLevel, emit_ir, emit_ir_for, emit_ir_modules, emit_ir_with, emit_object,
     emit_object_modules,
 };
 pub use self::targets::Target;
@@ -170,7 +170,7 @@ pub(crate) mod test_util {
     /// Calls that unwind to a landing pad (`invoke`) read as plain calls:
     /// tests check what is called, `ir_raw` how.
     pub fn ir(src: &str) -> String {
-        calls(ir_in(src, super::CallCosts(false)))
+        calls(ir_in(src, super::Instruments::default()))
     }
 
     /// `ir` (counting is how every program is lowered).
@@ -180,12 +180,29 @@ pub(crate) mod test_util {
 
     /// `ir`, with the simulated per-call costs.
     pub fn ir_calls(src: &str) -> String {
-        calls(ir_in(src, super::CallCosts(true)))
+        calls(ir_in(
+            src,
+            super::Instruments {
+                call_costs: true,
+                ..Default::default()
+            },
+        ))
+    }
+
+    /// `ir`, built for the owner check.
+    pub fn ir_rc_check(src: &str) -> String {
+        calls(ir_in(
+            src,
+            super::Instruments {
+                rc_check: true,
+                ..Default::default()
+            },
+        ))
     }
 
     /// The IR for `src` exactly as lowered, invokes and all.
     pub fn ir_raw(src: &str) -> String {
-        ir_in(src, super::CallCosts(false))
+        ir_in(src, super::Instruments::default())
     }
 
     /// `ir` with every `invoke` written as a `call`.
@@ -194,7 +211,7 @@ pub(crate) mod test_util {
             .replace("= invoke ", "= call ")
     }
 
-    fn ir_in(src: &str, costs: super::CallCosts) -> String {
+    fn ir_in(src: &str, costs: super::Instruments) -> String {
         let (tokens, _) = lexer::lex(src).expect("test source lexes");
         let (mut program, _) = parser::parse(&tokens).expect("test source parses");
         crate::modules::impls::name_impls(&mut program, "");

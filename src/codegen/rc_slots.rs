@@ -457,9 +457,8 @@ impl<'ctx> Lowerer<'ctx> {
         }
     }
 
-    /// After the entry returns: its arguments
-    /// and every constant are released, so the report at exit counts only
-    /// what the program lost.
+    /// After the entry returns: its arguments are released, so the report
+    /// at exit counts only what the program lost. Constants are immortal.
     pub(super) fn rc_after_entry(
         &mut self,
         params: &[Type],
@@ -471,18 +470,6 @@ impl<'ctx> Lowerer<'ctx> {
             if let Ok(value) = BasicValueEnum::try_from(*arg) {
                 self.rc_release(value, ty);
             }
-        }
-        let globals: Vec<_> = self.const_globals.values().cloned().collect();
-        for (global, ty) in globals {
-            let value = self
-                .builder
-                .build_load(
-                    llvm_type(self.context, &ty),
-                    global.as_pointer_value(),
-                    "const",
-                )
-                .expect(POSITIONED);
-            self.rc_release(value, &ty);
         }
     }
 }

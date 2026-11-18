@@ -126,7 +126,7 @@ where
                 options.opt,
                 options.cpu(),
                 target,
-                cli::call_costs_from_env(),
+                cli::instruments_from_env(),
             );
             build::build(
                 &mut out,
@@ -148,7 +148,7 @@ where
                     options.opt,
                     options.cpu(),
                     Target::default(),
-                    cli::call_costs_from_env(),
+                    cli::instruments_from_env(),
                 ),
                 args,
             )

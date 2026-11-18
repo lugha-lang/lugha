@@ -325,3 +325,23 @@ With the check inserted before optimising, nbody was +11%: a function inlined in
 
 Each read hands its job to a helper and is woken back through the `epoll` set: two wake-ups across threads, which cost far more than reading a cached file. Recorded and accepted for now; the fix (TODO.md) tries each call in place first and hands it over only when the kernel says it would wait.
 
+
+## 2026-11-18 — groundwork for many cores (PRP-240, milestone 208)
+
+Each program built once by the previous compiler (`main`) and once by this one, at `-O2`, then run 9 times each, interleaved; the median of each.
+
+| benchmark   | before  | after   | change |
+|-------------|---------|---------|--------|
+| fib         | 0.785s  | 0.777s  | -1.0%  |
+| fannkuch    | 0.257s  | 0.257s  | -0.1%  |
+| mandelbrot  | 0.367s  | 0.367s  | +0.0%  |
+| nbody       | 0.685s  | 0.690s  | +0.6%  |
+| binarytrees | 0.867s  | 0.873s  | +0.7%  |
+| wordfreq    | 0.483s  | 0.483s  | -0.1%  |
+| chanping    | 0.154s  | 0.176s  | +13.7% |
+
+What was tried on the way:
+
+- **Atomic counts in generated code.** `monotonic` loads and stores cost fannkuch 5%: LLVM won't hoist a `monotonic` load out of a loop. `unordered` (never torn, defined under a race, still hoistable) costs nothing, and is what shipped.
+- **The owner check's test in copy-on-write.** Testing for a checked count of one cost fannkuch 4%, even placed off the hot path; it is emitted only in builds made with `LUGHA_RC_CHECK=1`.
+- **The waiting handoff.** In a C ping-pong harness built against the runtime, the compare-and-swaps cost about 20% and a flag read at run time to skip them about 8%; they are compiled out while one worker runs. Moving the new `Fiber` fields after the hot ones recovered a few percent. What remains on `chanping` is the handoff's extra checks: accepted for now, TODO.md.

@@ -1,0 +1,44 @@
+import std.task;
+
+// Two tasks print boxes that hold themselves, side by side and preempted
+// partway, the shorter print ending while the longer one runs: each cuts
+// its own cycle short after one level, as a print alone does.
+struct Item { n: i64 }
+
+// A function of its own, so a long print can be preempted partway.
+impl Debug for Item {
+    fun debug(self): string = "{self.n}";
+}
+
+struct Node { items: Item[], me: Option<Ref<Node>> }
+
+fun printed(count: i64): i64 {
+    let mut items: Item[] = [];
+    for i in 0..count {
+        items.push(Item { n: i });
+    }
+    let r = Ref.new(Node { items: items, me: None });
+    let mut node = r.get();
+    node.me = Some(r);
+    r.set(node);
+    // Both tasks built theirs: they print side by side.
+    task.sleep(5);
+    let len = r.debug().len;
+    // Cut the cycle, so the box is freed.
+    let mut cut = r.get();
+    cut.me = None;
+    r.set(cut);
+    len
+}
+
+fun main(console: Console) {
+    let short = printed(20000);
+    let long = printed(60000);
+    let r = scope s {
+        let a = s.spawn(printed(20000));
+        let b = s.spawn(printed(60000));
+        [a.join().unwrap(), b.join().unwrap()]
+    };
+    let both = r.unwrap();
+    console.println("{both[0] == short} {both[1] == long}");
+}

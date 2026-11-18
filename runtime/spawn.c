@@ -58,11 +58,9 @@ void lugha_rt_rc_stop_threads(void) {
     }
 }
 
-/* The fiber `lugha_rt_task_spawn` made last, for actors.c to mark. */
-static Fiber *last_spawned;
 
 __attribute__((used, visibility("hidden"))) void lugha_rt_task_fiber_main(Fiber *self) {
-    reap();
+    landed();
     self->entry(self->code, self->env, self->task->result);
     fiber_exit(self);
 }
@@ -93,7 +91,7 @@ static void fiber_exit(Fiber *self) {
     live_count--;
     /* Its joiners hold the task themselves now. */
     lugha_rt_rc_release(task);
-    zombie = self;
+    worker->zombie = self;
     schedule();
     die("panic: internal error: a finished green thread ran again\n");
 }
@@ -117,6 +115,7 @@ LughaTask *lugha_rt_task_spawn(void (*entry)(void *, void *, void *), void *code
     f->code = code;
     f->env = env;
     f->task = task;
+    f->number = ++fibers_started;
     f->wake_at = -1;
 #if defined(__x86_64__)
     /* The first switch pops these: MXCSR and x87 defaults, then r15, r14,
@@ -146,7 +145,7 @@ LughaTask *lugha_rt_task_spawn(void (*entry)(void *, void *, void *), void *code
     live = f;
     live_count++;
     make_ready(f);
-    last_spawned = f;
+    worker->last_spawned = f;
     return task;
 }
 
@@ -167,7 +166,7 @@ void lugha_rt_task_yield(void) {
     lugha_rt_cancel_point();
     wake_due_sleepers();
     poll_ready_sockets();
-    if (ready_head == NULL) {
+    if (worker->ready_head == NULL) {
         return;
     }
     make_ready(current);
@@ -193,7 +192,7 @@ void lugha_rt_task_sleep(int64_t ms) {
 void lugha_rt_task_preempt(void) {
     lugha_rt_task_budget = TASK_BUDGET;
     // A C callback runs on the C stack, which no other task may take.
-    if (on_c_stack) {
+    if (worker->on_c_stack) {
         return;
     }
     check_times();

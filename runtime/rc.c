@@ -9,7 +9,8 @@
  * or for an odd count:
  *
  *   - positive: the number of holders;
- *   - `RC_IMMORTAL` (negative): a constant, never counted or freed;
+ *   - `RC_IMMORTAL` (negative): a literal, or a constant once filled
+ *     (`lugha_rt_rc_freeze_start`), never counted or freed;
  *   - `RC_FREED` (negative; kept after freeing with `LUGHA_RC_POISON=1`): freed,
  *     so touching it again panics instead of corrupting memory.
  *
@@ -18,8 +19,8 @@
  * size, count and first bytes), keeping freed ones as tombstones to tell
  * them apart.
  *
- * A fragment, not compiled on its own: joined after the core (lugha_rt.c)
- * and rc_alloc.c.
+ * A fragment, not compiled on its own: joined after the core (lugha_rt.c),
+ * rc_alloc.c and rc_check.c.
  */
 
 #define RC_IMMORTAL INT64_MIN
@@ -54,7 +55,7 @@ static void rc_report(void) {
             rc_freed, rc_made - rc_freed);
     for (int64_t i = 0; i < rc_listed; i++) {
         const int64_t *words = rc_objects[i];
-        if (words[-1] == RC_FREED) {
+        if (words[-1] == RC_FREED || words[-1] == RC_IMMORTAL) {
             continue;
         }
         /* The first word (a string's or array's length), then the bytes
@@ -71,6 +72,7 @@ static void rc_report(void) {
 
 static void lugha_rc_start(void) {
     rc_alloc_start();
+    rc_check_start();
     const char *poison = getenv("LUGHA_RC_POISON");
     rc_poison = poison != NULL && strcmp(poison, "1") == 0;
     const char *report = getenv("LUGHA_RC_REPORT");
@@ -110,7 +112,7 @@ typedef struct {
 void *lugha_rt_rc_alloc(int64_t size, RcVisit visit) {
     RcHeader *block = rc_block_new(sizeof(RcHeader) + (size_t)(size > 0 ? size : 0));
     block->visit = visit;
-    block->count = 1;
+    block->count = rc_first_count();
     rc_made++;
     if (rc_listing) {
         rc_list(block + 1, size);
@@ -160,11 +162,6 @@ void lugha_rt_rc_free(void *object) {
     }
 }
 
-/* Objects marked shared whose contents are still to be marked: marking
- * walks a list, not the stack, so a long chain can't overflow it. */
-static void **rc_marking;
-static int64_t rc_marking_len, rc_marking_cap;
-static bool rc_walking;
 
 /* Marks `object` shared, and with it everything it reaches that is still
  * local, before it crosses to another task. Called inside a walk (from a
@@ -178,31 +175,65 @@ void lugha_rt_rc_mark(void *object) {
     if (count == RC_FREED) {
         die("panic: use of freed memory (reference counting)\n");
     }
+    if (rc_checked(count)) {
+        // Marked by the task that made it, or it reached another unmarked.
+        rc_check_owner(count);
+        count = rc_checked_holders(count);
+    }
     // A constant, or shared already with everything it reaches.
-    if (count < 0 || (count & RC_SHARED) != 0) {
+    if (count < 0 || (!worker->freezing && (count & RC_SHARED) != 0)) {
         return;
     }
-    header->count = count | RC_SHARED;
-    if (rc_marking_len == rc_marking_cap) {
-        rc_marking_cap = rc_marking_cap == 0 ? 64 : rc_marking_cap * 2;
-        rc_marking = realloc(rc_marking, (size_t)rc_marking_cap * sizeof(void *));
-        if (rc_marking == NULL) {
+    if (worker->freezing) {
+        // Never freed from now on: the report counts it as let go of.
+        header->count = RC_IMMORTAL;
+        rc_freed++;
+    } else {
+        header->count = count | RC_SHARED;
+    }
+    if (worker->marking_len == worker->marking_cap) {
+        worker->marking_cap = worker->marking_cap == 0 ? 64 : worker->marking_cap * 2;
+        worker->marking = realloc(worker->marking, (size_t)worker->marking_cap * sizeof(void *));
+        if (worker->marking == NULL) {
             die("panic: out of memory\n");
         }
     }
-    rc_marking[rc_marking_len++] = object;
-    if (rc_walking) {
+    worker->marking[worker->marking_len++] = object;
+    if (worker->walking) {
         return;
     }
-    rc_walking = true;
-    while (rc_marking_len > 0) {
-        void *next = rc_marking[--rc_marking_len];
+    worker->walking = true;
+    while (worker->marking_len > 0) {
+        void *next = worker->marking[--worker->marking_len];
         RcVisit visit = rc_header(next)->visit;
         if (visit != NULL) {
             visit(next, RC_MARK);
         }
     }
-    rc_walking = false;
+    worker->walking = false;
+}
+
+/* Constants, once filled: everything `lugha_rt_rc_mark` reaches until
+ * `lugha_rt_rc_freeze_end` becomes immortal, its count never written
+ * again, so tasks reading a constant never contend for it. */
+void lugha_rt_rc_freeze_start(void) {
+    worker->freezing = true;
+}
+
+void lugha_rt_rc_freeze_end(void) {
+    worker->freezing = false;
+}
+
+/* Marks what `object` holds shared, `object` itself already marked: a
+ * shared block whose owner stored new values in it (an actor's state). */
+static void rc_mark_contents(void *object) {
+    if (object == NULL) {
+        return;
+    }
+    RcVisit visit = rc_header(object)->visit;
+    if (visit != NULL) {
+        visit(object, RC_MARK);
+    }
 }
 
 /* Releases or marks each element of an array of counted pointers
@@ -219,14 +250,23 @@ void lugha_rt_rc_drop_pointers(void *object, int64_t op) {
     }
 }
 
-/* What generated code calls for a count it doesn't handle inline: a
+/* A count generated code doesn't handle inline, or the runtime's own: a
  * shared count changes atomically (and frees at zero), a constant is left
- * alone, a freed object panics. `delta` is +1 or -1. */
-void lugha_rt_rc_slow(void *object, int64_t delta) {
+ * alone, a freed object panics. `delta` is +1 or -1; `check`: whether the
+ * owner check applies (generated code's counts). */
+static void rc_change(void *object, int64_t delta, bool check) {
     RcHeader *header = rc_header(object);
     int64_t count = __atomic_load_n(&header->count, __ATOMIC_RELAXED);
     if (count == RC_FREED || count == 0) {
         die("panic: use of freed memory (reference counting)\n");
+    }
+    if (rc_checked(count)) {
+        count = rc_checked_change(count, delta, check);
+        __atomic_store_n(&header->count, count, __ATOMIC_RELAXED);
+        if (rc_checked_holders(count) == 0) {
+            lugha_rt_rc_free(object);
+        }
+        return;
     }
     if (count < 0) {
         return;
@@ -234,9 +274,9 @@ void lugha_rt_rc_slow(void *object, int64_t delta) {
     if ((count & RC_SHARED) == 0) {
         // A plain count the caller didn't handle inline: the runtime's own.
         if (delta > 0) {
-            header->count = count + 1;
+            __atomic_store_n(&header->count, count + 1, __ATOMIC_RELAXED);
         } else if (count > 1) {
-            header->count = count - 1;
+            __atomic_store_n(&header->count, count - 1, __ATOMIC_RELAXED);
         } else {
             lugha_rt_rc_free(object);
         }
@@ -253,18 +293,23 @@ void lugha_rt_rc_slow(void *object, int64_t delta) {
     }
 }
 
+/* What generated code calls for a count it doesn't handle inline. */
+void lugha_rt_rc_slow(void *object, int64_t delta) {
+    rc_change(object, delta, true);
+}
+
 /* Takes one holder from `object` (none for `NULL`), freeing it at zero:
  * the runtime's own release; generated code inlines the same. */
 void lugha_rt_rc_release(void *object) {
     if (object != NULL) {
-        lugha_rt_rc_slow(object, -1);
+        rc_change(object, -1, false);
     }
 }
 
 /* Adds one holder to `object` (none for `NULL`). */
 void lugha_rt_rc_retain(void *object) {
     if (object != NULL) {
-        lugha_rt_rc_slow(object, 1);
+        rc_change(object, 1, false);
     }
 }
 

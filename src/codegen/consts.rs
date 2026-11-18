@@ -55,6 +55,11 @@ impl<'ctx> Lowerer<'ctx> {
             self.builder
                 .build_store(global.as_pointer_value(), value)
                 .expect(POSITIONED);
+            // Every task reads it: immortal, so its count is never written
+            // and no two tasks contend for it.
+            self.rt("lugha_rt_rc_freeze_start", &[], None, &[]);
+            self.rc_mark(value, ty);
+            self.rt("lugha_rt_rc_freeze_end", &[], None, &[]);
         }
         self.scopes.pop();
         self.rc_exit_function();

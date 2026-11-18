@@ -230,9 +230,8 @@ impl<'ctx> Lowerer<'ctx> {
                 ];
                 let result = self.call_rt("lugha_rt_actor_call", &values, true);
                 let value = self.load_element(result.into_pointer_value(), ret);
-                // The result is the caller's now,
-                // crossed back from the actor; its block is freed.
-                self.rc_mark(value, ret);
+                // The result is the caller's now, marked by the actor; its
+                // block is freed.
                 self.call_rt("lugha_rt_rc_block_done", &[result], false);
                 Value::Val(value)
             }
@@ -371,6 +370,9 @@ impl<'ctx> Lowerer<'ctx> {
             .build_call(*method, &values, "result")
             .expect(POSITIONED);
         if let (Some(ret), ValueKind::Basic(result)) = (ret, site.try_as_basic_value()) {
+            // The answer crosses to the caller: marked here, on the actor's
+            // task, before the caller can see it.
+            self.rc_mark(result, ret);
             self.store_element(param(2), ret, result);
         }
         self.builder.build_return(None).expect(POSITIONED);

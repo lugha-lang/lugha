@@ -11,7 +11,7 @@
  * lockdown, and in a C callback (which can't wait), a job runs inline.
  *
  * A fragment, not compiled on its own: joined after tasks.c (fibers,
- * `block`, `wake`), stacks.c (`on_c_stack`), scopes.c (`REASON_NONE`) and
+ * `block`, `wake`), stacks.c (`worker->on_c_stack`), scopes.c (`REASON_NONE`) and
  * unwind.c (`cancel_unwind`), before net.c.
  */
 
@@ -126,7 +126,7 @@ static void room_wait(Job *job) {
 }
 
 static void job_run(Job *job) {
-    if (!helpers_allowed || virtual_time() || on_c_stack) {
+    if (!helpers_allowed || virtual_time() || worker->on_c_stack) {
         job->run(job);
         return;
     }
@@ -137,6 +137,8 @@ static void job_run(Job *job) {
     }
     room_wait(job);
     if (job->hold != NULL) {
+        // Let go of when the job comes back, by whichever task collects it.
+        lugha_rt_rc_mark(job->hold);
         lugha_rt_rc_retain(job->hold);
     }
     job->waiter = current;
@@ -169,7 +171,7 @@ static void c_blocking_job(Job *job) {
  * waits, uncancellably: the frame and what its pointers reach are the
  * task's. Where a helper can't be used it runs as any C call does. */
 void lugha_rt_c_blocking(void (*thunk)(void *), void *frame) {
-    if (!helpers_allowed || virtual_time() || on_c_stack) {
+    if (!helpers_allowed || virtual_time() || worker->on_c_stack) {
         lugha_rt_c_call(thunk, frame);
         return;
     }

@@ -140,6 +140,39 @@ void lugha_rt_rc_set_drop(void *object, void (*visit)(void *, int64_t));
 void lugha_rt_rc_drop_pointers(void *object, int64_t op);
 void *lugha_rc_internal(size_t size);
 
+/* What one worker thread schedules with: the task it runs and the ones
+ * ready to, and the per-thread state of counting and `select`. Every
+ * fragment reaches it through `worker`; there is one worker today. */
+typedef struct Worker {
+    /* The running fiber (`current`, tasks.c), the fiber that finished
+     * last, still to be reaped, and the one whose park the next switch
+     * completes (waiting.c). */
+    struct Fiber *running;
+    struct Fiber *zombie;
+    struct Fiber *parking;
+    /* Ready fibers, first in first out. */
+    struct Fiber *ready_head;
+    struct Fiber *ready_tail;
+    /* The fiber `lugha_rt_task_spawn` made last, for actors.c to mark. */
+    struct Fiber *last_spawned;
+    /* True while C runs, or a C callback's Lugha code (stacks.c): on the C
+     * stack, which no other task may run on. */
+    bool on_c_stack;
+    /* Objects marked shared whose contents are still to be marked (rc.c):
+     * marking walks a list, not the stack, so a long chain can't overflow
+     * it; between the freeze calls, marking makes objects immortal. */
+    void **marking;
+    int64_t marking_len;
+    int64_t marking_cap;
+    bool walking;
+    bool freezing;
+    /* `select`'s pick: pseudo-random, the same on every run (chans.c). */
+    uint64_t pick_state;
+} Worker;
+
+static Worker first_worker = {.pick_state = 0x9e3779b97f4a7c15u};
+static Worker *const worker = &first_worker;
+
 /* The C `main`'s arguments, for `args()`. */
 static int32_t program_argc;
 static char **program_argv;

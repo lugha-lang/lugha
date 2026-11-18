@@ -106,7 +106,7 @@ static void check_times(void) {
         cancel_fiber(s->owner, REASON_DEADLINE, NULL, s);
     }
     for (Fiber *f = shielded_fibers; f != NULL; f = f->shield_next) {
-        if (now >= f->shield_until && f->cancelled != REASON_NONE && f->fired == WAITING &&
+        if (now >= f->shield_until && f->cancelled != REASON_NONE && is_waiting(f) &&
             f->cancellable) {
             wake(f, CANCELLED);
         }

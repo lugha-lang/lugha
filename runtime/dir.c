@@ -189,6 +189,8 @@ int32_t lugha_rt_dir_cwd(void **out, LughaString **error) {
             lugha_rt_rc_release(opened);
         } else {
             dir_working = opened;
+            // Every task asking for the working folder gets this one.
+            lugha_rt_rc_mark(dir_working);
             // Registered after the report at exit, so it runs before it.
             atexit(dir_working_done);
         }

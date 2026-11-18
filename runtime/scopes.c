@@ -98,6 +98,8 @@ static void cancel_fiber(Fiber *f, int32_t reason, LughaString *text, void *by) 
     }
     f->cancelled = reason;
     if (text != NULL) {
+        // Made by the canceller, read by `f`.
+        lugha_rt_rc_mark(text);
         lugha_rt_rc_retain(text);
     }
     f->cancel_text = text;
@@ -108,7 +110,7 @@ static void cancel_fiber(Fiber *f, int32_t reason, LughaString *text, void *by) 
     // A wait in a shield goes on until the shield's deadline (scope_time.c).
     // Only a fiber parked in the scheduler is WAITING, the running one
     // too when the scheduler cancels it (a deadline, Ctrl-C).
-    if (f->fired == WAITING && f->cancellable && !shielded(f)) {
+    if (is_waiting(f) && f->cancellable && !shielded(f)) {
         wake(f, CANCELLED);
     }
 }
@@ -131,6 +133,10 @@ static void scope_fail(LughaScope *s, int32_t outcome, void *table, void *box,
         lugha_rt_rc_release(panic);
         return;
     }
+    // Made by the failing task, read by the scope's owner.
+    lugha_rt_rc_mark(box);
+    lugha_rt_rc_mark(panic);
+    lugha_rt_rc_mark(task);
     s->failed = outcome;
     s->error_table = table;
     s->error_box = box;
@@ -202,6 +208,10 @@ void lugha_rt_scope_enter(LughaScope *s, LughaString *name, int32_t policy, void
         panic_with("a scope's limit must be at least 1", 34);
     }
     memset(s, 0, sizeof *s);
+    // Both reach its tasks: the name in their failures, the handler's
+    // environment in whichever task fails.
+    lugha_rt_rc_mark(name);
+    lugha_rt_rc_mark(env);
     lugha_rt_rc_retain(name);
     s->name = name;
     s->policy = policy;
@@ -227,7 +237,7 @@ LughaTask *lugha_rt_task_spawn_in(LughaScope *s, void (*entry)(void *, void *, v
                                   void *code, void *env, int64_t result_size) {
     scope_room(s);
     LughaTask *task = lugha_rt_task_spawn(entry, code, env, result_size);
-    Fiber *f = last_spawned;
+    Fiber *f = worker->last_spawned;
     f->started_in = s;
     task->fiber = f;
     lugha_rt_rc_retain(task);
@@ -332,6 +342,8 @@ int32_t lugha_rt_scope_exit(LughaScope *s, void **table, void **box, LughaString
  * over; `fails` when the failure fails its scope. */
 void lugha_rt_task_failed(void *table, void *box, int32_t fails) {
     LughaTask *t = current->task;
+    // Its joiners read the error.
+    lugha_rt_rc_mark(box);
     t->outcome = TASK_FAILED;
     t->error_table = table;
     t->error_box = box;
@@ -353,6 +365,7 @@ static void scope_task_unwound(bool cancel, const char *text, size_t len) {
     } else {
         t->outcome = TASK_PANICKED;
         t->text = string_of(text, (int64_t)len);
+        lugha_rt_rc_mark(t->text);
         lugha_rt_rc_retain(t->text);
         scope_fail(current->started_in, TASK_PANICKED, NULL, NULL, t->text, t->name);
     }
@@ -427,6 +440,8 @@ void lugha_rt_task_cancel(LughaTask *t, LughaString *why) {
 
 /* `t.name(text)`. */
 void lugha_rt_task_name(LughaTask *t, LughaString *name) {
+    // Read by its scope and joiners, in its failures.
+    lugha_rt_rc_mark(name);
     lugha_rt_rc_retain(name);
     lugha_rt_rc_release(t->name);
     t->name = name;

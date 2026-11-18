@@ -230,6 +230,9 @@ impl<'ctx> Lowerer<'ctx> {
             .and_then(|b| b.get_last_instruction())
             .expect("the call was just built");
         if let Value::Val(value) = called {
+            // The result crosses to its joiners: marked here, on its own
+            // task, before any of them can see it.
+            self.rc_mark(value, &ret);
             self.store_element(param(2).into_pointer_value(), &ret, value);
             self.report_failure(entry, &ret, value, scope_error);
         }

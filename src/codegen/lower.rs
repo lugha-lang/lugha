@@ -24,9 +24,9 @@ pub(super) const POSITIONED: &str = "builder is positioned in a block";
 pub(super) struct Lowerer<'ctx> {
     /// The platform: how extern structs cross to C depends on it.
     pub(super) target: super::Target,
-    /// Whether the per-call costs of growable stacks and preemption are
-    /// simulated (`LUGHA_CALL_COSTS=1`).
-    pub(super) costs: super::CallCosts,
+    /// What the build adds for measuring or checking: simulated per-call
+    /// costs (`LUGHA_CALL_COSTS=1`), the owner check (`LUGHA_RC_CHECK=1`).
+    pub(super) instruments: super::Instruments,
     /// The slots the function being lowered releases.
     pub(super) rc_slots: super::rc_slots::RcSlots<'ctx>,
     /// Closure environment drops made so far, for their names.
@@ -228,11 +228,11 @@ pub(super) fn lower<'ctx>(
     context: &'ctx Context,
     units: &[Unit],
     checked: &Checked,
-    (sources, target, costs): (&[ModuleSource], super::Target, super::CallCosts),
+    (sources, target, instruments): (&[ModuleSource], super::Target, super::Instruments),
 ) -> Result<Module<'ctx>, CodegenError> {
     let mut lowerer = Lowerer {
         target,
-        costs,
+        instruments,
         rc_slots: Default::default(),
         rc_envs: 0,
         context,

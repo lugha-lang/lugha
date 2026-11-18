@@ -35,7 +35,7 @@ static void poll_sockets(int64_t wait_ns) {
             continue;
         }
         Fiber *f = events[i].data.ptr;
-        if (f != NULL && f->fired == WAITING) {
+        if (f != NULL && is_waiting(f)) {
             wake(f, 0);
         }
     }
@@ -63,7 +63,7 @@ static void idle_wait(void) {
         if (net_waiting > 0) {
             poll_sockets(at < 0 ? -1 : 0);
         }
-        if (ready_head == NULL && at > virtual_ns) {
+        if (worker->ready_head == NULL && at > virtual_ns) {
             virtual_ns = at;
         }
         return;

@@ -151,9 +151,8 @@ impl<'ctx> Lowerer<'ctx> {
         if matches!(value_type, Type::Unit) {
             return None;
         }
-        // A copy site: joining again gives another copy. The value crosses
-        // back from the task: marked shared.
-        self.rc_mark(value, value_type);
+        // A copy site: joining again gives another copy. The task marked
+        // its result shared before it finished.
         Some(self.deep_copy(value, value_type))
     }
 

@@ -9,7 +9,7 @@ use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue};
 
 use super::copy::mangle;
 use super::lower::{Lowerer, POSITIONED};
-use super::rc::{RcOp, pointer_counted};
+use super::rc::{CHECK_OWNER, CHECKED, RcOp, pointer_counted};
 use super::value::llvm_type;
 use crate::check::Type;
 
@@ -177,7 +177,10 @@ impl<'ctx> Lowerer<'ctx> {
     }
 
     /// True if `array` has another holder (or is a constant), so a write
-    /// must clone it first: its count isn't one.
+    /// must clone it first: its count isn't one. Built for the owner check,
+    /// a count of one may be in the checked form, its maker's number masked
+    /// off; otherwise that test isn't emitted, as even off the hot path it
+    /// costs array-heavy loops 4%, and a checked run copies instead.
     pub(super) fn rc_shared(&self, array: PointerValue<'ctx>) -> inkwell::values::IntValue<'ctx> {
         let i64_type = self.context.i64_type();
         let at = unsafe {
@@ -189,19 +192,49 @@ impl<'ctx> Lowerer<'ctx> {
             )
         }
         .expect(POSITIONED);
-        let count = self
+        let count = self.load_count(at);
+        let one = i64_type.const_int(1, false);
+        let not_one = self
             .builder
-            .build_load(i64_type, at, "count")
-            .expect(POSITIONED)
-            .into_int_value();
+            .build_int_compare(IntPredicate::NE, count, one, "not.one")
+            .expect(POSITIONED);
+        if !self.instruments.rc_check {
+            return not_one;
+        }
+        let from = self.builder.get_insert_block().expect(POSITIONED);
+        let function = from.get_parent().expect("inside a function");
+        let checked = self.context.append_basic_block(function, "count.checked");
+        let known = self.context.append_basic_block(function, "count.known");
         self.builder
+            .build_conditional_branch(not_one, checked, known)
+            .expect(POSITIONED);
+        self.builder.position_at_end(checked);
+        let unowned = self
+            .builder
+            .build_and(count, i64_type.const_int(!CHECK_OWNER, false), "unowned")
+            .expect(POSITIONED);
+        let shared = self
+            .builder
             .build_int_compare(
                 IntPredicate::NE,
-                count,
-                i64_type.const_int(1, false),
-                "is_shared",
+                unowned,
+                i64_type.const_int(CHECKED | 1, false),
+                "not.checked.one",
             )
-            .expect(POSITIONED)
+            .expect(POSITIONED);
+        self.builder
+            .build_unconditional_branch(known)
+            .expect(POSITIONED);
+        self.builder.position_at_end(known);
+        let phi = self
+            .builder
+            .build_phi(self.context.bool_type(), "is_shared")
+            .expect(POSITIONED);
+        phi.add_incoming(&[
+            (&self.context.bool_type().const_zero(), from),
+            (&shared, checked),
+        ]);
+        phi.as_basic_value().into_int_value()
     }
 
     /// A new object of `size` bytes, zeroed, held once, carrying `drop`

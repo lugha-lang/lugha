@@ -234,35 +234,44 @@ LughaString *lugha_rt_str_quote(const LughaString *s) {
 
 /* Boxes being printed, innermost last: printing a box
  * that is already on the stack would never end, so it prints as `Ref(…)`.
- * The stack is the runtime's own memory; the boxes are only compared. */
-static void **show_stack = NULL;
-static int64_t show_len = 0;
-static int64_t show_cap = 0;
+ * Each task keeps its own (tasks.c's `show_stack_of`), since a task can be
+ * preempted mid-print. The stack is the runtime's own memory; the boxes are
+ * only compared. */
+typedef struct {
+    void **boxes;
+    int64_t len;
+    int64_t cap;
+} ShowStack;
+
+/* The running task's stack (tasks.c). */
+static ShowStack *show_stack_of(void);
 
 /* 1 after pushing `box`, or 0 if it is already being printed. */
 int32_t lugha_rt_show_enter(void *box) {
-    for (int64_t i = 0; i < show_len; i++) {
-        if (show_stack[i] == box) {
+    ShowStack *show = show_stack_of();
+    for (int64_t i = 0; i < show->len; i++) {
+        if (show->boxes[i] == box) {
             return 0;
         }
     }
-    if (show_len == show_cap) {
-        int64_t cap = show_cap == 0 ? 16 : show_cap * 2;
+    if (show->len == show->cap) {
+        int64_t cap = show->cap == 0 ? 16 : show->cap * 2;
         void **bigger = rt_scratch(cap * (int64_t)sizeof(void *));
-        if (show_len > 0) {
-            memcpy(bigger, show_stack, (size_t)show_len * sizeof(void *));
+        if (show->len > 0) {
+            memcpy(bigger, show->boxes, (size_t)show->len * sizeof(void *));
         }
-        rt_scratch_done(show_stack);
-        show_stack = bigger;
-        show_cap = cap;
+        rt_scratch_done(show->boxes);
+        show->boxes = bigger;
+        show->cap = cap;
     }
-    show_stack[show_len++] = box;
+    show->boxes[show->len++] = box;
     return 1;
 }
 
 /* Pops the box `lugha_rt_show_enter` pushed last. */
 void lugha_rt_show_leave(void) {
-    if (show_len > 0) {
-        show_len--;
+    ShowStack *show = show_stack_of();
+    if (show->len > 0) {
+        show->len--;
     }
 }

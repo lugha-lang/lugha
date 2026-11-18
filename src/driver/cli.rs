@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
-use crate::codegen::{CallCosts, Cpu, OptLevel, Target};
+use crate::codegen::{Cpu, Instruments, OptLevel, Target};
 use crate::modules::fetch::Mode;
 
 #[derive(Parser)]
@@ -213,9 +213,15 @@ impl Options {
 }
 
 /// `$LUGHA_CALL_COSTS`: `1` simulates the per-call costs of growable stacks
-/// and preemption, a measuring tool for the benchmarks.
-pub(super) fn call_costs_from_env() -> CallCosts {
-    CallCosts(std::env::var("LUGHA_CALL_COSTS").as_deref() == Ok("1"))
+/// and preemption, a measuring tool for the benchmarks. `$LUGHA_RC_CHECK`:
+/// `1` builds for the owner check, which the program then runs with the
+/// same variable set.
+pub(super) fn instruments_from_env() -> Instruments {
+    let set = |name: &str| std::env::var(name).as_deref() == Ok("1");
+    Instruments {
+        call_costs: set("LUGHA_CALL_COSTS"),
+        rc_check: set("LUGHA_RC_CHECK"),
+    }
 }
 
 /// `--target`'s values.

@@ -16,11 +16,18 @@ use super::{CodegenError, ModuleSource, SourceInfo, Target, frames, lower};
 use crate::ast::Program;
 use crate::check::{Checked, Unit};
 
-/// Whether every function also pays the per-call costs of growable stacks
-/// and preemption (a stack check, the scheduling countdown), simulated for
-/// measuring them (`LUGHA_CALL_COSTS=1`); never for programs.
+/// What a build adds for measuring or checking the program, never for
+/// shipping it; all off by default.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct CallCosts(pub bool);
+pub struct Instruments {
+    /// Every function also pays the per-call costs of growable stacks and
+    /// preemption (a stack check, the scheduling countdown), simulated for
+    /// measuring them (`LUGHA_CALL_COSTS=1`).
+    pub call_costs: bool,
+    /// The owner check can run (`LUGHA_RC_CHECK=1`): writes to an array
+    /// see a checked count of one as their own, rather than copying.
+    pub rc_check: bool,
+}
 
 /// Optimisation level for the LLVM pass pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,7 +102,7 @@ pub fn emit_ir_with(
     units: &[Unit],
     checked: &Checked,
     sources: &[ModuleSource],
-    (target, costs): (Target, CallCosts),
+    (target, costs): (Target, Instruments),
 ) -> Result<String, CodegenError> {
     let context = Context::create();
     let module = lower::lower(&context, units, checked, (sources, target, costs))?;
@@ -116,7 +123,7 @@ pub fn emit_ir_for(
     sources: &[ModuleSource],
     target: Target,
 ) -> Result<String, CodegenError> {
-    emit_ir_with(units, checked, sources, (target, CallCosts::default()))
+    emit_ir_with(units, checked, sources, (target, Instruments::default()))
 }
 
 /// A one-file program's source at offset 0.
@@ -155,7 +162,7 @@ pub fn emit_object(
         checked,
         &[single(source)],
         opt,
-        (cpu, target, CallCosts::default()),
+        (cpu, target, Instruments::default()),
         path,
     )
 }
@@ -170,7 +177,7 @@ pub fn emit_object_modules(
     checked: &Checked,
     sources: &[ModuleSource],
     opt: OptLevel,
-    (cpu, target, costs): (Cpu, Target, CallCosts),
+    (cpu, target, costs): (Cpu, Target, Instruments),
     path: &Path,
 ) -> Result<(), CodegenError> {
     let context = Context::create();

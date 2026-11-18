@@ -81,7 +81,7 @@ fn emit(src: &str, opt: OptLevel, cpu: Cpu, object: &Path) {
         &checked,
         &sources,
         opt,
-        (cpu, Target::default(), codegen::CallCosts::default()),
+        (cpu, Target::default(), codegen::Instruments::default()),
         object,
     )
     .unwrap_or_else(|e| panic!("{src}: {e}"));

@@ -16,7 +16,8 @@
  * element layout, already copied by generated code.
  *
  * A fragment, not compiled on its own: lughac's link.rs joins it after the
- * core (lugha_rt.c), stack.c and random.c; stacks.c follows it.
+ * core (lugha_rt.c, which holds the `Worker` record), stack.c and random.c;
+ * waiting.c (how a task waits and is woken) and stacks.c follow it.
  */
 
 /* Steps between preemption checks in generated code. */
@@ -113,23 +114,38 @@ struct Fiber {
      * (`WAIT_*`), or NULL and WAIT_NONE. */
     void *waits_on;
     int32_t wait_kind;
+    /* Last, away from what every switch touches: its number (1 for
+     * `main`, then in the order started), the owner check's name for it;
+     * and the `Ref` boxes it is printing (print.c). */
+    int64_t number;
+    ShowStack show;
 };
 
 enum { WAIT_NONE, WAIT_RECV, WAIT_SEND, WAIT_SELECT };
 
-enum { WAITING = -1, TIMED_OUT = -2, DEFAULT_ARM = -1, CANCELLED = -3 };
+enum { WAITING = -1, TIMED_OUT = -2, DEFAULT_ARM = -1, CANCELLED = -3, PARKING = -4 };
 
 int64_t lugha_rt_task_budget = TASK_BUDGET;
 
-static Fiber *current;
+/* The running fiber, of the running worker. */
+#define current (worker->running)
 static Fiber main_fiber;
-static Fiber *ready_head;
-static Fiber *ready_tail;
 static Fiber *sleepers;
 static Fiber *live;
 static int64_t live_count;
-/* A fiber that has finished, reaped by the next one to run. */
-static Fiber *zombie;
+/* Fibers started so far, `main` included. */
+static int64_t fibers_started = 1;
+
+static int64_t task_number(void) {
+    return current == NULL ? 1 : current->number;
+}
+
+/* Printing before any task starts. */
+static ShowStack show_before_tasks;
+
+static ShowStack *show_stack_of(void) {
+    return current == NULL ? &show_before_tasks : &current->show;
+}
 
 void lugha_rt_task_swap(void **save, void *load);
 void lugha_rt_task_boot(void);
@@ -323,6 +339,7 @@ static void ensure_started(void) {
     }
     main_fiber.wake_at = -1;
     main_fiber.fired = 0;
+    main_fiber.number = 1;
     current = &main_fiber;
     live = &main_fiber;
     live_count = 1;
@@ -330,21 +347,21 @@ static void ensure_started(void) {
 
 static void make_ready(Fiber *f) {
     f->next = NULL;
-    if (ready_tail == NULL) {
-        ready_head = f;
+    if (worker->ready_tail == NULL) {
+        worker->ready_head = f;
     } else {
-        ready_tail->next = f;
+        worker->ready_tail->next = f;
     }
-    ready_tail = f;
+    worker->ready_tail = f;
 }
 
 static Fiber *pop_ready(void) {
     Fiber *prev = NULL;
-    Fiber *f = ready_head;
+    Fiber *f = worker->ready_head;
     // Shuffled: any ready task, from the seed.
     if (sched_mode == MODE_SHUFFLE && f != NULL) {
         uint64_t n = 0;
-        for (Fiber *g = ready_head; g != NULL; g = g->next) {
+        for (Fiber *g = worker->ready_head; g != NULL; g = g->next) {
             n++;
         }
         for (uint64_t k = shuffle_next() % n; k > 0; k--) {
@@ -354,12 +371,12 @@ static Fiber *pop_ready(void) {
     }
     if (f != NULL) {
         if (prev == NULL) {
-            ready_head = f->next;
+            worker->ready_head = f->next;
         } else {
             prev->next = f->next;
         }
-        if (ready_tail == f) {
-            ready_tail = prev;
+        if (worker->ready_tail == f) {
+            worker->ready_tail = prev;
         }
     }
     return f;
@@ -386,93 +403,4 @@ static void add_sleeper(Fiber *f, int64_t deadline) {
     }
     f->sleep_next = *at;
     *at = f;
-}
-
-/* Wakes a waiting fiber for `why` (a case index, or TIMED_OUT). */
-static void wake(Fiber *f, int64_t why) {
-    // Woken already (cancelled while waiting): queued once is enough.
-    if (f->fired != WAITING) {
-        return;
-    }
-    f->fired = why;
-    unsleep(f);
-    make_ready(f);
-}
-
-static void check_times(void);
-
-static void wake_due_sleepers(void) {
-    // Deadlines, shields and Ctrl-C (scope_time.c).
-    check_times();
-    if (sleepers == NULL) {
-        return;
-    }
-    int64_t now = now_ns();
-    while (sleepers != NULL && sleepers->wake_at <= now) {
-        Fiber *f = sleepers;
-        sleepers = f->sleep_next;
-        f->wake_at = -1;
-        f->fired = TIMED_OUT;
-        make_ready(f);
-    }
-}
-
-/* Task stacks and the limit (stacks.c). */
-static void reap(void);
-static uintptr_t stack_limit_of(const Fiber *f);
-extern uintptr_t lugha_rt_stack_limit;
-
-static void switch_to(Fiber *next) {
-    Fiber *prev = current;
-    if (next == prev) {
-        return;
-    }
-    current = next;
-    lugha_rt_stack_limit = stack_limit_of(next);
-    lugha_rt_task_swap(&prev->sp, next->sp);
-    /* Back on `prev`'s stack: whoever ran before may have finished. */
-    reap();
-}
-
-/* Nothing is ready: waits for a socket or the next sleeper; wakes threads
- * whose sockets are ready without waiting (net.c). */
-static void idle_wait(void);
-static void poll_ready_sockets(void);
-
-/* Each waiting task and what it waits on, after a deadlock (actors.c). */
-static void report_waits(void);
-
-static void deadlock(void) {
-    fflush(stdout);
-    fputs("panic: deadlock: every green thread is waiting\n", stderr);
-    report_waits();
-    exit(101);
-}
-
-/* True while C runs, or a C callback's Lugha code (stacks.c): on the C
- * stack, which no other task may run on. */
-static bool on_c_stack;
-
-/* Runs the next ready fiber; the current one has already queued itself, or
- * is waiting. Sleeps the OS thread when only sleepers remain. */
-static void schedule(void) {
-    if (on_c_stack) {
-        panic_with("a C callback can't wait: start a task instead", 45);
-    }
-    for (;;) {
-        wake_due_sleepers();
-        Fiber *next = pop_ready();
-        if (next != NULL) {
-            switch_to(next);
-            return;
-        }
-        idle_wait();
-    }
-}
-
-/* Blocks the current fiber until something wakes it; what did. */
-static int64_t block(void) {
-    current->fired = WAITING;
-    schedule();
-    return current->fired;
 }

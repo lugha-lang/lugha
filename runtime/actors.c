@@ -98,6 +98,10 @@ static void actor_ended(LughaActor *a, int32_t outcome) {
     }
     a->status = outcome;
     a->idle = NULL;
+    // Its state was the actor's alone, and whoever drops the last handle
+    // lets go of it: what the actor stored there is marked now, on its
+    // own task.
+    rc_mark_contents(a->state);
     Message *m = a->handling;
     a->handling = NULL;
     if (m != NULL) {

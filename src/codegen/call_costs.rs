@@ -136,7 +136,7 @@ impl<'ctx> Lowerer<'ctx> {
 
     /// True when the per-call costs are simulated.
     pub(super) fn call_costs(&self) -> bool {
-        self.costs.0
+        self.instruments.call_costs
     }
 
     /// Marks `function` for the stack check its entry gets once the module

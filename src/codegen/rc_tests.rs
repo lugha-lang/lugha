@@ -1,6 +1,6 @@
 //! Tests of reference counting in codegen (`rc.rs`).
 
-use crate::codegen::test_util::ir_rc;
+use crate::codegen::test_util::{ir_rc, ir_rc_check};
 
 /// The definition of `lugha_fn_<name>`, up to its closing brace.
 fn body<'a>(ir: &'a str, name: &str) -> &'a str {
@@ -76,11 +76,18 @@ fn values_crossing_to_another_task_are_marked_shared() {
          let _ = scope s { let t = s.spawn(work([\"b\"])); let r = t.join(); }; }",
     );
     let main = body(&ir, "main");
-    // The send, the spawned call's environment and the joined result.
-    assert!(
-        main.matches("call void @lugha_rt_rc_mark(").count() >= 3,
+    // The send and the spawned call's environment; the joined result is
+    // marked by the task that made it, not by `main`.
+    assert_eq!(
+        main.matches("call void @lugha_rt_rc_mark(").count(),
+        2,
         "{main}"
     );
+    let entry = &ir[ir
+        .find("define internal void @lugha_task_main.0(")
+        .expect("the task's entry")..];
+    let entry = &entry[..entry.find("\n}").expect("a body ends")];
+    assert!(entry.contains("@lugha_rt_rc_mark("), "{entry}");
     assert!(
         main.contains("call void @lugha_rt_rc_chan_setup("),
         "a channel knows how to release what it buffers: {main}"
@@ -127,4 +134,47 @@ fn a_local_goes_after_its_last_use_not_at_its_block_end() {
     let released = last.find("call void @lugha_rc_dec(").expect("released");
     let printed = last.find("call void %slot(").expect("printed");
     assert!(released < printed, "{main}");
+}
+
+#[test]
+fn counts_are_read_and_written_as_unordered_atomics() {
+    let ir = ir_rc("fun main() { let xs = [\"a\"]; let ys = xs; }");
+    let inc = &ir[ir
+        .find("define internal void @lugha_rc_inc(")
+        .expect("defined")..];
+    let inc = &inc[..inc.find("\n}").expect("a body ends")];
+    assert!(
+        inc.contains("load atomic i64, ptr %count.at unordered, align 8"),
+        "{inc}"
+    );
+    assert!(
+        inc.contains("store atomic i64 %next, ptr %count.at unordered, align 8"),
+        "{inc}"
+    );
+}
+
+#[test]
+fn constants_become_immortal_once_filled() {
+    let ir = ir_rc(
+        "const NAMES: string[] = [\"a\", \"b\"];\n\
+         fun main(console: Console) { console.println(NAMES.len); }",
+    );
+    let init = &ir[ir.find("define void @lugha_const_init(").expect("defined")..];
+    let init = &init[..init.find("\n}").expect("a body ends")];
+    let start = init.find("@lugha_rt_rc_freeze_start(").expect("frozen");
+    let mark = init.find("@lugha_rt_rc_mark(").expect("marked");
+    let end = init.find("@lugha_rt_rc_freeze_end(").expect("ended");
+    assert!(start < mark && mark < end, "{init}");
+}
+
+#[test]
+fn only_a_build_for_the_owner_check_tests_a_checked_count_of_one() {
+    let src = "fun main() { let mut xs = [1]; xs[0] = 2; let n = xs.len; }";
+    let plain = ir_rc(src);
+    assert!(!body(&plain, "main").contains("not.checked.one"), "{plain}");
+    let checked = ir_rc_check(src);
+    assert!(
+        body(&checked, "main").contains("not.checked.one"),
+        "{checked}"
+    );
 }

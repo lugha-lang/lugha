@@ -53,8 +53,6 @@ typedef struct {
     int32_t ok;
 } LughaCase;
 
-/* `select`'s pick: pseudo-random, the same on every run. */
-static uint64_t pick_state = 0x9e3779b97f4a7c15u;
 
 static void chan_panic(const char *what, const char *file, int64_t line, int64_t col) {
     panic_format("%s at %s:%" PRId64 ":%" PRId64, what, file, line, col);
@@ -140,7 +138,7 @@ static Waiter *dequeue(Waiter **queue) {
     while (*queue != NULL) {
         Waiter *w = *queue;
         *queue = w->next;
-        if (w->fiber->fired == WAITING) {
+        if (is_waiting(w->fiber)) {
             return w;
         }
     }
@@ -162,7 +160,7 @@ static bool can_send(LughaChan *c) {
         return true;
     }
     for (Waiter *w = c->recvq; w != NULL; w = w->next) {
-        if (w->fiber->fired == WAITING) {
+        if (is_waiting(w->fiber)) {
             return true;
         }
     }
@@ -174,7 +172,7 @@ static bool can_recv(LughaChan *c) {
         return true;
     }
     for (Waiter *w = c->sendq; w != NULL; w = w->next) {
-        if (w->fiber->fired == WAITING) {
+        if (is_waiting(w->fiber)) {
             return true;
         }
     }
@@ -328,10 +326,10 @@ static uint64_t pick(uint64_t n) {
     if (sched_mode == MODE_SHUFFLE) {
         return shuffle_next() % n;
     }
-    pick_state ^= pick_state << 13;
-    pick_state ^= pick_state >> 7;
-    pick_state ^= pick_state << 17;
-    return pick_state % n;
+    worker->pick_state ^= worker->pick_state << 13;
+    worker->pick_state ^= worker->pick_state >> 7;
+    worker->pick_state ^= worker->pick_state << 17;
+    return worker->pick_state % n;
 }
 
 /* `select`: the case that ran, DEFAULT_ARM (-1) for `default`, or

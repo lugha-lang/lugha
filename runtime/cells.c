@@ -69,6 +69,8 @@ LughaArray *lugha_rt_cell_bytes(LughaCell *cell) {
 
 /* `$os.cell_set_bytes(cell, bytes)`: the cell holds `bytes` now. */
 void lugha_rt_cell_set_bytes(LughaCell *cell, LughaArray *bytes) {
+    // Copies of the handle, and so the cell, may be in other tasks.
+    lugha_rt_rc_mark(bytes);
     lugha_rt_rc_retain(bytes);
     lugha_rt_rc_release(cell->bytes);
     cell->bytes = bytes;

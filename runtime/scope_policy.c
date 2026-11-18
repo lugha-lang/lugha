@@ -80,6 +80,8 @@ void lugha_rt_task_panicked(LughaString *text, int32_t fails) {
     LughaTask *t = current->task;
     t->outcome = TASK_PANICKED;
     t->text = text;
+    // Its joiners read the message.
+    lugha_rt_rc_mark(text);
     if (fails) {
         lugha_rt_rc_retain(text);
         scope_fail(current->started_in, TASK_PANICKED, NULL, NULL, text, t->name);

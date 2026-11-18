@@ -11,9 +11,11 @@
 //! pointers: a per-type function retains or releases each one.
 
 use inkwell::AddressSpace;
+use inkwell::AtomicOrdering;
 use inkwell::IntPredicate;
 use inkwell::attributes::{Attribute, AttributeLoc};
 use inkwell::module::Linkage;
+use inkwell::values::BasicValue;
 use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue};
 
 use super::copy::mangle;
@@ -90,6 +92,13 @@ pub(super) fn pointer_counted(ty: &Type) -> bool {
 
 /// Bit 62 of a count: shared between tasks, its count changed atomically.
 pub(super) const SHARED: u64 = 1 << 62;
+
+/// Bits 63 and 61: a count in the owner check's form (`LUGHA_RC_CHECK=1`),
+/// negative, so the inline count leaves it to the runtime.
+pub(super) const CHECKED: u64 = 0xA << 60;
+
+/// Bits 32–60 of a checked count: the number of the task that made it.
+pub(super) const CHECK_OWNER: u64 = 0x1FFF_FFFF << 32;
 
 impl<'ctx> Lowerer<'ctx> {
     /// True if `ty`'s values hold counted objects.
@@ -173,6 +182,36 @@ impl<'ctx> Lowerer<'ctx> {
             .expect(POSITIONED);
     }
 
+    /// The count word at `at`, read as an `unordered` atomic: the same
+    /// instruction as a plain load, never torn and never undefined when
+    /// another thread changes a shared count beside it, and still free to
+    /// be hoisted out of a loop (a `monotonic` load isn't, which cost
+    /// fannkuch 5%). The fast paths only write unshared counts, which no
+    /// other thread touches; a shared count's bit never clears.
+    pub(super) fn load_count(&self, at: PointerValue<'ctx>) -> inkwell::values::IntValue<'ctx> {
+        let i64_type = self.context.i64_type();
+        let count = self
+            .builder
+            .build_load(i64_type, at, "count")
+            .expect(POSITIONED);
+        let load = count
+            .as_instruction_value()
+            .expect("a load is an instruction");
+        load.set_alignment(8).expect("a load has an alignment");
+        load.set_atomic_ordering(AtomicOrdering::Unordered)
+            .expect("a load can be atomic");
+        count.into_int_value()
+    }
+
+    /// Stores `count` at `at` as an `unordered` atomic.
+    fn store_count(&self, at: PointerValue<'ctx>, count: inkwell::values::IntValue<'ctx>) {
+        let store = self.builder.build_store(at, count).expect(POSITIONED);
+        store.set_alignment(8).expect("a store has an alignment");
+        store
+            .set_atomic_ordering(AtomicOrdering::Unordered)
+            .expect("a store can be atomic");
+    }
+
     /// `lugha_rc_inc(p)` or `lugha_rc_dec(p)`, defined once and always
     /// inlined: a null check, the count in the header, and a call to the
     /// runtime only to free or for an odd count (a constant, a freed object).
@@ -223,11 +262,7 @@ impl<'ctx> Lowerer<'ctx> {
                 )
             }
             .expect(POSITIONED);
-            let count = this
-                .builder
-                .build_load(i64_type, at, "count")
-                .expect(POSITIONED)
-                .into_int_value();
+            let count = this.load_count(at);
             let one = i64_type.const_int(1, false);
             let (fast, odd) = (this.append("fast"), this.append("odd"));
             // A plain count is from 1 to below the shared bit: retaining
@@ -257,7 +292,7 @@ impl<'ctx> Lowerer<'ctx> {
                 this.builder.build_int_sub(count, one, "next")
             }
             .expect(POSITIONED);
-            this.builder.build_store(at, next).expect(POSITIONED);
+            this.store_count(at, next);
             this.branch(done);
             this.builder.position_at_end(odd);
             if retain {

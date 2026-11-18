@@ -87,14 +87,15 @@ static void give_stack(char *stack) {
 
 /* Gives a finished fiber's stack back once another one is running on its own. */
 static void reap(void) {
-    Fiber *dead = zombie;
+    Fiber *dead = worker->zombie;
     if (dead == NULL) {
         return;
     }
-    zombie = NULL;
+    worker->zombie = NULL;
     if (dead->map != NULL) {
         give_stack(dead->map);
     }
+    rt_scratch_done(dead->show.boxes);
     free(dead);
 }
 
@@ -182,16 +183,16 @@ static char *c_stack_top;
  * against the C stack's end, and can't wait. Already on the C stack (C
  * calling back into Lugha, which calls C again), it runs in place. */
 void lugha_rt_c_call(void (*thunk)(void *), void *frame) {
-    if (on_c_stack || c_stack_top == NULL) {
+    if (worker->on_c_stack || c_stack_top == NULL) {
         thunk(frame);
         return;
     }
     uintptr_t limit = lugha_rt_stack_limit;
-    on_c_stack = true;
+    worker->on_c_stack = true;
     // `stack_low` (stack.c) is the process stack's end, once known.
     lugha_rt_stack_limit = stack_low == 0 ? 0 : stack_low + STACK_RESERVE;
     lugha_rt_on_stack(thunk, frame, c_stack_top);
-    on_c_stack = false;
+    worker->on_c_stack = false;
     lugha_rt_stack_limit = limit;
 }
 

@@ -15,7 +15,7 @@ use super::source::Source;
 use super::update;
 use crate::ast;
 use crate::check::{self, Checked};
-use crate::codegen::{self, CallCosts, CodegenError, Cpu, OptLevel, Target};
+use crate::codegen::{self, CodegenError, Cpu, Instruments, OptLevel, Target};
 use crate::diagnostic::{Diagnostic, Severity};
 use crate::link;
 use crate::modules::fetch::Mode;
@@ -278,7 +278,7 @@ fn prelude_failure(source: &Source, errors: &[Diagnostic]) -> Failure {
 }
 
 /// The program's LLVM IR for `target`, for `--emit=ir`.
-pub(super) fn ir(front: &Front, (target, costs): (Target, CallCosts)) -> Result<String, Failure> {
+pub(super) fn ir(front: &Front, (target, costs): (Target, Instruments)) -> Result<String, Failure> {
     let units = units(&front.modules);
     codegen::emit_ir_with(&units, checked(front), &sources(front), (target, costs))
         .map_err(|e| codegen_failure(&front.source, e))
@@ -289,7 +289,7 @@ pub(super) fn ir(front: &Front, (target, costs): (Target, CallCosts)) -> Result<
 /// failures come before codegen's work.
 pub(super) fn build(
     front: &Front,
-    (opt, cpu, target, costs): (OptLevel, Cpu, Target, CallCosts),
+    (opt, cpu, target, costs): (OptLevel, Cpu, Target, Instruments),
     exe: &Path,
 ) -> Result<(), Failure> {
     // `debug(x)` is for development: an optimized build is a release.
@@ -363,7 +363,7 @@ fn std_import(modules: &[Module], module: &str, via: &[&str]) -> Option<crate::s
 /// Returns the program's exit code, or 128 + N if signal N killed it, as a shell reports it.
 pub(super) fn run(
     front: &Front,
-    code: (OptLevel, Cpu, Target, CallCosts),
+    code: (OptLevel, Cpu, Target, Instruments),
     args: &[String],
 ) -> Result<u8, Failure> {
     let temp = TempDir::new().map_err(|e| internal(&front.source, temp_error(e)))?;
