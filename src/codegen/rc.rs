@@ -38,7 +38,7 @@ fn counted_in(ty: &Type, structs: &Structs, enums: &Enums, path: &mut Vec<String
         | Type::Interface(..)
         | Type::Chan(_, _)
         | Type::Task(_)
-        | Type::Actor(_) => true,
+        | Type::Actor(..) => true,
         Type::Handle(key) => key == crate::check::RESOURCE,
         Type::Struct(..) | Type::Enum(..) | Type::Option(_) => {
             let name = ty.to_string();
@@ -84,7 +84,7 @@ pub(super) fn pointer_counted(ty: &Type) -> bool {
             | Type::Ref(_)
             | Type::Chan(_, _)
             | Type::Task(_)
-            | Type::Actor(_)
+            | Type::Actor(..)
     ) || matches!(ty, Type::Handle(k) if k == crate::check::RESOURCE)
 }
 

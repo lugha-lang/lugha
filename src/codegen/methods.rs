@@ -284,7 +284,7 @@ impl<'ctx> Lowerer<'ctx> {
             return self.chan_method(call, base, &name.name, args).map(Some);
         }
         // A message to an actor.
-        if let Type::Actor(_) = base_type {
+        if let Type::Actor(..) = base_type {
             return self.actor_method(call, base, &name.name, args).map(Some);
         }
         // `s.area()` on an interface value: through its table.

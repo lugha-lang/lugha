@@ -9,7 +9,7 @@
 
 use inkwell::IntPredicate;
 use inkwell::module::Linkage;
-use inkwell::types::{BasicTypeEnum, StructType};
+use inkwell::types::{BasicType, BasicTypeEnum, StructType};
 use inkwell::values::{
     BasicMetadataValueEnum, BasicValueEnum, FunctionValue, PointerValue, ValueKind,
 };
@@ -30,12 +30,15 @@ impl<'ctx> Lowerer<'ctx> {
     /// record), so the scope's policy meets its failure as any task's.
     pub(super) fn spawn_actor(
         &mut self,
-        key: &str,
+        state_type: &Type,
         operand: &Expr,
         scope: BasicValueEnum<'ctx>,
         scope_error: &Type,
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
-        let state_type = Type::Struct(key.to_string(), Vec::new());
+        let Type::Struct(key, targs) = state_type else {
+            unreachable!("checked: an actor's state is a struct")
+        };
+        let (key, state_type) = (key.as_str(), state_type.clone());
         let state = self.get(operand, &state_type)?;
         let size = self.element_size(&state_type).max(1);
         // The block holds the state, and the
@@ -62,7 +65,7 @@ impl<'ctx> Lowerer<'ctx> {
                 self.module
                     .add_function("lugha_rt_actor_run", fn_type, None)
             });
-        let handle = Type::Actor(key.to_string());
+        let handle = Type::Actor(key.to_string(), targs.clone());
         self.rc_retain(actor, &handle);
         let pair = self.context.struct_type(&[ptr.into(), ptr.into()], false);
         let pair = self
@@ -141,23 +144,62 @@ impl<'ctx> Lowerer<'ctx> {
             }
             _ => {}
         }
-        let key = self
-            .callees
-            .get(&call.id)
-            .cloned()
-            .expect("the checker named the method a message calls");
-        let method = self.methods[&key].clone();
+        let Type::Actor(owner, targs) = &ty else {
+            unreachable!("checked: a message's receiver is a handle")
+        };
+        let state = Type::Struct(owner.clone(), targs.clone());
+        // Through a bound the checker named no method: the state's block
+        // writes it (`find@Store`), or the interface's default runs.
+        let key = self.callees.get(&call.id).cloned().or_else(|| {
+            let chosen = self.impl_method(call, &state, name)?;
+            Some(super::methods::key(owner, &chosen))
+        });
+        // A generic actor's message is its instance's method.
+        let method = match &key {
+            Some(key) if targs.is_empty() => self.methods.get(key).cloned(),
+            Some(key) => self
+                .monos
+                .get(&super::instances::instance_name(key, targs))
+                .cloned(),
+            None => None,
+        };
+        let method = method
+            .or_else(|| self.default_method(call, &state))
+            .expect("checked: a message's method is compiled");
+        let name = name.to_string();
         let params = method.signature.params.clone();
+        let mut values = Vec::new();
+        for (arg, ty) in args.iter().zip(&params) {
+            values.push(self.value_for_store(arg, ty)?);
+        }
         let ret = method.signature.ret.clone();
-        let layout = self.args_layout(&params);
-        let block = match layout {
+        let handler = self.handler(
+            (&ty.to_string(), &name),
+            &method.signature.function,
+            &params,
+            ret.as_ref(),
+        );
+        Ok(self.send(handle, handler, (&params, ret.as_ref()), values, at))
+    }
+
+    /// Sends the message `handler` with the arguments `values` (each a
+    /// holder of its own, of `params`' types) to the actor `handle`: a call
+    /// waiting for its `ret`, or a cast.
+    fn send(
+        &mut self,
+        handle: BasicValueEnum<'ctx>,
+        handler: FunctionValue<'ctx>,
+        (params, ret): (&[Type], Option<&Type>),
+        values: Vec<BasicValueEnum<'ctx>>,
+        at: [BasicValueEnum<'ctx>; 3],
+    ) -> Value<'ctx> {
+        let block = match self.args_layout(params) {
             Some(layout) => {
                 let size = layout.size_of().expect("argument blocks are sized");
                 // The block holds the arguments.
-                let drop = self.rc_env_drop(layout, &params, true);
+                let drop = self.rc_env_drop(layout, params, true);
                 let block = self.new_object(size, drop, "args");
-                for (i, (arg, ty)) in (0u32..).zip(args.iter().zip(&params)) {
-                    let value = self.value_for_store(arg, ty)?;
+                for (i, (value, ty)) in (0u32..).zip(values.into_iter().zip(params)) {
                     let at = self
                         .builder
                         .build_struct_gep(layout, block, i, "arg")
@@ -166,19 +208,17 @@ impl<'ctx> Lowerer<'ctx> {
                 }
                 // It crosses to the actor: marked shared.
                 self.rc_pointer_op(block, super::rc::RcOp::Mark);
-
                 block
             }
             None => self.context.ptr_type(Default::default()).const_null(),
         };
-        let handler = self.handler(&key, &method.signature.function, &params, ret.as_ref());
         let handler = handler.as_global_value().as_pointer_value();
         match ret {
             Some(ret) => {
                 let size = self
                     .context
                     .i64_type()
-                    .const_int(self.element_size(&ret).max(1), false);
+                    .const_int(self.element_size(ret).max(1), false);
                 let values = [
                     handle,
                     handler.into(),
@@ -189,32 +229,104 @@ impl<'ctx> Lowerer<'ctx> {
                     at[2],
                 ];
                 let result = self.call_rt("lugha_rt_actor_call", &values, true);
-                let value = self.load_element(result.into_pointer_value(), &ret);
+                let value = self.load_element(result.into_pointer_value(), ret);
                 // The result is the caller's now,
                 // crossed back from the actor; its block is freed.
-                self.rc_mark(value, &ret);
+                self.rc_mark(value, ret);
                 self.call_rt("lugha_rt_rc_block_done", &[result], false);
-
-                Ok(Value::Val(value))
+                Value::Val(value)
             }
             None => {
                 let values = [handle, handler.into(), block.into(), at[0], at[1], at[2]];
                 self.call_rt("lugha_rt_actor_cast", &values, false);
-                Ok(Value::Void)
+                Value::Void
             }
         }
     }
 
-    /// `lugha_actor_<method>(state, args, result)`, made once per method.
+    /// `lugha_actor_<Actor>.<name>$send(box, params…)`: the slot of an
+    /// interface table built for actor handles of type `handle`: it sends
+    /// the message running `method` (the state's own, or the interface's
+    /// default for it) and gives its result, so a call through the
+    /// interface is a message.
+    pub(super) fn send_slot(
+        &mut self,
+        handle: &Type,
+        name: &str,
+        method: FunctionValue<'ctx>,
+        (params, ret): (&[Type], &Type),
+    ) -> FunctionValue<'ctx> {
+        let symbol = format!(
+            "lugha_actor_{}.{name}$send",
+            crate::check::symbol(&handle.to_string())
+        );
+        if let Some(existing) = self.module.get_function(&symbol) {
+            return existing;
+        }
+        let ptr = self.context.ptr_type(Default::default());
+        let mut types: Vec<inkwell::types::BasicMetadataTypeEnum> = vec![ptr.into()];
+        types.extend(params.iter().map(|p| self.param_type(p)));
+        let fn_type = match ret {
+            Type::Unit => self.context.void_type().fn_type(&types, false),
+            ret => super::value::llvm_type(self.context, ret).fn_type(&types, false),
+        };
+        let slot = self
+            .module
+            .add_function(&symbol, fn_type, Some(Linkage::Internal));
+        let (saved_block, saved_function) = (self.builder.get_insert_block(), self.function);
+        self.function = Some(slot);
+        self.builder
+            .position_at_end(self.context.append_basic_block(slot, "entry"));
+        let param = |i: u32| slot.get_nth_param(i).expect("declared with its parameters");
+        let boxed = param(0).into_pointer_value();
+        let handle_value = self.load_element(boxed, handle);
+        let mut values = Vec::new();
+        for (i, ty) in (1u32..).zip(params) {
+            let value = match is_aggregate(ty) {
+                true => self
+                    .builder
+                    .build_load(
+                        super::value::llvm_type(self.context, ty),
+                        param(i).into_pointer_value(),
+                        "arg",
+                    )
+                    .expect(POSITIONED),
+                false => param(i),
+            };
+            // The caller keeps its arguments; the message holds its own.
+            self.rc_retain(value, ty);
+            values.push(value);
+        }
+        let ret = (*ret != Type::Unit).then(|| ret.clone());
+        let handler = self.handler((&handle.to_string(), name), &method, params, ret.as_ref());
+        let file = self
+            .builder
+            .build_global_string_ptr("", "nowhere")
+            .expect(POSITIONED);
+        let zero = self.context.i64_type().const_zero();
+        let at = [file.as_pointer_value().into(), zero.into(), zero.into()];
+        match self.send(handle_value, handler, (params, ret.as_ref()), values, at) {
+            Value::Val(v) => self.builder.build_return(Some(&v)),
+            _ => self.builder.build_return(None),
+        }
+        .expect(POSITIONED);
+        self.function = saved_function;
+        if let Some(block) = saved_block {
+            self.builder.position_at_end(block);
+        }
+        slot
+    }
+
+    /// `lugha_actor_<Actor>.<method>(state, args, result)`, made once per
+    /// method of each actor (each instance of a generic one).
     fn handler(
         &mut self,
-        key: &str,
+        (owner, name): (&str, &str),
         method: &FunctionValue<'ctx>,
         params: &[Type],
         ret: Option<&Type>,
     ) -> FunctionValue<'ctx> {
-        // Named like the method's own symbol: the owner's path, then `.name`.
-        let (owner, name) = key.rsplit_once('.').expect("a method key is `Type.name`");
+        // Named like the method's own symbol: the handle's type, then `.name`.
         let symbol = format!("lugha_actor_{}.{name}", crate::check::symbol(owner));
         if let Some(existing) = self.module.get_function(&symbol) {
             return existing;

@@ -1,0 +1,46 @@
+// An actor as an interface value: its handle converts to `Store`, and a
+// call through it is a message, whether the actor's block writes the
+// method or the interface's default runs (inside the actor).
+interface Store {
+    fun find(self, id: string): Option<string>;
+    fun add(mut self, id: string, name: string);
+    fun has(self, id: string): bool = self.find(id).is_some();
+}
+
+actor UserStore {
+    users: Map<string, string>,
+}
+
+impl Store for UserStore {
+    fun find(self, id: string): Option<string> = self.users.get(id);
+    fun add(mut self, id: string, name: string) {
+        self.users[id] = name;
+    }
+}
+
+struct Fixed {}
+
+impl Store for Fixed {
+    fun find(self, id: string): Option<string> = Some("fixed");
+    fun add(mut self, id: string, name: string) {}
+}
+
+fun fill<T: Store>(s: T) {
+    let mut t = s;
+    t.add("bo", "Bo");
+}
+
+fun main(console: Console, root: Scope) {
+    let users = root.spawn(UserStore { users: Map { "ann": "Ann" } });
+    let mut s: Store = users;
+    s.add("cy", "Cy");
+    console.println(s.find("cy").debug());
+    console.println(s.has("ann"));
+    console.println(users.find("ann").debug());
+    fill(users);
+    console.println(users.find("bo").debug());
+    let all: Store[] = [users, Fixed {}];
+    for one of all {
+        console.println(one.find("bo").debug());
+    }
+}

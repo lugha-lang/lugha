@@ -122,6 +122,12 @@ impl<'ctx> Lowerer<'ctx> {
             // A function value's `call`: through the pair its box holds.
             let method = match ty {
                 Type::Fun(..) if m.name == "call" => self.fun_call_slot(ty),
+                // An actor's handle: a message running its state's method.
+                Type::Actor(k, targs) => {
+                    let state = Type::Struct(k.clone(), targs.clone());
+                    let run = self.method_of(&state, &m.owner, &m.owner_args, &m.name);
+                    self.send_slot(ty, &m.name, run, (&m.params, &m.ret))
+                }
                 _ => self.method_of(ty, &m.owner, &m.owner_args, &m.name),
             };
             slots.push(method.as_global_value().as_pointer_value().into());

@@ -1,0 +1,9 @@
+error[E0475]: actor `Cell` can't hold or exchange a `T`: it is the type parameter `T`, not bounded `Sendable`
+  --> tests/programs/concurrency/actors/e0475_generic.la:2:12
+  |
+2 |     value: T,
+  |            ^
+  |
+  = help: add `Sendable` to its bounds: `<T: Sendable>`
+
+For more about E0475, run `lughac explain E0475`.

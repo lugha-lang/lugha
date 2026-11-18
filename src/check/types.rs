@@ -57,9 +57,9 @@ pub enum Type {
     /// One end of a channel, `Sender<T>` or `Receiver<T>`: copies share
     /// one channel, whose two ends `Chan<T>.new(n)` makes.
     Chan(End, Box<Type>),
-    /// An actor's handle, by the actor's key: copies
-    /// reach the same actor. Inside the actor its state is `Struct`.
-    Actor(String),
+    /// An actor's handle, by the actor's key and its type arguments:
+    /// copies reach the same actor. Inside the actor its state is `Struct`.
+    Actor(String, Vec<Type>),
     /// A handle, by its `extern type`'s key: an opaque C pointer.
     Handle(String),
     /// A function value, `fun(A, B): R`; `R` is `Unit` for no result.
@@ -143,6 +143,7 @@ impl Type {
             Type::Task(inner) => Type::Task(Box::new(inner.substitute(map))),
             Type::Chan(end, inner) => Type::Chan(*end, Box::new(inner.substitute(map))),
             Type::Struct(key, args) => Type::Struct(key.clone(), all(args)),
+            Type::Actor(key, args) => Type::Actor(key.clone(), all(args)),
             Type::Fun(params, ret) => Type::Fun(all(params), Box::new(ret.substitute(map))),
             Type::Enum(key, args) => Type::Enum(key.clone(), all(args)),
             Type::Interface(key, args) => Type::Interface(key.clone(), all(args)),
@@ -156,6 +157,7 @@ impl Type {
             // An argument that already failed doesn't make the whole type wrong.
             (Type::Struct(k, a), Type::Struct(l, b))
             | (Type::Enum(k, a), Type::Enum(l, b))
+            | (Type::Actor(k, a), Type::Actor(l, b))
             | (Type::Interface(k, a), Type::Interface(l, b)) => {
                 k == l && a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x.fits(y))
             }
@@ -191,7 +193,7 @@ impl Type {
             | Type::Ref(inner)
             | Type::Task(inner)
             | Type::Chan(_, inner) => inner.mentions_interface(),
-            Type::Struct(_, args) | Type::Enum(_, args) => {
+            Type::Struct(_, args) | Type::Enum(_, args) | Type::Actor(_, args) => {
                 args.iter().any(Type::mentions_interface)
             }
             Type::Fun(params, ret) => {
@@ -210,9 +212,10 @@ impl Type {
             | Type::Ref(inner)
             | Type::Task(inner)
             | Type::Chan(_, inner) => inner.mentions_param(name),
-            Type::Struct(_, args) | Type::Enum(_, args) | Type::Interface(_, args) => {
-                args.iter().any(|a| a.mentions_param(name))
-            }
+            Type::Struct(_, args)
+            | Type::Enum(_, args)
+            | Type::Actor(_, args)
+            | Type::Interface(_, args) => args.iter().any(|a| a.mentions_param(name)),
             Type::Fun(params, ret) => {
                 params.iter().any(|p| p.mentions_param(name)) || ret.mentions_param(name)
             }
@@ -279,7 +282,10 @@ impl fmt::Display for Type {
             // `Result<i64, string>`. Its structs keep it, since
             // codegen names LLVM types by these strings and a program may
             // declare a `Range` of its own.
-            Type::Struct(name, args) | Type::Enum(name, args) | Type::Interface(name, args)
+            Type::Struct(name, args)
+            | Type::Enum(name, args)
+            | Type::Interface(name, args)
+            | Type::Actor(name, args)
                 if !args.is_empty() =>
             {
                 let args: Vec<String> = args.iter().map(ToString::to_string).collect();
@@ -297,7 +303,7 @@ impl fmt::Display for Type {
                     return write!(f, "{}", Type::Fun(params.to_vec(), Box::new(ret.clone())));
                 }
                 let name = match self {
-                    Type::Struct(..) => name,
+                    Type::Struct(..) | Type::Actor(..) => name,
                     _ => name.strip_prefix("$prelude.").unwrap_or(name),
                 };
                 return write!(f, "{name}<{}>", args.join(", "));
@@ -308,7 +314,7 @@ impl fmt::Display for Type {
             Type::Struct(name, _)
             | Type::Enum(name, _)
             | Type::Handle(name)
-            | Type::Actor(name) => name,
+            | Type::Actor(name, _) => name,
             Type::Param(name) | Type::Interface(name, _) => name,
             Type::Option(inner) => return write!(f, "Option<{inner}>"),
             Type::Ref(inner) => return write!(f, "Ref<{inner}>"),

@@ -1,6 +1,6 @@
 ## FEATURE: Generic actors (`actor Cache<K: Key + Sendable, V: Sendable> { … }`) and actors as interface values (`impl Store for UserStore { … }`, whose methods are messages, so a handle converts to `Store`); milestone 202.
 
-**Status:** proposed 2026-11-18.
+**Status:** approved 2026-11-18; built 2026-11-18 (milestone 202).
 
 ## OBJECTIVE
 ```
@@ -51,7 +51,7 @@ fun main(console: Console, root: Scope) {
 4. **`impl I for UserStore { … }`** written for an actor makes its handle implement `I`. The block's methods are the actor's: they run inside it on its state, as messages, and follow its rules (no `mut` parameter, E0439; what crosses must be sendable, E0475). They may also be called on the handle directly.
 5. **A handle converts to `I`** where an `I` is expected (a parameter, a `let x: I`, an array of `I`), and satisfies `T: I` bounds. A call through the `I` value is a message: a method with a result waits for it, one without is queued, as on the handle.
 6. **`I`'s default methods**, when the block doesn't write them, run inside the actor too, on its state, as a message: through `I`, every call reaches the actor the same way.
-7. **Generic actors may implement interfaces** (`impl<K: Key + Sendable, V: Sendable> Source<V> for Cache<K, V>`), each instance's handle getting its own table.
+7. **Generic actors may implement interfaces** (`impl Source<V> for Cache<K: Key + Sendable, V: Sendable>`, written as for any generic type), each instance's handle getting its own table.
 
 ## DECISIONS MADE IN DISCOVERY (mine, for review)
 1. **Methods of an actor's `impl I` block are ordinary messages too**, callable on the handle without going through `I`: they are the actor's methods.
@@ -59,6 +59,13 @@ fun main(console: Console, root: Scope) {
 3. **Every instance of a generic actor shares the declaration's mailbox size.**
 4. **`mut self` methods of `I` are allowed on actors** and need no mutable place through `I` either, as on a handle.
 5. **No new error codes:** E0439 and E0475 cover the rules, E0422 a handle converted to an interface its actor doesn't implement.
+
+6. **Made during the build:**
+   - A handle meets an interface exactly when its actor's state does: the `impl` block is the state's, and the satisfaction check reads it through the state.
+   - Every instance the handle needs of an interface's items (through a conversion or a `T: I` bound) is the state's instance: a default instantiated for the handle would treat the state as a handle inside the actor, and both print alike.
+   - A call through a bound on an actor finds the state's block method in codegen, as for a struct, else the default.
+   - A slot sent from a table carries no call site: a call through `I` to an actor that has ended panics without a location.
+   - Found, not fixed (it exists on `main` too): a written generic type whose argument must meet `Key`, `S<string>` for `struct S<K: Key>`, reports that `string` doesn't satisfy `Key`; spawned states infer their arguments, so actors meet it only when written.
 
 ## REQUIREMENTS
 
@@ -72,11 +79,11 @@ fun main(console: Console, root: Scope) {
 - Type parameters on an actor's methods.
 
 ## TESTS
-- [ ] Checker unit tests: a generic actor's handle type, inferred and written; E0475 without `Sendable`; E0439 for a method's type parameters; `impl I for Actor` meeting `I`; a handle converting to `I` and meeting `T: I`; an `impl` method with a `mut` parameter (E0439).
-- [ ] `tests/programs/concurrency/actors/`: a generic cache used at two instances; a handle passed as an interface value, called through it (a result, a cast, a `mut self` method, a default method); an array of interface values mixing an actor and a struct; a generic actor implementing a generic interface.
-- [ ] Targeted: `--lib`, `programs`, `leaks`, `spec`, `explain`, `comments`.
+- [x] Checker unit tests: a generic actor's handle type, inferred and written; E0475 without `Sendable`; E0439 for a method's type parameters; `impl I for Actor` meeting `I`; a handle converting to `I` and meeting `T: I`; an `impl` method with a `mut` parameter (E0439).
+- [x] `tests/programs/concurrency/actors/`: a generic cache used at two instances; a handle passed as an interface value, called through it (a result, a cast, a `mut self` method, a default method); an array of interface values mixing an actor and a struct; a generic actor implementing a generic interface.
+- [x] Targeted: `--lib`, `programs`, `leaks`, `spec`, `explain`, `comments`.
 
 ## ACCEPTANCE
-- [ ] The objective program prints `Some(1)` and `Some("Ann")`.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` clean; targeted tests pass.
-- [ ] Spec, CHANGELOG and E0439's page updated.
+- [x] The objective program prints `Some(1)` and `Some("Ann")`.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` clean; targeted tests pass.
+- [x] Spec, CHANGELOG and E0439's page updated.

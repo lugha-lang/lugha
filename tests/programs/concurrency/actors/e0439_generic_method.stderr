@@ -1,0 +1,17 @@
+error[E0439]: an actor's methods can't have type parameters
+  --> tests/programs/concurrency/actors/e0439_generic_method.la:3:14
+  |
+3 |     fun pick<U>(self, u: U): T = self.x;
+  |              ^
+  |
+  = help: an actor is started in a scope, `s.spawn(Counter { … })`, and reached only through its methods; what crosses its boundary is copied and may hold no `Ref`
+
+error[E0475]: actor `A` can't hold or exchange a `U`: it is the type parameter `U`, not bounded `Sendable`
+  --> tests/programs/concurrency/actors/e0439_generic_method.la:3:26
+  |
+3 |     fun pick<U>(self, u: U): T = self.x;
+  |                          ^
+  |
+  = help: add `Sendable` to its bounds: `<T: Sendable>`
+
+For more about E0439 and E0475, run `lughac explain <code>`.

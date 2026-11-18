@@ -42,7 +42,7 @@ impl Checker {
             Type::Ref(_) | Type::Fun(..) | Type::Task(_) => fail(),
             Type::Struct(key, _) if key == SCOPE => fail(),
             // One task owns an actor's state; others only send it messages.
-            Type::Actor(_) => Some(None),
+            Type::Actor(..) => Some(None),
             // A channel is sendable when what it carries is.
             Type::Chan(_, inner) => Some(self.unmet_derived(SENDABLE, inner, path, seen)),
             Type::Interface(key, _) => match self.requires_sendable(key) {

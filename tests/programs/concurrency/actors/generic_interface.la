@@ -1,0 +1,29 @@
+// A generic actor implementing a generic interface: each instance's
+// handle gets its own table.
+interface Source<T> {
+    fun next_one(mut self): Option<T>;
+}
+
+actor Queue<T: Sendable> {
+    items: T[],
+}
+
+impl Source<T> for Queue<T: Sendable> {
+    fun next_one(mut self): Option<T> = self.items.pop();
+}
+
+fun drain(source: Source<i64>): i64 {
+    let mut s = source;
+    let mut sum = 0;
+    while let .Some(n) = s.next_one() {
+        sum += n;
+    }
+    sum
+}
+
+fun main(console: Console, root: Scope) {
+    let q = root.spawn(Queue { items: [1, 2, 3] });
+    let words = root.spawn(Queue { items: ["a", "b"] });
+    console.println(drain(q));
+    console.println(words.next_one().debug());
+}

@@ -37,9 +37,10 @@ pub(super) fn has_param(ty: &Type) -> bool {
         | Type::Ref(inner)
         | Type::Task(inner)
         | Type::Chan(_, inner) => has_param(inner),
-        Type::Struct(_, args) | Type::Enum(_, args) | Type::Interface(_, args) => {
-            args.iter().any(has_param)
-        }
+        Type::Struct(_, args)
+        | Type::Enum(_, args)
+        | Type::Actor(_, args)
+        | Type::Interface(_, args) => args.iter().any(has_param),
         Type::Fun(params, ret) => params.iter().any(has_param) || has_param(ret),
         _ => false,
     }
@@ -100,6 +101,9 @@ pub(super) fn replace(ty: &Type, map: &HashMap<&str, &Type>) -> Type {
             params.iter().map(|p| replace(p, map)).collect(),
             Box::new(replace(ret, map)),
         ),
+        Type::Actor(k, args) => {
+            Type::Actor(k.clone(), args.iter().map(|a| replace(a, map)).collect())
+        }
         Type::Struct(k, args) => {
             Type::Struct(k.clone(), args.iter().map(|a| replace(a, map)).collect())
         }

@@ -19,7 +19,7 @@ impl Checker {
         let target = self.expr(place, None);
         // `c.count = 1` on an actor's handle is E0439 already.
         let through_handle = matches!(&place.kind, crate::ast::ExprKind::Field(base, _)
-            if matches!(self.types[base.id.0 as usize], Some(Type::Actor(_))));
+            if matches!(self.types[base.id.0 as usize], Some(Type::Actor(..))));
         if through_handle || !self.check_place(place) {
             self.expr(value, None);
             return;

@@ -70,7 +70,8 @@ impl Checker {
             if !self.register_impl(i, owner, &ty, &outer) {
                 continue;
             }
-            self.in_actor = i.actor.then(|| owner.clone());
+            // An `impl I for SomeActor` block's methods are the actor's too.
+            self.in_actor = (i.actor || self.actors.contains(owner)).then(|| owner.clone());
             for f in &i.methods {
                 let name = &f.name.name;
                 let own = self.generics_with(&f.type_params, &outer);
@@ -141,7 +142,8 @@ impl Checker {
                     (owner, ty)
                 }
             };
-            self.in_actor = i.actor.then(|| owner.clone());
+            // An `impl I for SomeActor` block's methods are the actor's too.
+            self.in_actor = (i.actor || self.actors.contains(&owner)).then(|| owner.clone());
             // The block's own bounds (`impl Error for Failure<E: Error>`).
             let declared = self.generics_of(&owner);
             let outer = self.impl_generics(&declared, &i.params);

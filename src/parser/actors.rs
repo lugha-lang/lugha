@@ -25,7 +25,6 @@ impl Parser<'_> {
         let start = visibility.map_or(self.span().start, |v| v.span.start);
         let keyword = self.bump();
         let name = self.ident("actor name")?;
-        // Parsed so the checker can say actors aren't generic (E0439).
         let type_params = self.type_params()?;
         // `mailbox n`: `mailbox` is a word only here.
         let mailbox = match self.peek() {

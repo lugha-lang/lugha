@@ -23,7 +23,7 @@ impl Checker {
             (Type::Error | Type::Never, _) => Type::Error,
             (Type::String | Type::Array(_), "len") => Type::I64,
             // An actor's fields are private to it.
-            (Type::Actor(key), _) => {
+            (Type::Actor(key, _), _) => {
                 self.handle_field(&key, field);
                 Type::Error
             }

@@ -1,0 +1,5 @@
+actor Cell<T> {
+    value: T,
+}
+
+fun main() {}

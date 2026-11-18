@@ -118,6 +118,11 @@ impl Checker {
     /// What `arg` lacks to satisfy `interface`, one entry per item: empty
     /// when it satisfies it.
     pub(super) fn unmet(&self, arg: &Type, interface: &Applied) -> Vec<String> {
+        // An actor's handle meets what its state's `impl` blocks say: their
+        // methods are its messages.
+        if let Type::Actor(key, targs) = arg {
+            return self.unmet(&Type::Struct(key.clone(), targs.clone()), interface);
+        }
         // The numbers and `string` meet the prelude's operator bounds as
         // built-ins, with themselves on the right: `i64 * f64` is a block's.
         let other_right = super::impls::is_operator(&interface.key)

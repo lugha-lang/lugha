@@ -164,7 +164,7 @@ impl Checker {
             self.used(expr, "$prelude.$report_failure", &[]);
         }
         match (&ty, scope) {
-            (Type::Actor(_), None) => {
+            (Type::Actor(..), None) => {
                 self.report(errors::unscoped_actor(expr.span));
                 Type::Error
             }

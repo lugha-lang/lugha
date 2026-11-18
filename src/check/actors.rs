@@ -7,6 +7,7 @@
 
 use super::expr::Expect;
 use super::members::{Detail, Member, MemberKind, signature};
+use super::methods::Method;
 use super::{Checker, Partial, Type, builtins, errors};
 use crate::ast::{Expr, ExprKind, Ident, Item, Program};
 use crate::span::Span;
@@ -27,11 +28,9 @@ impl Checker {
     pub(super) fn as_handle(&self, ty: Type) -> Type {
         match ty {
             Type::Struct(key, args)
-                if args.is_empty()
-                    && self.actors.contains(&key)
-                    && self.in_actor.as_deref() != Some(key.as_str()) =>
+                if self.actors.contains(&key) && self.in_actor.as_deref() != Some(key.as_str()) =>
             {
-                Type::Actor(key)
+                Type::Actor(key, args)
             }
             ty => ty,
         }
@@ -41,7 +40,11 @@ impl Checker {
     pub(super) fn actor_of(&self, item: &Item) -> Option<String> {
         match item {
             Item::Struct(s) if s.actor.is_some() => Some(self.key(&s.name.name)),
-            Item::Impl(i) if i.actor => Some(self.key(&i.ty.name)),
+            // `impl I for SomeActor` written outside the actor: its methods
+            // are messages too.
+            Item::Impl(i) if i.actor || self.actors.contains(&self.key(&i.ty.name)) => {
+                Some(self.key(&i.ty.name))
+            }
             _ => None,
         }
     }
@@ -50,7 +53,9 @@ impl Checker {
     /// isn't an actor's state. E0439 for a struct literal of a plain struct.
     pub(super) fn spawned_actor(&mut self, operand: &Expr, ty: &Type) -> Option<Type> {
         match ty {
-            Type::Struct(key, _) if self.actors.contains(key) => Some(Type::Actor(key.clone())),
+            Type::Struct(key, args) if self.actors.contains(key) => {
+                Some(Type::Actor(key.clone(), args.clone()))
+            }
             Type::Struct(key, _) if matches!(operand.kind, ExprKind::StructLit(_)) => {
                 let message =
                     format!("`{key}` isn't an actor: `spawn` starts actors and runs calls");
@@ -83,7 +88,7 @@ impl Checker {
     pub(super) fn actor_call(
         &mut self,
         call: &Expr,
-        key: &str,
+        (key, targs): (&str, &[Type]),
         name: &Ident,
         args: &[Expr],
         expect: Option<&Expect>,
@@ -91,11 +96,13 @@ impl Checker {
         if BUILT_IN.contains(&name.name.as_str()) {
             return None;
         }
-        let state = Type::Struct(key.to_string(), Vec::new());
-        let Some(m) = self
+        let state = Type::Struct(key.to_string(), targs.to_vec());
+        let own = self
             .method(&state, &name.name)
-            .filter(|m| m.receiver.is_some())
-        else {
+            .filter(|m| m.receiver.is_some());
+        // A method of an `impl I for SomeActor` block is a message too.
+        let found = own.or_else(|| self.block_message(key, &name.name));
+        let Some(m) = found else {
             let help = if name.name == "join" {
                 "an actor ends with its scope, which reports its failure: there is nothing to join"
             } else {
@@ -104,7 +111,7 @@ impl Checker {
             let help = Some(help.to_string());
             self.report(errors::no_method(
                 &name.name,
-                &Type::Actor(key.to_string()),
+                &Type::Actor(key.to_string(), targs.to_vec()),
                 name.span,
                 help,
             ));
@@ -113,7 +120,23 @@ impl Checker {
         self.method_visible(key, &name.name, name.span);
         self.hover.function(name.span, m.span, Some(call));
         self.callees.insert(call.id, m.key.clone());
-        Some(self.arguments(call, &name.name, &m, args, (&[], expect)))
+        // A generic actor's message is its instance's: `Cache<string, i64>` binds `K`, `V`.
+        if m.generics.is_empty() {
+            self.used(call, &m.key, &[]);
+        }
+        Some(self.arguments(call, &name.name, &m, args, (targs, expect)))
+    }
+
+    /// The method actor `key`'s `impl` blocks write for item `name`, when
+    /// one does (`find@Store`): a message like the actor's own.
+    fn block_message(&self, key: &str, name: &str) -> Option<Method> {
+        let methods = self.methods.get(key)?;
+        self.impls
+            .get(key)?
+            .iter()
+            .find_map(|entry| methods.get(&entry.method(name)))
+            .filter(|m| m.receiver.is_some())
+            .cloned()
     }
 
     /// E0439 for a field read or written through a handle.
@@ -125,20 +148,34 @@ impl Checker {
         self.report(errors::actor_misuse(message, field.span));
     }
 
-    /// The declaration rules (E0439): no type parameters, no generic
-    /// methods, no method named like a built-in, and no `Ref` (or what may
-    /// hold one) in a field, parameter or result.
+    /// The declaration rules (E0439): no generic methods (an actor itself
+    /// may have type parameters), no method named like a built-in, a
+    /// positive literal for `mailbox n`, and only sendable fields,
+    /// parameters and results (E0475).
     pub(super) fn check_actors(&mut self, program: &Program) {
         for item in &program.items {
             let Some(key) = self.actor_of(item) else {
                 continue;
             };
+            // A generic actor's bounds say what its parameters are.
+            let params = match item {
+                Item::Struct(s) => s.type_params.as_slice(),
+                Item::Impl(i) => i.params.as_slice(),
+                _ => &[],
+            };
+            let generics = self.generics(params);
+            let saved = std::mem::replace(&mut self.type_params, generics);
+            self.actor_rules(&key, item);
+            self.type_params = saved;
+        }
+    }
+
+    /// `check_actors` for one item of actor `key`.
+    fn actor_rules(&mut self, key: &str, item: &Item) {
+        let key = key.to_string();
+        {
             match item {
                 Item::Struct(s) => {
-                    if let Some(first) = s.type_params.first() {
-                        let message = "an actor can't have type parameters";
-                        self.report(errors::actor_misuse(message, first.name.span));
-                    }
                     if let Some(n) = &s.mailbox
                         && mailbox_size(n).is_none()
                     {
@@ -216,7 +253,7 @@ pub fn handle_members(partial: &Partial, key: &str) -> Vec<Member> {
                 .collect()
         })
         .unwrap_or_default();
-    let handle = Type::Actor(key.to_string());
+    let handle = Type::Actor(key.to_string(), Vec::new());
     for name in BUILT_IN {
         let m = builtins::builtin(&handle, name).expect("every handle has the built-ins");
         out.push(Member {
@@ -247,7 +284,10 @@ mod tests {
         let src = format!(
             "{COUNTER}fun main(root: Scope) {{ let c = root.spawn(Counter {{ count: 0 }}); c.add(5); let n = c.get(); }}"
         );
-        assert_eq!(let_type(&src, "c"), Type::Actor("Counter".into()));
+        assert_eq!(
+            let_type(&src, "c"),
+            Type::Actor("Counter".into(), Vec::new())
+        );
         assert_eq!(let_type(&src, "n"), Type::I64);
         // `join` is gone: the actor's scope reports how it ended.
         let src = format!(
@@ -304,7 +344,6 @@ mod tests {
     #[test]
     fn declaration_rules_are_e0439() {
         for (actor, at) in [
-            ("actor A<T> { x: T }", "T"),
             ("actor A { x: i64, fun stop(self) {} }", "stop"),
             ("actor A { x: i64, fun f<T>(self, t: T) {} }", "T"),
             ("actor A mailbox 0 { x: i64 }", "0"),
@@ -332,6 +371,59 @@ mod tests {
         ok("actor B { n: i64 }
             actor A { c: Sender<i64>, b: B, fun f(self, xs: string[]): (i64, bool) = (1, true); }
             fun main() {}");
+    }
+
+    #[test]
+    fn a_generic_actor_is_one_handle_type_per_instance() {
+        let cache = "actor Cache<K: Key + Sendable, V: Sendable> {
+            entries: Map<K, V>,
+            fun get(self, k: K): Option<V> = self.entries.get(k);
+        }\n";
+        let src = format!(
+            "{cache}fun main(root: Scope) {{ let c = root.spawn(Cache {{ entries: Map<string, i64> {{}} }}); let v = c.get(\"a\"); }}"
+        );
+        assert_eq!(let_type(&src, "c").to_string(), "Cache<string, i64>");
+        assert_eq!(let_type(&src, "v"), Type::Option(Box::new(Type::I64)));
+        ok(
+            "actor Cell<T: Sendable> { value: T, fun get(self): T = self.value; }
+            fun keep(c: Cell<string>): string = c.get();
+            fun main(root: Scope) { let s = keep(root.spawn(Cell { value: \"x\" })); }",
+        );
+        // Each parameter crosses to the actor's task: it must be sendable.
+        assert_eq!(errors("actor A<T> { x: T }\nfun main() {}")[0].0, "E0475");
+    }
+
+    #[test]
+    fn an_actor_implements_an_interface_through_its_state() {
+        let store = "interface Store { fun find(self, id: string): Option<string>; }
+            actor Users { all: Map<string, string> }
+            impl Store for Users { fun find(self, id: string): Option<string> = self.all.get(id); }\n";
+        ok(&format!(
+            "{store}fun look(s: Store) {{}}\nfun bound<T: Store>(s: T) {{}}
+            fun main(root: Scope) {{
+                let u = root.spawn(Users {{ all: Map {{}} }});
+                look(u);
+                bound(u);
+                let direct = u.find(\"x\");
+                let both: Store[] = [u];
+            }}"
+        ));
+        assert_eq!(
+            errors(&format!(
+                "{store}actor Other {{ n: i64 }}\nfun look(s: Store) {{}}\nfun main(root: Scope) {{ look(root.spawn(Other {{ n: 0 }})); }}"
+            ))[0]
+                .0,
+            "E0422"
+        );
+        // Its block's methods are messages: no `mut` parameter.
+        assert_eq!(
+            errors(
+                "interface Grow { fun grow(self, mut xs: i64[]); }\nactor A { n: i64 }\n\
+                 impl Grow for A { fun grow(self, mut xs: i64[]) { xs.push(1); } }\nfun main() {}"
+            )[0]
+            .0,
+            "E0439"
+        );
     }
 
     #[test]

@@ -1,0 +1,6 @@
+actor A<T: Sendable> {
+    x: T,
+    fun pick<U>(self, u: U): T = self.x;
+}
+
+fun main() {}

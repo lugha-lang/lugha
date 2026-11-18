@@ -118,7 +118,11 @@ impl Checker {
         param: &str,
         name: &str,
     ) -> Option<Instance> {
-        let concrete = subst(&Type::Param(param.to_string()), generics, args);
+        let concrete = match subst(&Type::Param(param.to_string()), generics, args) {
+            // An actor's items run inside it, on its state: a message.
+            Type::Actor(key, targs) => Type::Struct(key, targs),
+            concrete => concrete,
+        };
         // A derivable interface's item comes from the block covering the
         // type.
         let derived = generics.iter().find(|g| g.name == param).and_then(|g| {

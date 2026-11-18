@@ -53,6 +53,12 @@ impl Checker {
     /// calls them directly: a generic type's methods at its arguments, a
     /// type parameter's through its bound in each instance.
     pub(super) fn conversion_uses(&mut self, expr: &Expr, ty: &Type, interface: &Applied) {
+        // An actor's handle sends messages running its state's items,
+        // defaults included: the state's are the ones compiled.
+        if let Type::Actor(key, targs) = ty {
+            let state = Type::Struct(key.clone(), targs.clone());
+            return self.conversion_uses(expr, &state, interface);
+        }
         // An ancestor's item comes from the ancestor's block or default.
         for (owner, item) in self.value_items(interface) {
             let interface = &owner;

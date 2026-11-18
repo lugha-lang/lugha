@@ -43,8 +43,8 @@ pub(super) fn builtin(receiver: &Type, name: &str) -> Option<Method> {
         }
         (Type::Chan(_, _), "is") => (vec![receiver.clone()], Type::Bool, false),
         // Every actor handle's own messages.
-        (Type::Actor(_), "stop") => (Vec::new(), Type::Unit, false),
-        (Type::Actor(_), "is") => (vec![receiver.clone()], Type::Bool, false),
+        (Type::Actor(..), "stop") => (Vec::new(), Type::Unit, false),
+        (Type::Actor(..), "is") => (vec![receiver.clone()], Type::Bool, false),
         (Type::String, "to_bytes") => (Vec::new(), Type::Array(Box::new(Type::U8)), false),
         (int, "wrapping_add" | "wrapping_sub" | "wrapping_mul") if int.is_integer() => {
             (vec![int.clone()], int.clone(), false)

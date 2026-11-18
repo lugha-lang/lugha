@@ -1,0 +1,19 @@
+// A generic actor: each instance is its own handle type, with its own
+// messages.
+actor Cache<K: Key + Sendable, V: Sendable> {
+    entries: Map<K, V>,
+    fun get(self, k: K): Option<V> = self.entries.get(k);
+    fun put(mut self, k: K, v: V) {
+        self.entries[k] = v;
+    }
+}
+
+fun main(console: Console, root: Scope) {
+    let ages = root.spawn(Cache { entries: Map<string, i64> {} });
+    let seen = root.spawn(Cache { entries: Map<i64, bool> {} });
+    ages.put("ann", 31);
+    seen.put(7, true);
+    console.println(ages.get("ann").debug());
+    console.println(ages.get("bo").debug());
+    console.println(seen.get(7).debug());
+}

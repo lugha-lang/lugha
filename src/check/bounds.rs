@@ -112,7 +112,7 @@ impl Checker {
             | Type::Ref(_)
             | Type::Task(_)
             | Type::Chan(_, _)
-            | Type::Actor(_) => false,
+            | Type::Actor(..) => false,
             _ => true,
         }
     }
@@ -158,7 +158,7 @@ impl Checker {
             | Type::Ref(_)
             | Type::Task(_)
             | Type::Chan(_, _)
-            | Type::Actor(_) => return true,
+            | Type::Actor(..) => return true,
             Type::Array(inner) | Type::Option(inner) => return self.holds_fun_in(inner, seen),
             // Recursive types meet themselves again: one look is enough.
             Type::Struct(..) | Type::Enum(..) if seen.contains(ty) => return false,

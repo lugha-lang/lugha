@@ -282,7 +282,7 @@ impl Checker {
             Type::Fun(..) => "a function type",
             Type::Interface(..) => "an interface type",
             Type::Ref(_) => "a `Ref`",
-            Type::Task(_) | Type::Chan(_, _) | Type::Actor(_) => "a task, channel or actor",
+            Type::Task(_) | Type::Chan(_, _) | Type::Actor(..) => "a task, channel or actor",
             Type::Param(_) => {
                 return Some(format!(
                     "is for every type `{ty}`: a block is for one kind of type"

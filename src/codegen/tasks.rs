@@ -42,8 +42,9 @@ impl<'ctx> Lowerer<'ctx> {
             .build_extract_value(handle, 0, "scope")
             .expect("a scope has 1 field");
         // `s.spawn(Counter { … })` starts an actor, a task of the scope.
-        if let Type::Actor(key) = self.ty(expr) {
-            return self.spawn_actor(&key, spawned_call(closure), scope, &scope_error);
+        if let Type::Actor(key, targs) = self.ty(expr) {
+            let state = Type::Struct(key, targs);
+            return self.spawn_actor(&state, spawned_call(closure), scope, &scope_error);
         }
         let Type::Task(result) = self.ty(expr) else {
             unreachable!("checked: `spawn` makes a `Task` or an actor")

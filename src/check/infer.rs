@@ -157,9 +157,10 @@ pub(super) fn unbound(ty: &Type, names: &[&str], bound: &Bound) -> bool {
         | Type::Ref(inner)
         | Type::Task(inner)
         | Type::Chan(_, inner) => unbound(inner, names, bound),
-        Type::Struct(_, args) | Type::Enum(_, args) | Type::Interface(_, args) => {
-            args.iter().any(|a| unbound(a, names, bound))
-        }
+        Type::Struct(_, args)
+        | Type::Enum(_, args)
+        | Type::Actor(_, args)
+        | Type::Interface(_, args) => args.iter().any(|a| unbound(a, names, bound)),
         Type::Fun(params, ret) => {
             params.iter().any(|p| unbound(p, names, bound)) || unbound(ret, names, bound)
         }
@@ -189,6 +190,7 @@ pub(super) fn unify(declared: &Type, actual: &Type, names: &[&str], bound: &mut 
             unify(dr, ar, names, bound);
         }
         (Type::Struct(k, ds), Type::Struct(l, as_))
+        | (Type::Actor(k, ds), Type::Actor(l, as_))
         | (Type::Enum(k, ds), Type::Enum(l, as_))
         | (Type::Interface(k, ds), Type::Interface(l, as_))
             if k == l =>

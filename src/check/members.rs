@@ -188,7 +188,7 @@ impl Checker {
 /// methods, the built-in methods and the prelude helpers that apply, and
 /// for an iterator the iterator helpers.
 pub fn value_members(partial: &Partial, ty: &Type) -> Vec<Member> {
-    if let Type::Actor(key) = ty {
+    if let Type::Actor(key, _) = ty {
         return super::actors::handle_members(partial, key);
     }
     let mut out = Vec::new();
