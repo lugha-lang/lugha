@@ -4,7 +4,7 @@
 //! contextual: keywords only there.
 
 use super::{PResult, Parser};
-use crate::ast::{Expr, ExprKind, Param, PassMode};
+use crate::ast::{CallbackRun, Expr, ExprKind, Param, PassMode};
 use crate::diagnostic::Diagnostic;
 use crate::lexer::TokenKind;
 use crate::span::Span;
@@ -41,17 +41,43 @@ impl Parser<'_> {
         Some((mode, self.bump()))
     }
 
-    /// An extern's parameter: `[out | ptr | mut] name: T [inline]`.
+    /// An extern's parameter: `[out | ptr | mut] name: T`, a callback's
+    /// type `direct fun(…)` or `spawned fun(…)`.
     pub(super) fn extern_param(&mut self) -> PResult<Param> {
         let mode = self.mode_word(false);
-        let mut param = self.param("parameter name")?;
-        param.mode = mode;
-        // `inline` is a name everywhere else; the checker says it fits only
-        // a callback.
-        if matches!(self.peek(), TokenKind::Ident(w) if w == "inline") {
-            param.inline = Some(self.bump());
+        if let Some(v) = self.visibility() {
+            let message = "a parameter can't have a visibility";
+            let help = "only items, methods and fields take `private` or `public`";
+            self.error(Diagnostic::error("E0201", message, v.span).with_help(help));
         }
-        Ok(param)
+        self.misplaced_out();
+        let name = self.ident("parameter name")?;
+        self.expect(&TokenKind::Colon)?;
+        // Words only right before a callback's `fun`; names anywhere else.
+        let run = match (self.peek(), self.peek_at(1)) {
+            (TokenKind::Ident(w), TokenKind::Fun) if w == "direct" => {
+                Some((CallbackRun::Direct, self.bump()))
+            }
+            (TokenKind::Ident(w), TokenKind::Fun) if w == "spawned" => {
+                Some((CallbackRun::Spawned, self.bump()))
+            }
+            _ => None,
+        };
+        let ty = self.ty()?;
+        // The earlier spelling, after the type: pointed at the new one.
+        if matches!(self.peek(), TokenKind::Ident(w) if w == "inline") {
+            let at = self.bump();
+            self.error(
+                Diagnostic::error("E0201", "`inline` after a callback's type is gone", at)
+                    .with_help("write how C's call runs it before `fun`: `cb: direct fun(…)`, or `cb: spawned fun(…)` for a task"),
+            );
+        }
+        Ok(Param {
+            name,
+            ty,
+            mode,
+            run,
+        })
     }
 
     /// A function's, method's or interface item's parameter: `[mut] name:

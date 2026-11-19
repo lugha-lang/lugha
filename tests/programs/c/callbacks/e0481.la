@@ -1,6 +1,6 @@
 // C reads a `Ref<T[]>` back when the call returns, before a queued
 // callback has run.
-extern fun each_block(f: fun(Ref<i64[]>, data), user: data);
-extern fun each_block_now(f: fun(Ref<i64[]>, data) inline, user: data);
+extern fun each_block(f: spawned fun(Ref<i64[]>, data), user: data);
+extern fun each_block_now(f: direct fun(Ref<i64[]>, data), user: data);
 
 fun main() {}

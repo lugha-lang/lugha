@@ -1,0 +1,12 @@
+// Every callback says how C's call runs it, before `fun`; `direct` and
+// `spawned` are names anywhere else.
+extern fun on_draw(f: direct fun(i64, data), user: data, free: release);
+extern fun on_click(f: spawned fun(i64, data), user: data, free: release);
+extern fun sort(n: i64, cmp: direct fun(i64, i64): i32);
+extern fun ask(f: direct fun(i64, data): i64, user: data);
+
+fun main(console: Console) {
+    let direct = 1;
+    let spawned = 2;
+    console.println("ok {direct + spawned}");
+}

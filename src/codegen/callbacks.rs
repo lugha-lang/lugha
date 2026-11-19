@@ -8,8 +8,8 @@
 //! - A callback with `data` gets the trampoline `lugha_cb_<signature>`, one
 //!   per C signature, and the `data` argument is `lugha_rt_cb_pin(code, env)`:
 //!   the trampoline reads the closure back from it, while its scope runs.
-//!   A queued one's (no result, not `inline`), `lugha_cbq_<signature>`,
-//!   starts a task instead (queued_callbacks.rs).
+//!   A `spawned` one's, `lugha_cbq_<signature>`,
+//!   starts a task instead (spawned_callbacks.rs).
 //! - A `release` argument is `lugha_rt_cb_release`.
 
 use inkwell::attributes::AttributeLoc;
@@ -119,14 +119,14 @@ impl<'ctx> Lowerer<'ctx> {
                     params,
                     ret,
                     data,
-                    queued,
+                    spawned,
                 } => {
                     let pair = written.next().expect("checked arity").into_struct_value();
                     match data {
                         None => self.static_entry(pair, params, ret).into(),
                         Some(at) => {
                             pinned = Some(self.pin(pair));
-                            self.trampoline(params, ret, *at, *queued).into()
+                            self.trampoline(params, ret, *at, *spawned).into()
                         }
                     }
                 }
@@ -231,16 +231,16 @@ impl<'ctx> Lowerer<'ctx> {
     }
 
     /// `lugha_cb_<signature>`: calls the closure pinned in its `data`
-    /// parameter, at index `data`; `lugha_cbq_…` when `queued`, starting a
+    /// parameter, at index `data`; `lugha_cbq_…` when `spawned`, starting a
     /// task that calls it. Emitted once per signature.
     fn trampoline(
         &mut self,
         params: &[Type],
         ret: &Type,
         data: usize,
-        queued: bool,
+        spawned: bool,
     ) -> PointerValue<'ctx> {
-        let kind = if queued { "cbq" } else { "cb" };
+        let kind = if spawned { "cbq" } else { "cb" };
         let name = format!("lugha_{kind}_{}", c_signature(params, ret, Some(data)));
         if let Some(existing) = self.module.get_function(&name) {
             return existing.as_global_value().as_pointer_value();
@@ -250,7 +250,7 @@ impl<'ctx> Lowerer<'ctx> {
             .module
             .add_function(&name, fn_type, Some(Linkage::Internal));
         // The closure comes from the pin, its captures held for the call.
-        self.c_body(entry, params, ret, (Some(data), queued), |_, _| {
+        self.c_body(entry, params, ret, (Some(data), spawned), |_, _| {
             unreachable!("a trampoline holds its closure through its pin")
         });
         entry.as_global_value().as_pointer_value()
@@ -259,13 +259,13 @@ impl<'ctx> Lowerer<'ctx> {
     /// The body of a C entry `entry`: get the function value (with `pair`,
     /// or from the pin in the `data` parameter at `data`), convert C's
     /// arguments (all but `data`), call it, convert its result; when
-    /// `queued`, start a task to call it instead. A panic stops here.
+    /// `spawned`, start a task to call it instead. A panic stops here.
     fn c_body(
         &mut self,
         entry: FunctionValue<'ctx>,
         params: &[Type],
         ret: &Type,
-        (data, queued): (Option<usize>, bool),
+        (data, spawned): (Option<usize>, bool),
         pair: impl FnOnce(&mut Self, Option<PointerValue<'ctx>>) -> StructValue<'ctx>,
     ) {
         // Counted arrays are two C parameters each.
@@ -284,7 +284,7 @@ impl<'ctx> Lowerer<'ctx> {
         let held = self.entry_alloca(&Type::String, "held.env");
         let null = self.context.ptr_type(Default::default()).const_null();
         self.builder.build_store(held, null).expect(POSITIONED);
-        // Never on a helper thread; inside an inline callback, no
+        // Never on a helper thread; inside a direct callback, no
         // cancellation point unwinds.
         let enter = self.runtime("lugha_rt_cb_enter", &[], None);
         self.builder.build_call(enter, &[], "").expect(POSITIONED);
@@ -341,7 +341,7 @@ impl<'ctx> Lowerer<'ctx> {
         let leave = |this: &mut Self| {
             this.rt("lugha_rt_cb_leave", &[], None, &[]);
         };
-        if let (true, Some(pinned)) = (queued, pinned) {
+        if let (true, Some(pinned)) = (spawned, pinned) {
             // The block takes the held captures over.
             let pins = params.iter().any(|t| self.is_pinned(t));
             self.queue_call(pinned, pair, params, plain, pins);

@@ -1,0 +1,9 @@
+error[E0475]: a `spawned` callback, run as a task, can't capture `total`: it is a `Ref<i64>`, which two tasks would share
+  --> tests/programs/c/callbacks/e0475_spawned.la:7:14
+  |
+7 |     on_event(fun(n: i64) { total.set(n); });
+  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = help: make the callback `direct` in the extern (`cb: direct fun(W, data)`) to run it during C's call, or capture only sendable values
+
+For more about E0475, run `lughac explain E0475`.

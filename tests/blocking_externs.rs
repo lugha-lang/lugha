@@ -137,7 +137,7 @@ fn a_deadline_waits_for_the_call_to_return() {
 #[test]
 fn a_callback_run_during_a_blocking_call_ends_the_program() {
     let case = Case::new(
-        "extern fun keep(f: fun(i64): i64);\n\
+        "extern fun keep(f: direct fun(i64): i64);\n\
          extern blocking fun call_kept(x: i64): i64;\n\
          fun main(console: Console) {\n\
              keep(fun(x) = x + 1);\n\

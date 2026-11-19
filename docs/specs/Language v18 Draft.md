@@ -924,27 +924,27 @@ scope deep stack 64.mb() {
 **Rules**
 
 1. The language provides general mechanisms only, with no UI concepts: thread-affine values (`extern type GlContext pinned;`), which never leave the worker that created them; pinned scopes (`scope ui pinned { … }`), whose tasks all run on the current worker; and the callback rules below. [CBK-01]
-2. A C callback that returns a value runs inline and can't pause; trying to pause is a runtime error saying to start a task instead. [CBK-02]
-3. A C callback that returns nothing is queued as a task in the scope it was registered with, and may pause. Marking it `inline` makes it run immediately, without pausing. The mark follows the callback parameter's type: `cb: fun(Window, data) inline`. [CBK-03]
-4. A callback arriving on a thread C created runs inline on that thread, can't pause, may touch only sendable data, and talks to tasks through `Ring<T>`. Marking it `queued` delivers it as a task instead. A lint flags allocation inside it. [CBK-04]
-5. A panic in an inline callback is caught where it returns to C: C receives a zero value, and the scope that registered the callback receives the failure. [CBK-05]
-6. Cancellation never interrupts an inline callback. [CBK-06]
+2. A C callback that returns a value is `direct`: it runs during C's call and can't pause; trying to pause is a runtime error. [CBK-02]
+3. Every extern callback says how C's call runs it, before `fun`: `cb: direct fun(Window, data)` runs during C's call, on whatever thread C uses, and can't pause; `cb: spawned fun(Window, data)` starts a task in the scope it was registered with on each call, which may pause (it needs `data` and no result, and its captures must be `Sendable`). Neither written is an error: what happens is always visible in the declaration. [CBK-03]
+4. A `direct` callback arriving on a thread C created runs on that thread, can't pause, may touch only sendable data, and talks to tasks through `Ring<T>`; a `spawned` one is delivered to the workers as a task. A lint flags allocation inside a `direct` callback. [CBK-04]
+5. A panic in a `direct` callback is caught where it returns to C: C receives a zero value, and the scope that registered the callback receives the failure. [CBK-05]
+6. Cancellation never interrupts a `direct` callback. [CBK-06]
 7. A callback is registered against a scope: after the scope ends, its events are dropped, and the values it captured are released when C releases the callback or the scope ends. [CBK-07]
 
 **What it looks like**
 
 ```
 extern type Window pinned;
-extern "toolkit_on_click" fun on_click(w: Window, cb: fun(Window, data), user: data, free: release);
-extern "sensor_start" fun sensor_start(cb: fun(f64, data), user: data, free: release);   // calls cb on its own thread
+extern "toolkit_on_click" fun on_click(w: Window, cb: spawned fun(Window, data), user: data, free: release);
+extern "sensor_start" fun sensor_start(cb: direct fun(f64, data), user: data, free: release);   // calls cb on its own thread
 
 scope ui pinned {
     let win = make_window();
-    on_click(win, fun(w: Window) { refresh(w); });   // queued as a task in `ui`
+    on_click(win, fun(w: Window) { refresh(w); });   // spawned: a task in `ui`
 }
 
 let (readings, incoming) = Ring<f64>.new(4_096);
-sensor_start(fun(x: f64) {                           // inline on the foreign thread
+sensor_start(fun(x: f64) {                           // direct, on the foreign thread
     readings.try_send(x);                            // never waits; drops when full
 });
 ```

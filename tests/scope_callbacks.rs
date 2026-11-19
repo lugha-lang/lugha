@@ -1,6 +1,6 @@
 //! Callbacks registered against a scope, end to end: each case is a
-//! program with its own C file, linked through a `[link]` table. A queued
-//! callback runs later as a task of its scope; an inline one during C's
+//! program with its own C file, linked through a `[link]` table. A `spawned`
+//! callback runs later as a task of its scope; a `direct` one during C's
 //! call; a panic fails the scope; once the scope's body ends, C's calls
 //! are dropped and the closures' captures let go of.
 
@@ -75,20 +75,20 @@ const SIDE: &str = "#include <stdlib.h>\n\
     static cb kept; static void *kept_user; static void (*kept_free)(void *);\n\
     static long calls;\n\
     void on_event(cb f, void *user, void (*free_fn)(void *)) { kept = f; kept_user = user; kept_free = free_fn; }\n\
-    void on_event_inline(cb f, void *user, void (*free_fn)(void *)) { on_event(f, user, free_fn); }\n\
+    void on_event_direct(cb f, void *user, void (*free_fn)(void *)) { on_event(f, user, free_fn); }\n\
     void fire(long n) { if (kept) { calls++; kept(n, kept_user); } }\n\
     long fired(void) { return calls; }\n\
     void forget(void) { if (kept_free) kept_free(kept_user); kept = 0; kept_free = 0; }\n";
 
 const EXTERNS: &str = "import std.task;\n\
-    extern fun on_event(f: fun(i64, data), user: data, free: release);\n\
-    extern fun on_event_inline(f: fun(i64, data) inline, user: data, free: release);\n\
+    extern fun on_event(f: spawned fun(i64, data), user: data, free: release);\n\
+    extern fun on_event_direct(f: direct fun(i64, data), user: data, free: release);\n\
     extern fun fire(n: i64);\n\
     extern fun fired(): i64;\n\
     extern fun forget();\n";
 
 #[test]
-fn a_queued_callback_runs_after_c_returns_as_a_task_that_may_wait() {
+fn a_spawned_callback_runs_after_c_returns_as_a_task_that_may_wait() {
     Case::new(
         &format!(
             "{EXTERNS}\
@@ -115,15 +115,15 @@ fn a_queued_callback_runs_after_c_returns_as_a_task_that_may_wait() {
 }
 
 #[test]
-fn inline_callbacks_run_during_cs_call() {
+fn direct_callbacks_run_during_cs_call() {
     Case::new(
         &format!(
             "{EXTERNS}\
-             extern fun apply(n: i64, f: fun(i64, data): i64, user: data): i64;\n\
-             extern fun twice(f: fun(i64), n: i64);\n\
+             extern fun apply(n: i64, f: direct fun(i64, data): i64, user: data): i64;\n\
+             extern fun twice(f: direct fun(i64), n: i64);\n\
              fun shout(n: i64) {{ }}\n\
              fun main(console: Console) {{\n\
-                 on_event_inline(fun(n: i64) {{ console.println(\"inline {{n}}\"); }});\n\
+                 on_event_direct(fun(n: i64) {{ console.println(\"inline {{n}}\"); }});\n\
                  fire(1);\n\
                  console.println(\"after fire\");\n\
                  console.println(apply(4, fun(x: i64): i64 = x + 1));\n\
@@ -138,7 +138,7 @@ fn inline_callbacks_run_during_cs_call() {
 }
 
 #[test]
-fn a_queued_callbacks_panic_fails_its_scope_by_its_policy() {
+fn a_spawned_callbacks_panic_fails_its_scope_by_its_policy() {
     let body = |scope: &str| {
         format!(
             "{EXTERNS}\
@@ -192,7 +192,7 @@ fn an_independent_handler_gets_a_callback_tasks_panic() {
 }
 
 #[test]
-fn cancellation_waits_for_an_inline_callback_to_return() {
+fn cancellation_waits_for_a_direct_callback_to_return() {
     Case::new(
         &format!(
             "{EXTERNS}\
@@ -200,7 +200,7 @@ fn cancellation_waits_for_an_inline_callback_to_return() {
              fun main(console: Console) {{\n\
                  let (tx, rx) = Chan<i64>.unbounded();\n\
                  let r = scope s within 20 {{\n\
-                     on_event_inline(fun(n: i64) {{\n\
+                     on_event_direct(fun(n: i64) {{\n\
                          spin_ms(80);\n\
                          tx.send(n);\n\
                          console.println(\"callback done\");\n\
@@ -231,7 +231,7 @@ fn after_the_scopes_body_ends_calls_are_dropped_and_captures_freed() {
                  let name = \"kept {{1 + 1}}\";\n\
                  let r = scope s {{\n\
                      on_event(fun(n: i64) {{ console.println(\"{{name}} {{n}}\"); }});\n\
-                     on_event_inline(fun(n: i64) {{ console.println(\"{{name}} inline {{n}}\"); }});\n\
+                     on_event_direct(fun(n: i64) {{ console.println(\"{{name}} inline {{n}}\"); }});\n\
                      fire(1);\n\
                  }};\n\
                  fire(2);\n\
@@ -251,12 +251,12 @@ fn after_the_scopes_body_ends_calls_are_dropped_and_captures_freed() {
 }
 
 #[test]
-fn a_queued_callback_taking_a_pinned_handle_runs_on_cs_thread() {
+fn a_spawned_callback_taking_a_pinned_handle_runs_on_cs_thread() {
     Case::new(
         "import std.task;\n\
          extern type Ctx pinned;\n\
          extern fun ctx_new(): Ctx;\n\
-         extern fun ctx_on(c: Ctx, f: fun(Ctx, i64, data), user: data);\n\
+         extern fun ctx_on(c: Ctx, f: spawned fun(Ctx, i64, data), user: data);\n\
          extern fun ctx_fire(c: Ctx, n: i64);\n\
          extern fun ctx_check(c: Ctx): i64;\n\
          fun busy(n: i64, out: Sender<i64>) {\n\

@@ -1,7 +1,7 @@
-//! Callbacks registered against a scope, the C entries' side: a queued
+//! Callbacks registered against a scope, the C entries' side: a spawned
 //! callback's entry copies C's arguments and the closure into a block and
 //! has the runtime start a task in the registering scope
-//! (`lugha_rt_cb_queue`), which runs `lugha_cbq_<signature>`; an inline
+//! (`lugha_rt_cb_queue`), which runs `lugha_cbq_<signature>`; a direct
 //! one holds its closure's captures for the call (`lugha_rt_cb_hold`),
 //! and a panic in it stops at the entry (`lugha_rt_cb_caught`), which
 //! gives C a zero value. An `independent(f)` scope's handler gets a
@@ -107,15 +107,15 @@ impl<'ctx> Lowerer<'ctx> {
         (pair, live)
     }
 
-    /// A queued call's block: the closure, then each of C's arguments.
-    fn queued_layout(&self, params: &[Type]) -> (StructType<'ctx>, Vec<Type>) {
+    /// A spawned call's block: the closure, then each of C's arguments.
+    fn spawned_layout(&self, params: &[Type]) -> (StructType<'ctx>, Vec<Type>) {
         let mut types = vec![Type::Fun(params.to_vec(), Box::new(Type::Unit))];
         types.extend(params.iter().cloned());
         let fields: Vec<BasicTypeEnum> = types.iter().map(|t| llvm_type(self.context, t)).collect();
         (self.context.struct_type(&fields, false), types)
     }
 
-    /// Starts the task for a queued callback's call: `pair` (its captures
+    /// Starts the task for a `spawned` callback's call: `pair` (its captures
     /// held) and `args` (C's arguments, converted) go into a block the
     /// task owns. `pins`: an argument is a pinned handle.
     pub(super) fn queue_call(
@@ -126,7 +126,7 @@ impl<'ctx> Lowerer<'ctx> {
         args: Vec<BasicValueEnum<'ctx>>,
         pins: bool,
     ) {
-        let (layout, types) = self.queued_layout(params);
+        let (layout, types) = self.spawned_layout(params);
         let drop = self.rc_env_drop(layout, &types, false);
         let size = layout.size_of().expect("a block is sized");
         let block = self.new_object(size, drop, "callback.call");
@@ -141,7 +141,7 @@ impl<'ctx> Lowerer<'ctx> {
         }
         // The task runs it, wherever: its counts are shared.
         self.rt("lugha_rt_rc_mark", &[Type::String], None, &[block.into()]);
-        let entry = self.queued_task_entry(params);
+        let entry = self.spawned_task_entry(params);
         let pins = self.context.i32_type().const_int(u64::from(pins), false);
         self.rt(
             "lugha_rt_cb_queue",
@@ -156,10 +156,10 @@ impl<'ctx> Lowerer<'ctx> {
         );
     }
 
-    /// `lugha_cbq_<signature>(code, env, result)`: a queued call's task,
+    /// `lugha_cbq_<signature>(code, env, result)`: a spawned call's task,
     /// `env` its block. A panic stops here: the task's scope's policy
     /// decides (`lugha_rt_cb_task_panicked`). Emitted once per signature.
-    fn queued_task_entry(&mut self, params: &[Type]) -> FunctionValue<'ctx> {
+    fn spawned_task_entry(&mut self, params: &[Type]) -> FunctionValue<'ctx> {
         let names: Vec<String> = params.iter().map(ToString::to_string).collect();
         let name = format!("lugha_cbq_fun({})", names.join(", "));
         if let Some(existing) = self.module.get_function(&name) {
@@ -181,7 +181,7 @@ impl<'ctx> Lowerer<'ctx> {
             .get_nth_param(1)
             .expect("declared with three parameters")
             .into_pointer_value();
-        let (layout, types) = self.queued_layout(params);
+        let (layout, types) = self.spawned_layout(params);
         let mut fields = Vec::new();
         for (i, ty) in types.iter().enumerate() {
             let index = u32::try_from(i).expect("argument count fits in u32");

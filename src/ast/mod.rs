@@ -293,9 +293,28 @@ pub struct Param {
     /// `out`, `ptr` or `mut` before an extern's parameter: how it reaches C
     /// by address, and where the word is.
     pub mode: Option<(PassMode, Span)>,
-    /// `inline` after an extern callback's type: C's call runs it at once,
-    /// rather than starting a task.
-    pub inline: Option<Span>,
+    /// `direct` or `spawned` before an extern callback's `fun`: how C's
+    /// call runs it, and where the word is.
+    pub run: Option<(CallbackRun, Span)>,
+}
+
+/// How C's call runs an extern's callback: written before its `fun`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CallbackRun {
+    /// `direct fun(…)`: during C's call, on the thread C uses.
+    Direct,
+    /// `spawned fun(…)`: a task in the registering scope, per call.
+    Spawned,
+}
+
+impl CallbackRun {
+    /// The word written for it.
+    pub fn word(self) -> &'static str {
+        match self {
+            CallbackRun::Direct => "direct",
+            CallbackRun::Spawned => "spawned",
+        }
+    }
 }
 
 /// How an extern's parameter reaches C by address.

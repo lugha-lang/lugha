@@ -133,9 +133,12 @@ impl Printer<'_> {
             let mode = p
                 .mode
                 .map_or(String::new(), |(m, _)| format!("{} ", m.word()));
-            let inline = if p.inline.is_some() { " inline" } else { "" };
+            // `direct` or `spawned` before an extern callback's `fun`.
+            let run = p
+                .run
+                .map_or(String::new(), |(r, _)| format!("{} ", r.word()));
             text(format!(
-                "{mode}{}: {}{inline}",
+                "{mode}{}: {run}{}",
                 self.ident(&p.name),
                 self.ty(&p.ty)
             ))

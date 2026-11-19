@@ -255,7 +255,7 @@ static void switch_away(bool parking, bool yielding) {
     Worker *w = worker;
     if (w->on_c_stack) {
         park_unlock(w);
-        panic_with("an inline C callback can't wait: C is waiting for it; declare it with `data` and no result, not `inline`, so it runs as a task", 126);
+        panic_with("a direct C callback can't wait: C is waiting for it; declare it `spawned fun(…)` (with `data`, no result) so it runs as a task", 128);
     }
     // Holding object locks, only timers fire here: deadlines, shields and
     // the poll take the scopes lock, which comes before them.

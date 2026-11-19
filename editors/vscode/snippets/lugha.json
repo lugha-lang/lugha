@@ -89,7 +89,7 @@
   "Extern with callback": {
     "prefix": "externcb",
     "body": [
-      "extern fun ${1:connect}(${2:callback}: fun(${3:i64}, data), user: data, destroy: release);"
+      "extern fun ${1:connect}(${2:callback}: ${3|spawned,direct|} fun(${4:i64}, data), user: data, destroy: release);"
     ],
     "description": "A C function taking a callback; callers write neither `user` nor `destroy` (v16)"
   },

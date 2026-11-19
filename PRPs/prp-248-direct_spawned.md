@@ -1,6 +1,6 @@
 ## FEATURE: Every extern callback says how C's call runs it: `cb: direct fun(…)` runs during C's call, `cb: spawned fun(…)` starts a task in the registering scope; no default, nothing implied by a callback's shape; milestone 216.
 
-**Status:** proposed 2026-11-20.
+**Status:** approved 2026-11-20.
 
 ## OBJECTIVE
 A reader knows what each callback does from its declaration alone:
@@ -64,14 +64,20 @@ error[E0435]: say how C's call runs this callback: `direct fun(…)` (during the
 - Change what any callback does at run time.
 
 ## TESTS
-- [ ] `tests/programs/c/callbacks/`:
-  - [ ] E0435 for a callback with neither word, and for `spawned` with a result or without `data`;
-  - [ ] the parse error for `fun(…) inline`;
-  - [ ] `direct`/`spawned` parse and format; `direct` and `spawned` still work as names.
-- [ ] Every existing callback test passes with the new spelling and unchanged output: `tests/callbacks.rs`, `scope_callbacks.rs`, `c_strings.rs`, `c_memory.rs`, `c_arrays.rs`, `extern_structs.rs`, `arm.rs`, `blocking_externs.rs`.
-- [ ] `--lib` (parser, checker and token unit tests), `programs`, `explain`, `spec`, `fmt`, `parser`, `lsp_semantic_tokens`, `comments`; `editors/vscode` `npm test`.
+- [x] `tests/programs/c/callbacks/`:
+  - [x] E0435 for a callback with neither word, and for `spawned` with a result or without `data`;
+  - [x] the parse error for `fun(…) inline`;
+  - [x] `direct`/`spawned` parse and format; `direct` and `spawned` still work as names.
+- [x] Every existing callback test passes with the new spelling and unchanged output: `tests/callbacks.rs`, `scope_callbacks.rs`, `c_strings.rs`, `c_memory.rs`, `c_arrays.rs`, `extern_structs.rs`, `arm.rs`, `blocking_externs.rs`.
+- [x] `--lib` (parser, checker and token unit tests), `programs`, `explain`, `spec`, `fmt`, `parser`, `lsp_semantic_tokens`, `comments`; `editors/vscode` `npm test`.
 
 ## ACCEPTANCE
-- [ ] No extern callback compiles without `direct` or `spawned`; each behaves as milestone 215's inline or queued did.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
-- [ ] Spec, the Draft, CHANGELOG (Breaking), TODO, the error pages and the editor tooling are updated.
+- [x] No extern callback compiles without `direct` or `spawned`; each behaves as milestone 215's inline or queued did.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
+- [x] Spec, the Draft, CHANGELOG (Breaking), TODO, the error pages and the editor tooling are updated.
+
+## BUILD NOTES
+- **Migration by script:** every extern callback in `tests/`, `src/` (unit tests), the error pages and the spec was rewritten under milestone 215's rules: unmarked with `data` and no result became `spawned`, everything else `direct`; `fun(…) inline` became `direct fun(…)`. Two patterns needed a second pass: renamed externs inside Rust strings (escaped quotes) and `inline` after a result type.
+- **Names follow the words:** `CParam::Callback`'s `queued` is now `spawned`, `codegen/queued_callbacks.rs` is `codegen/spawned_callbacks.rs`, the E0481 builder `spawned_ref`; the program cases became `direct_spawned.la`, `e0435_unsaid.la`, `e0201_inline.la`, `e0475_spawned.la`.
+- **No benchmarks:** nothing changed at run time but the "can't wait" panic's wording.
+- **The VS Code extern snippet** offers `spawned` or `direct` as a choice.

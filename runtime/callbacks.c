@@ -4,11 +4,11 @@
  * keeps the closure and its captures, and registers it in the innermost
  * scope of the task that made the extern call.
  *
- * - A queued callback (no result, not `inline`) starts a task in that
+ * - A `spawned` callback (`data`, no result) starts a task in that
  *   scope with C's arguments (`lugha_rt_cb_queue`) and returns at once.
- * - An inline one runs during C's call, in the calling task, which no
+ * - A `direct` one runs during C's call, in the calling task, which no
  *   cancellation point unwinds meanwhile (`in_callback`).
- * - A panic in an inline callback stops where it would leave for C
+ * - A panic in a direct callback stops where it would leave for C
  *   (`lugha_rt_cb_caught`): C gets a zero value, and a task in the
  *   registering scope reports the panic, as any of its tasks would.
  * - Once the scope's body ends its callbacks stop: C's later calls are
@@ -125,7 +125,7 @@ static void callbacks_stop(LughaScope *s) {
 
 /* The first call of every C entry into Lugha: on a helper thread the
  * program ends (`blocking` externs, helpers.c); in a task, it is inside
- * an inline callback until `lugha_rt_cb_leave`. */
+ * a direct callback until `lugha_rt_cb_leave`. */
 void lugha_rt_cb_enter(void) {
     callback_on_helper();
     // A panic in it needs a task to stop in.
@@ -171,7 +171,7 @@ static void callback_task(LughaScope *s, void (*entry)(void *, void *, void *), 
     lugha_rt_rc_release(t);
 }
 
-/* A queued callback's call: a task in its scope running `entry` with
+/* a `spawned` callback's call: a task in its scope running `entry` with
  * `args` (handed over: C's arguments and the closure); dropped once the
  * scope's body has ended. `pins`: it takes a pinned handle, so it runs on
  * the thread C called from. */
@@ -214,7 +214,7 @@ void lugha_rt_cb_task_panicked(LughaString *text) {
     lugha_rt_task_panicked(text, policy == POLICY_ALL || policy == POLICY_ROOT);
 }
 
-/* A task that reports an inline callback's panic, `env` its message. */
+/* A task that reports a direct callback's panic, `env` its message. */
 static void panic_entry(void *code, void *env, void *result) {
     (void)code;
     (void)result;
@@ -223,7 +223,7 @@ static void panic_entry(void *code, void *env, void *result) {
     lugha_rt_cb_task_panicked(env);
 }
 
-/* A panic stopped where an inline callback returns to C: it is over here,
+/* A panic stopped where a direct callback returns to C: it is over here,
  * and a task in the registering scope (`pinned`'s, or the calling task's
  * innermost for one without user data or stopped) reports it. */
 void lugha_rt_cb_caught(void *pinned) {

@@ -75,7 +75,7 @@ extern fun byte_vec_delete(mut v: ByteVec);
 extern fun memory_data(): CPtr;
 extern fun memory_sum(): u64;
 extern fun nothing(): CPtr;
-extern fun call_host(f: fun(data, Val[], Ref<Val[]>) inline, d: data): i64;
+extern fun call_host(f: direct fun(data, Val[], Ref<Val[]>), d: data): i64;
 
 fun main(console: Console) {
     let mut msg = ByteVec { size: 0, data: CPtr.null };

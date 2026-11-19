@@ -13,11 +13,14 @@ extern type Window pinned;
 let pinned = 1;
 //  ^^^^^^ - keyword.other.pinned.lugha
 
-extern fun on_draw(f: fun(W, data) inline, u: data);
-//                                 ^^^^^^ storage.modifier.inline.lugha
+extern fun on_draw(f: direct fun(W, data), u: data);
+//                    ^^^^^^ storage.modifier.callback.lugha
 
-let inline = 1;
-//  ^^^^^^ - storage.modifier.inline.lugha
+extern fun on_click(f: spawned fun(W, data), u: data);
+//                     ^^^^^^^ storage.modifier.callback.lugha
+
+let direct = 1;
+//  ^^^^^^ - storage.modifier.callback.lugha
 
 extern struct Color { r: u8 }
 // <------ keyword.other.extern.lugha
@@ -29,9 +32,9 @@ extern "c_name" fun say();
 //              ^^^ keyword.other.fun.lugha
 //                  ^^^ entity.name.function.lugha
 
-extern fun on(f: fun(W, data), u: data, d: release);
-//                                ^^^^ storage.type.c-marker.lugha
-//                                         ^^^^^^^ storage.type.c-marker.lugha
+extern fun on(f: direct fun(W, data), u: data, d: release);
+//                                       ^^^^ storage.type.c-marker.lugha
+//                                                ^^^^^^^ storage.type.c-marker.lugha
 
 fun send(data: i64) { use(data); }
 //       ^^^^ - storage.type.c-marker.lugha

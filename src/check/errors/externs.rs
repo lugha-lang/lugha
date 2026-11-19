@@ -44,15 +44,15 @@ pub(in crate::check) fn callback_type(span: Span) -> Diagnostic {
     )
 }
 
-/// E0481: a queued callback taking `Ref<T[]>`, which C reads back when
-/// its call returns, before the queued callback has run.
-pub(in crate::check) fn queued_ref(span: Span) -> Diagnostic {
+/// E0481: a `spawned` callback taking `Ref<T[]>`, which C reads back when
+/// its call returns, before the `spawned` callback has run.
+pub(in crate::check) fn spawned_ref(span: Span) -> Diagnostic {
     Diagnostic::error(
         "E0481",
-        "a queued callback can't take `Ref<T[]>`: C reads the array back before the callback runs",
+        "a `spawned` callback can't take `Ref<T[]>`: C reads the array back before the callback runs",
         span,
     )
-    .with_help("mark the callback `inline` (`cb: fun(Ref<i64[]>, data) inline`), so it runs during C's call and its changes reach C")
+    .with_help("make the callback `direct` (`cb: direct fun(Ref<i64[]>, data)`), so it runs during C's call and its changes reach C")
 }
 
 /// E0479: a `blocking` extern's callback (or its `data` or `release`).

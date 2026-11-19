@@ -1,0 +1,4 @@
+// The earlier spelling, `inline` after a callback's type, is gone.
+extern fun on_draw(f: fun(i64, data) inline, user: data);
+
+fun main() {}

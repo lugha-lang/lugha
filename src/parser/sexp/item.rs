@@ -248,12 +248,10 @@ fn param(param: &Param) -> String {
     let mode = param
         .mode
         .map_or(String::new(), |(m, _)| format!("{} ", m.word()));
-    let inline = if param.inline.is_some() {
-        " inline"
-    } else {
-        ""
-    };
-    format!("({mode}{} {}{inline})", param.name.name, ty(&param.ty))
+    let run = param
+        .run
+        .map_or(String::new(), |(r, _)| format!("{} ", r.word()));
+    format!("({mode}{} {run}{})", param.name.name, ty(&param.ty))
 }
 
 fn ret(ret: &Option<Type>) -> String {

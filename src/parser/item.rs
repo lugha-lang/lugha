@@ -224,7 +224,7 @@ impl Parser<'_> {
             name,
             ty: self.ty()?,
             mode: None,
-            inline: None,
+            run: None,
         })
     }
 
@@ -375,9 +375,9 @@ mod tests {
         );
         assert_eq!(
             program(
-                "extern \"g_signal_connect_data\" fun on_clicked(w: GtkWidget, f: fun(GtkWidget, data), u: data, d: release): u64;"
+                "extern \"g_signal_connect_data\" fun on_clicked(w: GtkWidget, f: spawned fun(GtkWidget, data), u: data, d: release): u64;"
             ),
-            "(extern on_clicked \"g_signal_connect_data\" ((w GtkWidget) (f (fun-type (GtkWidget data) void)) (u data) (d release)) u64)"
+            "(extern on_clicked \"g_signal_connect_data\" ((w GtkWidget) (f spawned (fun-type (GtkWidget data) void)) (u data) (d release)) u64)"
         );
         assert_eq!(
             program("private extern \"puts\" fun say(s: string): i32;"),

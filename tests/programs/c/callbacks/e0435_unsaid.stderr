@@ -1,0 +1,33 @@
+error[E0435]: say how C's call runs this callback: `direct fun(…)` (during the call) or `spawned fun(…)` (as a task)
+  --> tests/programs/c/callbacks/e0435_unsaid.la:3:23
+  |
+3 | extern fun on_tick(f: fun(i64, data), user: data);
+  |                       ^^^^^^^^^^^^^^
+  |
+  = help: write the callback as `cb: fun(T, data)` and its user data as a parameter `user: data`; `release` is the function C calls when it drops the callback
+
+error[E0435]: say how C's call runs this callback: `direct fun(…)` (during the call) or `spawned fun(…)` (as a task)
+  --> tests/programs/c/callbacks/e0435_unsaid.la:4:30
+  |
+4 | extern fun sort(n: i64, cmp: fun(i64, i64): i32);
+  |                              ^^^^^^^^^^^^^^^^^^
+  |
+  = help: write the callback as `cb: fun(T, data)` and its user data as a parameter `user: data`; `release` is the function C calls when it drops the callback
+
+error[E0435]: a `spawned` callback needs `data`: its scope is found through the user data C hands back
+  --> tests/programs/c/callbacks/e0435_unsaid.la:5:28
+  |
+5 | extern fun each(f: spawned fun(i64));
+  |                            ^^^^^^^^
+  |
+  = help: write the callback as `cb: fun(T, data)` and its user data as a parameter `user: data`; `release` is the function C calls when it drops the callback
+
+error[E0435]: a `spawned` callback can't return a value: C would wait for a task; make it `direct`
+  --> tests/programs/c/callbacks/e0435_unsaid.la:6:27
+  |
+6 | extern fun ask(f: spawned fun(i64, data): i64, user: data);
+  |                           ^^^^^^^^^^^^^^^^^^^
+  |
+  = help: write the callback as `cb: fun(T, data)` and its user data as a parameter `user: data`; `release` is the function C calls when it drops the callback
+
+For more about E0435, run `lughac explain E0435`.

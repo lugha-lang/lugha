@@ -50,9 +50,9 @@ pub const DECLS: &str = "extern struct Color { r: u8, g: u8, b: u8, a: u8 }\n\
     extern fun v3_scale(v: V3, k: f32): V3;\n\
     extern fun many(a: i64, b: i64, c: i64, d: i64, e: i64, s: L2, f: i64): i64;\n\
     extern fun floats(a: f64, b: f64, c: f64, d: f64, e: f64, f: f64, g: f64, h: f64, v: V2, i: f64): f64;\n\
-    extern fun map_point(f: fun(V2, data): V2, u: data): V2;\n\
-    extern fun map_cam(f: fun(Cam, data): Cam, u: data): f64;\n\
-    extern fun pick(f: fun(i64): Color, i: i64): i64;\n";
+    extern fun map_point(f: direct fun(V2, data): V2, u: data): V2;\n\
+    extern fun map_cam(f: direct fun(Cam, data): Cam, u: data): f64;\n\
+    extern fun pick(f: direct fun(i64): Color, i: i64): i64;\n";
 
 /// Each program (after `DECLS`) by name, with what it prints.
 pub const PROGRAMS: [(&str, &str, &str); 3] = [

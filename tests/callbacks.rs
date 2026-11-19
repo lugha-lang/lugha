@@ -129,7 +129,7 @@ fn handles_come_from_c_and_go_back() {
 #[test]
 fn named_functions_and_capture_free_closures_need_no_data() {
     Case::new(
-        "extern fun apply_sum(n: i64, f: fun(i64): i64): i64;\n\
+        "extern fun apply_sum(n: i64, f: direct fun(i64): i64): i64;\n\
          fun square(x: i64): i64 = x * x;\n\
          fun main(console: Console) {\n\
              console.println(apply_sum(4, square));\n\
@@ -157,7 +157,7 @@ const REGISTRY: &str = "typedef void (*cb_t)(long, void *);\n\
     void drop(long i) { rels[i](datas[i]); cbs[i] = 0; released++; }\n\
     long released_count(void) { return released; }\n";
 
-const REGISTRY_EXTERNS: &str = "extern fun reg(f: fun(i64, data) inline, user: data, rel: release): i64;\n\
+const REGISTRY_EXTERNS: &str = "extern fun reg(f: direct fun(i64, data), user: data, rel: release): i64;\n\
     extern fun fire(i: i64, x: i64);\n\
     extern fun fire_all(x: i64);\n\
     extern fun drop(i: i64);\n\
@@ -225,9 +225,9 @@ fn callbacks_take_and_give_handles_numbers_and_bools() {
     Case::new(
         "extern type Thing;\n\
          extern fun thing_id(t: Thing): i64;\n\
-         extern fun mix(f: fun(Thing, i32, f64, bool, data): f64, user: data): f64;\n\
-         extern fun maybe(f: fun(Option<Thing>, data): i64, user: data): i64;\n\
-         extern fun pick(f: fun(i64, data): Option<Thing>, user: data): i64;\n\
+         extern fun mix(f: direct fun(Thing, i32, f64, bool, data): f64, user: data): f64;\n\
+         extern fun maybe(f: direct fun(Option<Thing>, data): i64, user: data): i64;\n\
+         extern fun pick(f: direct fun(i64, data): Option<Thing>, user: data): i64;\n\
          fun main(console: Console) {\n\
              let scale = 2.0;\n\
              console.println(mix(fun(t: Thing, n: i32, x: f64, b: bool): f64 {\n\
@@ -255,8 +255,8 @@ fn renamed_externs_call_one_c_function_with_different_callbacks() {
         "extern type Thing;\n\
          extern fun thing_make(i: i64): Thing;\n\
          extern fun thing_id(t: Thing): i64;\n\
-         extern \"run_cb\" fun run_int(f: fun(i64, data): i64, user: data, x: i64): i64;\n\
-         extern \"run_cb\" fun run_thing(f: fun(Thing, data): i64, user: data, t: Thing): i64;\n\
+         extern \"run_cb\" fun run_int(f: direct fun(i64, data): i64, user: data, x: i64): i64;\n\
+         extern \"run_cb\" fun run_thing(f: direct fun(Thing, data): i64, user: data, t: Thing): i64;\n\
          fun main(console: Console) {\n\
              let k = 100;\n\
              console.println(run_int(fun(x: i64): i64 = x + k, 5));\n\
@@ -268,9 +268,9 @@ fn renamed_externs_call_one_c_function_with_different_callbacks() {
 }
 
 #[test]
-fn a_panic_in_an_inline_callback_gives_c_zero_and_fails_the_scope() {
+fn a_panic_in_a_direct_callback_gives_c_zero_and_fails_the_scope() {
     let case = Case::new(
-        "extern fun apply_sum(n: i64, f: fun(i64): i64): i64;\n\
+        "extern fun apply_sum(n: i64, f: direct fun(i64): i64): i64;\n\
          fun boom(x: i64): i64 { if x == 2 { panic(\"no twos\"); } x }\n\
          fun main(console: Console) { console.println(apply_sum(4, boom)); }\n",
         "long apply_sum(long n, long (*f)(long)) { long s = 0; for (long i = 0; i < n; i++) s += f(i); return s; }\n",
@@ -290,10 +290,18 @@ fn a_panic_in_an_inline_callback_gives_c_zero_and_fails_the_scope() {
 #[test]
 fn bad_callback_programs_are_rejected_with_their_codes() {
     let c = "long f(void) { return 0; }\n";
-    Case::new("extern fun f(cb: fun(i64): string);\nfun main() {}\n", c).rejects(&["E0409"]);
-    Case::new("extern fun f(cb: fun(i64), u: data);\nfun main() {}\n", c).rejects(&["E0435"]);
+    Case::new(
+        "extern fun f(cb: direct fun(i64): string);\nfun main() {}\n",
+        c,
+    )
+    .rejects(&["E0409"]);
+    Case::new(
+        "extern fun f(cb: direct fun(i64), u: data);\nfun main() {}\n",
+        c,
+    )
+    .rejects(&["E0435"]);
     let stderr = Case::new(
-        "extern fun f(cb: fun(i64));\nfun main(console: Console) { let k = 1; f(fun(x: i64) { console.println(x + k); }); }\n",
+        "extern fun f(cb: direct fun(i64));\nfun main(console: Console) { let k = 1; f(fun(x: i64) { console.println(x + k); }); }\n",
         c,
     )
     .rejects(&["E0436"]);
@@ -301,7 +309,7 @@ fn bad_callback_programs_are_rejected_with_their_codes() {
 }
 
 #[test]
-fn a_panic_in_an_inline_callback_unwinds_to_its_entry_only() {
+fn a_panic_in_a_direct_callback_unwinds_to_its_entry_only() {
     let case = Case::new(
         &[
             REGISTRY_EXTERNS,
@@ -354,7 +362,7 @@ fn c_runs_on_its_own_stack_whichever_task_calls_it() {
 #[test]
 fn a_callback_may_call_c_again() {
     Case::new(
-        "extern fun apply_sum(n: i64, f: fun(i64): i64): i64;\n\
+        "extern fun apply_sum(n: i64, f: direct fun(i64): i64): i64;\n\
          extern fun twice(x: i64): i64;\n\
          fun main(console: Console) {\n\
              console.println(apply_sum(4, fun(x) = twice(x)));\n\
@@ -370,10 +378,10 @@ fn a_callback_may_call_c_again() {
 }
 
 #[test]
-fn an_inline_callback_that_would_wait_panics_into_its_scope() {
+fn a_direct_callback_that_would_wait_panics_into_its_scope() {
     let case = Case::new(
         "import std.task;\n\
-         extern fun apply_sum(n: i64, f: fun(i64): i64): i64;\n\
+         extern fun apply_sum(n: i64, f: direct fun(i64): i64): i64;\n\
          fun main(console: Console) {\n\
              console.println(apply_sum(2, fun(x) { task.sleep(1); x }));\n\
          }\n",
@@ -386,7 +394,7 @@ fn an_inline_callback_that_would_wait_panics_into_its_scope() {
     let out = case.lughac(&["run", "main.la"]);
     assert_eq!(out.status.code(), Some(101));
     assert!(
-        text(&out.stderr).contains("task `callback` panicked: an inline C callback can't wait"),
+        text(&out.stderr).contains("task `callback` panicked: a direct C callback can't wait"),
         "{}",
         text(&out.stderr)
     );

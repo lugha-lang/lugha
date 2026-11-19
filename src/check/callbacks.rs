@@ -7,7 +7,9 @@
 use std::collections::HashMap;
 
 use super::{Checker, Type, errors};
-use crate::ast::{Expr, ExprKind, ExternDecl, Param, PassMode, Type as Annotation, TypeKind};
+use crate::ast::{
+    CallbackRun, Expr, ExprKind, ExternDecl, Param, PassMode, Type as Annotation, TypeKind,
+};
 use crate::span::Span;
 
 /// How one parameter of an extern reaches C, in declaration order.
@@ -17,14 +19,14 @@ pub enum CParam {
     Value,
     /// A C function pointer: the next argument, a function value of type
     /// `fun(params): ret`. `data` is where C passes the user data back
-    /// among the C function's parameters, if it does. `queued`: C's call
+    /// among the C function's parameters, if it does. `spawned`: C's call
     /// starts a task in the registering scope (a callback with `data`, no
-    /// result, and not `inline`); else it runs during C's call.
+    /// result, written `spawned fun(…)`); else it runs during C's call.
     Callback {
         params: Vec<Type>,
         ret: Type,
         data: Option<usize>,
-        queued: bool,
+        spawned: bool,
     },
     /// The user data C hands back: lughac passes the pinned closure.
     Data,
@@ -110,15 +112,17 @@ impl Checker {
                 }
                 None => {}
             }
-            if let (Some(at), false) = (p.inline, matches!(p.ty.kind, TypeKind::Fun(..))) {
-                self.report(errors::callback_decl(
-                    "only a callback can be `inline`: a function type C calls",
-                    at,
-                ));
-            }
             let ty = match &p.ty.kind {
                 TypeKind::Fun(params, ret) => {
-                    let callback = self.callback(&p.ty, params, ret.as_deref(), p.inline.is_some());
+                    let run = p.run.map(|(r, _)| r);
+                    if run.is_none() {
+                        self.report(errors::callback_decl(
+                            "say how C's call runs this callback: `direct fun(…)` (during the call) or `spawned fun(…)` (as a task)",
+                            p.ty.span,
+                        ));
+                    }
+                    let spawned = run == Some(CallbackRun::Spawned);
+                    let callback = self.callback(&p.ty, params, ret.as_deref(), spawned);
                     if let CParam::Callback { data: Some(_), .. } = callback {
                         with_data.push(p.ty.span);
                     }
@@ -179,7 +183,7 @@ impl Checker {
         whole: &Annotation,
         params: &[Annotation],
         ret: Option<&Annotation>,
-        inline: bool,
+        spawned: bool,
     ) -> CParam {
         let (mut types, mut data) = (Vec::new(), None);
         for (i, p) in params.iter().enumerate() {
@@ -226,13 +230,25 @@ impl Checker {
                 ty
             }
         };
-        let queued = data.is_some() && ret == Type::Unit && !inline;
+        // A task can't hand C a value, nor be found without its user data.
+        if spawned && (data.is_none() || ret != Type::Unit) {
+            let message = match data {
+                None => {
+                    "a `spawned` callback needs `data`: its scope is found through the user data C hands back"
+                }
+                Some(_) => {
+                    "a `spawned` callback can't return a value: C would wait for a task; make it `direct`"
+                }
+            };
+            self.report(errors::callback_decl(message, whole.span));
+        }
+        let runs_as_task = spawned && data.is_some() && ret == Type::Unit;
         // C reads a `Ref<T[]>` back when the call returns, before a
-        // queued callback has run.
-        if queued {
+        // spawned callback has run.
+        if runs_as_task {
             for (p, ty) in params.iter().filter(|p| marker(p).is_none()).zip(&types) {
                 if matches!(ty, Type::Ref(inner) if matches!(**inner, Type::Array(_))) {
-                    self.report(errors::queued_ref(p.span));
+                    self.report(errors::spawned_ref(p.span));
                 }
             }
         }
@@ -240,14 +256,14 @@ impl Checker {
             params: types,
             ret,
             data,
-            queued,
+            spawned: runs_as_task,
         }
     }
 
     /// E0436 for each argument of a call to extern `key` going to a
     /// callback without `data` that isn't a function's name or a closure
     /// capturing nothing: C keeps only a code pointer. E0475 for one going
-    /// to a queued callback that isn't sendable: it runs as another task.
+    /// to a `spawned` callback that isn't sendable: it runs as another task.
     pub(super) fn static_callbacks(&mut self, key: &str, args: &[Expr]) {
         let Some(plan) = self.c_params.get(key) else {
             return;
@@ -256,17 +272,17 @@ impl Checker {
             .iter()
             .filter(|c| matches!(c, CParam::Value | CParam::Callback { .. }))
             .collect();
-        let queued: Vec<bool> = written
+        let spawned: Vec<bool> = written
             .iter()
-            .map(|c| matches!(c, CParam::Callback { queued: true, .. }))
+            .map(|c| matches!(c, CParam::Callback { spawned: true, .. }))
             .collect();
         let bare: Vec<bool> = written
             .iter()
             .map(|c| matches!(c, CParam::Callback { data: None, .. }))
             .collect();
-        for (arg, queued) in args.iter().zip(queued) {
+        for (arg, spawned) in args.iter().zip(spawned) {
             let ty = self.types[arg.id.0 as usize].clone();
-            let (true, Some(ty)) = (queued, ty) else {
+            let (true, Some(ty)) = (spawned, ty) else {
                 continue;
             };
             // A named function always crosses; a closure when each of its
@@ -276,14 +292,14 @@ impl Checker {
                 Some(super::FunOrigin::Closure(_, _, captured)) => {
                     for (name, t) in captured {
                         let head =
-                            format!("a queued callback, run as a task, can't capture `{name}`");
+                            format!("a `spawned` callback, run as a task, can't capture `{name}`");
                         if self.must_send(&t, &head, arg.span) {
                             break;
                         }
                     }
                 }
                 None => {
-                    let head = "a queued callback runs as a task, so its function crosses to it";
+                    let head = "a `spawned` callback runs as a task, so its function crosses to it";
                     self.must_send(&ty, head, arg.span);
                 }
             }
@@ -306,8 +322,8 @@ mod tests {
     use crate::check::test_util::{errors, ok};
 
     const CONNECT: &str = "extern type W;\n\
-        extern fun connect(w: W, f: fun(W, data) inline, user: data, destroy: release, flags: i32): u64;\n\
-        extern fun sort(n: i64, cmp: fun(i64, i64): i32);\n\
+        extern fun connect(w: W, f: direct fun(W, data), user: data, destroy: release, flags: i32): u64;\n\
+        extern fun sort(n: i64, cmp: direct fun(i64, i64): i32);\n\
         extern fun make(): W;\n";
 
     fn with(body: &str) -> String {
@@ -329,8 +345,8 @@ mod tests {
     }
 
     #[test]
-    fn a_queued_callbacks_captures_must_cross_to_its_task() {
-        let externs = "extern fun on(f: fun(i64, data), user: data);\n";
+    fn a_spawned_callbacks_captures_must_cross_to_its_task() {
+        let externs = "extern fun on(f: spawned fun(i64, data), user: data);\n";
         let code = |src: &str| errors(src).first().map(|e| e.0);
         ok(&format!(
             "{externs}fun main(console: Console) {{ let n = 2; on(fun(x: i64) {{ console.println(x + n); }}); }}"
@@ -341,7 +357,7 @@ mod tests {
         assert_eq!(code(&shared), Some("E0475"));
         let value = format!("{externs}fun g(f: fun(i64)) {{ on(f); }}\nfun main() {{}}");
         assert_eq!(code(&value), Some("E0475"));
-        let array = "extern fun each(f: fun(Ref<i64[]>, data), user: data);\nfun main() {}";
+        let array = "extern fun each(f: spawned fun(Ref<i64[]>, data), user: data);\nfun main() {}";
         assert_eq!(code(array), Some("E0481"));
     }
 
@@ -391,33 +407,49 @@ mod tests {
     fn callback_declarations_are_checked() {
         for (decl, code, at) in [
             (
-                "extern fun f(cb: fun(data, data), u: data);",
+                "extern fun f(cb: spawned fun(data, data), u: data);",
                 "E0435",
                 "fun(data, data)",
             ),
-            ("extern fun f(cb: fun(i64), u: data);", "E0435", "u: data"),
-            ("extern fun f(cb: fun(data));", "E0435", "fun(data)"),
             (
-                "extern fun f(cb: fun(data), u: data, v: data);",
+                "extern fun f(cb: direct fun(i64), u: data);",
+                "E0435",
+                "u: data",
+            ),
+            ("extern fun f(cb: spawned fun(data));", "E0435", "fun(data)"),
+            (
+                "extern fun f(cb: spawned fun(data), u: data, v: data);",
                 "E0435",
                 "v: data",
             ),
             (
-                "extern fun f(cb: fun(i64), r: release);",
+                "extern fun f(cb: direct fun(i64), r: release);",
                 "E0435",
                 "r: release",
             ),
             (
-                "extern fun f(a: fun(data), b: fun(data), u: data);",
+                "extern fun f(a: spawned fun(data), b: spawned fun(data), u: data);",
                 "E0435",
                 "fun(data)",
             ),
-            ("extern fun f(cb: fun(string[]));", "E0409", "string[]"),
-            ("extern fun f(cb: fun(fun(i64)));", "E0409", "fun(i64)"),
-            ("extern fun f(cb: fun(i64): string);", "E0409", "string"),
+            (
+                "extern fun f(cb: direct fun(string[]));",
+                "E0409",
+                "string[]",
+            ),
+            (
+                "extern fun f(cb: direct fun(fun(i64)));",
+                "E0409",
+                "fun(i64)",
+            ),
+            (
+                "extern fun f(cb: direct fun(i64): string);",
+                "E0409",
+                "string",
+            ),
             ("extern fun f(): fun(i64);", "E0409", "fun(i64)"),
             (
-                "extern fun f(cb: fun(i64): data, u: data);",
+                "extern fun f(cb: direct fun(i64): data, u: data);",
                 "E0435",
                 "data",
             ),
@@ -436,17 +468,17 @@ mod tests {
     #[test]
     fn strings_come_from_c_but_never_go_back() {
         ok(
-            "extern fun lines(f: fun(string, Option<string>, data), u: data);\n\
+            "extern fun lines(f: spawned fun(string, Option<string>, data), u: data);\n\
             extern fun title(): string;\nextern fun find(k: string): Option<string>;\n\
             extern fun label(s: Option<string>);\n\
             fun main(console: Console) { lines(fun(a, b) { console.println(a); }); console.println(title()); label(find(\"k\")); }",
         );
         assert_eq!(
-            errors("extern fun f(cb: fun(i64): string);\nfun main() {}"),
+            errors("extern fun f(cb: direct fun(i64): string);\nfun main() {}"),
             [("E0409", "string")]
         );
         assert_eq!(
-            errors("extern fun f(cb: fun(i64): Option<string>);\nfun main() {}"),
+            errors("extern fun f(cb: direct fun(i64): Option<string>);\nfun main() {}"),
             [("E0409", "Option<string>")]
         );
     }
@@ -466,8 +498,8 @@ mod tests {
     #[test]
     fn renamed_externs_share_a_c_function() {
         ok("extern type A;\nextern type B;\n\
-            extern \"g_connect\" fun on_a(x: A, f: fun(A, data), u: data);\n\
-            extern \"g_connect\" fun on_b(x: B, f: fun(B, i64, data), u: data);\n\
+            extern \"g_connect\" fun on_a(x: A, f: spawned fun(A, data), u: data);\n\
+            extern \"g_connect\" fun on_b(x: B, f: spawned fun(B, i64, data), u: data);\n\
             extern \"puts\" fun say(s: string): i32;\n\
             fun main() { say(\"hi\"); }");
         assert_eq!(

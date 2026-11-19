@@ -164,7 +164,7 @@ mod extern_struct_tests {
             extern struct V2 { x: f32, y: f32 }\n\
             extern struct Cam { at: V2, zoom: f32, ok: bool, c: char, w: W }\n\
             extern fun draw(at: V2, c: Color): Cam;\n\
-            extern fun each(f: fun(V2, data): Color, u: data);\n\
+            extern fun each(f: direct fun(V2, data): Color, u: data);\n\
             impl Color { fun dim(self): Color = Color { r: self.r / 2, g: self.g / 2, b: self.b / 2, a: self.a }; }\n\
             fun main(console: Console) {\n\
                 let red = Color { r: 230, g: 41, b: 55, a: 255 };\n\

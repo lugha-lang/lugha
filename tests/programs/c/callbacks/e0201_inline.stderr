@@ -1,0 +1,9 @@
+error[E0201]: `inline` after a callback's type is gone
+  --> tests/programs/c/callbacks/e0201_inline.la:2:38
+  |
+2 | extern fun on_draw(f: fun(i64, data) inline, user: data);
+  |                                      ^^^^^^
+  |
+  = help: write how C's call runs it before `fun`: `cb: direct fun(…)`, or `cb: spawned fun(…)` for a task
+
+For more about E0201, run `lughac explain E0201`.

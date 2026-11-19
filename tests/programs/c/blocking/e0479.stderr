@@ -1,32 +1,32 @@
 error[E0479]: a `blocking` extern can't take a callback: it runs on a helper thread
   --> tests/programs/c/blocking/e0479.la:3:26
   |
-3 | extern blocking fun each(f: fun(i64));
-  |                          ^^^^^^^^^^^
+3 | extern blocking fun each(f: direct fun(i64));
+  |                          ^^^^^^^^^^^^^^^^^^
   |
   = help: Lugha code can't run on a helper thread; drop `blocking`, or call the callback's work after the call returns
 
 error[E0479]: a `blocking` extern can't take a callback: it runs on a helper thread
   --> tests/programs/c/blocking/e0479.la:4:31
   |
-4 | extern blocking fun with_data(f: fun(i64, data), u: data, d: release);
-  |                               ^^^^^^^^^^^^^^^^^
+4 | extern blocking fun with_data(f: spawned fun(i64, data), u: data, d: release);
+  |                               ^^^^^^^^^^^^^^^^^^^^^^^^^
   |
   = help: Lugha code can't run on a helper thread; drop `blocking`, or call the callback's work after the call returns
 
 error[E0479]: a `blocking` extern can't take a callback: it runs on a helper thread
-  --> tests/programs/c/blocking/e0479.la:4:50
+  --> tests/programs/c/blocking/e0479.la:4:58
   |
-4 | extern blocking fun with_data(f: fun(i64, data), u: data, d: release);
-  |                                                  ^^^^^^^
+4 | extern blocking fun with_data(f: spawned fun(i64, data), u: data, d: release);
+  |                                                          ^^^^^^^
   |
   = help: Lugha code can't run on a helper thread; drop `blocking`, or call the callback's work after the call returns
 
 error[E0479]: a `blocking` extern can't take a callback: it runs on a helper thread
-  --> tests/programs/c/blocking/e0479.la:4:59
+  --> tests/programs/c/blocking/e0479.la:4:67
   |
-4 | extern blocking fun with_data(f: fun(i64, data), u: data, d: release);
-  |                                                           ^^^^^^^^^^
+4 | extern blocking fun with_data(f: spawned fun(i64, data), u: data, d: release);
+  |                                                                   ^^^^^^^^^^
   |
   = help: Lugha code can't run on a helper thread; drop `blocking`, or call the callback's work after the call returns
 

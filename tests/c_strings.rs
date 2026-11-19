@@ -91,8 +91,8 @@ const EXTERNS: &str = "extern fun greeting(): string;\n\
     extern fun text_len(s: Option<string>): i64;\n\
     extern fun null_text(): string;\n\
     extern fun getenv(name: string): Option<string>;\n\
-    extern fun each_word(f: fun(string, data) inline, u: data);\n\
-    extern fun maybe_word(f: fun(Option<string>, data) inline, u: data);\n";
+    extern fun each_word(f: direct fun(string, data), u: data);\n\
+    extern fun maybe_word(f: direct fun(Option<string>, data), u: data);\n";
 
 #[test]
 fn c_text_is_copied_into_lugha_strings() {
@@ -176,7 +176,7 @@ fn null_for_a_plain_string_panics_with_advice() {
 #[test]
 fn a_callback_can_not_hand_c_a_string() {
     Case::new(
-        "extern fun ask(f: fun(i64): string);\nfun main() {}\n",
+        "extern fun ask(f: direct fun(i64): string);\nfun main() {}\n",
         "long ask(void) { return 0; }\n",
     )
     .rejects(&["E0409"]);

@@ -286,7 +286,7 @@ LughaTask *lugha_rt_task_spawn_in(LughaScope *s, void (*entry)(void *, void *, v
 }
 
 /* A new task in `s`; with `room`, waiting while `limit n` of its tasks
- * run (a queued callback doesn't: C never waits on Lugha). */
+ * run (a `spawned` callback doesn't: C never waits on Lugha). */
 static LughaTask *spawn_into(LughaScope *s, void (*entry)(void *, void *, void *), void *code,
                              void *env, int64_t result_size, bool room) {
     ensure_started();
@@ -468,7 +468,7 @@ static bool panic_caught(void) {
     if (current == NULL) {
         return false;
     }
-    // Inside an inline callback, the registering scope reports it.
+    // Inside a direct callback, the registering scope reports it.
     return current->scopes != NULL || current->started_in != NULL || current->in_callback > 0;
 }
 
@@ -479,7 +479,7 @@ void lugha_rt_cancel_point(void) {
     if (self == NULL || __atomic_load_n(&self->cancelled, __ATOMIC_ACQUIRE) == REASON_NONE) {
         return;
     }
-    // Inside an inline C callback: C waits for it, so it runs on.
+    // Inside a direct C callback: C waits for it, so it runs on.
     if (self->in_callback > 0) {
         return;
     }
