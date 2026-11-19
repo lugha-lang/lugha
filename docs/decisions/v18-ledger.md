@@ -29,6 +29,14 @@ The draft must cite every `approved` line exactly once as a rule, and contain no
 - INT-13 approved — Generic types derive conditionally on their actual fields: only parameters that appear in fields need the interface.
 - INT-15 approved — When a type has its own method and an implemented interface supplies one of the same name, `x.m()` calls the type's own; `I.m(x)` reaches the interface's.
 - INT-16 approved — `impl I for T` may also be written in the module that declares the type `T` is built from (`V`'s module may write `impl I for V[]`), as milestone 159 allowed for operators.
+- INT-17 approved — A type built from two or more program types (`(Point, Line)`, `Map<Point, Line>`) gets `impl I for` it only in the module that declares `I`, so two libraries can never both write it; one built from a single program type keeps INT-16. Wrap the pair in a struct to implement it elsewhere. (From the v18 spec review, 2026-11-20.)
+- INT-18 approved — An interface value of type `J` converts to interface `I` only when `J` extends `I` (`interface J: I`, at any depth); having items of `I`'s names no longer counts, for conversions and type arguments alike. (From the v18 spec review, 2026-11-20.)
+- INT-19 approved — A generic `impl` block has one spelling: its type parameters right after `impl`, `impl<T: Num> Grid<T> { … }`, `impl<T: Show> Show for T[]`. The short form `impl Grid<T: Num>` is removed (an error naming the long form). (From the v18 spec review, 2026-11-20.)
+- INT-20 approved — `+` joins interfaces that must all hold: bounds (`K: Key + Sendable`) and an interface's parents (`interface Store: Eq + Sendable`, was `,`). `with` keeps `,`: it lists separate derivations (`with Eq, Ord`). (From the v18 spec review, 2026-11-20.)
+- INT-21 approved — A built-in name is reserved (E0302 to declare) exactly when syntax depends on it: `Option`/`Some`/`None`, `Result`/`Ok`/`Err`, `Eq`, `Ord`, `Display`, `Iter`, `Error`, `Add`…`Neg`, `FromEntries`/`FromItems`, `Ref`. Every other prelude name (`Map`, `Set`, `Console`, `Dir`, helpers) may be declared by a module, its own hiding the built-in there. (From the v18 spec review, 2026-11-20.)
+- IMP-07 approved — One loop rule: `for … of c` over an array, map or set goes through `c` as it was when the loop started, and the body may change `c` (no longer an error for arrays); copy-on-write makes it free unless the body writes. (From the v18 spec review, 2026-11-20.)
+- LEX-01 approved — Strings take `\u{…}` escapes as chars do. (Claude's call from the v18 spec review, listed for review, 2026-11-20.)
+- CAP-18 approved — Every `Dir` method with nothing to return gives `Result<(), string>` (`make_dir`, `remove_file` and kin gave `Result<i64, string>` with `Ok(0)`). (Claude's call from the v18 spec review, listed for review, 2026-11-20.)
 - INT-14 approved — Nothing is derived automatically: `Eq`, `Key`, `Ord`, `Json` only through `with` or `impl`. `Display` is never derivable. `Debug` is universal (PRE-02).
 
 ## EQ — equality, keys, order
@@ -96,6 +104,7 @@ The draft must cite every `approved` line exactly once as a rule, and contain no
 - CAP-07 approved — Capabilities are interfaces, so fakes are ordinary types implementing them.
 - CAP-08 approved — Printing needs a `Console`: `fun main(console: Console) { console.println("Hello, world!"); }`.
 - CAP-09 approved — `debug(x)` is ambient, writes the debug form with file and line to stderr, and is a compile error in release builds.
+- CAP-09a approved — The release-build error covers the program's own package only; in a dependency, `debug(x)` compiles at -O2 to just `x`, printing nothing. A library's author still meets E0465 building that library at -O2. (From the v18 spec review, 2026-11-20.)
 - CAP-10 approved — `exit` is removed; deep code cancels the root scope or returns an error.
 - CAP-11 approved — `env.set_current_dir` is removed; `fs.cwd()` gives the starting directory as a `Dir`.
 - CAP-12 approved — `Signals` gives a `Receiver` of signal events; Ctrl-C cancels the root scope regardless (CAN-09).
