@@ -218,6 +218,10 @@ typedef struct Worker {
     /* Set by a fiber switching to one that resumes inside its own
      * sections: the lock passes to it, untouched (waiting.c). */
     bool lock_passed;
+    /* The object locks the fiber parking here holds, let go of once its
+     * switch has saved it (waiting.c): a `select`'s channels at most. */
+    uint32_t *park_locks[65];
+    int park_lock_count;
     /* Its sleepers (timers.c): a heap by time under its own lock, and the
      * earliest time, -1 for none, read by others without the lock. */
     struct Fiber **heap;

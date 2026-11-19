@@ -118,7 +118,7 @@ static void cancel_fiber(Fiber *f, int32_t reason, LughaString *text, void *by) 
 /* Cancels every unfinished task `s` started. */
 static void cancel_tasks(LughaScope *s, int32_t reason) {
     for (LughaTask *t = s->tasks; t != NULL; t = t->scope_next) {
-        if (!t->done) {
+        if (!task_done(t)) {
             cancel_fiber(t->fiber, reason, NULL, s);
         }
     }

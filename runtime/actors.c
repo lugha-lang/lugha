@@ -13,6 +13,12 @@
  * However an actor ends, its waiting callers and queued messages learn it:
  * a call then panics in the caller.
  *
+ * Each actor has its own lock over its mailbox, status, waiting senders
+ * and the message it handles. A fiber waiting on it (for mail, for room,
+ * for an answer) parks still holding the lock, let go of once it is
+ * saved. A handler runs without it; so does every panic and cancellation
+ * point, which take the scopes lock, earlier in the order.
+ *
  * A fragment, not compiled on its own: lughac's link.rs joins it after
  * tasks.c, spawn.c and scopes.c, whose fibers, scheduler and scopes it uses.
  */
@@ -50,6 +56,8 @@ typedef struct {
     /* The message being handled, so an end there still answers its
      * caller (a handler may wait, letting other actors run meanwhile). */
     Message *handling;
+    /* Its lock (rt_lock.c's kind). */
+    uint32_t lock;
 } LughaActor;
 
 static void actor_panic(const LughaActor *a, const char *what, const char *file, int64_t line,
@@ -90,9 +98,10 @@ static void room(LughaActor *a) {
     a->room_waiters = NULL;
 }
 
-/* The actor ended (`outcome`): the message it was handling and every one
- * still queued are answered, and senders waiting for room look again. */
-static void actor_ended(LughaActor *a, int32_t outcome) {
+/* The actor ended (`outcome`), under its lock: the message it was
+ * handling and every one still queued are answered, and senders waiting
+ * for room look again. */
+static void actor_ended_locked(LughaActor *a, int32_t outcome) {
     if (a->status != RUNNING) {
         return;
     }
@@ -119,6 +128,12 @@ static void actor_ended(LughaActor *a, int32_t outcome) {
     room(a);
 }
 
+static void actor_ended(LughaActor *a, int32_t outcome) {
+    lock_take(&a->lock);
+    actor_ended_locked(a, outcome);
+    lock_give(&a->lock);
+}
+
 /* The running task's actor, if it is one, ended with its task: cancelled
  * (it stopped) or by a panic (task_caught, scope_policy.c). */
 static void actor_task_ended(bool panicked) {
@@ -131,15 +146,21 @@ static void actor_task_ended(bool panicked) {
  * message until `stop`; a cancellation while it waits for mail ends it. */
 void lugha_rt_actor_run(void *env) {
     LughaActor *a = env;
-    // Its mailbox under the lock; each handler, Lugha code, without it.
-    rt_enter();
+    // Its mailbox under its lock; each handler, Lugha code, without it.
+    lock_take(&a->lock);
     for (;;) {
         while (a->head == NULL) {
             a->idle = current;
             current->cancellable = true;
-            int64_t fired = block();
+            uint32_t *locks[1] = {&a->lock};
+            int64_t fired = block_holding(locks, 1);
+            lock_take(&a->lock);
             a->idle = NULL;
-            woke(fired);
+            if (fired == CANCELLED) {
+                lock_give(&a->lock);
+                woke(fired);
+            }
+            current->cancellable = false;
         }
         Message *m = a->head;
         a->head = m->next;
@@ -153,15 +174,15 @@ void lugha_rt_actor_run(void *env) {
         a->queued--;
         room(a);
         a->handling = m;
-        rt_leave();
+        lock_give(&a->lock);
         m->handler(a->state, m->args, m->result);
-        rt_enter();
+        lock_take(&a->lock);
         a->handling = NULL;
         answer(m, RUNNING);
         message_done(m);
     }
-    actor_ended(a, STOPPED);
-    rt_leave();
+    actor_ended_locked(a, STOPPED);
+    lock_give(&a->lock);
 }
 
 /* A panic nothing caught ends the program: an actor's is caught by its
@@ -226,24 +247,28 @@ static void post(LughaActor *a, Message *m) {
     }
 }
 
-static void check_alive(const LughaActor *a, const char *file, int64_t line, int64_t col) {
-    if (a->status == STOPPED) {
-        actor_panic(a, "has stopped", file, line, col);
-    }
-    if (a->status == PANICKED) {
-        actor_panic(a, "panicked", file, line, col);
+/* Under `a`'s lock: panics (letting go of it first) unless `a` runs. */
+static void check_alive(LughaActor *a, const char *file, int64_t line, int64_t col) {
+    int32_t status = a->status;
+    if (status != RUNNING) {
+        lock_give(&a->lock);
+        actor_panic(a, status == STOPPED ? "has stopped" : "panicked", file, line, col);
     }
 }
 
-/* Waits while the mailbox is full (a pause point), then queues `m`. */
+/* Under `a`'s lock: waits while the mailbox is full (a pause point), then
+ * queues `m`. Cancelled meanwhile, `m` goes and the caller unwinds, the
+ * lock let go of. */
 static void post_counted(LughaActor *a, Message *m, const char *file, int64_t line, int64_t col) {
-    lugha_rt_cancel_point();
     check_alive(a, file, line, col);
     while (a->queued >= a->capacity) {
         current->wait_next = a->room_waiters;
         a->room_waiters = current;
         current->cancellable = true;
-        int64_t fired = block();
+        uint32_t *locks[1] = {&a->lock};
+        int64_t fired = block_holding(locks, 1);
+        lock_take(&a->lock);
+        current->cancellable = false;
         if (fired == CANCELLED) {
             for (Fiber **at = &a->room_waiters; *at != NULL; at = &(*at)->wait_next) {
                 if (*at == current) {
@@ -251,12 +276,15 @@ static void post_counted(LughaActor *a, Message *m, const char *file, int64_t li
                     break;
                 }
             }
+            lock_give(&a->lock);
+            // Read first: a cast's record goes with `message_done`.
+            bool called = m->waiter != NULL;
             message_done(m);
-            if (m->waiter != NULL) {
+            if (called) {
                 free(m);
             }
+            woke(fired);
         }
-        woke(fired);
         check_alive(a, file, line, col);
     }
     a->queued++;
@@ -268,18 +296,21 @@ static void post_counted(LughaActor *a, Message *m, const char *file, int64_t li
  * value: `lugha_rt_rc_block_done`). */
 void *lugha_rt_actor_call(LughaActor *a, Handler handler, void *args, int64_t size,
                           const char *file, int64_t line, int64_t col) {
-    RT_SECTION();
     ensure_started();
+    lugha_rt_cancel_point();
     int32_t outcome = RUNNING;
     Message *m = new_message();
     m->handler = handler;
     m->args = args;
     m->waiter = current;
     m->outcome = &outcome;
-    post_counted(a, m, file, line, col);
     /* The caller's to free once it has the value (`lugha_rt_rc_block_done`). */
     m->result = lugha_rc_internal((size_t)(size < 1 ? 1 : size));
-    block();
+    lock_take(&a->lock);
+    post_counted(a, m, file, line, col);
+    // The answer comes under the lock, so only once this fiber is parked.
+    uint32_t *locks[1] = {&a->lock};
+    block_holding(locks, 1);
     if (outcome == STOPPED) {
         actor_panic(a, "has stopped", file, line, col);
     }
@@ -294,12 +325,14 @@ void *lugha_rt_actor_call(LughaActor *a, Handler handler, void *args, int64_t si
 /* A cast: queues `handler(state, args, …)` and goes on. */
 void lugha_rt_actor_cast(LughaActor *a, Handler handler, void *args, const char *file,
                          int64_t line, int64_t col) {
-    RT_SECTION();
     ensure_started();
+    lugha_rt_cancel_point();
     Message *m = new_message();
     m->handler = handler;
     m->args = args;
+    lock_take(&a->lock);
     post_counted(a, m, file, line, col);
+    lock_give(&a->lock);
 }
 
 /* Stops `a` after what is queued, past its mailbox's limit. */
@@ -309,10 +342,11 @@ static void stop_after_mail(LughaActor *a) {
 
 /* `a.stop()`: a message like any other, after what is queued. */
 void lugha_rt_actor_stop(LughaActor *a, const char *file, int64_t line, int64_t col) {
-    RT_SECTION();
     ensure_started();
+    lock_take(&a->lock);
     check_alive(a, file, line, col);
     stop_after_mail(a);
+    lock_give(&a->lock);
 }
 
 /* The scope's other tasks are done: each actor it still runs stops after
@@ -320,8 +354,12 @@ void lugha_rt_actor_stop(LughaActor *a, const char *file, int64_t line, int64_t 
 static void scope_stop_actors(LughaScope *s) {
     for (LughaTask *t = s->tasks; t != NULL; t = t->scope_next) {
         LughaActor *a = t->fiber != NULL ? t->fiber->actor : NULL;
-        if (!t->done && a != NULL && a->status == RUNNING) {
-            stop_after_mail(a);
+        if (!task_done(t) && a != NULL) {
+            lock_take(&a->lock);
+            if (a->status == RUNNING) {
+                stop_after_mail(a);
+            }
+            lock_give(&a->lock);
         }
     }
 }

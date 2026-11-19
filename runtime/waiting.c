@@ -15,9 +15,16 @@
  * hasn't switched away from it at all, simply runs on: never resumed from
  * a half-saved context.
  *
- * A waker holds `rt_lock`; the fiber parking doesn't, and may be on
- * another thread, so `fired` changes atomically. Neither a waiting fiber
- * nor its waker holds the lock across a switch (`switch_away`).
+ * The word also holds the wait's generation (its high 32 bits), bumped by
+ * each `block`: a timer or socket event armed for one wait claims only
+ * that one, so arriving late, after its fiber was woken otherwise and
+ * began another wait, it misses instead of waking the wrong one.
+ *
+ * A fiber waiting on a channel, an actor or a join parks still holding
+ * that object's lock (`block_holding`); the fiber landing after it lets go
+ * of it once the switch has saved it. A waker holding the lock therefore
+ * only ever meets parked fibers, and claims one (`claim`) before moving a
+ * value to it; a claim that fails means another waker won.
  *
  * A fragment, not compiled on its own: joined after tasks.c (fibers),
  * runq.c (the ready fibers) and timers.c (sleepers).
@@ -52,26 +59,61 @@ static inline bool fired_swap(Fiber *f, int64_t *was, int64_t to) {
     return true;
 }
 
-/* True while `f` waits: parked, or parking. */
-static bool is_waiting(const Fiber *f) {
-    int64_t fired = fired_of(f);
-    return fired == WAITING || fired == PARKING;
+/* A wait word: generation `gen`, state `state`. */
+static inline int64_t wait_word(uint32_t gen, int64_t state) {
+    return (int64_t)(((uint64_t)gen << 32) | (uint32_t)state);
 }
 
-/* Wakes a waiting fiber for `why` (a case index, TIMED_OUT or CANCELLED),
- * under `rt_lock`. Woken by a running task, it runs next on its waker's
- * worker; by the scheduler (a timer, the poller), behind what is ready. */
-static void wake(Fiber *f, int64_t why) {
-    int64_t was = fired_of(f);
+static inline int64_t word_state(int64_t word) {
+    return (int64_t)(int32_t)(uint32_t)word;
+}
+
+static inline uint32_t word_gen(int64_t word) {
+    return (uint32_t)((uint64_t)word >> 32);
+}
+
+/* `f`'s state: what woke it last, or WAITING or PARKING. */
+static inline int64_t wait_state(const Fiber *f) {
+    return word_state(fired_of(f));
+}
+
+/* The generation `f`'s next `block` will have: what its timers and socket
+ * waits are armed for, before it blocks. */
+static inline uint32_t next_wait_gen(const Fiber *f) {
+    return word_gen(fired_of(f)) + 1;
+}
+
+/* True while `f` waits: parked, or parking. */
+static bool is_waiting(const Fiber *f) {
+    int64_t state = wait_state(f);
+    return state == WAITING || state == PARKING;
+}
+
+/* A claim that lost: `f` isn't in wait `gen` any more. */
+#define CLAIM_LOST INT64_MIN
+
+/* Claims `f`'s wait `gen` for `why`: its state before (WAITING or
+ * PARKING), or CLAIM_LOST. The claimer may then move a value to it; it
+ * runs only once `claimed_ready` queues it. */
+static int64_t claim(Fiber *f, uint32_t gen, int64_t why) {
+    int64_t word = fired_of(f);
+    int64_t state;
     do {
-        // Woken already (cancelled while waiting): queued once is enough.
-        if (was != WAITING && was != PARKING) {
-            return;
+        state = word_state(word);
+        if (word_gen(word) != gen || (state != WAITING && state != PARKING)) {
+            return CLAIM_LOST;
         }
-    } while (!fired_swap(f, &was, why));
+    } while (!fired_swap(f, &word, wait_word(gen, why)));
+    return state;
+}
+
+/* Queues `f`, claimed from `state`. Woken by a running task, it runs next
+ * on its waker's worker; by the scheduler (a timer, the poller), behind
+ * what is ready. A fiber still parking is queued by its own worker once
+ * its switch has saved it. */
+static void claimed_ready(Fiber *f, int64_t state) {
     unsleep(f);
-    // A fiber still parking is queued by its worker once it is saved.
-    if (was == WAITING) {
+    if (state == WAITING) {
         Worker *w = worker;
         if (w->running != w->idle) {
             ready_next(f);
@@ -81,19 +123,49 @@ static void wake(Fiber *f, int64_t why) {
     }
 }
 
+/* Wakes `f`'s wait `gen` for `why`; false if it isn't in it any more. */
+static bool wake_gen(Fiber *f, uint32_t gen, int64_t why) {
+    int64_t state = claim(f, gen, why);
+    if (state == CLAIM_LOST) {
+        return false;
+    }
+    claimed_ready(f, state);
+    return true;
+}
+
+/* Wakes whatever wait `f` is in, for `why` (a case index, TIMED_OUT or
+ * CANCELLED): by a waker whose waiters leave its list under its lock. */
+static void wake(Fiber *f, int64_t why) {
+    for (;;) {
+        int64_t word = fired_of(f);
+        int64_t state = word_state(word);
+        // Woken already (cancelled while waiting): queued once is enough.
+        if (state != WAITING && state != PARKING) {
+            return;
+        }
+        if (wake_gen(f, word_gen(word), why)) {
+            return;
+        }
+    }
+}
+
+static void park_unlock(Worker *w);
+
 /* After a switch saved the fiber that was parking: it may be resumed
- * from now on. Woken meanwhile, it is queued here instead. */
+ * from now on. Woken meanwhile, it is queued here instead. Then the
+ * object locks it parked holding are let go of. */
 static void park_finish(void) {
     Worker *w = worker;
     Fiber *f = w->parking;
-    if (f == NULL) {
-        return;
+    if (f != NULL) {
+        w->parking = NULL;
+        int64_t word = fired_of(f);
+        int64_t expected = wait_word(word_gen(word), PARKING);
+        if (!fired_swap(f, &expected, wait_word(word_gen(word), WAITING))) {
+            make_ready(f);
+        }
     }
-    w->parking = NULL;
-    int64_t expected = PARKING;
-    if (!fired_swap(f, &expected, WAITING)) {
-        make_ready(f);
-    }
+    park_unlock(w);
 }
 
 /* Gives a finished fiber's stack back (stacks.c). */
@@ -143,6 +215,14 @@ static void deadlock(void) {
     program_exit(101);
 }
 
+/* Lets go of the object locks the fiber parking on `w` held. */
+static void park_unlock(Worker *w) {
+    for (int i = 0; i < w->park_lock_count; i++) {
+        lock_give(w->park_locks[i]);
+    }
+    w->park_lock_count = 0;
+}
+
 /* Due timers, deadlines, shields and Ctrl-C, and now and then what
  * sockets and helpers have ready (workers.c): at each scheduling point,
  * nearly free when none of them is pending. */
@@ -174,13 +254,21 @@ static inline void sched_tick(void) {
 static void switch_away(bool parking, bool yielding) {
     Worker *w = worker;
     if (w->on_c_stack) {
+        park_unlock(w);
         panic_with("a C callback can't wait: start a task instead", 45);
     }
-    sched_tick();
+    // Holding object locks, only timers fire here: deadlines, shields and
+    // the poll take the scopes lock, which comes before them.
+    if (w->park_lock_count == 0) {
+        sched_tick();
+    } else {
+        run_due_timers(w);
+    }
     int64_t depth = w->rt_depth;
     Fiber *self = w->running;
     // Woken already (a timer): nothing to switch to, it runs on.
     if (parking && !is_waiting(self)) {
+        park_unlock(w);
         return;
     }
     Fiber *next = take_ready();
@@ -211,7 +299,18 @@ static void switch_away(bool parking, bool yielding) {
 /* Blocks the current fiber until something wakes it; what did. */
 static int64_t block(void) {
     Fiber *self = current;
-    fired_set(self, PARKING);
+    fired_set(self, wait_word(next_wait_gen(self), PARKING));
     switch_away(true, false);
-    return fired_of(self);
+    return wait_state(self);
+}
+
+/* `block`, parking still holding the `n` object locks `locks`, let go of
+ * once the switch has saved this fiber. */
+static int64_t block_holding(uint32_t **locks, int n) {
+    Worker *w = worker;
+    for (int i = 0; i < n; i++) {
+        w->park_locks[i] = locks[i];
+    }
+    w->park_lock_count = n;
+    return block();
 }

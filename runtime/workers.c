@@ -133,11 +133,14 @@ static void workers_start(void) {
     // The native stack only starts the thread; tasks run on pooled ones.
     pthread_attr_setstacksize(&attr, 256 * 1024);
     for (int i = 1; i < workers_wanted; i++) {
+        // Counted first: the new worker may park before `pthread_create`
+        // returns, and the parked workers mustn't outnumber the running.
+        __atomic_fetch_add(&workers_running, 1, __ATOMIC_ACQ_REL);
         pthread_t thread;
         if (pthread_create(&thread, &attr, worker_thread, (void *)(intptr_t)i) != 0) {
+            __atomic_fetch_sub(&workers_running, 1, __ATOMIC_ACQ_REL);
             break;
         }
-        __atomic_fetch_add(&workers_running, 1, __ATOMIC_ACQ_REL);
     }
     pthread_attr_destroy(&attr);
 }

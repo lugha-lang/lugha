@@ -18,7 +18,6 @@ static int runs[MANY];
 static void *chans[2 * PAIRS + 2];
 static int hog_stop;
 
-typedef struct { int64_t from; int64_t to; } Span;
 
 static void *go(void (*entry)(void *, void *, void *), void *code) {
     return lugha_rt_task_spawn(entry, code, lugha_rt_alloc(8), 8);
@@ -95,6 +94,52 @@ static int64_t join(void *task) {
     return *(int64_t *)lugha_rt_task_join(task);
 }
 
+enum { SENT = 4000 };
+static void *pair[2];
+static int seen[2 * SENT];
+static int64_t received;
+
+/* Sends its half of the values, unbuffered, on its own channel. */
+static void feeder(void *code, void *env, void *result) {
+    int64_t side = (intptr_t)code;
+    for (int64_t v = side * SENT; v < (side + 1) * SENT; v++) {
+        lugha_rt_chan_send(pair[side], &v, "h", 1, 1);
+    }
+    *(int64_t *)result = 0;
+    (void)env;
+}
+
+/* Selects on both channels with a short timeout until every value came. */
+static void selector(void *code, void *env, void *result) {
+    int64_t a = 0, b = 0;
+    while (__atomic_load_n(&received, __ATOMIC_ACQUIRE) < 2 * SENT) {
+        LughaCase cases[2] = {{pair[0], 0, &a, 0}, {pair[1], 0, &b, 0}};
+        int64_t fired = lugha_rt_task_select(cases, 2, 1, 0, "h", 1, 1);
+        if (fired >= 0 && cases[fired].ok) {
+            int64_t v = fired == 0 ? a : b;
+            __atomic_fetch_add(&seen[v], 1, __ATOMIC_RELAXED);
+            __atomic_fetch_add(&received, 1, __ATOMIC_ACQ_REL);
+        }
+    }
+    *(int64_t *)result = 0;
+    (void)code;
+    (void)env;
+}
+
+static void *targets[1000];
+
+/* A task joined twice: gives its index. */
+static void target(void *code, void *env, void *result) {
+    *(int64_t *)result = (intptr_t)code;
+    (void)env;
+}
+
+/* Joins its target, from another task. */
+static void joiner(void *code, void *env, void *result) {
+    *(int64_t *)result = join(targets[(intptr_t)code]);
+    (void)env;
+}
+
 int main(int argc, char **argv) {
     lugha_rt_init(argc, argv);
     // As lockdown does: from here on, workers may start.
@@ -134,6 +179,37 @@ int main(int argc, char **argv) {
         __atomic_store_n(&hog_stop, 1, __ATOMIC_RELEASE);
         join(busy);
         printf("%ld\n", (long)got);
+    } else if (strcmp(c, "select") == 0) {
+        pair[0] = lugha_rt_chan_new(0, 8, "h", 1, 1);
+        pair[1] = lugha_rt_chan_new(0, 8, "h", 1, 1);
+        void *tasks[6];
+        for (int i = 0; i < 4; i++) {
+            tasks[i] = go(selector, NULL);
+        }
+        tasks[4] = go(feeder, (void *)(intptr_t)0);
+        tasks[5] = go(feeder, (void *)(intptr_t)1);
+        for (int i = 0; i < 6; i++) {
+            join(tasks[i]);
+        }
+        int once = 0;
+        for (int i = 0; i < 2 * SENT; i++) {
+            once += seen[i] == 1;
+        }
+        printf("%d received once\n", once);
+    } else if (strcmp(c, "joins") == 0) {
+        for (int i = 0; i < 1000; i++) {
+            targets[i] = go(target, (void *)(intptr_t)i);
+        }
+        void **joiners = malloc(sizeof(void *) * 2000);
+        for (int i = 0; i < 2000; i++) {
+            joiners[i] = go(joiner, (void *)(intptr_t)(i / 2));
+        }
+        int64_t sum = 0;
+        for (int i = 0; i < 2000; i++) {
+            sum += join(joiners[i]);
+        }
+        free(joiners);
+        printf("%ld\n", (long)sum);
     } else if (strcmp(c, "park") == 0) {
         int64_t sum = 0, v = 0;
         for (int i = 0; i < 300; i++) {
@@ -234,4 +310,81 @@ fn a_ping_pong_beside_a_busy_task_isnt_starved() {
 #[test]
 fn a_task_woken_as_every_worker_parks_still_runs() {
     assert_eq!(run("park"), format!("{}\n", 299 * 300 / 2));
+}
+
+#[test]
+fn a_select_racing_its_cases_and_a_timeout_loses_nothing() {
+    assert_eq!(run("select"), "8000 received once\n");
+}
+
+#[test]
+fn a_thousand_tasks_each_joined_by_two_others() {
+    assert_eq!(run("joins"), format!("{}\n", 2 * (999 * 1000 / 2)));
+}
+
+/// Four actors, each called by eight tasks at once, 200 calls each: every
+/// call answered, once, in order per caller. A Lugha program, since an
+/// actor's handlers are generated code.
+#[test]
+fn actors_called_from_many_workers_answer_every_call() {
+    let dir = std::env::temp_dir().join(format!("lugha-stress-actors-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("temp dir is writable");
+    std::fs::write(
+        dir.join("main.la"),
+        "actor Counter {\n\
+             n: i64,\n\
+             fun add(mut self, by: i64): i64 { self.n += by; self.n }\n\
+         }\n\
+         fun caller(c: Counter, out: Sender<i64>) {\n\
+             let mut last = 0;\n\
+             for _ in 0..200 {\n\
+                 let now = c.add(1);\n\
+                 if now <= last { out.send(-1); }\n\
+                 last = now;\n\
+             }\n\
+             out.send(1);\n\
+         }\n\
+         fun main(console: Console, root: Scope) {\n\
+             let (tx, rx) = Chan<i64>.new(32);\n\
+             let counters = [root.spawn(Counter { n: 0 }), root.spawn(Counter { n: 0 }),\n\
+                             root.spawn(Counter { n: 0 }), root.spawn(Counter { n: 0 })];\n\
+             let r = scope s {\n\
+                 for c of counters { for _ in 0..8 { s.spawn(caller(c, tx)); } }\n\
+             };\n\
+             r.unwrap();\n\
+             tx.close();\n\
+             let mut good = 0;\n\
+             for v of rx { good += v; }\n\
+             let mut total = 0;\n\
+             for c of counters { total += c.add(0); }\n\
+             console.println(\"{good} {total}\");\n\
+         }\n",
+    )
+    .expect("writable");
+    let built = Command::new(env!("CARGO_BIN_EXE_lughac"))
+        .args(["build", "main.la", "-O2", "-o", "main"])
+        .current_dir(&dir)
+        .output()
+        .expect("lughac runs");
+    assert!(
+        built.status.success(),
+        "{}",
+        String::from_utf8_lossy(&built.stderr)
+    );
+    for _ in 0..10 {
+        let out = Command::new(dir.join("main"))
+            .env("LUGHA_WORKERS", "4")
+            .output()
+            .expect("it runs");
+        assert_eq!(
+            (
+                out.status.code(),
+                String::from_utf8_lossy(&out.stdout).into_owned()
+            ),
+            (Some(0), "32 6400\n".to_string()),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+    let _ = std::fs::remove_dir_all(&dir);
 }

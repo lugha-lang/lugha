@@ -112,24 +112,30 @@ static void scope_room(LughaScope *s) {
  * it: the reason and text, the error, or the message (each a new holder). */
 int32_t lugha_rt_task_join_status(LughaTask *t, int32_t *reason, LughaString **text,
                                   void **table, void **box) {
-    RT_SECTION();
     ensure_started();
     lugha_rt_cancel_point();
-    if (!t->done) {
+    lock_take(&t->lock);
+    if (t->done) {
+        lock_give(&t->lock);
+    } else {
         current->wait_next = t->joiners;
         t->joiners = current;
         current->cancellable = true;
-        int64_t fired = block();
+        uint32_t *locks[1] = {&t->lock};
+        int64_t fired = block_holding(locks, 1);
         if (fired == CANCELLED) {
+            lock_take(&t->lock);
             for (Fiber **at = &t->joiners; *at != NULL; at = &(*at)->wait_next) {
                 if (*at == current) {
                     *at = current->wait_next;
                     break;
                 }
             }
+            lock_give(&t->lock);
         }
         woke(fired);
     }
+    // How it ended was set before `done`, and never changes after.
     *reason = t->reason;
     *text = t->text;
     *table = t->error_table;
@@ -142,7 +148,7 @@ int32_t lugha_rt_task_join_status(LughaTask *t, int32_t *reason, LughaString **t
 /* `t.cancel(why)`. */
 void lugha_rt_task_cancel(LughaTask *t, LughaString *why) {
     RT_SECTION();
-    if (!t->done) {
+    if (!task_done(t)) {
         cancel_fiber(t->fiber, REASON_REQUESTED, why, NULL);
     }
 }

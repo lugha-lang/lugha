@@ -14,7 +14,7 @@ const HARNESS: &str = r#"#include "lugha_rt.c"
 static Fiber parked(void) {
     Fiber f;
     memset(&f, 0, sizeof f);
-    f.fired = PARKING;
+    f.fired = wait_word(1, PARKING);
     f.wake_at = -1;
     return f;
 }
@@ -34,23 +34,34 @@ int main(int argc, char **argv) {
     Fiber f = parked();
     if (strcmp(c, "woken_while_parking") == 0) {
         wake(&f, 7);
-        printf("%s %ld\n", harness_queued(&f), (long)f.fired);
+        printf("%s %ld\n", harness_queued(&f), (long)wait_state(&f));
         worker->parking = &f;
         park_finish();
-        printf("%s %ld\n", harness_queued(&f), (long)f.fired);
+        printf("%s %ld\n", harness_queued(&f), (long)wait_state(&f));
     } else if (strcmp(c, "woken_once_parked") == 0) {
         worker->parking = &f;
         park_finish();
-        printf("%s %d\n", harness_queued(&f), f.fired == WAITING);
+        printf("%s %d\n", harness_queued(&f), wait_state(&f) == WAITING);
         wake(&f, 3);
-        printf("%s %ld\n", harness_queued(&f), (long)f.fired);
+        printf("%s %ld\n", harness_queued(&f), (long)wait_state(&f));
     } else if (strcmp(c, "woken_twice") == 0) {
         worker->parking = &f;
         park_finish();
         wake(&f, 1);
         worker->ring_head = worker->ring_tail;
         wake(&f, 2);
-        printf("%s %ld\n", harness_queued(&f), (long)f.fired);
+        printf("%s %ld\n", harness_queued(&f), (long)wait_state(&f));
+    } else if (strcmp(c, "stale") == 0) {
+        // Woken otherwise, then waiting again: a timer or socket event
+        // armed for the first wait misses the second.
+        worker->parking = &f;
+        park_finish();
+        f.fired = wait_word(2, WAITING);
+        // One call per statement: C picks the order of a call's arguments.
+        bool first = wake_gen(&f, 1, TIMED_OUT);
+        printf("%d %ld", first, (long)wait_state(&f));
+        bool second = wake_gen(&f, 2, TIMED_OUT);
+        printf(" %d %ld\n", second, (long)wait_state(&f));
     } else if (strcmp(c, "waiting") == 0) {
         printf("%d", is_waiting(&f));
         worker->parking = &f;
@@ -129,4 +140,9 @@ fn only_the_first_wake_counts() {
 #[test]
 fn parking_and_parked_both_count_as_waiting() {
     assert_eq!(run("waiting"), "1 1 0\n");
+}
+
+#[test]
+fn a_wake_up_for_an_earlier_wait_misses_the_next() {
+    assert_eq!(run("stale"), "0 -1 1 -2\n");
 }

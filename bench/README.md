@@ -31,6 +31,10 @@ Each program takes its size as its only argument. `<name>/size.txt` holds the ti
 
 `wordfreq` makes its text with a 31-bit LCG (`x = (x * 1103515245 + 12345) mod 2^31`, draws from `x >> 16`), so every language builds the same bytes and nothing reads files. It joins the words with spaces, splits the text again, counts each word in the language's map (a hand-written FNV-1a table in C), and prints the number of distinct words and the ten most common.
 
+## Measures
+
+`bench/measure/` holds Lugha-only measures, run by hand: `pauses.la` (the longest stop in steady work) and `scaling.la` with its driver `scaling.py`, which runs five patterns (spawning many tasks, many yielding, a chain of spawns, eight ping-pong pairs, trees split over tasks) on 1, 2 and 4 workers, for one or more compilers side by side: `python3 bench/measure/scaling.py --lughac old=PATH --lughac new=PATH`.
+
 ## Fairness rules
 
 The point is to compare compilers and runtimes, not cleverness:

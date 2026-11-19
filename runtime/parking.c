@@ -97,7 +97,9 @@ static bool work_left(Worker *w) {
  * Called with nothing found anywhere. */
 static void park(Worker *w) {
     lock_take(&sched_lock);
-    if (shared_len > 0) {
+    // Checked under the lock `wake_main_worker` takes: `main` back for the
+    // main thread just before it would park, it doesn't.
+    if (shared_len > 0 || (w == main_worker && __atomic_load_n(&home_fiber, __ATOMIC_ACQUIRE) != NULL)) {
         lock_give(&sched_lock);
         return;
     }

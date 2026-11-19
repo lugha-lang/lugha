@@ -413,3 +413,31 @@ Each program built by milestone 210's compiler and by this one, at `-O2`, run 9 
 PRP-242's four busy tasks, two runs each: 3.15–3.26 s on one worker, 1.58–1.70 s on two, 1.55–1.60 s on four, the same as milestone 210.
 
 The target was chanping within 10% of milestone 209: missed, and shipped with the miss (the user's call). A C harness against the runtime (0.305 s for 2 million round trips on one worker, against 0.16 s at milestone 209) put the cost at about 0.05 s for reading the thread pointer afresh on each access, 0.03 s for the parking handoff's compare-and-swaps, 0.03 s for the scheduling tick, 0.01 s for the run-next exchanges and the rest in the sections. Kept: passing the lock between two fibers resuming inside sections (four workers 0.41 s → 0.36 s in the harness), plain handoff operations until workers start, a tick that does nothing when nothing is pending. Go takes about 2.5 s on the same benchmark here.
+
+## 2026-11-20 — locks of their own for the hot paths (PRP-244, milestone 212)
+
+`bench/measure/scaling.py`, milestone 211 against this one, the fastest of three runs, on 1, 2 and 4 workers (2 cores, 4 threads):
+
+| pattern | m211 w1 | m211 w2 | m211 w4 | m212 w1 | m212 w2 | m212 w4 |
+|---|---|---|---|---|---|---|
+| spawn_many 200000 | 1.394s | 1.542s | 1.627s | 1.381s | 1.594s | 1.543s |
+| yield_many 100000 | 0.028s | 0.015s | 0.013s | 0.031s | 0.016s | 0.011s |
+| chained_spawn 2000 | 0.014s | 0.027s | 0.022s | 0.014s | 0.022s | 0.018s |
+| pairs 100000 | 0.130s | 0.551s | 0.821s | 0.149s | 0.090s | 0.081s |
+| trees 14 | 2.426s | 1.363s | 0.948s | 2.400s | 1.358s | 1.029s |
+
+Eight ping-pong pairs on their own channels went from slowing down with workers (the shared lock taken by every send and receive) to scaling: 10× faster on four workers. Spawning many tasks from one doesn't scale yet (TODO.md).
+
+The single-task benchmarks, 9 interleaved runs each, medians:
+
+| benchmark   | before  | after   | change |
+|-------------|---------|---------|--------|
+| fib         | 0.687s  | 0.687s  | +0.1%  |
+| fannkuch    | 0.257s  | 0.253s  | -1.6%  |
+| mandelbrot  | 0.371s  | 0.375s  | +0.9%  |
+| nbody       | 0.690s  | 0.682s  | -1.1%  |
+| binarytrees | 0.914s  | 0.905s  | -1.0%  |
+| wordfreq    | 0.497s  | 0.492s  | -1.0%  |
+| chanping    | 0.379s  | 0.395s  | +4.2%  |
+
+chanping on four workers is within the 5% target; on one worker it went from 0.29–0.35 s to 0.36–0.39 s: channel locks are real atomics even on one thread, where the shared lock was free.

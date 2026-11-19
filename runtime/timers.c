@@ -8,15 +8,16 @@
  * wait by the earliest of all, and a worker looking for work fires
  * another's due timers too.
  *
- * A timer fires under `rt_lock`, as every wake does: a fiber's timeout
- * then can't race the channel or socket that would wake it otherwise, nor
- * a sleep it starts after being woken.
+ * A timer is armed for one wait, its generation (waiting.c): firing late,
+ * after its fiber was woken otherwise and began another wait, it misses.
+ * So it fires with no lock but its heap's.
  *
  * A fragment, not compiled on its own: joined after runq.c (the workers),
  * before waiting.c (`wake`).
  */
 
-static void wake(Fiber *f, int64_t why);
+static bool wake_gen(Fiber *f, uint32_t gen, int64_t why);
+static inline uint32_t next_wait_gen(const Fiber *f);
 
 /* A new timer at `at`: the worker waiting for events times its wait again
  * (workers.c). */
@@ -89,6 +90,7 @@ static void add_sleeper(Fiber *f, int64_t deadline) {
         w->heap_cap = cap;
     }
     f->wake_at = deadline;
+    f->timer_gen = next_wait_gen(f);
     f->timer_owner = w;
     w->heap[w->heap_len] = f;
     heap_up(w, w->heap_len++);
@@ -139,12 +141,13 @@ static bool run_due_timers(Worker *w) {
         return false;
     }
     bool fired = false;
-    RT_SECTION();
     for (;;) {
         lock_take(&w->heap_lock);
         Fiber *f = NULL;
+        uint32_t gen = 0;
         if (w->heap_len > 0 && w->heap[0]->wake_at <= now) {
             f = w->heap[0];
+            gen = f->timer_gen;
             heap_remove(w, 0);
             __atomic_store_n(&f->timer_owner, NULL, __ATOMIC_RELEASE);
             f->wake_at = -1;
@@ -154,7 +157,6 @@ static bool run_due_timers(Worker *w) {
         if (f == NULL) {
             return fired;
         }
-        wake(f, TIMED_OUT);
-        fired = true;
+        fired |= wake_gen(f, gen, TIMED_OUT);
     }
 }

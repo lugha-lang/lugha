@@ -1,0 +1,117 @@
+// scaling: how work spread over tasks speeds up with workers, five ways
+// (after Tokio's scheduler benchmarks, and binarytrees split over tasks).
+//
+//   spawn_many N      main starts N small tasks, each sending one value
+//   yield_many N      eight tasks each yield N times
+//   chained_spawn N   each task starts the next in a scope of its own and
+//                     waits for it, N deep
+//   pairs N           eight ping-pong pairs, N round trips each, every
+//                     pair on its own two channels
+//   trees N           eight tasks each build and walk 64 trees N deep
+//
+// LUGHA_WORKERS=4 lughac run -O2 bench/measure/scaling.la -- pairs 100000
+// bench/measure/scaling.py runs them all on 1, 2 and 4 workers.
+
+import std.task;
+
+enum Tree {
+    Leaf,
+    Node(Tree, Tree),
+}
+
+fun make(depth: i64): Tree = if depth == 0 {
+    Tree.Node(Tree.Leaf, Tree.Leaf)
+} else {
+    Tree.Node(make(depth - 1), make(depth - 1))
+};
+
+fun check(t: Tree): i64 = match t {
+    .Leaf => 0,
+    .Node(l, r) => 1 + check(l) + check(r),
+};
+
+fun one(out: Sender<i64>) {
+    out.send(1);
+}
+
+fun yields(n: i64, out: Sender<i64>) {
+    for _ in 0..n {
+        task.yield_now();
+    }
+    out.send(n);
+}
+
+fun chain(n: i64, out: Sender<i64>) {
+    if n == 0 {
+        out.send(1);
+    } else {
+        let r = scope s {
+            s.spawn(chain(n - 1, out));
+        };
+        r.unwrap();
+    }
+}
+
+fun pong(pings: Receiver<i64>, pong: Sender<i64>) {
+    for v of pings {
+        pong.send(v + 1);
+    }
+}
+
+fun ping(n: i64, out: Sender<i64>) {
+    let (tx, pings) = Chan<i64>.new(0);
+    let (pong_tx, pongs) = Chan<i64>.new(0);
+    let r = scope s {
+        s.spawn(pong(pings, pong_tx));
+        let mut v = 0;
+        for _ in 0..n {
+            tx.send(v);
+            v = pongs.recv().unwrap();
+        }
+        tx.close();
+        v
+    };
+    out.send(r.unwrap());
+}
+
+fun trees(depth: i64, out: Sender<i64>) {
+    let mut sum = 0;
+    for _ in 0..64 {
+        sum += check(make(depth));
+    }
+    out.send(sum);
+}
+
+fun main(args: string[], console: Console) {
+    let mode = args[1];
+    let n = parse_i64(args[2]).unwrap();
+    let (tx, rx) = Chan<i64>.unbounded();
+    let r = scope s {
+        if mode == "spawn_many" {
+            for _ in 0..n {
+                s.spawn(one(tx));
+            }
+        } else if mode == "yield_many" {
+            for _ in 0..8 {
+                s.spawn(yields(n, tx));
+            }
+        } else if mode == "chained_spawn" {
+            s.spawn(chain(n, tx));
+        } else if mode == "pairs" {
+            for _ in 0..8 {
+                s.spawn(ping(n, tx));
+            }
+        } else if mode == "trees" {
+            for _ in 0..8 {
+                s.spawn(trees(n, tx));
+            }
+        }
+    };
+    r.unwrap();
+    tx.close();
+    let mut total = 0;
+    for v of rx {
+        total += v;
+    }
+    console.println(total);
+}

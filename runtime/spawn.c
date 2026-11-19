@@ -22,7 +22,7 @@ void lugha_rt_cancel_point(void);
  * result's block goes with it. */
 static void rc_task_visit(void *object, int64_t op) {
     LughaTask *task = object;
-    if (task->done && task->result_visit != NULL) {
+    if (task_done(task) && task->result_visit != NULL) {
         task->result_visit(task->result, op);
     }
     // How it stopped and its name: a message or reason, an error's box.
@@ -78,16 +78,20 @@ static void fiber_exit(Fiber *self) {
     rt_enter();
     LughaTask *task = self->task;
     scope_task_done(self);
-    task->done = 1;
     /* The call's environment was the fiber's to let go of. */
     lugha_rt_rc_release(self->env);
     self->env = NULL;
+    // Done, under the record's lock, after the scopes lock: its joiners
+    // park holding the record's lock, so each is parked by now.
+    lock_take(&task->lock);
+    __atomic_store_n(&task->done, 1, __ATOMIC_RELEASE);
     for (Fiber *j = task->joiners; j != NULL;) {
         Fiber *after = j->wait_next;
         wake(j, 0);
         j = after;
     }
     task->joiners = NULL;
+    lock_give(&task->lock);
     if (self->prev_live != NULL) {
         self->prev_live->next_live = self->next_live;
     } else {
@@ -199,13 +203,16 @@ LughaTask *lugha_rt_task_spawn(void (*entry)(void *, void *, void *), void *code
 
 /* `t.join()`: waits until the task's call has finished; its result. */
 void *lugha_rt_task_join(LughaTask *task) {
-    RT_SECTION();
     ensure_started();
-    if (!task->done) {
-        current->wait_next = task->joiners;
-        task->joiners = current;
-        block();
+    lock_take(&task->lock);
+    if (task->done) {
+        lock_give(&task->lock);
+        return task->result;
     }
+    current->wait_next = task->joiners;
+    task->joiners = current;
+    uint32_t *locks[1] = {&task->lock};
+    block_holding(locks, 1);
     return task->result;
 }
 

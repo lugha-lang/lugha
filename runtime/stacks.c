@@ -73,8 +73,12 @@ static char *new_stack_locked(void) {
         if (region != MAP_FAILED) {
             region_next = (char *)(((uintptr_t)region + stack_size - 1) & ~(stack_size - 1));
             region_left = REGION_STACKS;
+            // Set once, with the first region, before any other worker
+            // runs: every thread reads it from then on, without a lock.
+            if (!stacks_sized) {
+                lugha_rt_stack_mask = stack_size - 1;
+            }
             stacks_sized = true;
-            lugha_rt_stack_mask = stack_size - 1;
             break;
         }
         // A small address space: smaller stacks, settled before the first.

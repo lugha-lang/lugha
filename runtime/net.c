@@ -11,6 +11,9 @@
 
 enum { NET_MAX_READ = 16 * 1024 * 1024, NET_BACKLOG = 128, NET_EVENTS = 64 };
 
+/* An event's fiber: the low 48 bits of its 64 (`wait_fd`). */
+#define EVENT_FIBER ((UINT64_C(1) << 48) - 1)
+
 /* Green threads parked on a socket. */
 static int64_t net_waiting;
 
@@ -52,9 +55,14 @@ static void poll_sockets(int64_t wait_ns) {
             wake_taken();
             continue;
         }
-        Fiber *f = events[i].data.ptr;
-        if (f != NULL && is_waiting(f)) {
-            wake(f, 0);
+        // A fiber and the wait it was armed for: a late event misses.
+        uint64_t packed = events[i].data.u64;
+        Fiber *f = (Fiber *)(uintptr_t)(packed & EVENT_FIBER);
+        if (f != NULL) {
+            uint32_t gen = word_gen(fired_of(f));
+            if ((gen & 0xffff) == (uint32_t)(packed >> 48)) {
+                wake_gen(f, gen, 0);
+            }
         }
     }
 }
@@ -72,7 +80,11 @@ static int wait_fd(int fd, uint32_t events, int64_t deadline) {
         return WAIT_CANCELLED;
     }
     io_open();
-    struct epoll_event ev = {.events = events | EPOLLONESHOT, .data = {.ptr = current}};
+    // The fiber's address in the low 48 bits (user space's), and the low 16
+    // bits of the wait's generation above it.
+    uint64_t packed = (uint64_t)(uintptr_t)current |
+                      ((uint64_t)(next_wait_gen(current) & 0xffff) << 48);
+    struct epoll_event ev = {.events = events | EPOLLONESHOT, .data = {.u64 = packed}};
     if (epoll_ctl(net_epoll, EPOLL_CTL_MOD, fd, &ev) != 0 &&
         epoll_ctl(net_epoll, EPOLL_CTL_ADD, fd, &ev) != 0) {
         die("panic: epoll_ctl failed\n");

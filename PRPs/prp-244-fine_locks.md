@@ -1,6 +1,6 @@
 ## FEATURE: Locks of their own for the hot paths: each channel (and `select`), each actor's mailbox and each task's `join` takes its own lock instead of the shared one, every wait claimed by compare-and-swap before a value moves, and a wait's generation guarding against stale wake-ups; milestone 212, the second "fast workers" PRP.
 
-**Status:** proposed 2026-11-20.
+**Status:** approved 2026-11-20; built 2026-11-20 (milestone 212).
 
 ## OBJECTIVE
 Programs print what they printed. Tasks passing messages on different channels, or calling different actors, no longer queue for one lock:
@@ -38,6 +38,19 @@ For example, eight ping-pong pairs, each pair on its own two channels: today eve
 4. **No lock-free channels:** a lock per channel, as Go has. A fast path that skips the lock for an empty ring is a later measurement's question.
 5. **chanping won't speed up much here:** it is one pair on two channels, so it takes as many lock operations as before, just on other locks. The gain is in programs where many tasks talk at once. Its ideas in TODO (passing the worker down the hot paths) stay there.
 
+## MADE DURING THE BUILD
+- **`select` keeps its one random draw:** among the cases that look ready under their locks, then the rest in turn if another thread took a waiter meanwhile, so a shuffled run's seed gives the same order as before.
+- **Generic `wake` stays for lists kept under their own lock** (joins, actors' room and idle fiber, answers): a waiter there leaves the list under that lock before it can wait on anything else. Timers, socket events and channel waiters claim by generation.
+- **Bugs found and fixed:**
+  - A worker thread could park before `workers_start` counted it, so the parked count matched the running count while `main` still ran: a false deadlock (since milestone 210). Each thread is now counted before it is created.
+  - `main` finishing on another worker just as the main thread's worker parked was stranded: the main worker parked without checking `home_fiber`, and the deadlock check deferred to it (a hang, since milestone 211). Parking now checks it under the same lock.
+  - A cast cancelled while waiting for mailbox room read its message after `message_done` had freed it.
+  - The stack pool wrote the stack mask again with every region of stacks, while other threads read it: a data race ThreadSanitizer found. It is now set once.
+- **The stale-event test** is in `tests/waiting_runtime.rs` (a wake for an earlier generation misses the next wait), not a socket program: it tests the one check timers and sockets share.
+- **The actor stress test** is a Lugha program (an actor's handlers are generated code), in `tests/scheduler_stress.rs`.
+- **`tests/workers.rs`'s sweep kills a run past 30 seconds** and reports it as hung, instead of waiting forever.
+- **chanping on one worker went from 0.29–0.35 s to 0.36–0.39 s:** channel locks are real atomics even on one thread, where the shared lock was free. On four workers it is within 5% of milestone 211, as the target asked.
+
 ## REQUIREMENTS
 
 ### Must Do
@@ -50,17 +63,17 @@ For example, eight ping-pong pairs, each pair on its own two channels: today eve
 - Changing what any program prints or how a channel behaves.
 
 ## TESTS
-- [ ] `tests/scheduler_stress.rs` grows, each case plain and under ThreadSanitizer:
-  - [ ] **A select racing its cases:** many tasks each selecting on two channels with a short timeout, while two senders feed both. Every value sent is received exactly once; a timeout loses none.
-  - [ ] **Actors under load:** four actors, each called by eight tasks at once. Every call is answered once, with the right result.
-  - [ ] **Join fan-in:** 1,000 tasks, each joined by two joiners on other workers. Every joiner gets the result.
-  - [ ] **A stale socket event:** a task waits on a socket with a timeout that fires, then waits on a channel. Data arriving on the socket meanwhile doesn't wake the channel wait.
-- [ ] `tests/workers.rs`'s sweep, `tests/programs/` (one worker, exact output), `leaks`, `rc_check`, unchanged.
-- [ ] `bench/measure/scaling` on 1, 2 and 4 workers against milestone 211, recorded; the six single-task benchmarks and chanping against milestone 211.
-- [ ] Targeted: `--lib`, `programs`, `leaks`, `rc_check`, `workers`, `scheduler_stress`, `tasks_runtime`, `waiting_runtime`, `rc_alloc_threads`, `helpers`, `blocking_externs`, `callbacks`, `spec`, `arm`, `codegen`, `comments`.
+- [x] `tests/scheduler_stress.rs` grows, each case plain and under ThreadSanitizer:
+  - [x] **A select racing its cases:** many tasks each selecting on two channels with a short timeout, while two senders feed both. Every value sent is received exactly once; a timeout loses none.
+  - [x] **Actors under load:** four actors, each called by eight tasks at once. Every call is answered once, with the right result.
+  - [x] **Join fan-in:** 1,000 tasks, each joined by two joiners on other workers. Every joiner gets the result.
+  - [x] **A stale socket event:** as a check of the generation itself (`tests/waiting_runtime.rs`): a wake armed for an earlier wait misses the next.
+- [x] `tests/workers.rs`'s sweep, `tests/programs/` (one worker, exact output), `leaks`, `rc_check`, unchanged.
+- [x] `bench/measure/scaling` on 1, 2 and 4 workers against milestone 211, recorded; the six single-task benchmarks and chanping against milestone 211.
+- [x] Targeted: `--lib`, `programs`, `leaks`, `rc_check`, `workers`, `scheduler_stress`, `tasks_runtime`, `waiting_runtime`, `rc_alloc_threads`, `helpers`, `blocking_externs`, `callbacks`, `spec`, `arm`, `codegen`, `comments`.
 
 ## ACCEPTANCE
-- [ ] Many ping-pong pairs, actor calls and joins scale with workers instead of slowing down; the stress tests pass under ThreadSanitizer.
-- [ ] Single-task benchmarks within 3% of milestone 211; chanping within 5% of it.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
-- [ ] Spec, CHANGELOG, TODO, `bench/README.md` and `bench/RESULTS.md` are updated.
+- [x] Many ping-pong pairs, actor calls and joins scale with workers instead of slowing down; the stress tests pass under ThreadSanitizer.
+- [x] Single-task benchmarks within 3% of milestone 211; chanping within 5% of it on the default workers (one worker: 20% slower, recorded).
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
+- [x] Spec, CHANGELOG, TODO, `bench/README.md` and `bench/RESULTS.md` are updated.

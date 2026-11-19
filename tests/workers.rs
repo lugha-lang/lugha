@@ -243,6 +243,27 @@ const ORDERED: &[&str] = &[
     "scope_policies/handler.la",
 ];
 
+/// `command`'s output, or None if it ran past `limit` (then killed): a hang
+/// fails the sweep with the program's name instead of stopping it.
+fn output_within(mut command: Command, limit: Duration) -> Option<Output> {
+    let mut child = command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("the program runs");
+    let started = std::time::Instant::now();
+    while child.try_wait().expect("waits").is_none() {
+        if started.elapsed() > limit {
+            // Killing a child that just ended is harmless: it's reaped next.
+            let _ = child.kill();
+            let _ = child.wait();
+            return None;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    Some(child.wait_with_output().expect("it ended"))
+}
+
 /// The lines of `bytes`, sorted: what four workers must print, in any order.
 fn lines(bytes: &[u8]) -> Vec<String> {
     let mut lines: Vec<String> = text(bytes).lines().map(str::to_string).collect();
@@ -291,7 +312,10 @@ fn concurrency_programs_behave_on_four_workers() {
                     .env("LUGHA_RC_CHECK", "1")
                     .env("LUGHA_RC_REPORT", "1");
             }
-            let out = command.output().expect("the program runs");
+            let Some(out) = output_within(command, Duration::from_secs(30)) else {
+                failures.push(format!("{} (run {run}): hung", case.name));
+                continue;
+            };
             let mut wrong = Vec::new();
             if out.status.code() != Some(*exit) {
                 wrong.push(format!("exit {:?}", out.status.code()));

@@ -56,7 +56,14 @@ typedef struct {
     LughaString *name;
     /* The next task of its scope. */
     void *scope_next;
+    /* Its lock over `done` and `joiners` (rt_lock.c's kind). */
+    uint32_t lock;
 } LughaTask;
+
+/* True once `t`'s call has finished: set under its lock, read without. */
+static inline bool task_done(const LughaTask *t) {
+    return __atomic_load_n(&t->done, __ATOMIC_ACQUIRE) != 0;
+}
 
 struct Fiber {
     /* Saved stack pointer while switched out. */
@@ -110,6 +117,8 @@ struct Fiber {
     int64_t wake_at;
     struct Worker *timer_owner;
     int64_t heap_at;
+    /* The wait its timer is for (a generation, waiting.c). */
+    uint32_t timer_gen;
     /* How deep in runtime sections it switched away (waiting.c). */
     int64_t rt_saved;
     /* Which wait woke it: a `select` case, or TIMED_OUT; WAITING before. */
