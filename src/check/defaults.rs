@@ -147,14 +147,14 @@ impl Checker {
 mod tests {
     use crate::check::test_util::{diagnostics, errors, ok};
 
-    const ERR: &str = "interface Error {\n\
+    const ERR: &str = "interface Fault {\n\
             fun message(self): string;\n\
             fun report(self): string = \"error: {self.message()}\";\n\
         }\n\
         struct Plain { text: string }\n\
-        impl Error for Plain { fun message(self): string = self.text; }\n\
+        impl Fault for Plain { fun message(self): string = self.text; }\n\
         struct Own { n: i64 }\n\
-        impl Error for Own { fun message(self): string = \"own\"; fun report(self): string = \"mine\"; }\n";
+        impl Fault for Own { fun message(self): string = \"own\"; fun report(self): string = \"mine\"; }\n";
 
     fn e(body: &str) -> Vec<(&'static str, String)> {
         let src = format!("{ERR}{body}\nfun main() {{}}");
@@ -175,12 +175,12 @@ mod tests {
     #[test]
     fn a_missing_defaulted_method_still_satisfies() {
         ok(&format!(
-            "{ERR}fun tell<T: Error>(x: T): string = x.report();\n\
-             fun main() {{ let a: Error = Plain {{ text: \"p\" }}; let b: Error = Own {{ n: 1 }}; let s = a.report() + tell(Plain {{ text: \"q\" }}); }}"
+            "{ERR}fun tell<T: Fault>(x: T): string = x.report();\n\
+             fun main() {{ let a: Fault = Plain {{ text: \"p\" }}; let b: Fault = Own {{ n: 1 }}; let s = a.report() + tell(Plain {{ text: \"q\" }}); }}"
         ));
-        let clash = "struct Bad {}\nimpl Error for Bad { fun message(self): string = \"b\"; fun report(self): i64 = 1; }\n\
-                     fun f() { let x: Error = Bad {}; }";
-        assert_eq!(e(clash), [("E0422", "Error".into())]);
+        let clash = "struct Bad {}\nimpl Fault for Bad { fun message(self): string = \"b\"; fun report(self): i64 = 1; }\n\
+                     fun f() { let x: Fault = Bad {}; }";
+        assert_eq!(e(clash), [("E0422", "Fault".into())]);
     }
 
     #[test]
@@ -208,7 +208,7 @@ mod tests {
 
     #[test]
     fn a_default_is_a_method_only_of_types_that_satisfy_it() {
-        // `Plain` implements `Error`, so the default applies to it directly.
+        // `Plain` implements `Fault`, so the default applies to it directly.
         ok(&format!(
             "{ERR}fun main() {{ let p = Plain {{ text: \"p\" }}; let s: string = p.report(); }}"
         ));
@@ -216,16 +216,16 @@ mod tests {
         assert_eq!(e(body), [("E0415", "report".into())]);
         let src = format!("{ERR}{body}\nfun main() {{}}");
         let help = diagnostics(&src)[0].help.clone().unwrap_or_default();
-        assert!(help.contains("`Error`"), "{help}");
+        assert!(help.contains("`Fault`"), "{help}");
     }
 
     #[test]
     fn only_used_defaults_are_instances() {
         let converted = monos(&format!(
-            "{ERR}fun main() {{ let a: Error = Plain {{ text: \"p\" }}; let b: Error = Own {{ n: 1 }}; }}"
+            "{ERR}fun main() {{ let a: Fault = Plain {{ text: \"p\" }}; let b: Fault = Own {{ n: 1 }}; }}"
         ));
         assert!(
-            converted.contains(&"Error.report[Struct(\"Plain\", [])]".to_string()),
+            converted.contains(&"Fault.report[Struct(\"Plain\", [])]".to_string()),
             "{converted:?}"
         );
         assert!(
@@ -233,10 +233,10 @@ mod tests {
             "{converted:?}"
         );
         let bound = monos(&format!(
-            "{ERR}fun tell<T: Error>(x: T): string = x.report();\nfun main() {{ let s = tell(Plain {{ text: \"q\" }}); }}"
+            "{ERR}fun tell<T: Fault>(x: T): string = x.report();\nfun main() {{ let s = tell(Plain {{ text: \"q\" }}); }}"
         ));
         assert!(
-            bound.contains(&"Error.report[Struct(\"Plain\", [])]".to_string()),
+            bound.contains(&"Fault.report[Struct(\"Plain\", [])]".to_string()),
             "{bound:?}"
         );
     }

@@ -7,9 +7,32 @@ use super::{Checker, Type, errors};
 use crate::ast::{Item, Program};
 use crate::span::Span;
 
-/// Built-in names a program can't define.
-pub(super) const BUILTIN_NAMES: [&str; 8] =
-    ["Option", "Some", "None", "Eq", "Ord", "Result", "Ok", "Err"];
+/// The built-in names syntax depends on, which no program may declare:
+/// `?` and patterns (`Option`, `Result` and their variants), `==` and `<`,
+/// `"{x}"`, `for`, the operators, map and set literals, and `Ref`. Every
+/// other prelude name may be a module's own.
+pub(super) const BUILTIN_NAMES: [&str; 20] = [
+    "Option",
+    "Some",
+    "None",
+    "Result",
+    "Ok",
+    "Err",
+    "Eq",
+    "Ord",
+    "Display",
+    "Iter",
+    "Error",
+    "Add",
+    "Sub",
+    "Mul",
+    "Div",
+    "Rem",
+    "Neg",
+    "FromEntries",
+    "FromItems",
+    "Ref",
+];
 
 /// A declared enum.
 pub(super) struct EnumInfo {
@@ -146,5 +169,20 @@ mod tests {
         let boxed = diagnostics("enum L { N, C(Box<L>) }\nfun main() {}");
         assert_eq!(boxed[0].code, "E0305");
         assert!(boxed[0].help.as_deref().unwrap().contains("need no `Box`"));
+    }
+
+    #[test]
+    fn exactly_the_names_syntax_uses_are_built_in() {
+        for name in ["Display", "Iter", "Error", "Add", "FromItems", "Ok", "Ord"] {
+            for decl in [
+                format!("struct {name} {{ x: i64 }}"),
+                format!("enum {name} {{ A }}"),
+                format!("interface {name} {{ }}"),
+            ] {
+                let src = format!("{decl}\nfun main() {{}}");
+                assert_eq!(errors(&src)[0].0, "E0302", "{decl}");
+            }
+        }
+        ok("struct Map { tiles: i64[] }\nstruct Console { n: i64 }\nenum Set { A }\nfun main() {}");
     }
 }

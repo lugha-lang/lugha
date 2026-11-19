@@ -1,9 +1,9 @@
-error[E0422]: `Named` doesn't declare everything `Pet` needs
+error[E0422]: a `Named` value doesn't convert to `Pet`: only an interface that extends `Pet` does
    --> tests/programs/interfaces/converting/e0422.la:14:36
    |
 14 | fun hello(n: Named): string = talk(n);
    |                                    ^
    |
-   = help: no `sound`
+   = help: convert the concrete value instead, from a type with `impl Pet for …`
 
 For more about E0422, run `lughac explain E0422`.

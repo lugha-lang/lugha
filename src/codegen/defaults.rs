@@ -48,17 +48,17 @@ mod tests {
     #[test]
     fn a_defaulted_slot_points_at_the_defaults_instance() {
         let ir = ir(
-            "interface Error { fun message(self): string; fun report(self): string = \"e: {self.message()}\"; }\n\
-            struct P { t: string }\nimpl Error for P { fun message(self): string = self.t; }\n\
-            fun main(console: Console) { let e: Error = P { t: \"x\" }; console.println(e.report()); }",
+            "interface Fault { fun message(self): string; fun report(self): string = \"e: {self.message()}\"; }\n\
+            struct P { t: string }\nimpl Fault for P { fun message(self): string = self.t; }\n\
+            fun main(console: Console) { let e: Fault = P { t: \"x\" }; console.println(e.report()); }",
         );
         let table = ir
             .lines()
-            .find(|l| l.starts_with("@lugha_vt_P.Error = "))
+            .find(|l| l.starts_with("@lugha_vt_P.Fault = "))
             .unwrap();
-        assert!(table.contains("@\"lugha_fn_Error.report<P>\""), "{table}");
+        assert!(table.contains("@\"lugha_fn_Fault.report<P>\""), "{table}");
         assert!(
-            ir.contains("define ptr @\"lugha_fn_Error.report<P>\"(ptr"),
+            ir.contains("define ptr @\"lugha_fn_Fault.report<P>\"(ptr"),
             "the default compiles once for P: {ir}"
         );
     }

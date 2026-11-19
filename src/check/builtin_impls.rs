@@ -135,6 +135,14 @@ impl Checker {
         };
         let mut owners = Vec::new();
         program_types(&ty, &mut owners);
+        owners.sort();
+        owners.dedup();
+        // A type built from several program types has one home, the
+        // interface's module, so two libraries can't both write its block.
+        let several = owners.len() > 1;
+        if several {
+            owners.clear();
+        }
         // An operator's block may live with its right-hand type:
         // `impl Mul<Vec2> for f64` in `Vec2`'s module.
         if super::impls::is_operator(&key) {
@@ -145,6 +153,9 @@ impl Checker {
         }
         if module_of(&key) != here && !owners.iter().any(|o| module_of(o) == here) {
             let why = match owners.is_empty() {
+                _ if several => format!(
+                    "is for `{ty}`, built from several program types: write it in the module that declares `{written}`, or wrap them in a struct of your own"
+                ),
                 true => format!("must be written in the module that declares `{written}`"),
                 false => format!(
                     "must be written in the module that declares `{written}` or a type it names"

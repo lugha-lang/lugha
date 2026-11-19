@@ -49,12 +49,12 @@ fun main(console: Console) {
 /// A temporary directory holding `shapes.la` and `errors.la`, removed on drop.
 struct Dir(PathBuf);
 
-/// `?` converting a `Bad` into an `Error`.
-const ERRORS: &str = "interface Error { fun message(self): string; }
+/// `?` converting a `Bad` into a `Fault`.
+const ERRORS: &str = "interface Fault { fun message(self): string; }
 struct Bad { t: string }
-impl Error for Bad { fun message(self): string = self.t; }
+impl Fault for Bad { fun message(self): string = self.t; }
 fun get(): Result<i64, Bad> = Err(Bad { t: \"no\" });
-fun read(): Result<i64, Error> { let n = get()?; Ok(n) }
+fun read(): Result<i64, Fault> { let n = get()?; Ok(n) }
 fun main(console: Console) { match read() { .Ok(n) => console.println(n), .Err(e) => console.println(e.message()), } }
 ";
 
@@ -111,7 +111,7 @@ fn question_mark_boxes_a_converted_error_on_the_failure_path() {
     let fail = &read[read.find("try.fail:").expect("a failure branch")..];
     let fail = &fail[..fail.find("\n}").unwrap_or(fail.len())];
     assert!(
-        fail.contains("@lugha_rt_alloc") && fail.contains("@lugha_vt_Bad.Error"),
+        fail.contains("@lugha_rt_rc_alloc") && fail.contains("@lugha_vt_Bad.Fault"),
         "{fail}"
     );
 }

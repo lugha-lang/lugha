@@ -1,0 +1,9 @@
+error[E0422]: a `Label` value doesn't convert to `Named`: only an interface that extends `Named` does
+  --> tests/programs/interfaces/nominal_rules/e0422.la:7:11
+  |
+7 |     greet(l);
+  |           ^
+  |
+  = help: convert the concrete value instead, from a type with `impl Named for …`
+
+For more about E0422, run `lughac explain E0422`.

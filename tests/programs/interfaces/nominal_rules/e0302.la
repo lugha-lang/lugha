@@ -1,0 +1,5 @@
+interface Display {
+    fun show(self): string;
+}
+
+fun main() {}

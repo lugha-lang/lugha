@@ -1,4 +1,4 @@
-error[E0422]: a `Display` value isn't an `Error`: only an interface that extends `Error` converts to it
+error[E0422]: a `Display` value doesn't convert to `Error`: only an interface that extends `Error` does
   --> tests/programs/interfaces/extending_values/not_extended.la:9:20
   |
 9 |     let e: Error = d;

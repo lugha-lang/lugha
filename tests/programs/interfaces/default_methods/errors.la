@@ -1,17 +1,17 @@
-interface Error {
+interface Fault {
     fun message(self): string;
     fun report(self): string = "error: {self.message()}";
 }
 
 struct ParseError { text: string }
 
-impl Error for ParseError {
+impl Fault for ParseError {
     fun message(self): string = "not a number: {self.text}";
 }
 
 struct RangeError { n: i64 }
 
-impl Error for RangeError {
+impl Fault for RangeError {
     fun message(self): string = "{self.n} is out of range";
     fun report(self): string = "range error: {self.message()}";
 }
@@ -21,7 +21,7 @@ fun parse(s: string): Result<i64, ParseError> = parse_i64(s).ok_or(ParseError { 
 fun check(n: i64): Result<i64, RangeError> =
     if n < 100 { Ok(n) } else { Err(RangeError { n: n }) };
 
-fun read(s: string): Result<i64, Error> {
+fun read(s: string): Result<i64, Fault> {
     let n = parse(s)?;
     let m = check(n)?;
     Ok(m * 2)

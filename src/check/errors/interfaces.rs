@@ -104,7 +104,7 @@ pub(in crate::check) fn not_extending(
     Diagnostic::error(
         "E0422",
         format!(
-            "a `{from}` value isn't an `{to}`: only an interface that extends `{to}` converts to it"
+            "a `{from}` value doesn't convert to `{to}`: only an interface that extends `{to}` does"
         ),
         span,
     )

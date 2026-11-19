@@ -1,27 +1,16 @@
-// Converting between interfaces: chains, defaults kept from
-// the source interface, independent copies, type patterns, generic code, `?`.
+// Converting between interfaces along `extends`: chains, independent
+// copies, type patterns, generic code, `?`.
 
 interface Named {
     fun name(self): string;
 }
 
-interface Pet {
-    fun name(self): string;
+interface Pet: Named {
     fun sound(self): string;
     fun intro(self): string = "{self.name()} says {self.sound()}";
 }
 
-// Declares the same items as `Pet`, with another default.
-interface Pet2 {
-    fun name(self): string;
-    fun sound(self): string;
-    fun intro(self): string = "pet2";
-}
-
-interface Animal {
-    fun name(self): string;
-    fun sound(self): string;
-    fun intro(self): string = "an animal";
+interface Animal: Pet {
     fun rename(mut self, to: string);
 }
 
@@ -32,13 +21,10 @@ impl Named for Dog {
 }
 
 impl Pet for Dog {
-    fun name(self): string = self.called;
     fun sound(self): string = "woof";
 }
 
 impl Animal for Dog {
-    fun name(self): string = self.called;
-    fun sound(self): string = "woof";
     fun rename(mut self, to: string) { self.called = to; }
 }
 
@@ -53,15 +39,17 @@ interface Problem {
     fun text(self): string;
 }
 
-interface ParseProblem {
-    fun text(self): string;
+interface ParseProblem: Problem {
     fun at(self): i64;
 }
 
 struct BadChar { pos: i64 }
 
-impl ParseProblem for BadChar {
+impl Problem for BadChar {
     fun text(self): string = "bad char at {self.pos}";
+}
+
+impl ParseProblem for BadChar {
     fun at(self): i64 = self.pos;
 }
 
@@ -79,9 +67,6 @@ fun main(console: Console) {
     console.println(p.intro());
     let n: Named = p;
     console.println(greet(n));
-    let p2: Pet2 = p;
-    let back: Pet = p2;
-    console.println(back.intro());
 
     let mut m: Animal = Dog { called: "max" };
     let before: Named = m;

@@ -1,0 +1,7 @@
+error[E0302]: `Display` is a built-in name
+  --> tests/programs/interfaces/nominal_rules/e0302.la:1:11
+  |
+1 | interface Display {
+  |           ^^^^^^^
+
+For more about E0302, run `lughac explain E0302`.

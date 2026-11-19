@@ -248,22 +248,23 @@ mod tests {
 
     #[test]
     fn question_mark_converts_into_an_interface_error() {
-        let base = "interface Error { fun message(self): string; }\n\
+        let base = "interface Fault { fun message(self): string; }\n\
             struct ParseError { text: string }\n\
-            impl Error for ParseError { fun message(self): string = self.text; }\n\
+            impl Fault for ParseError { fun message(self): string = self.text; }\n\
             interface Other { fun message(self): string; }\n\
             fun parse(s: string): Result<i64, ParseError> = Err(ParseError { text: s });\n";
         ok(&format!(
-            "{base}fun read(s: string): Result<i64, Error> {{ let n = parse(s)?; Ok(n) }}\nfun main() {{}}"
+            "{base}fun read(s: string): Result<i64, Fault> {{ let n = parse(s)?; Ok(n) }}\nfun main() {{}}"
         ));
         let plain = format!(
-            "{base}fun half(n: i64): Result<i64, string> = Ok(n);\nfun read(): Result<i64, Error> {{ let n = half(1)?; Ok(n) }}\nfun main() {{}}"
+            "{base}fun half(n: i64): Result<i64, string> = Ok(n);\nfun read(): Result<i64, Fault> {{ let n = half(1)?; Ok(n) }}\nfun main() {{}}"
         );
         assert_eq!(codes(&plain), ["E0424"]);
-        // An interface error converts when it declares every item.
+        // An interface error converts only when it extends the wanted one,
+        // never by declaring the same items.
         let other = format!(
-            "{base}fun get(o: Other): Result<i64, Other> = Err(o);\nfun read(o: Other): Result<i64, Error> {{ let n = get(o)?; Ok(n) }}\nfun main() {{}}"
+            "{base}fun get(o: Other): Result<i64, Other> = Err(o);\nfun read(o: Other): Result<i64, Fault> {{ let n = get(o)?; Ok(n) }}\nfun main() {{}}"
         );
-        ok(&other);
+        assert_eq!(codes(&other), ["E0424"]);
     }
 }

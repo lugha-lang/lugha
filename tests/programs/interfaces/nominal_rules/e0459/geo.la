@@ -1,0 +1,7 @@
+import lines;
+
+public struct Point { x: f64 }
+
+impl Display for (Point, lines.Line) {
+    fun show(self): string = "a point and a line";
+}

@@ -1,0 +1,10 @@
+interface Named { fun name(self): string; }
+interface Label { fun name(self): string; }
+
+fun greet(n: Named) {}
+
+fun f(l: Label) {
+    greet(l);
+}
+
+fun main() {}

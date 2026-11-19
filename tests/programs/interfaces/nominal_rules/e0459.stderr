@@ -1,0 +1,9 @@
+error[E0459]: this `impl Display for …` is for `(geo.Point, lines.Line)`, built from several program types: write it in the module that declares `Display`, or wrap them in a struct of your own
+  --> geo.la:5:1
+  |
+5 | / impl Display for (Point, lines.Line) {
+6 | |     fun show(self): string = "a point and a line";
+7 | | }
+  | \-^
+
+For more about E0459, run `lughac explain E0459`.

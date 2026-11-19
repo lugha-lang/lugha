@@ -113,10 +113,10 @@ mod tests {
     }
 
     #[test]
-    fn recursion_through_a_box_and_shadowing() {
+    fn recursion_through_a_box_and_ref_is_a_built_in_name() {
         ok("struct Node { value: i64, next: Option<Ref<Node>> }
             fun main() { let n = Ref.new(Node { value: 1, next: None }); }");
-        ok("struct Ref { x: i64 }\nfun main() { let r = Ref { x: 1 }; let y = r.x; }");
+        assert_eq!(errors("struct Ref { x: i64 }\nfun main() {}")[0].0, "E0302");
         ok(
             "fun bump<T: Num>(r: Ref<T>) { r.update(fun(x: T): T = x + 1); }
             fun main() { bump(Ref.new(1)); bump(Ref.new(1.5)); }",

@@ -155,12 +155,6 @@ impl Checker {
             || super::fun_interfaces::is_fun_key(key)
     }
 
-    /// True for a prelude interface met only through `impl I for T`:
-    /// `Display`, `Error` and the collection literals' interfaces.
-    pub(super) fn prelude_nominal(&self, key: &str) -> bool {
-        module_of(key) == "$prelude" && self.nominal(key) && !is_operator(key)
-    }
-
     /// True for an interface a type meets only through `impl I for T`:
     /// `Display`, the collection literals' interfaces, and any but the
     /// prelude's and the derivable ones, which the compiler still finds by

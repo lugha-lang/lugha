@@ -1,11 +1,11 @@
-// The converting-between-interfaces example program.
+// The converting-between-interfaces example program: a `Pet` is a
+// `Named` because `Pet` extends it.
 
 interface Named {
     fun name(self): string;
 }
 
-interface Pet {
-    fun name(self): string;
+interface Pet: Named {
     fun sound(self): string;
 }
 
@@ -16,14 +16,16 @@ impl Named for Dog {
 }
 
 impl Pet for Dog {
-    fun name(self): string = self.called;
     fun sound(self): string = "woof";
 }
 
 struct Cat { called: string }
 
-impl Pet for Cat {
+impl Named for Cat {
     fun name(self): string = self.called;
+}
+
+impl Pet for Cat {
     fun sound(self): string = "meow";
 }
 

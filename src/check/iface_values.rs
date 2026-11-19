@@ -247,7 +247,7 @@ mod tests {
         );
         // Another interface converts when it declares every item, and
         // is E0422 when it doesn't (`check::upcast`).
-        let named = "interface Named { fun area(self): f64; fun grow(mut self, k: f64); }\n";
+        let named = "interface Named: Shape { }\n";
         ok(&format!(
             "{SHAPES}{named}fun f(n: Named) {{ let s: Shape = n; }}\nfun main() {{}}"
         ));
@@ -257,8 +257,11 @@ mod tests {
             [("E0422", "n".into())]
         );
         let src = format!("{SHAPES}{less}fun f(n: Less) {{ let s: Shape = n; }}\nfun main() {{}}");
-        let help = diagnostics(&src)[0].help.clone().expect("a help");
-        assert!(help.contains("no `grow`"), "{help}");
+        let message = diagnostics(&src)[0].message.clone();
+        assert!(
+            message.contains("only an interface that extends `Shape`"),
+            "{message}"
+        );
     }
 
     #[test]

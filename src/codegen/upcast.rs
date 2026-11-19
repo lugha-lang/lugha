@@ -222,9 +222,9 @@ mod tests {
     use crate::codegen::test_util::ir;
 
     const PETS: &str = "interface Named { fun name(self): string; }\n\
-        interface Pet { fun name(self): string; fun sound(self): string; }\n\
+        interface Pet: Named { fun sound(self): string; }\n\
         struct Dog { n: string }\n\
-        impl Pet for Dog { fun name(self): string = self.n; fun sound(self): string = \"woof\"; }\n\
+        impl Pet for Dog { fun sound(self): string = \"woof\"; }\n\
         impl Named for Dog { fun name(self): string = self.n; }\n";
 
     #[test]
@@ -251,7 +251,7 @@ mod tests {
         assert!(
             table.contains("@lugha_type_Dog")
                 && table.contains("@lugha_copy_3Dog_box")
-                && table.contains("@\"lugha_fn_Dog.name@Pet\""),
+                && table.contains("@\"lugha_fn_Dog.name@Named\""),
             "{table}"
         );
     }

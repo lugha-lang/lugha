@@ -28,7 +28,7 @@ impl Checker {
             let key = self.key(name);
             if is_intrinsic(name) {
                 self.report(errors::reserved(name, s.name.span));
-            } else if super::enums::BUILTIN_NAMES.contains(&name.as_str()) {
+            } else if super::enums::BUILTIN_NAMES.contains(&name.as_str()) && !self.in_prelude() {
                 self.report(errors::builtin_name(name, s.name.span));
             } else if let Some(first) = self.type_span(&key) {
                 self.report(errors::duplicate(name, s.name.span, first));

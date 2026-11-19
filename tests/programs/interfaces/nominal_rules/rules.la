@@ -1,0 +1,26 @@
+// An interface value converts along `extends`; a pair of the module's own
+// types is implemented here, where `Shape` is declared; `Map` is free.
+interface Named { fun name(self): string; }
+interface Pet: Named { fun sound(self): string; }
+interface Shape { fun area(self): f64; }
+
+struct Dog { n: string }
+impl Named for Dog { fun name(self): string = self.n; }
+impl Pet for Dog { fun sound(self): string = "woof"; }
+
+struct Square { s: f64 }
+struct Circle { r: f64 }
+impl Shape for (Square, Circle) {
+    fun area(self): f64 = self.0.s * self.0.s + 3.0 * self.1.r * self.1.r;
+}
+
+struct Map { tiles: i64[] }
+
+fun greet(n: Named): string = "hello {n.name()}";
+
+fun main(console: Console) {
+    let p: Pet = Dog { n: "rex" };
+    console.println(greet(p));
+    console.println((Square { s: 2.0 }, Circle { r: 1.0 }).area());
+    console.println(Map { tiles: [1, 2] }.tiles.len);
+}

@@ -110,3 +110,42 @@ fn a_qualified_call_needs_the_block() {
         ["E0415"]
     );
 }
+
+#[test]
+fn a_type_of_several_program_types_has_only_the_interfaces_module() {
+    use crate::check::modules::test_util::errors;
+    let shapes = (
+        "shapes.la",
+        "public interface Shape { fun area(self): f64; }\n",
+    );
+    let lines = ("lines.la", "public struct Line { n: f64 }\n");
+    let in_geo = |block: &str| {
+        let geo =
+            format!("import shapes;\nimport lines;\npublic struct Point {{ x: f64 }}\n{block}");
+        let main = "import geo;\nfun main() {}\n";
+        let found = errors(&[("main.la", main), ("geo.la", &geo), shapes, lines]);
+        found.iter().map(|(c, _)| *c).collect::<Vec<_>>()
+    };
+    // Built from `Point` and `Line`: only `Shape`'s module may write it.
+    let pair = "impl shapes.Shape for (Point, lines.Line) { fun area(self): f64 = 1.0; }\n";
+    assert_eq!(in_geo(pair), ["E0459"]);
+    let pairs = "impl shapes.Shape for (Point, lines.Line)[] { fun area(self): f64 = 1.0; }\n";
+    assert_eq!(in_geo(pairs), ["E0459"]);
+    // Built from one program type, twice or once: `Point`'s module may.
+    let twice = "impl shapes.Shape for (Point, Point) { fun area(self): f64 = 1.0; }\n";
+    assert!(in_geo(twice).is_empty());
+    let once = "impl shapes.Shape for Point[] { fun area(self): f64 = 1.0; }\n";
+    assert!(in_geo(once).is_empty());
+    // The interface's module may write the pair.
+    let found = errors(&[
+        (
+            "main.la",
+            "import geo;\nimport lines;\n\
+             public interface Shape { fun area(self): f64; }\n\
+             impl Shape for (geo.Point, lines.Line) { fun area(self): f64 = 1.0; }\nfun main() {}\n",
+        ),
+        ("geo.la", "public struct Point { x: f64 }\n"),
+        lines,
+    ]);
+    assert!(found.is_empty(), "{found:?}");
+}

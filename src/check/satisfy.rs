@@ -142,10 +142,10 @@ impl Checker {
         if self.builtin_implements(arg, interface) {
             return Vec::new();
         }
-        // An interface value meets a prelude interface met only by `impl`
-        // (`Error`) when it is its own or one it extends.
+        // An interface value meets a nominal interface when it is that one
+        // or one extending it, never by having its items' names.
         if let Type::Interface(key, _) = arg
-            && self.prelude_nominal(&interface.key)
+            && self.converts_by_ancestry(&interface.key)
         {
             return match self.extends_or_is(key, &interface.key) {
                 true => Vec::new(),

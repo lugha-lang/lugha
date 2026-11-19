@@ -209,12 +209,15 @@ mod tests {
     }
 
     #[test]
-    fn a_modules_own_iter_hides_the_preludes() {
-        ok(&format!(
-            "{LIB}interface Iter {{ fun size(self): i64; }}\n\
-             fun f<T: Iter>(x: T): i64 = x.size();\n\
-             fun main() {{ for x of (Count {{ n: 0 }}) {{}} }}"
-        ));
+    fn iter_is_a_built_in_name() {
+        // `for` uses the prelude's `Iter`, so no module declares its own.
+        assert_eq!(
+            errors(&format!(
+                "{LIB}interface Iter {{ fun size(self): i64; }}\nfun main() {{}}"
+            ))[0]
+                .0,
+            "E0302"
+        );
         ok(&format!(
             "{LIB}fun f(it: Iter<i64>) {{}}\nfun g<I: Iter<i64>>(it: I) {{}}\nfun main() {{}}"
         ));
