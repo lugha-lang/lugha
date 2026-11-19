@@ -1,0 +1,8 @@
+// A callback run during C's call reads C's memory through a view; one
+// run as a task later takes a copy.
+extern fun on_block(f: direct fun(f32[], data), user: data);
+extern fun on_fill(f: direct fun(Ref<f32[]>, data), user: data);
+extern fun on_late(f: spawned fun(View<u8>, data), user: data);
+extern fun on_now(f: realtime fun(i64[], data), user: data);
+
+fun main() {}

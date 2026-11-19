@@ -197,7 +197,10 @@ impl<'a> Pass<'a> {
             StmtKind::Assign {
                 op, place, value, ..
             } => {
-                if let ExprKind::Index(..) = place.kind {
+                // A view's element is C's memory: written in place.
+                if let ExprKind::Index(base, _, _) = &place.kind
+                    && !matches!(self.ty(base), Some(Type::View(..)))
+                {
                     self.report(
                         Breaks::Allocates,
                         "writing an array's element may copy the array first",
@@ -218,7 +221,7 @@ impl<'a> Pass<'a> {
                     }
                     ForIter::Array(e) => {
                         match self.ty(e) {
-                            Some(Type::Array(_)) => {}
+                            Some(Type::Array(_) | Type::String | Type::View(..)) => {}
                             Some(Type::Chan(..)) => self.report(
                                 Breaks::Waits,
                                 "a loop over a receiver waits for each value",
@@ -388,6 +391,9 @@ impl<'a> Pass<'a> {
             Type::Task(_) => Some((Breaks::Waits, "a task's methods wait or lock")),
             Type::Actor(..) => Some((Breaks::Waits, "an actor call waits for its mailbox")),
             Type::Param(_) => Some((Breaks::Unseen, "a method of a type parameter's value")),
+            Type::View(..) if name == "to_array" => {
+                Some((Breaks::Allocates, "it copies the view into a new array"))
+            }
             Type::Array(_) | Type::String if READS.contains(&name) => None,
             Type::Array(_) | Type::String => Some((
                 Breaks::Allocates,

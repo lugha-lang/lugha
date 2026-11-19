@@ -52,6 +52,10 @@ impl Checker {
     /// A prelude or std function is recorded even when it isn't generic, so
     /// it is compiled only if user code reaches it.
     pub(super) fn used(&mut self, call: &Expr, key: &str, args: &[Type]) {
+        if args.iter().any(super::views::holds_view) {
+            let what = "it can't be a type argument";
+            self.report(errors::view_escapes(what, call.span));
+        }
         let callee = Instance {
             key: key.to_string(),
             args: args.to_vec(),

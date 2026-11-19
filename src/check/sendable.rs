@@ -39,7 +39,7 @@ impl Checker {
     ) -> Option<Option<(String, Unmet)>> {
         let fail = || Some(Some((path.to_string(), Unmet::Missing(ty.clone()))));
         match ty {
-            Type::Ref(_) | Type::Fun(..) | Type::Task(_) => fail(),
+            Type::Ref(_) | Type::Fun(..) | Type::Task(_) | Type::View(..) => fail(),
             Type::Struct(key, _) if key == SCOPE => fail(),
             // Its C library allows it only on the thread that made it.
             Type::Handle(key) if self.pinned.contains(key) => fail(),

@@ -44,17 +44,6 @@ pub(in crate::check) fn callback_type(span: Span) -> Diagnostic {
     )
 }
 
-/// E0481: a `spawned` callback taking `Ref<T[]>`, which C reads back when
-/// its call returns, before the `spawned` callback has run.
-pub(in crate::check) fn spawned_ref(span: Span) -> Diagnostic {
-    Diagnostic::error(
-        "E0481",
-        "a `spawned` callback can't take `Ref<T[]>`: C reads the array back before the callback runs",
-        span,
-    )
-    .with_help("make the callback `direct` (`cb: direct fun(Ref<i64[]>, data)`), so it runs during C's call and its changes reach C")
-}
-
 /// E0482: a `realtime` callback taking a value C's call copies.
 pub(in crate::check) fn realtime_param(ty: &Type, span: Span) -> Diagnostic {
     Diagnostic::error(
@@ -62,7 +51,7 @@ pub(in crate::check) fn realtime_param(ty: &Type, span: Span) -> Diagnostic {
         format!("a `realtime` callback can't take `{ty}`: C's call copies it into a new Lugha value, an allocation"),
         span,
     )
-    .with_help("take numbers, `bool`, handles or extern structs, or make the callback `direct`")
+    .with_help("take numbers, `bool`, handles, extern structs or views, or make the callback `direct`")
 }
 
 /// E0479: a `blocking` extern's callback (or its `data` or `release`).

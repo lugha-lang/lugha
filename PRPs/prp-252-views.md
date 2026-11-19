@@ -1,6 +1,6 @@
 ## FEATURE: `View<T>` and `MutView<T>`: bounds-checked windows onto C's memory that never outlive the call they were given to, taken by `direct` and `realtime` callbacks and made from a `CPtr`, replacing callback `Ref<T[]>` and `c_read`/`c_write`; milestone 220.
 
-**Status:** proposed.
+**Status:** approved 2026-11-19.
 
 ## OBJECTIVE
 A real-time audio callback fills C's buffer in place, and C memory is read and written without copies:
@@ -64,12 +64,12 @@ error[E0483]: a view can't outlive the call it was given to
 1. **Two types:**
    - `View<T>` reads C's memory.
    - `MutView<T>` reads and writes it.
-   - Both are a pointer and a count of `T`s. `T` is an integer or float type (`u8` … `i64`, `f32`, `f64`); anything else is E0409.
+   - Both are a pointer and a count of `T`s. `T` is an integer or float type (`u8` … `i64`, `f32`, `f64`), or an extern struct (or union) holding only those, at any depth; anything else is E0409. (Widened during the build, the user's call: a WebAssembly host's `Val[]` buffers would otherwise have no way into a `direct` callback.)
    - Mutability is in the type, not a `mut` word, because function types and closures can't spell `mut`.
    - A `MutView<T>` is accepted where a `View<T>` is expected; the reverse is E0403.
 2. **What a view does** (none of it allocates, except `to_array`):
-   - `v.len`, a `u64`; `v[i]`, bounds-checked as arrays are (`index out of bounds`);
-   - `v[i] = x` and `v.copy_from(xs: T[])` on a `MutView` only (E0415 otherwise; `copy_from` panics unless the lengths match);
+   - `v.len`, an `i64` (as an array's, so `for i in 0..v.len` indexes it); `v[i]`, bounds-checked as arrays are (`index out of bounds`);
+   - `v[i] = x` (E0506 on a `View`) and `v.copy_from(xs: T[])` (E0415 on a `View`) on a `MutView` only ( `copy_from` panics unless the lengths match);
    - `for x of v`; `v.slice(from, to)`, a smaller view of the same kind, panicking out of range as a string's does;
    - `v.to_array()`, a copy, a `T[]`.
 3. **The escape rule (E0483):** a view can be a parameter (of a function, method or closure) or a `let` local, and can be read, indexed, written, sliced, iterated and passed as an argument. It can't be:
@@ -97,7 +97,7 @@ error[E0483]: a view can't outlive the call it was given to
 
 ## DECISIONS MADE IN DISCOVERY (mine, for review)
 1. **`View<T>` and `MutView<T>`,** two types, rather than `mut View<T>`: the `mut` word can't appear in function types or on closure parameters, and a callback's type must say whether C's memory is written.
-2. **Elements are integers and floats only,** as in C#, Swift and Java. Extern structs and `bool` can come later, if a library needs them.
+2. **Elements are integers, floats and extern structs holding only those,** so any bytes from C are a valid value (C#, Swift and Java draw the same line). `bool`, `char`, handles and `CPtr` stay out, inside structs too.
 3. **One escape rule, checked on types,** like C#'s `ref struct`, and no lifetimes. A view in a `let` local is allowed, so slices can be named.
 4. **A view may be held across a wait** (a `recv` inside `p.view`'s closure): the memory stays C's, and the program already vouches for how long it lives, as SQLite's "until the next step" shows the check can't. Callback views can't wait anyway (`direct` and `realtime` can't).
 5. **The length is in `T`s, never bytes or frames.** A binding multiplies frames by channels itself, and overflow panics.
@@ -120,21 +120,31 @@ error[E0483]: a view can't outlive the call it was given to
 - Lifetimes, or run-time liveness checks.
 
 ## TESTS
-- [ ] `tests/programs/c/views/` (errors; the rejected programs need no C):
-  - [ ] E0483 for each escape: return, a field, an `Option`, an array element, a capture, a channel send, a generic argument, an interface conversion, a result type;
-  - [ ] E0484: `T[]` in a `direct` callback, `Ref<T[]>` in any;
-  - [ ] E0409: `View<string>`, `View<bool>`; E0403: a `View` where a `MutView` is expected; E0415: writing through a `View`.
-- [ ] `tests/c_memory.rs` (with C):
-  - [ ] a `direct` callback reading a `View<i32>` and writing a `MutView<f64>`; C sees each write at once;
-  - [ ] `CPtr.view`: read, write, `slice`, `to_array`, `copy_from`, an empty view of `NULL`;
-  - [ ] panics: out of bounds, a null `CPtr` with `n > 0`, a misaligned `View<f32>`, `copy_from` of the wrong length.
-- [ ] `tests/rings.rs`: a `realtime` callback scaling a `MutView<f32>` in place on C's thread and reporting through a ring.
-- [ ] `--lib` unit tests: the escape rule (each case and the allowed ones: a `let`, a slice, passing down), `realtime` with views.
-- [ ] Targeted: `--lib`, `programs`, `c_memory`, `callbacks`, `rings`, `foreign_threads`, `scope_callbacks`, `explain`, `spec`, `comments`, `lsp_completion`.
+- [x] `tests/programs/c/views/` (errors; the rejected programs need no C):
+  - [x] E0483 for each escape: return, a field, an `Option`, an array element, a capture, a channel send, a generic argument, an interface conversion, a result type;
+  - [x] E0484: `T[]` in a `direct` callback, `Ref<T[]>` in any;
+  - [x] E0409: `View<string>`, `View<bool>`; E0403: a `View` where a `MutView` is expected; E0415: writing through a `View`.
+- [x] `tests/c_memory.rs` (with C):
+  - [x] a `direct` callback reading a `View<i32>` and writing a `MutView<f64>`; C sees each write at once;
+  - [x] `CPtr.view`: read, write, `slice`, `to_array`, `copy_from`, an empty view of `NULL`;
+  - [x] panics: out of bounds, a null `CPtr` with `n > 0`, a misaligned `View<f32>`, `copy_from` of the wrong length.
+- [x] `tests/rings.rs`: a `realtime` callback scaling a `MutView<f32>` in place on C's thread and reporting through a ring.
+- [x] `--lib` unit tests: the escape rule (each case and the allowed ones: a `let`, a slice, passing down), `realtime` with views.
+- [x] Targeted: `--lib`, `programs`, `c_memory`, `callbacks`, `rings`, `foreign_threads`, `scope_callbacks`, `explain`, `spec`, `comments`, `lsp_completion`.
 
 ## ACCEPTANCE
-- [ ] A `direct` or `realtime` callback reads and writes C's buffer in place, with no copy or allocation; a `spawned` one gets a copy.
-- [ ] A view can't leave the call it was given to, and the error says where it would go.
-- [ ] `c_read`, `c_write` and callback `Ref<T[]>` are gone, and every use in the tests is rewritten.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
-- [ ] Spec, the Draft, CHANGELOG, TODO, the error pages and the language server updated.
+- [x] A `direct` or `realtime` callback reads and writes C's buffer in place, with no copy or allocation; a `spawned` one gets a copy.
+- [x] A view can't leave the call it was given to, and the error says where it would go.
+- [x] `c_read`, `c_write` and callback `Ref<T[]>` are gone, and every use in the tests is rewritten.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
+- [x] Spec, the Draft, CHANGELOG, TODO, the error pages and the language server updated.
+
+## BUILD NOTES
+- **One change of scope, the user's call:** views of extern structs holding only integers and floats (`View<Val>`), since a WebAssembly host's buffers of structs would otherwise have had no way into a `direct` callback once `T[]` and `Ref<T[]>` went. Which structs qualify is checked once every struct is known (`views::plain_elements`), over the written types.
+- **The escape rule** follows the checker's existing rule for scope and task handles (E0472): a view nested in any value's type is reported where that value is made; fields, variants, results and captures where they are declared; type arguments where a generic function is used. A view isn't `Sendable`, so a channel of views gets E0475 as well.
+- **`MutView<T>` fits `View<T>`** in `Type::fits`: the two are one representation (`{ pointer, count }`), so nothing is converted.
+- **Smaller calls made on the way:** `v.len` is an `i64`, as an array's; writing through a `View` is E0506 (as writing into a string); a view's `slice` panics with `slice out of bounds of a view`, without the numbers; `p.view` counts as reaching outside the program, so no constant calls it.
+- **Completion** lists a view's methods and `len`, and `p.view(n, f)` through an entry in the built-in table that only completion reaches (calls are typed by `cptr_view`).
+- **`runtime/cmem.c` is gone** with `c_read` and `c_write`; nothing in std or the prelude used them.
+- **`src/check/callbacks.rs` was 559 lines before this PRP** (over the limit already); E0484's wording moved to `errors/views.rs`, leaving it at 547. A split is proposed in the report, not made.
+- **Research:** the survey was written from the agent's own knowledge, not fetched pages; the spec and docs cite no source.

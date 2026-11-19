@@ -144,6 +144,13 @@ impl<'ctx> Lowerer<'ctx> {
         value: &Expr,
     ) -> Result<(), CodegenError> {
         let plain = op == AssignOp::Assign;
+        // `v[i] = x` through a `MutView`: C's memory, no array to own.
+        if let crate::ast::ExprKind::Index(base, open, index) = &place.kind
+            && matches!(self.ty(base), Type::View(..))
+        {
+            let ops = (op, compound_op(op));
+            return self.view_assign(ops, (at, open.start), (base, index), value);
+        }
         // `m[k] = v` on a map: the `insert` the checker recorded at the place.
         if let crate::ast::ExprKind::Index(base, _, key) = &place.kind
             && plain

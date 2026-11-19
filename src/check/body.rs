@@ -29,6 +29,7 @@ impl Checker {
         // The prelude makes the root scope's handle.
         if let Some(written) = f.ret.as_ref().filter(|_| !self.in_prelude()) {
             self.returned_handle(&ret, written.span);
+            self.view_kept(&ret, "a function can't return one", written.span);
         }
         self.ret = ret.clone();
         self.scopes.clear();

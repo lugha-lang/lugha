@@ -76,13 +76,21 @@ impl Checker {
             }
             ExprKind::Field(base, _) | ExprKind::Index(base, _, _) => {
                 let base_ty = self.types[base.id.0 as usize].clone();
+                // A view's elements are C's memory, not the variable's.
+                if let (Some(Type::View(mutable, _)), ExprKind::Index(..)) = (&base_ty, &place.kind)
+                {
+                    if !mutable {
+                        self.report(errors::view_read_only(place.span));
+                    }
+                    return *mutable;
+                }
                 if base_ty == Some(Type::String) {
                     self.report(reword(errors::string_immutable(place.span)));
                     return false;
                 }
                 // `.len` reads a header; it is not a field you can assign.
                 if matches!(place.kind, ExprKind::Field(..))
-                    && matches!(base_ty, Some(Type::Array(_)))
+                    && matches!(base_ty, Some(Type::Array(_) | Type::View(..)))
                 {
                     self.report(reword(errors::not_place(place.span)));
                     return false;

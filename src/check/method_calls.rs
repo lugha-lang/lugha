@@ -200,10 +200,10 @@ impl Checker {
         if let Some(ty) = self.conversion_call(call, (receiver, name), args, expect) {
             return ty;
         }
+        if let Some(ty) = self.cptr_view(call, (receiver, name), args) {
+            return ty;
+        }
         if let Some(m) = builtin(receiver, &name.name) {
-            // Array built-ins grow the array in place: the `mut self` place rules
-            // apply, but the value is read before it changes, so E0508 doesn't apply. `s.slice(…)`
-            // only reads.
             let ret = self.arguments(call, &name.name, &m, args, (&[], expect));
             if m.receiver == Some(true)
                 && self.check_place_for(base, PlaceUse::Receiver(&name.name))

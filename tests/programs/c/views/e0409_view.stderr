@@ -1,0 +1,33 @@
+error[E0409]: a view can't hold `string`: C's bytes might not be a valid one
+  --> tests/programs/c/views/e0409_view.la:7:19
+  |
+7 | fun texts(v: View<string>) {}
+  |                   ^^^^^^
+  |
+  = help: a view's elements are integers, floats, or extern structs holding only those: `View<u8>`, `MutView<f32>`
+
+error[E0409]: a view can't hold `bool`: C's bytes might not be a valid one
+  --> tests/programs/c/views/e0409_view.la:8:19
+  |
+8 | fun flags(v: View<bool>) {}
+  |                   ^^^^
+  |
+  = help: a view's elements are integers, floats, or extern structs holding only those: `View<u8>`, `MutView<f32>`
+
+error[E0409]: a view can't hold `Flagged`: C's bytes might not be a valid one
+  --> tests/programs/c/views/e0409_view.la:9:16
+  |
+9 | fun flagged(v: View<Flagged>) {}
+  |                ^^^^^^^^^^^^^
+  |
+  = help: a view's elements are integers, floats, or extern structs holding only those: `View<u8>`, `MutView<f32>`
+
+error[E0409]: a view can't hold `Nested`: C's bytes might not be a valid one
+   --> tests/programs/c/views/e0409_view.la:10:15
+   |
+10 | fun nested(v: View<Nested>) {}
+   |               ^^^^^^^^^^^^
+   |
+   = help: a view's elements are integers, floats, or extern structs holding only those: `View<u8>`, `MutView<f32>`
+
+For more about E0409, run `lughac explain E0409`.

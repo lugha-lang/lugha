@@ -1,0 +1,21 @@
+error[E0506]: cannot assign through a `View`: it only reads C's memory
+  --> tests/programs/c/views/read_only.la:9:5
+  |
+9 |     v[0] = v[0] / 2.0;
+  |     ^^^^
+  |
+  = help: take a `MutView<T>` to write C's memory
+
+error[E0415]: no method `copy_from` on `View<f32>`
+   --> tests/programs/c/views/read_only.la:10:7
+   |
+10 |     v.copy_from([1.0]);
+   |       ^^^^^^^^^
+
+error[E0403]: expected MutView<f32>, found View<f32>
+   --> tests/programs/c/views/read_only.la:18:11
+   |
+18 |     scale(v);
+   |           ^ expected MutView<f32>
+
+For more about E0506, E0415 and E0403, run `lughac explain <code>`.

@@ -21,7 +21,7 @@ impl Checker {
         let ty = self.value(base, None);
         match (ty, field.name.as_str()) {
             (Type::Error | Type::Never, _) => Type::Error,
-            (Type::String | Type::Array(_), "len") => Type::I64,
+            (Type::String | Type::Array(_) | Type::View(..), "len") => Type::I64,
             // An actor's fields are private to it.
             (Type::Actor(key, _), _) => {
                 self.handle_field(&key, field);
@@ -69,7 +69,7 @@ impl Checker {
         match ty {
             Type::Error | Type::Never => Type::Error,
             Type::String => Type::U8,
-            Type::Array(element) => *element,
+            Type::Array(element) | Type::View(_, element) => *element,
             ty => {
                 self.report(errors::not_indexable(ty, base.span));
                 Type::Error

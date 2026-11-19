@@ -19,6 +19,7 @@ mod templates;
 mod test_fns;
 mod types;
 mod values;
+mod views;
 mod visibility;
 
 pub(super) use concurrency::*;
@@ -36,6 +37,7 @@ pub(super) use templates::*;
 pub(super) use test_fns::*;
 pub(super) use types::*;
 pub(super) use values::*;
+pub(super) use views::*;
 pub(super) use visibility::*;
 
 use crate::diagnostic::{Diagnostic, Label};

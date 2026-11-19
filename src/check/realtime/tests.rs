@@ -79,3 +79,25 @@ fn a_generic_helpers_type_parameter_method_cant_be_checked() {
     ));
     assert_eq!(found.len(), 1, "{found:?}");
 }
+
+#[test]
+fn a_view_is_read_written_and_sliced_in_place() {
+    ok(
+        "extern fun on_block(f: realtime fun(MutView<f32>, data), user: data);\n\
+        fun peak(v: View<f32>): f32 { let mut p: f32 = 0.0; for x of v { if x > p { p = x; } } p }\n\
+        fun main() { on_block(fun(out: MutView<f32>) {\n\
+            let head = out.slice(0, 2);\n\
+            out[0] = peak(head);\n\
+            out[1] += 1.0;\n\
+        }); }",
+    );
+}
+
+#[test]
+fn copying_a_view_out_allocates() {
+    let found = breaks(
+        "extern fun on_block(f: realtime fun(View<u8>, data), user: data);\n\
+         fun main() { on_block(fun(v: View<u8>) { let kept = v.to_array(); }); }",
+    );
+    assert_eq!(found.len(), 1, "{found:?}");
+}

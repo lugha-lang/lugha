@@ -135,6 +135,7 @@ mod unit;
 mod upcast;
 mod usefulness;
 mod variant_values;
+mod views;
 mod visibility;
 
 use std::collections::{HashMap, HashSet};
@@ -173,6 +174,7 @@ pub use slots::{indirect_slot, slot_names_variant};
 pub use templates::exact as template_exact;
 pub use tuples::elements as tuple_elements;
 pub use types::{End, Enums, FunOrigin, OwnFun, Structs, Type};
+pub use views::VIEW_OF;
 
 use crate::ast::{ExprId, Program};
 use crate::diagnostic::Diagnostic;

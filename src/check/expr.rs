@@ -56,6 +56,7 @@ impl Checker {
         self.state_outside(expr, &ty);
         self.record(expr, ty.clone());
         self.second_class(expr.span, &ty);
+        self.view_in_value(expr.span, &ty);
         // Where an interface is expected, the value becomes one.
         self.convert(expr, ty, expect)
     }
@@ -107,6 +108,7 @@ impl Checker {
                     let captured = self.note_capture(name);
                     if captured {
                         self.captured_handle(&local.ty, expr.span);
+                        self.view_kept(&local.ty, "a closure can't capture one", expr.span);
                     }
                     let mention = liveness::Mention {
                         decl: local.span,

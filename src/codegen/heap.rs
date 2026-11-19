@@ -103,7 +103,7 @@ impl<'ctx> Lowerer<'ctx> {
     }
 
     /// The address `header + index * size` bytes into `object`.
-    fn address_after(
+    pub(super) fn address_after(
         &self,
         object: PointerValue<'ctx>,
         header: u64,
@@ -223,6 +223,10 @@ impl<'ctx> Lowerer<'ctx> {
         if matches!(ty, Type::Struct(_, _)) {
             return self.struct_field(base, field);
         }
+        if let Type::View(..) = ty {
+            let (_, count) = self.view_of(base, &ty)?;
+            return Ok(count.into());
+        }
         let object = self.get(base, &ty)?.into_pointer_value();
         Ok(self.length(object).into())
     }
@@ -248,6 +252,9 @@ impl<'ctx> Lowerer<'ctx> {
         index: &Expr,
     ) -> Result<(PointerValue<'ctx>, Type), CodegenError> {
         let base_type = self.ty(base);
+        if let Type::View(..) = base_type {
+            return self.view_element(base, at, index);
+        }
         let element = match &base_type {
             Type::String => Type::U8,
             array => element_of(array),

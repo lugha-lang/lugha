@@ -59,6 +59,9 @@ pub enum Type {
     /// One end of a channel, `Sender<T>` or `Receiver<T>`: copies share
     /// one channel, whose two ends `Chan<T>.new(n)` makes.
     Chan(End, Box<Type>),
+    /// `View<T>` (`false`) or `MutView<T>` (`true`): C's memory, a pointer
+    /// and a count of `T`s, valid only during the call it was given to.
+    View(bool, Box<Type>),
     /// An actor's handle, by the actor's key and its type arguments:
     /// copies reach the same actor. Inside the actor its state is `Struct`.
     Actor(String, Vec<Type>),
@@ -163,6 +166,8 @@ impl Type {
             | (Type::Interface(k, a), Type::Interface(l, b)) => {
                 k == l && a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x.fits(y))
             }
+            // A `MutView` reads too: the same pointer and count.
+            (Type::View(true, a), Type::View(false, b)) => a.fits(b),
             _ => {
                 self == expected
                     || matches!(self, Type::Never | Type::Error)
@@ -325,6 +330,8 @@ impl fmt::Display for Type {
             Type::Chan(End::Send, inner) => return write!(f, "Sender<{inner}>"),
             Type::Chan(End::Recv, inner) => return write!(f, "Receiver<{inner}>"),
             Type::Chan(End::Ring, inner) => return write!(f, "RingSender<{inner}>"),
+            Type::View(false, inner) => return write!(f, "View<{inner}>"),
+            Type::View(true, inner) => return write!(f, "MutView<{inner}>"),
             Type::Unit => "()",
             Type::Never => "never",
             Type::Error => "{error}",

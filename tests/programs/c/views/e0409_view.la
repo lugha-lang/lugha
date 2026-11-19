@@ -1,0 +1,13 @@
+// C's bytes must be a valid element, whatever they are.
+extern type Window;
+extern struct Flagged { on: bool, n: i32 }
+extern struct Plain { a: i32, b: f64 }
+extern struct Nested { p: Plain, w: Window }
+
+fun texts(v: View<string>) {}
+fun flags(v: View<bool>) {}
+fun flagged(v: View<Flagged>) {}
+fun nested(v: View<Nested>) {}
+fun plain(v: View<Plain>) {}
+
+fun main() {}

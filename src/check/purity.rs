@@ -42,7 +42,6 @@ fn intrinsic_reason(name: &str) -> Option<&'static str> {
         "read_line" | "read_stdin_bytes" => "reads input",
         "args" => "reads the command line",
         "exit" => "ends the program",
-        "c_read" | "c_write" => "uses C memory",
         _ => return None,
     })
 }

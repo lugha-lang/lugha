@@ -70,6 +70,7 @@ impl Checker {
                 let payloads: Vec<Type> = v.payloads.iter().map(|t| self.resolve(t)).collect();
                 for (ty, written) in payloads.iter().zip(&v.payloads) {
                     self.stored_handle(ty, written.span);
+                    self.view_kept(ty, "a variant can't hold one", written.span);
                 }
                 if let Some(first) = e.variants[..i].iter().find(|w| w.name.name == v.name.name) {
                     let d = errors::duplicate_variant(

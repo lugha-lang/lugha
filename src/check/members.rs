@@ -215,7 +215,7 @@ pub fn value_members(partial: &Partial, ty: &Type) -> Vec<Member> {
             out.push(m);
         }
     }
-    if matches!(ty, Type::Array(_) | Type::String) {
+    if matches!(ty, Type::Array(_) | Type::String | Type::View(..)) {
         out.push(Member {
             name: "len".into(),
             kind: MemberKind::Field,
@@ -486,15 +486,14 @@ fun main() { }
             Type::Task(Box::new(Type::I64)),
             Type::Chan(End::Send, Box::new(Type::I64)),
             Type::Chan(End::Recv, Box::new(Type::I64)),
+            Type::View(true, Box::new(Type::I64)),
+            Type::Handle("CPtr".into()),
         ];
         for name in CANDIDATES.iter().chain(&MORE_CANDIDATES) {
             let resolves = receivers
                 .iter()
                 .any(|r| builtins::builtin(r, name).is_some());
-            assert!(
-                resolves,
-                "{name} resolves for no receiver: a stale candidate"
-            );
+            assert!(resolves, "{name}: no receiver has it, a stale candidate");
         }
     }
 }

@@ -31,44 +31,9 @@ impl<'ctx> Lowerer<'ctx> {
                 let none = self.construct_values(&option, "None", Vec::new());
                 Ok(Value::Val(self.choose(ok, some, none)))
             }
-            // C memory: copies through a `CPtr`.
-            "c_read" => {
-                let cptr = Type::Handle("CPtr".to_string());
-                let bytes = Type::Array(Box::new(Type::U8));
-                let p = self.get(&args[0], &cptr)?;
-                let offset = self.get(&args[1], &Type::U64)?;
-                let len = self.get(&args[2], &Type::U64)?;
-                let read = self.runtime(
-                    "lugha_rt_c_read",
-                    &[cptr, Type::U64, Type::U64],
-                    Some(bytes),
-                );
-                let site = self
-                    .builder
-                    .build_call(read, &[p.into(), offset.into(), len.into()], "c.read")
-                    .expect(POSITIONED);
-                match site.try_as_basic_value() {
-                    inkwell::values::ValueKind::Basic(v) => Ok(Value::Val(v)),
-                    inkwell::values::ValueKind::Instruction(_) => {
-                        unreachable!("c_read returns an array")
-                    }
-                }
-            }
             "flush" => {
                 let flush = self.runtime("lugha_rt_flush", &[], None);
                 self.builder.build_call(flush, &[], "").expect(POSITIONED);
-                Ok(Value::Void)
-            }
-            "c_write" => {
-                let cptr = Type::Handle("CPtr".to_string());
-                let bytes = Type::Array(Box::new(Type::U8));
-                let p = self.get(&args[0], &cptr)?;
-                let offset = self.get(&args[1], &Type::U64)?;
-                let data = self.get(&args[2], &bytes)?;
-                let write = self.runtime("lugha_rt_c_write", &[cptr, Type::U64, bytes], None);
-                self.builder
-                    .build_call(write, &[p.into(), offset.into(), data.into()], "")
-                    .expect(POSITIONED);
                 Ok(Value::Void)
             }
             "read_stdin_bytes" => Ok(Value::Val(self.call_runtime_value(

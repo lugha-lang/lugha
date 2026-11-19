@@ -343,12 +343,11 @@ impl<'ctx> Lowerer<'ctx> {
             .map(|(_, p)| p);
         let mut values: Vec<BasicMetadataValueEnum> = Vec::with_capacity(params.len());
         let mut plain = Vec::with_capacity(params.len());
-        let mut copies = Vec::new();
         for ty in params {
             let value = incoming.next().expect("C passes every parameter");
-            let value = if super::c_arrays::counted(ty).is_some() {
-                let count = incoming.next().expect("a counted array has its count");
-                self.counted_from_c(ty, (value, count), &mut copies)
+            let value = if super::c_arrays::counted(ty) {
+                let count = incoming.next().expect("a counted parameter has its count");
+                self.counted_from_c(ty, (value, count))
             } else if converts_from_c(ty) {
                 self.value_from_c(value, ty)
             } else {
@@ -377,7 +376,6 @@ impl<'ctx> Lowerer<'ctx> {
             self.c_entry_return(sig.as_ref(), sret, ret, None);
         } else {
             let result = self.call_pair(pair, (params, ret), values);
-            self.copy_back(copies);
             if pinned.is_some() {
                 let env = self
                     .builder

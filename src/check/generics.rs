@@ -222,6 +222,12 @@ impl Checker {
         {
             return Type::Ref(Box::new(self.resolve(&applied.args[0])));
         }
+        // The predeclared `View<T>` and `MutView<T>`.
+        if applied.module.is_none()
+            && let Some(ty) = self.resolve_view(&applied.name.name, &applied.args, span)
+        {
+            return ty;
+        }
         // The predeclared `Task<T>` and `Chan<T>`.
         if applied.module.is_none()
             && let Some(ty) = self.resolve_task_type(&applied.name.name, &applied.args, span)

@@ -94,7 +94,26 @@ const SIDE: &str = "#include <pthread.h>\n\
         }\n\
     }\n\
     void join_threads(void) { for (int i = 0; i < started; i++) pthread_join(threads[i], 0); started = 0; }\n\
-    long given_sum(void) { return __atomic_load_n(&sum, __ATOMIC_SEQ_CST); }\n";
+    long given_sum(void) { return __atomic_load_n(&sum, __ATOMIC_SEQ_CST); }\n\
+    typedef void (*bcb)(float *, size_t, void *);\n\
+    typedef struct { bcb g; void *u; long n; } bjob;\n\
+    static long buffered;\n\
+    static void *buffers(void *p) {\n\
+        bjob *j = p; float b[64]; long t = 0;\n\
+        for (long i = 0; i < j->n; i++) {\n\
+            for (int k = 0; k < 64; k++) b[k] = 2.0f;\n\
+            j->g(b, 64, j->u);\n\
+            for (int k = 0; k < 64; k++) t += (long)b[k];\n\
+        }\n\
+        __atomic_add_fetch(&buffered, t, __ATOMIC_SEQ_CST);\n\
+        free(j);\n\
+        return 0;\n\
+    }\n\
+    void on_buffers(bcb g, void *u, long n) {\n\
+        bjob *j = malloc(sizeof *j); j->g = g; j->u = u; j->n = n;\n\
+        pthread_create(&threads[started++], 0, buffers, j);\n\
+    }\n\
+    long buffered_total(void) { return __atomic_load_n(&buffered, __ATOMIC_SEQ_CST); }\n";
 
 const EXTERNS: &str = "import std.task;\n\
     extern fun on_threads(f: direct fun(i64, data): i64, u: data, threads: i64, n: i64, pause_ms: i64);\n\
@@ -179,4 +198,33 @@ fn a_realtime_callback_on_cs_thread_fills_a_ring() {
          }\n",
     )
     .runs(0, "true\ntrue\n", "");
+}
+
+#[test]
+fn a_realtime_callback_on_cs_thread_writes_cs_buffer_in_place() {
+    Case::new(
+        "extern fun on_buffers(f: realtime fun(MutView<f32>, data), u: data, n: i64);\n\
+         extern fun buffered_total(): i64;\n\
+         fun halve(out: MutView<f32>) { for i in 0..out.len { out[i] = out[i] * 0.5; } }\n\
+         fun main(console: Console) {\n\
+             let (tx, rx) = Ring<i64>.new(64);\n\
+             let r = scope s {\n\
+                 on_buffers(fun(out: MutView<f32>) {\n\
+                     halve(out);\n\
+                     match tx.try_send(out.len) { _ => {} }\n\
+                 }, 1000);\n\
+                 let reader = s.spawn(fun(): i64 {\n\
+                     let mut got = 0;\n\
+                     for n of rx { got += n; }\n\
+                     got\n\
+                 }());\n\
+                 join_threads();\n\
+                 tx.close();\n\
+                 console.println(buffered_total() == 64_000);\n\
+                 console.println(reader.join().unwrap() % 64 == 0);\n\
+             };\n\
+             console.println(r.is_ok());\n\
+         }\n",
+    )
+    .runs(0, "true\ntrue\ntrue\n", "");
 }

@@ -1,0 +1,89 @@
+error[E0483]: a view can't outlive the call it was given to: a field can't hold one
+  --> tests/programs/c/views/e0483.la:2:18
+  |
+2 | struct Kept { v: View<u8> }
+  |                  ^^^^^^^^
+  |
+  = help: a view is used, indexed, sliced and passed to functions during the call; copy what you need with `to_array()`
+
+error[E0483]: a view can't outlive the call it was given to: a variant can't hold one
+  --> tests/programs/c/views/e0483.la:3:17
+  |
+3 | enum Held { One(View<u8>) }
+  |                 ^^^^^^^^
+  |
+  = help: a view is used, indexed, sliced and passed to functions during the call; copy what you need with `to_array()`
+
+error[E0483]: a view can't outlive the call it was given to: a function can't return one
+  --> tests/programs/c/views/e0483.la:5:24
+  |
+5 | fun back(v: View<u8>): View<u8> = v;
+  |                        ^^^^^^^^
+  |
+  = help: a view is used, indexed, sliced and passed to functions during the call; copy what you need with `to_array()`
+
+error[E0483]: a view can't outlive the call it was given to: this `Option<View<u8>>` would hold one
+  --> tests/programs/c/views/e0483.la:9:16
+  |
+9 |     let some = Some(v);
+  |                ^^^^^^^
+  |
+  = help: a view is used, indexed, sliced and passed to functions during the call; copy what you need with `to_array()`
+
+error[E0483]: a view can't outlive the call it was given to: this `View<u8>[]` would hold one
+   --> tests/programs/c/views/e0483.la:10:15
+   |
+10 |     let all = [v];
+   |               ^^^
+   |
+   = help: a view is used, indexed, sliced and passed to functions during the call; copy what you need with `to_array()`
+
+error[E0483]: a view can't outlive the call it was given to: this `(View<u8>, i64)` would hold one
+   --> tests/programs/c/views/e0483.la:11:16
+   |
+11 |     let pair = (v, 1);
+   |                ^^^^^^
+   |
+   = help: a view is used, indexed, sliced and passed to functions during the call; copy what you need with `to_array()`
+
+error[E0483]: a view can't outlive the call it was given to: this `Ref<View<u8>>` would hold one
+   --> tests/programs/c/views/e0483.la:12:17
+   |
+12 |     let boxed = Ref.new(v);
+   |                 ^^^^^^^^^^
+   |
+   = help: a view is used, indexed, sliced and passed to functions during the call; copy what you need with `to_array()`
+
+error[E0483]: a view can't outlive the call it was given to: a closure can't capture one
+   --> tests/programs/c/views/e0483.la:13:25
+   |
+13 |     let f = fun(): u8 = v[0];
+   |                         ^
+   |
+   = help: a view is used, indexed, sliced and passed to functions during the call; copy what you need with `to_array()`
+
+error[E0483]: a view can't outlive the call it was given to: it can't be a type argument
+   --> tests/programs/c/views/e0483.la:14:16
+   |
+14 |     let same = id(v);
+   |                ^^^^^
+   |
+   = help: a view is used, indexed, sliced and passed to functions during the call; copy what you need with `to_array()`
+
+error[E0475]: a channel can't carry `View<u8>` to another task: it is a `View<u8>`, which isn't sendable
+   --> tests/programs/c/views/e0483.la:15:20
+   |
+15 |     let (tx, rx) = Chan<View<u8>>.new(1);
+   |                    ^^^^^^^^^^^^^^
+   |
+   = help: keep shared state in an actor, or send copies through a channel: a `Ref` belongs to one task
+
+error[E0483]: a view can't outlive the call it was given to: this `(Sender<View<u8>>, Receiver<View<u8>>)` would hold one
+   --> tests/programs/c/views/e0483.la:15:20
+   |
+15 |     let (tx, rx) = Chan<View<u8>>.new(1);
+   |                    ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: a view is used, indexed, sliced and passed to functions during the call; copy what you need with `to_array()`
+
+For more about E0483 and E0475, run `lughac explain <code>`.

@@ -1,0 +1,33 @@
+error[E0484]: a callback can't take `f32[]` here
+  --> tests/programs/c/views/e0484.la:3:35
+  |
+3 | extern fun on_block(f: direct fun(f32[], data), user: data);
+  |                                   ^^^^^
+  |
+  = help: take `View<f32>`, which reads C's memory in place; `to_array()` copies it to keep
+
+error[E0484]: a callback can't take `Ref<f32[]>` here
+  --> tests/programs/c/views/e0484.la:4:34
+  |
+4 | extern fun on_fill(f: direct fun(Ref<f32[]>, data), user: data);
+  |                                  ^^^^^^^^^^
+  |
+  = help: take `MutView<f32>`: it writes C's memory in place, during the call
+
+error[E0484]: a callback can't take `View<u8>` here
+  --> tests/programs/c/views/e0484.la:5:35
+  |
+5 | extern fun on_late(f: spawned fun(View<u8>, data), user: data);
+  |                                   ^^^^^^^^
+  |
+  = help: a `spawned` callback runs after C's call returns, when C's memory may be gone: take `u8[]`, a copy
+
+error[E0484]: a callback can't take `i64[]` here
+  --> tests/programs/c/views/e0484.la:6:35
+  |
+6 | extern fun on_now(f: realtime fun(i64[], data), user: data);
+  |                                   ^^^^^
+  |
+  = help: take `View<i64>`, which reads C's memory in place; `to_array()` copies it to keep
+
+For more about E0484, run `lughac explain E0484`.

@@ -8,13 +8,32 @@ use super::{End, Type};
 use crate::span::Span;
 
 /// `push`, `pop` and `clear` on an array, with a
-/// `mut self` receiver; `slice(from, to)` on a string, with `self`.
+/// `mut self` receiver; `slice(from, to)` on a string, with `self`. An
+/// array's built-ins follow the `mut self` place rules, but read the array
+/// before changing it, so E0508 doesn't apply to their arguments.
 pub(super) fn builtin(receiver: &Type, name: &str) -> Option<Method> {
     let (params, ret, mutable) = match (receiver, name) {
         (Type::Array(element), "push") => (vec![(**element).clone()], Type::Unit, true),
         (Type::Array(element), "pop") => (Vec::new(), Type::Option(element.clone()), true),
         (Type::Array(_), "clear") => (Vec::new(), Type::Unit, true),
         (Type::String, "slice") => (vec![Type::I64, Type::I64], Type::String, false),
+        // A view's parts and copies; only a `MutView` writes.
+        (Type::View(..), "slice") => (vec![Type::I64, Type::I64], receiver.clone(), false),
+        (Type::View(_, element), "to_array") => (Vec::new(), Type::Array(element.clone()), false),
+        (Type::View(true, element), "copy_from") => {
+            (vec![Type::Array(element.clone())], Type::Unit, false)
+        }
+        // How completion shows `p.view(n, f)`; calls are typed by
+        // `cptr_view`, which reads `T` and `R` from `f`.
+        (Type::Handle(k), "view") if k == "CPtr" => {
+            let (t, r) = (Type::Param("T".into()), Type::Param("R".into()));
+            let view = Type::View(false, Box::new(t));
+            (
+                vec![Type::U64, Type::Fun(vec![view], Box::new(r.clone()))],
+                r,
+                false,
+            )
+        }
         // A box's whole API besides `Ref.new`; plain `self`, since they
         // change the box, not the handle.
         (Type::Ref(inner), "get") => (Vec::new(), (**inner).clone(), false),

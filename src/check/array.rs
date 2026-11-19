@@ -147,7 +147,7 @@ impl Checker {
     /// element, and the body may not assign to `iter` (E0507).
     pub(super) fn for_of(&mut self, var: &Ident, iter: &Expr, body: &Block) {
         let element = match self.value(iter, None) {
-            Type::Array(element) => *element,
+            Type::Array(element) | Type::View(_, element) => *element,
             Type::String => Type::U8,
             Type::Error | Type::Never => Type::Error,
             // Anything with `next`: the loop works on a copy, unguarded.

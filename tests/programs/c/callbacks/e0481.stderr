@@ -1,9 +1,0 @@
-error[E0481]: a `spawned` callback can't take `Ref<T[]>`: C reads the array back before the callback runs
-  --> tests/programs/c/callbacks/e0481.la:3:38
-  |
-3 | extern fun each_block(f: spawned fun(Ref<i64[]>, data), user: data);
-  |                                      ^^^^^^^^^^
-  |
-  = help: make the callback `direct` (`cb: direct fun(Ref<i64[]>, data)`), so it runs during C's call and its changes reach C
-
-For more about E0481, run `lughac explain E0481`.

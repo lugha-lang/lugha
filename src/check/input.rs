@@ -10,7 +10,7 @@ use crate::format;
 
 /// The input and I/O intrinsics, checked here rather than in
 /// `check::call`, except `eprint`/`eprintln`, which follow `print`'s rules.
-pub(super) const INPUT: [&str; 14] = [
+pub(super) const INPUT: [&str; 12] = [
     "args",
     "parse_i64",
     "parse_u64",
@@ -22,9 +22,6 @@ pub(super) const INPUT: [&str; 14] = [
     // Bytes.
     "read_stdin_bytes",
     "string_from_utf8",
-    // C memory.
-    "c_read",
-    "c_write",
     "flush",
     // A `format` call reaching here has no literal template (E0432).
     "format",
@@ -57,7 +54,6 @@ impl Checker {
         }
         let result = |t: Type| Type::Enum(RESULT.to_string(), vec![t, Type::String]);
         let bytes = || Type::Array(Box::new(Type::U8));
-        let cptr = || Type::Handle(CPTR.to_string());
         let (params, ret) = match name {
             "args" => (Vec::new(), Type::Array(Box::new(Type::String))),
             "parse_i64" => (vec![Type::String], Type::Option(Box::new(Type::I64))),
@@ -66,9 +62,6 @@ impl Checker {
             "read_line" => (Vec::new(), Type::Option(Box::new(Type::String))),
             "read_stdin_bytes" => (Vec::new(), bytes()),
             "string_from_utf8" => (vec![bytes()], result(Type::String)),
-            // C memory: copies only, through a `CPtr`.
-            "c_read" => (vec![cptr(), Type::U64, Type::U64], bytes()),
-            "c_write" => (vec![cptr(), Type::U64, bytes()], Type::Unit),
             // Stdout's buffer, out now.
             "flush" => (Vec::new(), Type::Unit),
             // `exit` never returns.

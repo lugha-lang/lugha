@@ -144,7 +144,7 @@ fn a_union_cant_make_a_pointer() {
     let main = "extern union Forge { n: u64, p: CPtr }\n\
         fun main(console: Console) {\n\
             let f = Forge { n: 4096 };\n\
-            console.println(c_read(f.p, 0, 8).len);\n\
+            console.println(f.p.view(8, fun(v: View<u8>) = v.len));\n\
         }\n";
     Case::new(main, SIDE).rejects(&["E0437"]);
 }

@@ -141,13 +141,15 @@ impl<'ctx> Lowerer<'ctx> {
         let array_type = self.ty(iter);
         // A string loops over its bytes like a `u8[]`.
         let string = array_type == Type::String;
-        if !string && !matches!(array_type, Type::Array(_)) {
+        // A view loops over C's memory: its pointer and count, held by nothing.
+        let view = matches!(array_type, Type::View(..));
+        if !string && !view && !matches!(array_type, Type::Array(_)) {
             return self.iterator_loop(var, iter, body, in_place);
         }
-        let element = if string {
-            Type::U8
-        } else {
-            element_of(&array_type)
+        let element = match &array_type {
+            Type::String => Type::U8,
+            Type::View(_, element) => (**element).clone(),
+            _ => element_of(&array_type),
         };
         // `of mut` writes the array, so it is reached as a place and made
         // unique; its variable is re-reached through that place on every
@@ -157,7 +159,12 @@ impl<'ctx> Lowerer<'ctx> {
         } else {
             None
         };
+        let view = match view {
+            true => Some(self.view_of(iter, &array_type)?),
+            false => None,
+        };
         let array = match &plan {
+            _ if view.is_some() => view.expect("just checked").0,
             Some(plan) => {
                 let (slot, _, _) = self.place_commit(iter, plan);
                 // Before the loop, so labelled apart from the writes' tests.
@@ -171,7 +178,10 @@ impl<'ctx> Lowerer<'ctx> {
                 array.into_pointer_value()
             }
         };
-        let len = self.length(array);
+        let len = match view {
+            Some((_, count)) => count,
+            None => self.length(array),
+        };
         let i64_type = self.context.i64_type();
         let counter = self.entry_alloca(&Type::I64, "of.i");
         self.builder
@@ -225,6 +235,8 @@ impl<'ctx> Lowerer<'ctx> {
         } else {
             let address = if string {
                 self.byte_address(array, i)
+            } else if view.is_some() {
+                self.view_address(array, i, &element)
             } else {
                 self.element_address(array, i, self.element_size(&element))
             };

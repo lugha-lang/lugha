@@ -87,6 +87,8 @@ fn check_with(
     // Once every body is typed: what `realtime` callbacks reach.
     let realtime = super::realtime::check(units, &checker);
     checker.diagnostics.extend(realtime);
+    let elements = super::views::plain_elements(&checker);
+    checker.diagnostics.extend(elements);
     if checker
         .diagnostics
         .iter()

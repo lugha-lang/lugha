@@ -1,0 +1,21 @@
+// A `View` only reads; a `MutView` is accepted where one is expected.
+fun peak(v: View<f32>): f32 {
+    let mut p: f32 = 0.0;
+    for x of v { if x > p { p = x; } }
+    p
+}
+
+fun halve(v: View<f32>) {
+    v[0] = v[0] / 2.0;
+    v.copy_from([1.0]);
+}
+
+fun scale(v: MutView<f32>) {
+    v[0] = peak(v);
+}
+
+fun widen(v: View<f32>) {
+    scale(v);
+}
+
+fun main() {}

@@ -199,18 +199,21 @@ impl Checker {
                 }
                 None => {
                     let ty = self.resolve(p);
-                    // `T[]` and `Ref<T[]>`: C's pointer and count.
+                    // A view or `T[]`: C's pointer and count. A view's
+                    // elements were checked when it was resolved.
                     let counted = match &ty {
-                        Type::Array(e) => Some(&**e),
-                        Type::Ref(inner) => match &**inner {
-                            Type::Array(e) => Some(&**e),
-                            _ => None,
-                        },
-                        _ => None,
+                        Type::View(..) => true,
+                        Type::Array(e) => crosses_into_callback(e, &self.c_structs),
+                        _ => false,
                     };
-                    let element_ok =
-                        counted.is_some_and(|e| crosses_into_callback(e, &self.c_structs));
-                    if !element_ok && !crosses_from_c(&ty, &self.c_structs) {
+                    // An array of what can't cross is E0409, not a view.
+                    let buffer = match &ty {
+                        Type::Array(_) if !counted => None,
+                        _ => errors::callback_buffer(&ty, spawned, p.span),
+                    };
+                    if let Some(d) = buffer {
+                        self.report(d);
+                    } else if !counted && !crosses_from_c(&ty, &self.c_structs) {
                         self.report(errors::callback_type(p.span));
                     }
                     types.push(ty);
@@ -246,13 +249,12 @@ impl Checker {
             };
             self.report(errors::callback_decl(message, whole.span));
         }
-        // C's call copies a string or an array into a new Lugha value.
+        // C's call copies a string into a new Lugha value.
         if realtime {
             for (p, ty) in params.iter().filter(|p| marker(p).is_none()).zip(&types) {
                 let copied = match ty {
-                    Type::String | Type::Array(_) => true,
+                    Type::String => true,
                     Type::Option(inner) => **inner == Type::String,
-                    Type::Ref(inner) => matches!(**inner, Type::Array(_)),
                     _ => false,
                 };
                 if copied {
@@ -261,15 +263,6 @@ impl Checker {
             }
         }
         let runs_as_task = spawned && data.is_some() && ret == Type::Unit;
-        // C reads a `Ref<T[]>` back when the call returns, before a
-        // spawned callback has run.
-        if runs_as_task {
-            for (p, ty) in params.iter().filter(|p| marker(p).is_none()).zip(&types) {
-                if matches!(ty, Type::Ref(inner) if matches!(**inner, Type::Array(_))) {
-                    self.report(errors::spawned_ref(p.span));
-                }
-            }
-        }
         CParam::Callback {
             params: types,
             ret,
@@ -391,7 +384,7 @@ mod tests {
         let value = format!("{externs}fun g(f: fun(i64)) {{ on(f); }}\nfun main() {{}}");
         assert_eq!(code(&value), Some("E0475"));
         let array = "extern fun each(f: spawned fun(Ref<i64[]>, data), user: data);\nfun main() {}";
-        assert_eq!(code(array), Some("E0481"));
+        assert_eq!(code(array), Some("E0484"));
     }
 
     #[test]

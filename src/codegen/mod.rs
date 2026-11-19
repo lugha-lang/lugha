@@ -106,6 +106,7 @@ mod tuples;
 mod unwind;
 mod upcast;
 mod value;
+mod views;
 
 pub use self::emit::{
     Cpu, Instruments, OptLevel, emit_ir, emit_ir_for, emit_ir_modules, emit_ir_with, emit_object,

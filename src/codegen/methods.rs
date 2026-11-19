@@ -272,6 +272,18 @@ impl<'ctx> Lowerer<'ctx> {
         if let Type::Array(_) = base_type {
             return self.array_builtin(base, &name.name, args).map(Some);
         }
+        if let Type::View(..) = base_type {
+            return self
+                .view_method(base, &name.name, args, name.span.start)
+                .map(Some);
+        }
+        if self
+            .callees
+            .get(&call.id)
+            .is_some_and(|k| k == crate::check::VIEW_OF)
+        {
+            return self.cptr_view(base, args, name.span.start).map(Some);
+        }
         // `r.get()` and the rest of a box's methods.
         if let Type::Ref(_) = base_type {
             return self.ref_method(base, &name.name, args).map(Some);

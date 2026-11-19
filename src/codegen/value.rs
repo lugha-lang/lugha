@@ -66,6 +66,13 @@ pub(super) fn llvm_type<'ctx>(context: &'ctx Context, ty: &Type) -> BasicTypeEnu
             let ptr = context.ptr_type(AddressSpace::default());
             context.struct_type(&[ptr.into(), ptr.into()], false).into()
         }
+        // `{ elements, count }`: C's pointer and how many `T`s it has.
+        Type::View(..) => {
+            let ptr = context.ptr_type(AddressSpace::default());
+            context
+                .struct_type(&[ptr.into(), context.i64_type().into()], false)
+                .into()
+        }
         // `()` is the empty struct `{}`: no bytes, one value.
         Type::Unit => context.struct_type(&[], false).into(),
         Type::Never | Type::Error => unreachable!("checked: {ty} is not a value type"),
