@@ -1,0 +1,31 @@
+// A ring's receiver is an ordinary `Receiver`: `select` reads it beside a
+// channel's, and a task waiting on an empty ring wakes when one arrives.
+import std.task;
+
+fun later(tx: RingSender<i64>) {
+    task.sleep(5);
+    match tx.try_send(7) { .Sent => {}, _ => panic("no room") }
+}
+
+fun main(console: Console) {
+    let (ctx, crx) = Chan<i64>.new(1);
+    let (rtx, rrx) = Ring<i64>.new(4);
+    ctx.send(1);
+    match rtx.try_send(2) { .Sent => {}, _ => panic("no room") }
+    let mut got = 0;
+    for _ in 0..2 {
+        select {
+            v = crx.recv() => { got += v.unwrap(); },
+            v = rrx.recv() => { got += v.unwrap() * 10; },
+        }
+    }
+    console.println(got);
+    let r = scope s {
+        s.spawn(later(rtx));
+        select {
+            v = rrx.recv() => console.println("ring {v.unwrap()}"),
+            after(1000) => console.println("timed out"),
+        }
+    };
+    r.unwrap();
+}

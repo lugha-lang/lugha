@@ -185,11 +185,11 @@ impl<'ctx> Lowerer<'ctx> {
             return self.ref_new(call, args).map(|v| Some(Value::Val(v)));
         }
         // `Chan<T>.new(n)` and `Chan<T>.unbounded()`.
-        if self
-            .callees
-            .get(&call.id)
-            .is_some_and(|k| k == crate::check::CHAN_NEW || k == crate::check::CHAN_UNBOUNDED)
-        {
+        if self.callees.get(&call.id).is_some_and(|k| {
+            k == crate::check::CHAN_NEW
+                || k == crate::check::CHAN_UNBOUNDED
+                || k == crate::check::RING_NEW
+        }) {
             return self.chan_new(call, args).map(|v| Some(Value::Val(v)));
         }
         let base_type = self.ty(base);

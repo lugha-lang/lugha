@@ -166,6 +166,32 @@ static void feeder_all(void *code, void *env, void *result) {
     (void)env;
 }
 
+enum { RING_SENT = 100000 };
+static void *the_ring;
+
+/* A thread of C's own: every value into the ring, retrying when full. */
+static void *ring_writer(void *unused) {
+    (void)unused;
+    for (int64_t v = 0; v < RING_SENT; v++) {
+        while (lugha_rt_ring_try_send(the_ring, &v) == 1) {
+        }
+    }
+    return NULL;
+}
+
+/* Reads every value sent: how many came, in order or not. */
+static void ring_reader(void *code, void *env, void *result) {
+    int64_t v = 0, got = 0, last = -1, ordered = 1;
+    while (got < RING_SENT && lugha_rt_chan_recv(the_ring, &v)) {
+        ordered &= v > last;
+        last = v;
+        got++;
+    }
+    *(int64_t *)result = got * 2 + ordered;
+    (void)code;
+    (void)env;
+}
+
 static void *targets[1000];
 
 /* A task joined twice: gives its index. */
@@ -266,6 +292,20 @@ int main(int argc, char **argv) {
         join(tasks[PINNED + 1]);
         join(tasks[PINNED + 2]);
         printf("%ld off their worker\n", (long)off_worker);
+    } else if (strcmp(c, "ring") == 0) {
+        the_ring = lugha_rt_ring_new(64, 8, "h", 1, 1);
+        lugha_rt_rc_mark(the_ring);
+        void *reader = go(ring_reader, NULL);
+        void *busy = go(hog, NULL);
+        pthread_t writer;
+        pthread_create(&writer, NULL, ring_writer, NULL);
+        // Joined as a task first: this worker mustn't block in C meanwhile.
+        int64_t r = join(reader);
+        pthread_join(writer, NULL);
+        lugha_rt_chan_close(the_ring, "h", 1, 1);
+        __atomic_store_n(&hog_stop, 1, __ATOMIC_RELEASE);
+        join(busy);
+        printf("%ld received, in order %ld\n", (long)(r / 2), (long)(r % 2));
     } else if (strcmp(c, "park") == 0) {
         int64_t sum = 0, v = 0;
         for (int i = 0; i < 300; i++) {
@@ -291,6 +331,13 @@ fn run(case: &str) -> String {
 #[test]
 fn pinned_tasks_woken_from_any_worker_run_only_on_their_own() {
     assert_eq!(run("pinned"), "0 off their worker\n");
+}
+
+/// A ring written by a thread of C's own, retrying when full, and read by
+/// a task on four workers beside a busy one: every value once, in order.
+#[test]
+fn a_ring_written_from_cs_thread_delivers_every_value_in_order() {
+    assert_eq!(run("ring"), "100000 received, in order 1\n");
 }
 
 #[test]

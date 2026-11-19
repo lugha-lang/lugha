@@ -1,5 +1,5 @@
 /*
- * chans.c — part of lugha_rt.c: channels and `select`.
+ * chans.c — part of lugha_rt.c: channels (`select` is select.c).
  *
  * `Chan<T>.new(n)` holds up to `n` values in a ring; with 0 a send waits
  * for a receiver. `Chan<T>.unbounded()` grows its ring as it fills. Both
@@ -53,7 +53,14 @@ typedef struct {
     RcVisit elem_visit;
     /* Its lock (rt_lock.c's kind). */
     uint32_t lock;
+    /* A ring's writing side (rings.c), else NULL. */
+    struct Ring *ring;
 } LughaChan;
+
+static void ring_visit(LughaChan *c, int64_t op);
+static int ring_recv_locked(LughaChan *c, void *out);
+static bool ring_want(LughaChan *c);
+static void ring_deliver_locked(LughaChan *c);
 
 /* One `select` arm handed over by generated code. */
 typedef struct {
@@ -74,6 +81,10 @@ static void chan_panic(const char *what, const char *file, int64_t line, int64_t
 static void rc_chan_visit(void *object, int64_t op) {
     // Nobody else holds it any more, nor waits on it: no lock.
     LughaChan *c = object;
+    if (c->ring != NULL) {
+        ring_visit(c, op);
+        return;
+    }
     if (c->elem_visit != NULL) {
         for (int64_t i = 0; i < c->len; i++) {
             c->elem_visit(c->buf + ((c->head + i) % c->cap) * c->elem, op);
@@ -202,6 +213,9 @@ static int try_send_locked(LughaChan *c, const void *value) {
  * (a claimed sender's value taking the freed place), else from a claimed
  * sender; CLOSED once closed and empty, `out` zeroed. */
 static int try_recv_locked(LughaChan *c, void *out) {
+    if (c->ring != NULL) {
+        return ring_recv_locked(c, out);
+    }
     int64_t state;
     if (c->len > 0) {
         memcpy(out, c->buf + c->head * c->elem, (size_t)c->elem);
@@ -279,6 +293,10 @@ int32_t lugha_rt_chan_recv(LughaChan *c, void *out) {
     lugha_rt_cancel_point();
     lock_take(&c->lock);
     int done = try_recv_locked(c, out);
+    // About to wait on a ring: its writer will wake this reader.
+    if (done == BLOCKED && c->ring != NULL && ring_want(c)) {
+        done = try_recv_locked(c, out);
+    }
     if (done != BLOCKED) {
         lock_give(&c->lock);
         return done == MOVED;
@@ -331,7 +349,11 @@ void lugha_rt_chan_close(LughaChan *c, const char *file, int64_t line, int64_t c
         lock_give(&c->lock);
         chan_panic("close of a closed channel", file, line, col);
     }
-    c->closed = 1;
+    // A ring's waiting readers get what is left first.
+    if (c->ring != NULL) {
+        ring_deliver_locked(c);
+    }
+    __atomic_store_n(&c->closed, 1, __ATOMIC_RELEASE);
     int64_t state;
     for (Waiter *r = claim_first(&c->recvq, &state); r != NULL;
          r = claim_first(&c->recvq, &state)) {
@@ -345,140 +367,4 @@ void lugha_rt_chan_close(LughaChan *c, const char *file, int64_t line, int64_t c
         claimed_ready(s->fiber, state);
     }
     lock_give(&c->lock);
-}
-
-static uint64_t pick(uint64_t n) {
-    if (sched_mode == MODE_SHUFFLE) {
-        return shuffle_next() % n;
-    }
-    Worker *w = worker;
-    w->pick_state ^= w->pick_state << 13;
-    w->pick_state ^= w->pick_state >> 7;
-    w->pick_state ^= w->pick_state << 17;
-    return w->pick_state % n;
-}
-
-/* The locks of `cases`' channels, each once, in address order (the order
- * every `select` takes them in): how many. */
-static int select_locks(const LughaCase *cases, int64_t n, uint32_t **locks) {
-    int count = 0;
-    for (int64_t i = 0; i < n; i++) {
-        uint32_t *lock = &cases[i].chan->lock;
-        int at = count;
-        while (at > 0 && locks[at - 1] > lock) {
-            at--;
-        }
-        if (at > 0 && locks[at - 1] == lock) {
-            continue;
-        }
-        memmove(locks + at + 1, locks + at, (size_t)(count - at) * sizeof *locks);
-        locks[at] = lock;
-        count++;
-    }
-    return count;
-}
-
-/* True if `c`'s case looks ready under its lock: a waiter on the other
- * side, room or a value, or closed. A waiter may still be lost to another
- * claim. */
-static bool looks_ready(const LughaCase *k) {
-    const LughaChan *c = k->chan;
-    if (c->closed) {
-        return true;
-    }
-    if (k->kind == 0 ? c->len > 0 : (c->unbounded || c->len < c->cap)) {
-        return true;
-    }
-    for (const Waiter *w = k->kind == 0 ? c->sendq : c->recvq; w != NULL; w = w->next) {
-        if (is_waiting(w->fiber)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-static void unlock_all(uint32_t **locks, int n) {
-    for (int i = 0; i < n; i++) {
-        lock_give(locks[i]);
-    }
-}
-
-/* `select`: the case that ran, DEFAULT_ARM (-1) for `default`, or
- * TIMED_OUT (-2) for `after`. `timeout_ms` < 0 means no `after`. A ready
- * case is picked at random; otherwise the thread waits on all of them. */
-int64_t lugha_rt_task_select(LughaCase *cases, int64_t n, int64_t timeout_ms, int32_t has_default,
-                             const char *file, int64_t line, int64_t col) {
-    ensure_started();
-    lugha_rt_cancel_point();
-    if (n > 64) {
-        die("panic: a select with more than 64 arms\n");
-    }
-    uint32_t *locks[64];
-    int nlocks = select_locks(cases, n, locks);
-    for (int i = 0; i < nlocks; i++) {
-        lock_take(locks[i]);
-    }
-    // A ready case at random, by one draw among those that look ready, as
-    // a shuffled run's seed expects; one whose waiter another thread took
-    // meanwhile is passed over, and the rest tried in turn.
-    int64_t ready = 0;
-    for (int64_t i = 0; i < n; i++) {
-        ready += looks_ready(&cases[i]);
-    }
-    int64_t start = 0;
-    if (ready > 0) {
-        int64_t chosen = (int64_t)pick((uint64_t)ready);
-        for (int64_t i = 0; i < n; i++) {
-            if (looks_ready(&cases[i]) && chosen-- == 0) {
-                start = i;
-                break;
-            }
-        }
-    }
-    for (int64_t k = 0; ready > 0 && k < n; k++) {
-        int64_t i = (start + k) % n;
-        LughaChan *c = cases[i].chan;
-        int done = cases[i].kind == 0 ? try_recv_locked(c, cases[i].data)
-                                      : try_send_locked(c, cases[i].data);
-        if (done == BLOCKED) {
-            continue;
-        }
-        unlock_all(locks, nlocks);
-        if (cases[i].kind == 1 && done == CLOSED) {
-            chan_panic("send on a closed channel", file, line, col);
-        }
-        cases[i].ok = done == MOVED;
-        return i;
-    }
-    if (has_default) {
-        unlock_all(locks, nlocks);
-        return DEFAULT_ARM;
-    }
-    Waiter waiters[64];
-    uint32_t gen = next_wait_gen(current);
-    for (int64_t i = 0; i < n; i++) {
-        cases[i].ok = cases[i].kind == 0 ? 0 : 1;
-        waiters[i] = (Waiter){.fiber = current, .gen = gen, .data = cases[i].data,
-                              .ok = &cases[i].ok, .index = i};
-        enqueue(cases[i].kind == 0 ? &cases[i].chan->recvq : &cases[i].chan->sendq, &waiters[i]);
-    }
-    if (timeout_ms >= 0) {
-        int64_t ns = timeout_ms > INT64_MAX / 4000000 ? INT64_MAX / 4 : timeout_ms * 1000000;
-        add_sleeper(current, now_ns() + ns);
-    }
-    current->cancellable = true;
-    int64_t fired = waiting(n > 0 ? cases[0].chan : NULL, WAIT_SELECT, locks, nlocks);
-    for (int i = 0; i < nlocks; i++) {
-        lock_take(locks[i]);
-    }
-    for (int64_t i = 0; i < n; i++) {
-        unqueue(&cases[i].chan->recvq, current);
-        unqueue(&cases[i].chan->sendq, current);
-    }
-    unlock_all(locks, nlocks);
-    woke(fired);
-    if (fired >= 0 && cases[fired].kind == 1 && !cases[fired].ok) {
-        chan_panic("send on a closed channel", file, line, col);
-    }
-    return fired;
 }

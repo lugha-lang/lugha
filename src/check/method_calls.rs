@@ -51,17 +51,19 @@ impl Checker {
             let written = written.map(|t| Expect::of(Type::Ref(Box::new(t))));
             return Some(self.ref_new(call, name, args, written.as_ref().or(expect)));
         }
-        // `Chan<T>.new(n)` and `Chan<T>.unbounded()`, unless the module has a `Chan`.
+        // `Chan<T>.new(n)`, `Chan<T>.unbounded()` and `Ring<T>.new(n)`,
+        // unless the module has a `Chan` or `Ring`.
         if let ExprKind::Name(t) = &base.kind
-            && t == "Chan"
+            && (t == "Chan" || t == "Ring")
             && self.predeclared_task(t)
         {
             self.record(base, Type::Unit);
             self.record(callee, Type::Unit);
             // `Chan<Job>.new(4)`: the written type is what it carries.
-            let written = self.written_one(base, "Chan");
+            let written = self.written_one(base, t);
             self.carried(written.as_ref(), base.span);
-            return Some(self.chan_new(call, name, args, written, expect));
+            let ring = t == "Ring";
+            return Some(self.chan_new(call, name, args, (written, ring), expect));
         }
         // `Shape.area(c)`: an interface's item, called on its first argument.
         if let Some(key) = self.interface_named_by(base)

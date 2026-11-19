@@ -1,0 +1,18 @@
+// A ring: `try_send` until full (the value comes back), receiving in
+// order, closing: what is left, then `None`.
+fun main(console: Console) {
+    let (tx, rx) = Ring<i64>.new(3);
+    for i in 0..5 {
+        match tx.try_send(i) {
+            .Sent => console.println("sent {i}"),
+            .Full(v) => console.println("full {v}"),
+            .Closed(v) => console.println("closed {v}"),
+        }
+    }
+    console.println(rx.recv().debug());
+    console.println(rx.try_recv().debug());
+    tx.close();
+    match tx.try_send(9) { .Closed(v) => console.println("closed {v}"), _ => {} }
+    for x of rx { console.println("left {x}"); }
+    console.println(rx.recv().debug());
+}

@@ -26,7 +26,7 @@ pub use self::inputs::{Plan, PlanError};
 
 /// The runtime's source files, in the order they are joined: the core first,
 /// since it holds every `#include`, then the fragments that rely on it.
-pub const RUNTIME_PARTS: [(&str, &str); 43] = [
+pub const RUNTIME_PARTS: [(&str, &str); 45] = [
     ("lugha_rt.c", include_str!("../../runtime/lugha_rt.c")),
     ("rt_lock.c", include_str!("../../runtime/rt_lock.c")),
     ("stack.c", include_str!("../../runtime/stack.c")),
@@ -64,6 +64,8 @@ pub const RUNTIME_PARTS: [(&str, &str); 43] = [
     ("scope_time.c", include_str!("../../runtime/scope_time.c")),
     ("cells.c", include_str!("../../runtime/cells.c")),
     ("chans.c", include_str!("../../runtime/chans.c")),
+    ("rings.c", include_str!("../../runtime/rings.c")),
+    ("select.c", include_str!("../../runtime/select.c")),
     ("actors.c", include_str!("../../runtime/actors.c")),
     ("unwind.c", include_str!("../../runtime/unwind.c")),
     ("jobs.c", include_str!("../../runtime/jobs.c")),
@@ -76,7 +78,7 @@ pub const RUNTIME_PARTS: [(&str, &str); 43] = [
 ];
 
 /// Every runtime function codegen may call; `lugha_rt.c` defines them all.
-pub const RUNTIME_SYMBOLS: [&str; 160] = [
+pub const RUNTIME_SYMBOLS: [&str; 162] = [
     "lugha_rt_init",
     "lugha_rt_task_go",
     "lugha_rt_print_begin",
@@ -151,6 +153,8 @@ pub const RUNTIME_SYMBOLS: [&str; 160] = [
     "lugha_rt_task_preempt",
     "lugha_rt_task_select",
     "lugha_rt_chan_new",
+    "lugha_rt_ring_new",
+    "lugha_rt_ring_try_send",
     "lugha_rt_chan_send",
     "lugha_rt_chan_recv",
     "lugha_rt_chan_try_recv",
@@ -276,6 +280,8 @@ pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/scope_time.c"),
     include_str!("../../runtime/cells.c"),
     include_str!("../../runtime/chans.c"),
+    include_str!("../../runtime/rings.c"),
+    include_str!("../../runtime/select.c"),
     include_str!("../../runtime/actors.c"),
     include_str!("../../runtime/unwind.c"),
     include_str!("../../runtime/jobs.c"),

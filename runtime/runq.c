@@ -210,6 +210,9 @@ static void wake_idle_worker(void);
  * nonzero, C may still make a task ready, so no deadlock is declared. */
 static int64_t foreign_live;
 static int64_t callbacks_live;
+/* Rings readers wait on (rings.c): their writers wake them through the
+ * poller, so the poll counts as outstanding. */
+static int64_t rings_waiting;
 
 /* True while C may still call back. */
 static bool c_may_call(void) {

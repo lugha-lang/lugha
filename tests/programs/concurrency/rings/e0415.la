@@ -1,0 +1,7 @@
+// A ring's writing end never waits: no `send`, and no receiving.
+fun main() {
+    let (tx, rx) = Ring<i64>.new(4);
+    tx.send(1);
+    let v = tx.recv();
+    let w = Ring<i64>.unbounded();
+}

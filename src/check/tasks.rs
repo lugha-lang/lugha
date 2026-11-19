@@ -16,8 +16,10 @@ impl Checker {
     /// `Chan` (the maker), `Sender` or `Receiver`: no `name` declared in
     /// this module, and not a local.
     pub(super) fn predeclared_task(&self, name: &str) -> bool {
-        matches!(name, "Task" | "Chan" | "Sender" | "Receiver")
-            && self.local(name).is_none()
+        matches!(
+            name,
+            "Task" | "Chan" | "Ring" | "Sender" | "Receiver" | "RingSender"
+        ) && self.local(name).is_none()
             && self.named_type(&self.key(name)).is_none()
     }
 
@@ -37,18 +39,18 @@ impl Checker {
         Some(match (name, args.as_slice()) {
             ("Task", []) => Type::Task(Box::new(Type::Unit)),
             ("Task", [t]) => Type::Task(Box::new(t.clone())),
-            ("Chan", _) => {
+            ("Chan" | "Ring", _) => {
                 self.report(errors::unknown_type(name, span));
                 Type::Error
             }
-            ("Sender" | "Receiver", [t]) => {
+            ("Sender" | "Receiver" | "RingSender", [t]) => {
                 // A channel carries its elements to other tasks.
                 let head = format!("a channel can't carry `{t}` to another task");
                 self.must_send(t, &head, span);
-                let end = if name == "Sender" {
-                    End::Send
-                } else {
-                    End::Recv
+                let end = match name {
+                    "Sender" => End::Send,
+                    "RingSender" => End::Ring,
+                    _ => End::Recv,
                 };
                 Type::Chan(end, Box::new(t.clone()))
             }

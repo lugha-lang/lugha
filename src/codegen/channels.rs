@@ -22,13 +22,19 @@ impl<'ctx> Lowerer<'ctx> {
         args: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
         let pair = self.ty(call);
-        let Some([Type::Chan(_, element), receiver]) = crate::check::tuple_elements(&pair) else {
+        let Some([Type::Chan(writer, element), receiver]) = crate::check::tuple_elements(&pair)
+        else {
             unreachable!("checked: `Chan<T>.new` makes a `(Sender<T>, Receiver<T>)`")
         };
+        let ring = *writer == crate::check::End::Ring;
         let (element, receiver) = ((**element).clone(), receiver.clone());
         let i64_type = self.context.i64_type();
         let size = i64_type.const_int(self.element_size(&element).max(1), false);
         let (function, mut values) = match args.first() {
+            Some(cap) if ring => (
+                "lugha_rt_ring_new",
+                vec![self.get(cap, &Type::I64)?, size.into()],
+            ),
             Some(cap) => (
                 "lugha_rt_chan_new",
                 vec![self.get(cap, &Type::I64)?, size.into()],
@@ -84,7 +90,12 @@ impl<'ctx> Lowerer<'ctx> {
             }
             "try_send" => {
                 let data = self.element_value(&args[0], element)?;
-                let how = self.call_runtime("lugha_rt_chan_try_send", &[chan, data.into()], true);
+                // A ring's writing end never locks, allocates or waits.
+                let function = match &ty {
+                    Type::Chan(crate::check::End::Ring, _) => "lugha_rt_ring_try_send",
+                    _ => "lugha_rt_chan_try_send",
+                };
+                let how = self.call_runtime(function, &[chan, data.into()], true);
                 // Not sent: the value is still the slot's, and comes back.
                 let tried = self.ty(call);
                 let value = self.load_element(data, element);
@@ -247,7 +258,10 @@ impl<'ctx> Lowerer<'ctx> {
                 let params: Vec<_> = values.iter().map(|v| v.get_type().into()).collect();
                 let fn_type = match (returns, name) {
                     (false, _) => self.context.void_type().fn_type(&params, false),
-                    (true, "lugha_rt_chan_new" | "lugha_rt_chan_unbounded") => self
+                    (
+                        true,
+                        "lugha_rt_chan_new" | "lugha_rt_chan_unbounded" | "lugha_rt_ring_new",
+                    ) => self
                         .context
                         .ptr_type(Default::default())
                         .fn_type(&params, false),

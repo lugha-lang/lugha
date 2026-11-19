@@ -16,6 +16,8 @@ pub enum End {
     Send,
     /// `Receiver<T>`: receives, and iterates.
     Recv,
+    /// `RingSender<T>`: a ring's writing end, which never waits.
+    Ring,
 }
 
 /// A type in the checker.
@@ -322,6 +324,7 @@ impl fmt::Display for Type {
             Type::Task(inner) => return write!(f, "Task<{inner}>"),
             Type::Chan(End::Send, inner) => return write!(f, "Sender<{inner}>"),
             Type::Chan(End::Recv, inner) => return write!(f, "Receiver<{inner}>"),
+            Type::Chan(End::Ring, inner) => return write!(f, "RingSender<{inner}>"),
             Type::Unit => "()",
             Type::Never => "never",
             Type::Error => "{error}",

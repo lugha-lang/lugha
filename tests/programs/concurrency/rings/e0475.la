@@ -1,0 +1,4 @@
+// A ring carries its values to other tasks: they must be sendable.
+fun main() {
+    let (tx, rx) = Ring<Ref<i64>>.new(4);
+}

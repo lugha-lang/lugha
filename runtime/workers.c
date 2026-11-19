@@ -278,7 +278,8 @@ static void timers_changed(int64_t at) {
 /* Sockets waited on or helper jobs out. */
 static bool events_out(void) {
     return __atomic_load_n(&net_waiting, __ATOMIC_ACQUIRE) > 0 ||
-           __atomic_load_n(&jobs_out, __ATOMIC_ACQUIRE) > 0;
+           __atomic_load_n(&jobs_out, __ATOMIC_ACQUIRE) > 0 ||
+           __atomic_load_n(&rings_waiting, __ATOMIC_ACQUIRE) > 0;
 }
 
 /* The earliest time something is due: a sleeper on any worker, a scope's

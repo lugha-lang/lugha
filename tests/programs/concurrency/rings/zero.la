@@ -1,0 +1,4 @@
+// A ring holds at least one value.
+fun main() {
+    let (tx, rx) = Ring<i64>.new(0);
+}

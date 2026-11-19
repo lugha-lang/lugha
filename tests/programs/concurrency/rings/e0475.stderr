@@ -1,0 +1,9 @@
+error[E0475]: a channel can't carry `Ref<i64>` to another task: it is a `Ref<i64>`, which two tasks would share
+  --> tests/programs/concurrency/rings/e0475.la:3:20
+  |
+3 |     let (tx, rx) = Ring<Ref<i64>>.new(4);
+  |                    ^^^^^^^^^^^^^^
+  |
+  = help: keep shared state in an actor, or send copies through a channel: a `Ref` belongs to one task
+
+For more about E0475, run `lughac explain E0475`.

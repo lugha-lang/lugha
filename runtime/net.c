@@ -30,21 +30,8 @@ static int32_t net_error(LughaString **error, const char *message) {
  * (workers.c). */
 static void poller_back(void);
 
-static void poll_sockets(int64_t wait_ns) {
-    int ms = -1;
-    if (wait_ns >= 0) {
-        int64_t rounded = (wait_ns + 999999) / 1000000;
-        ms = rounded > INT32_MAX ? INT32_MAX : (int)rounded;
-    }
-    struct epoll_event events[NET_EVENTS];
-    int n = epoll_wait(net_epoll, events, NET_EVENTS, ms);
-    if (ms != 0) {
-        poller_back();
-    }
-    if (n <= 0) {
-        return;
-    }
-    // What it found wakes tasks: under the lock, as every wake is.
+/* What one poll found, waking tasks: under the lock, as every wake is. */
+static void poll_found(struct epoll_event *events, int n) {
     RT_SECTION();
     for (int i = 0; i < n; i++) {
         if (events[i].data.ptr == &helper_tag) {
@@ -65,6 +52,26 @@ static void poll_sockets(int64_t wait_ns) {
             }
         }
     }
+}
+
+static void poll_sockets(int64_t wait_ns) {
+    int ms = -1;
+    if (wait_ns >= 0) {
+        int64_t rounded = (wait_ns + 999999) / 1000000;
+        ms = rounded > INT32_MAX ? INT32_MAX : (int)rounded;
+    }
+    struct epoll_event events[NET_EVENTS];
+    int n = epoll_wait(net_epoll, events, NET_EVENTS, ms);
+    if (ms != 0) {
+        poller_back();
+    }
+    if (n > 0) {
+        poll_found(events, n);
+    }
+    // Rings whose writers found readers waiting (rings.c): after the
+    // wake-up event was emptied, so a ring listed from now on kicks it
+    // again and isn't stranded.
+    rings_wake();
 }
 
 /* `wait_fd`'s answer when the waiting task is cancelled: the caller lets

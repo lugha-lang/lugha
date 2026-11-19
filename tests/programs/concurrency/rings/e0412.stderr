@@ -1,0 +1,9 @@
+error[E0412]: cannot infer what this channel carries
+  --> tests/programs/concurrency/rings/e0412.la:3:20
+  |
+3 |     let (tx, rx) = Ring.new(4);
+  |                    ^^^^^^^^^^^
+  |
+  = help: write what it carries: `let (tx, rx) = Ring<i64>.new(4);`
+
+For more about E0412, run `lughac explain E0412`.

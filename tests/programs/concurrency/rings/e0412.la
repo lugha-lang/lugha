@@ -1,0 +1,4 @@
+// What a ring carries is written, or comes from the expected type.
+fun main() {
+    let (tx, rx) = Ring.new(4);
+}

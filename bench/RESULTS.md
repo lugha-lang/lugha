@@ -525,3 +525,19 @@ Milestone 216 against this one, 9 interleaved runs each, medians. The allocator 
 | wordfreq    | 0.488s  | 0.491s  | +0.6%  |
 
 C calling a `direct` callback 20,000,000 times on a worker (11 interleaved runs, medians): 0.765 s at milestone 216, 0.795 s now, +3.9% for the shell's extra call (bound: 5%). At 1,000,000 calls the run is too short to measure (+5.6% of 41 ms, mostly start-up).
+
+## 2026-11-21 — rings (PRP-250, milestone 218)
+
+Milestone 217 against this one, 9 interleaved runs each, medians:
+
+| benchmark   | before  | after   | change |
+|-------------|---------|---------|--------|
+| binarytrees | 0.884s  | 0.893s  | +1.0%  |
+| chanping    | 0.402s  | 0.405s  | +0.8%  |
+| fannkuch    | 0.245s  | 0.245s  | -0.3%  |
+| fib         | 0.677s  | 0.681s  | +0.7%  |
+| mandelbrot  | 0.367s  | 0.366s  | -0.2%  |
+| nbody       | 0.674s  | 0.677s  | +0.5%  |
+| wordfreq    | 0.488s  | 0.486s  | -0.4%  |
+
+One task, 20,000,000 `try_send`s and as many `try_recv`s in rounds of 1,000 (7 interleaved runs, medians): a `Ring<i64>.new(1024)` 1.203 s, a `Chan<i64>.new(1024)` 0.937 s (about 60 against 47 ns a pair). A ring's write pays two full fences (taking the writing end, and publishing so a reader about to wait and the writer always see each other), more than an uncontended channel lock; what it buys is a writer that never waits behind a lock a reader holds, which a real-time thread needs.

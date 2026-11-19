@@ -140,7 +140,7 @@ use std::collections::{HashMap, HashSet};
 
 pub use actors::mailbox_size;
 pub use callbacks::{CParam, CParams};
-pub use channels::{CHAN_NEW, CHAN_UNBOUNDED};
+pub use channels::{CHAN_NEW, CHAN_UNBOUNDED, RING_NEW};
 pub use checked::Checked;
 pub(crate) use concat::CONCAT;
 pub use conversions::{CONVERSIONS, int_bits};

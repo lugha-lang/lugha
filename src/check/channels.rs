@@ -11,6 +11,8 @@ use crate::ast::{Expr, Ident};
 pub const CHAN_NEW: &str = "$Chan.new";
 /// What codegen finds `Chan<T>.unbounded()` by in `Checked::callees`.
 pub const CHAN_UNBOUNDED: &str = "$Chan.unbounded";
+/// What codegen finds `Ring<T>.new(n)` by in `Checked::callees`.
+pub const RING_NEW: &str = "$Ring.new";
 /// The prelude's `TrySend<T>`, what `try_send` gives.
 pub const TRY_SEND: &str = "$prelude.TrySend";
 /// The prelude's `TryRecv<T>`, what `try_recv` gives.
@@ -19,10 +21,16 @@ pub const TRY_RECV: &str = "$prelude.TryRecv";
 /// How a channel is made, for help on the old ways.
 const MAKE: &str = "make a channel with `Chan<T>.new(n)`, holding up to `n` values (0: each handed over directly), or `Chan<T>.unbounded()`";
 
+/// How a ring is made.
+const RING: &str = "make a ring with `Ring<T>.new(n)`, holding up to `n` values";
+
 /// The element type `(Sender<T>, Receiver<T>)` carries.
 fn ends_element(ty: &Type) -> Option<&Type> {
     match super::tuples::elements(ty)? {
-        [Type::Chan(End::Send, t), Type::Chan(End::Recv, _)] => Some(t),
+        [
+            Type::Chan(End::Send | End::Ring, t),
+            Type::Chan(End::Recv, _),
+        ] => Some(t),
         _ => None,
     }
 }
@@ -36,6 +44,12 @@ pub(super) fn wrong_end(receiver: &Type, name: &str) -> Option<String> {
         (Type::Chan(End::Send, _), "recv" | "try_recv") => Some(format!(
             "only a `Receiver` can `{name}`; this is the `Sender` end"
         )),
+        (Type::Chan(End::Ring, _), "send") => Some(
+            "a `RingSender` never waits, so it has no `send`: `try_send(v)` gives `.Full(v)` back when the ring is full".to_string(),
+        ),
+        (Type::Chan(End::Ring, _), "recv" | "try_recv") => Some(format!(
+            "only a `Receiver` can `{name}`; this is the ring's `RingSender` end"
+        )),
         _ => None,
     }
 }
@@ -48,14 +62,17 @@ impl Checker {
         call: &Expr,
         name: &Ident,
         args: &[Expr],
-        written: Option<Type>,
+        (written, ring): (Option<Type>, bool),
         expect: Option<&Expect>,
     ) -> Type {
-        let (key, arity) = match name.name.as_str() {
-            "new" => (CHAN_NEW, 1),
-            "unbounded" => (CHAN_UNBOUNDED, 0),
+        let (key, arity) = match (name.name.as_str(), ring) {
+            ("new", false) => (CHAN_NEW, 1),
+            ("unbounded", false) => (CHAN_UNBOUNDED, 0),
+            ("new", true) => (RING_NEW, 1),
             _ => {
-                self.report(errors::chan_maker(&name.name, name.span).with_help(MAKE));
+                let help = if ring { RING } else { MAKE };
+                let maker = if ring { "Ring" } else { "Chan" };
+                self.report(errors::chan_maker(maker, &name.name, name.span).with_help(help));
                 return self.unchecked(args);
             }
         };
@@ -76,12 +93,14 @@ impl Checker {
                 ends_element(ty).expect("matched").clone()
             }
             _ => {
-                self.report(errors::chan_unknown(call.span));
+                let maker = if ring { "Ring" } else { "Chan" };
+                self.report(errors::chan_unknown(maker, call.span));
                 return Type::Error;
             }
         };
+        let writer = if ring { End::Ring } else { End::Send };
         let ends = vec![
-            Type::Chan(End::Send, Box::new(element.clone())),
+            Type::Chan(writer, Box::new(element.clone())),
             Type::Chan(End::Recv, Box::new(element)),
         ];
         self.tuple_type(ends)

@@ -1,0 +1,25 @@
+error[E0415]: no method `send` on `RingSender<i64>`
+  --> tests/programs/concurrency/rings/e0415.la:4:8
+  |
+4 |     tx.send(1);
+  |        ^^^^
+  |
+  = help: a `RingSender` never waits, so it has no `send`: `try_send(v)` gives `.Full(v)` back when the ring is full
+
+error[E0415]: no method `recv` on `RingSender<i64>`
+  --> tests/programs/concurrency/rings/e0415.la:5:16
+  |
+5 |     let v = tx.recv();
+  |                ^^^^
+  |
+  = help: only a `Receiver` can `recv`; this is the ring's `RingSender` end
+
+error[E0415]: `Ring` has no `unbounded`
+  --> tests/programs/concurrency/rings/e0415.la:6:23
+  |
+6 |     let w = Ring<i64>.unbounded();
+  |                       ^^^^^^^^^
+  |
+  = help: make a ring with `Ring<T>.new(n)`, holding up to `n` values
+
+For more about E0415, run `lughac explain E0415`.

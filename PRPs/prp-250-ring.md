@@ -1,6 +1,6 @@
 ## FEATURE: `Ring<T>`: a fixed-size queue a callback fills without ever waiting, locking or allocating, even on a thread C made, read by tasks as an ordinary `Receiver<T>`; milestone 218, the first of the last two §4.8 PRPs (then `realtime fun(…)`).
 
-**Status:** proposed 2026-11-20.
+**Status:** approved 2026-11-20.
 
 ## OBJECTIVE
 An audio or sensor callback hands data to tasks without stalling C's thread:
@@ -83,21 +83,30 @@ fun main(console: Console) {
 - An overwriting send, several writers at once.
 
 ## TESTS
-- [ ] `tests/programs/concurrency/rings/` (one worker, exact output):
-  - [ ] making a ring, `try_send` until full (`.Full(v)` gives `v` back), receiving in order, `close` then `.Closed(v)` and `None` after what is left, `for x of rx`;
-  - [ ] a ring's receiver in `select` beside a channel's;
-  - [ ] errors: `send` on a `RingSender` (E0415 with help), `recv` on it (E0415), `Ring<T>.new` without `T` (E0412), a non-sendable `T` (E0475);
-  - [ ] `Ring<T>.new(0)` panics.
-- [ ] `tests/rings.rs`, a C library with pthreads, on one and four workers:
-  - [ ] a `direct` callback on C's thread sending 1,000,000 values into a ring of 1,024 while a task drains it: received plus dropped equals sent, the received in order;
-  - [ ] a task waiting on an empty ring, woken by C's thread after a pause (no false deadlock);
-  - [ ] two C threads writing one ring at once: a panic, `a ring has one writer at a time`, reported by the scope.
-- [ ] `tests/scheduler_stress.rs`, plain and under ThreadSanitizer: the runtime's ring written from a pthread and read by tasks on four workers; every value once, in order, nothing dropped with room.
-- [ ] Benchmarks: the seven within 3% of milestone 217; a ring's `try_send` from a callback measured against an unbounded channel's `send`.
-- [ ] Targeted: `--lib`, `programs`, `rings`, `foreign_threads`, `callbacks`, `scope_callbacks`, `scheduler_stress`, `workers`, `leaks`, `rc_check`, `explain`, `spec`, `codegen`, `comments`, `lsp_completion`.
+- [x] `tests/programs/concurrency/rings/` (one worker, exact output):
+  - [x] making a ring, `try_send` until full (`.Full(v)` gives `v` back), receiving in order, `close` then `.Closed(v)` and `None` after what is left, `for x of rx`;
+  - [x] a ring's receiver in `select` beside a channel's;
+  - [x] errors: `send` on a `RingSender` (E0415 with help), `recv` on it (E0415), `Ring<T>.new` without `T` (E0412), a non-sendable `T` (E0475);
+  - [x] `Ring<T>.new(0)` panics.
+- [x] `tests/rings.rs`, a C library with pthreads, on one and four workers:
+  - [x] a `direct` callback on C's thread sending 1,000,000 values into a ring of 1,024 while a task drains it: received plus dropped equals sent, the received in order;
+  - [x] a task waiting on an empty ring, woken by C's thread after a pause (no false deadlock);
+  - [x] two C threads writing one ring at once: a panic, `a ring has one writer at a time`, reported by the scope.
+- [x] `tests/scheduler_stress.rs`, plain and under ThreadSanitizer: the runtime's ring written from a pthread and read by tasks on four workers; every value once, in order, nothing dropped with room.
+- [x] Benchmarks: the seven within 3% of milestone 217; a ring's `try_send` from a callback measured against an unbounded channel's `send`.
+- [x] Targeted: `--lib`, `programs`, `rings`, `foreign_threads`, `callbacks`, `scope_callbacks`, `scheduler_stress`, `workers`, `leaks`, `rc_check`, `explain`, `spec`, `codegen`, `comments`, `lsp_completion`.
 
 ## ACCEPTANCE
-- [ ] A callback on C's thread fills a ring without waiting, locking or allocating; tasks read it as any receiver.
-- [ ] Overlapping writers panic; nothing is lost or duplicated otherwise (ThreadSanitizer clean).
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
-- [ ] Spec, the Draft, CHANGELOG, TODO and the language server updated.
+- [x] A callback on C's thread fills a ring without waiting, locking or allocating; tasks read it as any receiver.
+- [x] Overlapping writers panic; nothing is lost or duplicated otherwise (ThreadSanitizer clean).
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
+- [x] Spec, the Draft, CHANGELOG, TODO and the language server updated.
+
+## BUILD NOTES
+- **A ring is a channel** (`LughaChan`) with a `Ring` record (`runtime/rings.c`): the reading side is the channel's own (its lock, waiters and claims), so `recv`, `try_recv`, `for`, `select` and `merge` needed only small hooks in `chans.c`. `chans.c` reached 518 lines, so `select` moved to `runtime/select.c` (the user's choice).
+- **A lost wake-up found by the stress case and fixed:** the poller emptied the list of rings to wake *before* reading its eventfd. A writer could list a ring and kick in between: the read swallowed the kick, and since the ring stayed marked listed, no later write kicked again. The list is now emptied after the eventfd. Before the fix, the case hung on two and four workers; after it, 60 plain runs on one, two and four workers and 15 under ThreadSanitizer passed.
+- **The stress harness** writes the ring from a raw pthread (as C would) and reads it with tasks; its reader stops by count, since a raw pthread (not a callback's) can't wake tasks through a channel's `close`.
+- **E0412's help** names the maker written (`Ring<i64>.new(4)` or `Chan<i64>.new(4)`).
+- **Completion** lists `RingSender`'s methods with no change: it probes the built-in method table.
+- **Measured** (`bench/RESULTS.md`): the seven within about 1% of milestone 217. A ring's `try_send` and `try_recv` on one task take about 60 ns a pair against a channel's 47: two full fences per write, the price of a writer that never waits behind a reader's lock.
+- **Not from this PRP:** the `park` false deadlock under ThreadSanitizer came back once in the targeted run (none in 200 runs after); recorded in TODO.md.

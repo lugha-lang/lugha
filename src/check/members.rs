@@ -463,6 +463,7 @@ fun main() { }
         };
         assert_eq!(end(End::Send), ["close", "debug", "is", "send", "try_send"]);
         assert_eq!(end(End::Recv), ["debug", "is", "recv", "try_recv"]);
+        assert_eq!(end(End::Ring), ["close", "debug", "is", "try_send"]);
         let task = names(&value_members(&partial, &Type::Task(Box::new(Type::I64))));
         assert_eq!(task, ["cancel", "debug", "join", "name"]);
     }

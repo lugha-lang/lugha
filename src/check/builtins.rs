@@ -29,11 +29,11 @@ pub(super) fn builtin(receiver: &Type, name: &str) -> Option<Method> {
         (Type::Task(inner), "join") => (Vec::new(), super::scopes::joined(inner), false),
         (Type::Task(_), "cancel" | "name") => (vec![Type::String], Type::Unit, false),
         (Type::Chan(End::Send, inner), "send") => (vec![(**inner).clone()], Type::Unit, false),
-        (Type::Chan(End::Send, inner), "try_send") => {
+        (Type::Chan(End::Send | End::Ring, inner), "try_send") => {
             let tried = Type::Enum(TRY_SEND.to_string(), vec![(**inner).clone()]);
             (vec![(**inner).clone()], tried, false)
         }
-        (Type::Chan(End::Send, _), "close") => (Vec::new(), Type::Unit, false),
+        (Type::Chan(End::Send | End::Ring, _), "close") => (Vec::new(), Type::Unit, false),
         (Type::Chan(End::Recv, inner), "recv") => (Vec::new(), Type::Option(inner.clone()), false),
         // An iterator: `for x of rx` runs until the channel is closed and empty.
         (Type::Chan(End::Recv, inner), "next") => (Vec::new(), Type::Option(inner.clone()), true),
