@@ -98,9 +98,9 @@ static bool work_left(Worker *w) {
 static void park(Worker *w) {
     stack_cache_trim(w);
     lock_take(&sched_lock);
-    // Checked under the lock `wake_main_worker` takes: `main` back for the
-    // main thread just before it would park, it doesn't.
-    if (shared_len > 0 || (w == main_worker && __atomic_load_n(&home_fiber, __ATOMIC_ACQUIRE) != NULL)) {
+    // Checked under the lock `wake_worker` takes: a fiber pinned here
+    // made ready just before this worker would park, it doesn't.
+    if (shared_len > 0 || __atomic_load_n(&w->inbox_len, __ATOMIC_ACQUIRE) > 0) {
         lock_give(&sched_lock);
         return;
     }
@@ -124,7 +124,6 @@ static void park(Worker *w) {
     }
     if (idle == __atomic_load_n(&workers_running, __ATOMIC_ACQUIRE) &&
         __atomic_load_n(&idle_workers, __ATOMIC_ACQUIRE) == idle &&
-        __atomic_load_n(&home_fiber, __ATOMIC_ACQUIRE) == NULL &&
         __atomic_load_n(&shared_len, __ATOMIC_ACQUIRE) == 0 && !any_queued() &&
         !events_pending()) {
         RT_SECTION();
@@ -134,7 +133,19 @@ static void park(Worker *w) {
     if (__atomic_compare_exchange_n(&poller_busy, &idle_poller, true, false, __ATOMIC_SEQ_CST,
                                     __ATOMIC_RELAXED)) {
         wake_open();
-        __atomic_store_n(&w->polling, true, __ATOMIC_RELEASE);
+        __atomic_store_n(&w->polling, true, __ATOMIC_SEQ_CST);
+        // Roused between parking and saying it polls, the rouser bumped a
+        // futex word this worker won't wait on: it was unparked, under
+        // the lock, so it stops here. A rouser after this sees it polling
+        // and kicks the poll.
+        lock_take(&sched_lock);
+        bool roused = !w->parked;
+        lock_give(&sched_lock);
+        if (roused) {
+            __atomic_store_n(&w->polling, false, __ATOMIC_RELEASE);
+            __atomic_store_n(&poller_busy, false, __ATOMIC_RELEASE);
+            return;
+        }
         __atomic_store_n(&poll_until, POLL_TIMING, __ATOMIC_SEQ_CST);
         int64_t at = next_due();
         __atomic_store_n(&poll_until, at, __ATOMIC_SEQ_CST);

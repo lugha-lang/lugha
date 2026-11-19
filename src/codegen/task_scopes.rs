@@ -82,6 +82,7 @@ impl<'ctx> Lowerer<'ctx> {
             Type::I64,
             Type::I64,
             Type::I64,
+            Type::I32,
         ];
         self.rt("lugha_rt_scope_enter", &params, None, &enter);
 

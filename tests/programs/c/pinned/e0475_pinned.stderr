@@ -1,0 +1,33 @@
+error[E0475]: actor `Keeper` can't hold or exchange a `Ctx`: it is `Ctx`, a pinned handle, which stays on the thread that made it
+  --> tests/programs/c/pinned/e0475_pinned.la:8:8
+  |
+8 |     c: Ctx,
+  |        ^^^
+  |
+  = help: do the work that needs it in this task, or start the other tasks in a `pinned` scope and make the handle in each
+
+error[E0475]: a channel can't carry `Ctx` to another task: it is `Ctx`, a pinned handle, which stays on the thread that made it
+   --> tests/programs/c/pinned/e0475_pinned.la:13:20
+   |
+13 |     let (tx, rx) = Chan<Ctx>.new(1);
+   |                    ^^^^^^^^^
+   |
+   = help: do the work that needs it in this task, or start the other tasks in a `pinned` scope and make the handle in each
+
+error[E0475]: a `Ctx` can't be passed to another task: it is `Ctx`, a pinned handle, which stays on the thread that made it
+   --> tests/programs/c/pinned/e0475_pinned.la:15:21
+   |
+15 |         s.spawn(use(c));
+   |                     ^
+   |
+   = help: do the work that needs it in this task, or start the other tasks in a `pinned` scope and make the handle in each
+
+error[E0475]: a spawned call can't capture `c`: it is `Ctx`, a pinned handle, which stays on the thread that made it
+   --> tests/programs/c/pinned/e0475_pinned.la:16:17
+   |
+16 |         s.spawn(fun() { use(c); }());
+   |                 ^^^^^^^^^^^^^^^^^^^
+   |
+   = help: do the work that needs it in this task, or start the other tasks in a `pinned` scope and make the handle in each
+
+For more about E0475, run `lughac explain E0475`.

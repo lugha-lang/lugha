@@ -1,0 +1,17 @@
+error[E0477]: `pinned` is said twice
+  --> tests/programs/c/pinned/e0477_pinned.la:2:28
+  |
+2 |     let r = scope s pinned pinned {};
+  |                            ^^^^^^
+  |
+  = help: a scope's settings come between its name and its body, each at most once: `scope conns independent limit 100 { … }`
+
+error[E0477]: `pinned` takes no value
+  --> tests/programs/c/pinned/e0477_pinned.la:3:21
+  |
+3 |     let q = scope t pinned(1) {};
+  |                     ^^^^^^
+  |
+  = help: a scope's settings come between its name and its body, each at most once: `scope conns independent limit 100 { … }`
+
+For more about E0477, run `lughac explain E0477`.

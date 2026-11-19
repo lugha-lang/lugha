@@ -50,7 +50,8 @@ fn failure_types(e: &Type) -> (Type, Type) {
 
 impl<'ctx> Lowerer<'ctx> {
     /// The scope's settings as `lugha_rt_scope_enter`'s arguments after the
-    /// record: its name, policy, handler code and environment, and limit.
+    /// record: its name, policy, handler code and environment, limit,
+    /// deadline and whether it is pinned.
     pub(super) fn scope_settings(
         &mut self,
         scope: &ScopeExpr,
@@ -61,6 +62,7 @@ impl<'ctx> Lowerer<'ctx> {
         let (mut policy, mut code, mut env) = (0, ptr.const_null(), ptr.const_null());
         let none = self.context.i64_type().const_all_ones();
         let (mut limit, mut within, mut until) = (none, none, none);
+        let mut pinned = 0;
         for w in &scope.words {
             match (w.name.name.as_str(), &w.arg) {
                 ("independent", None) => policy = POLICY_PRINT,
@@ -74,6 +76,7 @@ impl<'ctx> Lowerer<'ctx> {
                 ("limit", Some(n)) => limit = self.get(n, &Type::I64)?.into_int_value(),
                 ("within", Some(ms)) => within = self.get(ms, &Type::I64)?.into_int_value(),
                 ("until", Some(t)) => until = self.get(t, &Type::I64)?.into_int_value(),
+                ("pinned", None) => pinned = 1,
                 _ => unreachable!("checked: E0477 for any other setting"),
             }
         }
@@ -85,6 +88,7 @@ impl<'ctx> Lowerer<'ctx> {
             limit.into(),
             within.into(),
             until.into(),
+            i32_type.const_int(pinned, false).into(),
         ])
     }
 

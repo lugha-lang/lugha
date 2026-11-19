@@ -1,0 +1,18 @@
+// A pinned handle never reaches another task.
+extern type Ctx pinned;
+extern fun ctx_new(): Ctx;
+
+fun use(c: Ctx) {}
+
+actor Keeper {
+    c: Ctx,
+}
+
+fun main() {
+    let c = ctx_new();
+    let (tx, rx) = Chan<Ctx>.new(1);
+    let r = scope s {
+        s.spawn(use(c));
+        s.spawn(fun() { use(c); }());
+    };
+}

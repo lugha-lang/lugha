@@ -149,6 +149,9 @@ pub struct ExternTypeDecl {
     pub visibility: Option<Visibility>,
     /// The type's name.
     pub name: Ident,
+    /// `pinned` after the name, if written: its values never leave the
+    /// worker thread that made them.
+    pub pinned: Option<Span>,
     /// From `extern` to the `;`.
     pub span: Span,
 }

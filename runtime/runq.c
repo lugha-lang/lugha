@@ -15,6 +15,10 @@
  * there is no slot, so the order stays first in, first out, as tests and
  * deterministic runs expect.
  *
+ * A pinned fiber (`pin` set) never enters a ring or the shared queue: made
+ * ready, by anyone, it goes to its worker's inbox, which only that worker
+ * takes from, first, taking turns with its ring when both have fibers.
+ *
  * No fiber is put where another worker may take it before its own switch
  * has saved it: a fiber yielding or going home is queued by the fiber that
  * lands after it (waiting.c), as a parking one is.
@@ -198,9 +202,61 @@ static bool runq_any(Worker *v) {
     return tail != head || __atomic_load_n(&v->run_next, __ATOMIC_ACQUIRE) != NULL;
 }
 
+static void wake_worker(Worker *w);
+
+/* `f`, pinned, onto its worker's inbox; that worker roused if parked. */
+static void inbox_put(Fiber *f, Worker *w) {
+    f->next = NULL;
+    lock_take(&w->inbox_lock);
+    if (w->inbox_tail == NULL) {
+        w->inbox_head = f;
+    } else {
+        w->inbox_tail->next = f;
+    }
+    w->inbox_tail = f;
+    __atomic_store_n(&w->inbox_len, w->inbox_len + 1, __ATOMIC_RELEASE);
+    lock_give(&w->inbox_lock);
+    // Stored before the parking check's lock is taken: either `w`, about
+    // to park, sees it, or it is parked by then and is roused.
+    if (w != worker) {
+        wake_worker(w);
+    }
+}
+
+/* The first of the running worker's pinned fibers, or NULL. */
+static Fiber *inbox_take(Worker *w) {
+    if (__atomic_load_n(&w->inbox_len, __ATOMIC_ACQUIRE) == 0) {
+        return NULL;
+    }
+    lock_take(&w->inbox_lock);
+    Fiber *f = w->inbox_head;
+    if (f != NULL) {
+        w->inbox_head = f->next;
+        if (w->inbox_head == NULL) {
+            w->inbox_tail = NULL;
+        }
+        __atomic_store_n(&w->inbox_len, w->inbox_len - 1, __ATOMIC_RELEASE);
+    }
+    lock_give(&w->inbox_lock);
+    return f;
+}
+
+/* True if `f` is pinned: it goes to its worker's inbox. */
+static bool pinned_ready(Fiber *f) {
+    Worker *to = __atomic_load_n(&f->pin, __ATOMIC_ACQUIRE);
+    if (to == NULL) {
+        return false;
+    }
+    inbox_put(f, to);
+    return true;
+}
+
 /* `f`, woken by the running task, runs next on this worker: the fiber
  * that was to run next goes to the ring. */
 static void ready_next(Fiber *f) {
+    if (pinned_ready(f)) {
+        return;
+    }
     if (!run_next_on()) {
         runq_put(f);
         return;
@@ -213,24 +269,29 @@ static void ready_next(Fiber *f) {
 
 /* `f` is ready, behind what this worker already has. */
 static void make_ready(Fiber *f) {
-    runq_put(f);
+    if (!pinned_ready(f)) {
+        runq_put(f);
+    }
 }
 
-/* `main`'s fiber, back for the main thread (workers.c). */
-static Fiber *home_fiber;
+/* The main thread's worker: `main` goes back to it to end the program,
+ * and a pinned scope `main` opens pins to it (workers.c). */
 static Worker *main_worker;
 
-/* The next fiber this worker runs, or NULL: `main` back home, first on the
- * main thread; every 61st pick, the shared queue; the run-next slot, three
- * picks in a row at most; the ring; the shared queue. */
+/* The next fiber this worker runs, or NULL: its pinned fibers, taking
+ * turns with its ring when both have some; every 61st pick, the shared
+ * queue; the run-next slot, three picks in a row at most; the ring; the
+ * shared queue. */
 static Fiber *take_ready(void) {
     Worker *w = worker;
-    if (w == main_worker && __atomic_load_n(&home_fiber, __ATOMIC_ACQUIRE) != NULL) {
-        Fiber *f = __atomic_exchange_n(&home_fiber, NULL, __ATOMIC_ACQ_REL);
+    if (!(w->inbox_turn && runq_any(w))) {
+        Fiber *f = inbox_take(w);
         if (f != NULL) {
+            w->inbox_turn = true;
             return f;
         }
     }
+    w->inbox_turn = false;
     if (--w->fair_left <= 0) {
         w->fair_left = PICKS_FAIR;
         Fiber *f = shared_take();

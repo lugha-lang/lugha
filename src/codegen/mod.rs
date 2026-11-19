@@ -87,6 +87,7 @@ mod scope_failures;
 mod select;
 mod shields;
 mod show_iface;
+mod source;
 mod split;
 mod split_leaves;
 mod split_params;

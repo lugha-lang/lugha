@@ -83,6 +83,8 @@ pub(in crate::check) fn unscoped_actor(span: Span) -> Diagnostic {
 pub(in crate::check) fn not_sendable(head: &str, why: &str, span: Span) -> Diagnostic {
     let help = if why.contains("type parameter") {
         "add `Sendable` to its bounds: `<T: Sendable>`"
+    } else if why.contains("pinned handle") {
+        "do the work that needs it in this task, or start the other tasks in a `pinned` scope and make the handle in each"
     } else if why.contains("function value") {
         "pass the function itself, or take an interface that requires `Sendable`: `interface Job: fun(), Sendable {}`"
     } else {

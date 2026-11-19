@@ -126,6 +126,46 @@ static void selector(void *code, void *env, void *result) {
     (void)env;
 }
 
+enum { PINNED = 8, PINNED_TURNS = 300 };
+static int64_t off_worker;
+static void *feeds[PINNED];
+
+/* Pins itself, then waits on its feed, yields and sleeps: woken each time
+ * from other workers, it must always run on its own. */
+static void pinned_task(void *code, void *env, void *result) {
+    int64_t me = (intptr_t)code, v = 0;
+    lugha_rt_pin_here();
+    Worker *home = worker;
+    for (int i = 0; i < PINNED_TURNS; i++) {
+        lugha_rt_chan_recv(feeds[me], &v);
+        if (worker != home) {
+            __atomic_fetch_add(&off_worker, 1, __ATOMIC_RELAXED);
+        }
+        lugha_rt_task_yield();
+        if (i % 50 == 0) {
+            lugha_rt_task_sleep(1);
+        }
+        if (worker != home) {
+            __atomic_fetch_add(&off_worker, 1, __ATOMIC_RELAXED);
+        }
+    }
+    *(int64_t *)result = 0;
+    (void)env;
+}
+
+/* Feeds every pinned task, unpinned, from whichever worker runs it. */
+static void feeder_all(void *code, void *env, void *result) {
+    for (int64_t i = 0; i < PINNED_TURNS; i++) {
+        for (int p = 0; p < PINNED; p++) {
+            lugha_rt_chan_send(feeds[p], &i, "h", 1, 1);
+        }
+        lugha_rt_task_yield();
+    }
+    *(int64_t *)result = 0;
+    (void)code;
+    (void)env;
+}
+
 static void *targets[1000];
 
 /* A task joined twice: gives its index. */
@@ -210,6 +250,22 @@ int main(int argc, char **argv) {
         }
         free(joiners);
         printf("%ld\n", (long)sum);
+    } else if (strcmp(c, "pinned") == 0) {
+        void *tasks[PINNED + 3];
+        for (int p = 0; p < PINNED; p++) {
+            feeds[p] = lugha_rt_chan_new(1, 8, "h", 1, 1);
+            tasks[p] = go(pinned_task, (void *)(intptr_t)p);
+        }
+        tasks[PINNED] = go(feeder_all, NULL);
+        tasks[PINNED + 1] = go(hog, NULL);
+        tasks[PINNED + 2] = go(hog, NULL);
+        for (int i = 0; i <= PINNED; i++) {
+            join(tasks[i]);
+        }
+        __atomic_store_n(&hog_stop, 1, __ATOMIC_RELEASE);
+        join(tasks[PINNED + 1]);
+        join(tasks[PINNED + 2]);
+        printf("%ld off their worker\n", (long)off_worker);
     } else if (strcmp(c, "park") == 0) {
         int64_t sum = 0, v = 0;
         for (int i = 0; i < 300; i++) {
@@ -227,6 +283,14 @@ int main(int argc, char **argv) {
 /// Runs `case` on four workers, plain and under ThreadSanitizer.
 fn run(case: &str) -> String {
     c_harness::run("stress", HARNESS, case, "4")
+}
+
+/// Pinned tasks woken from other workers by a channel, a timer and their
+/// own yields always run on the worker they pinned themselves to, while
+/// busy unpinned tasks beside them keep the other workers stealing.
+#[test]
+fn pinned_tasks_woken_from_any_worker_run_only_on_their_own() {
+    assert_eq!(run("pinned"), "0 off their worker\n");
 }
 
 #[test]

@@ -1,0 +1,9 @@
+// A pinned handle is declared, formatted and checked like any other.
+extern type Ctx pinned;
+public extern type Shown pinned;
+extern fun ctx_known(c: Option<Ctx>): i64;
+
+fun main(console: Console) {
+    let none: Option<Ctx> = None;
+    console.println(none.is_none());
+}

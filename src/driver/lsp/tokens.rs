@@ -133,6 +133,15 @@ pub(super) fn answer(text: &str, names: Option<(&Names, &str)>) -> SemanticToken
             {
                 Some((Kind::Keyword, 0))
             }
+            // `extern type Name pinned;`: a keyword only there.
+            TokenKind::Ident(word)
+                if word == "pinned"
+                    && i >= 3
+                    && tokens[i - 3].kind == TokenKind::Extern
+                    && matches!(&tokens[i - 2].kind, TokenKind::Ident(t) if t == "type") =>
+            {
+                Some((Kind::Keyword, 0))
+            }
             TokenKind::Ident(word) => {
                 let (start, end) = (token.span.start, token.span.end);
                 let resolved = names
@@ -344,6 +353,18 @@ mod tests {
         let keyword = Kind::Keyword as u32;
         assert!(tokens.contains(&(0, 7, 8, keyword, 0)), "{tokens:?}");
         assert!(!tokens.contains(&(1, 4, 8, keyword, 0)), "{tokens:?}");
+    }
+
+    #[test]
+    fn pinned_is_a_keyword_only_after_an_extern_types_name() {
+        let tokens = decoded(
+            "extern type W pinned;
+let pinned = 1;
+",
+        );
+        let keyword = Kind::Keyword as u32;
+        assert!(tokens.contains(&(0, 14, 6, keyword, 0)), "{tokens:?}");
+        assert!(!tokens.contains(&(1, 4, 6, keyword, 0)), "{tokens:?}");
     }
 
     #[test]

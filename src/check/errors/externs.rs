@@ -1,6 +1,7 @@
 //! Diagnostics for C interop: callbacks (E0435, E0436), extern symbols and `extern struct` and
 //! `extern union` declarations (E0437).
 
+use crate::check::Type;
 use crate::diagnostic::Diagnostic;
 use crate::span::Span;
 
@@ -51,6 +52,16 @@ pub(in crate::check) fn blocking_callback(span: Span) -> Diagnostic {
         span,
     )
     .with_help("Lugha code can't run on a helper thread; drop `blocking`, or call the callback's work after the call returns")
+}
+
+/// E0480: a `blocking` extern taking or giving a pinned handle.
+pub(in crate::check) fn blocking_pinned(ty: &Type, span: Span) -> Diagnostic {
+    Diagnostic::error(
+        "E0480",
+        format!("a `blocking` extern can't take or give `{ty}`, a pinned handle: it runs on a helper thread"),
+        span,
+    )
+    .with_help("a pinned handle stays on the thread that made it; drop `blocking`, so the call runs on the task's own thread")
 }
 
 /// E0306: one C function declared `blocking` in one place and not another.

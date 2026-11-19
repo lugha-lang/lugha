@@ -108,6 +108,11 @@ struct Fiber {
     Panic *shield_caught;
     /* Run queue, and the list of every live fiber. */
     Fiber *next;
+    /* The worker it runs on alone, or NULL: set by the fiber itself
+     * (touching a pinned handle, a pinned scope), read by its wakers. */
+    struct Worker *pin;
+    /* Pinned by a handle: stays pinned until it ends. */
+    bool pin_kept;
     Fiber *prev_live;
     Fiber *next_live;
     /* In a `join` wait list. */

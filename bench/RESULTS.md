@@ -468,3 +468,30 @@ The single-task benchmarks and chanping, 9 interleaved runs each, medians:
 | mandelbrot  | 0.370s  | 0.367s  | -0.6%  |
 | nbody       | 0.685s  | 0.684s  | -0.1%  |
 | wordfreq    | 0.558s  | 0.537s  | -3.9%  |
+
+## 2026-11-20 — pinned handles and pinned scopes (PRP-246, milestone 214)
+
+Nothing here pins, so these check that the inbox, and the lost wake-up fixed on the way, cost nothing. `bench/measure/scaling.py`, milestone 213 against this one, the fastest of three runs, on 1, 2 and 4 workers (2 cores, 4 threads):
+
+| pattern | m213 w1 | m213 w2 | m213 w4 | m214 w1 | m214 w2 | m214 w4 |
+|---|---|---|---|---|---|---|
+| spawn_many 200000 | 1.295s | 1.309s | 1.355s | 1.381s | 1.477s | 1.404s |
+| spawners 200000 | 1.595s | 0.996s | 0.957s | 1.486s | 0.948s | 0.858s |
+| yield_many 100000 | 0.031s | 0.016s | 0.011s | 0.030s | 0.016s | 0.011s |
+| chained_spawn 2000 | 0.014s | 0.020s | 0.018s | 0.015s | 0.021s | 0.018s |
+| pairs 100000 | 0.154s | 0.084s | 0.087s | 0.147s | 0.082s | 0.083s |
+| trees 14 | 2.212s | 1.543s | 1.015s | 2.355s | 1.400s | 0.829s |
+
+Within run-to-run noise: `spawn_many` varies by 10% between runs of one build (milestone 213's entry), `trees` by as much. An earlier run of this script stalled past 25 minutes; 360 timed runs of every pattern on both builds afterwards found no hang.
+
+The single-task benchmarks and chanping, 9 interleaved runs each, medians:
+
+| benchmark   | before  | after   | change |
+|-------------|---------|---------|--------|
+| binarytrees | 0.830s  | 0.835s  | +0.7%  |
+| chanping    | 0.393s  | 0.390s  | -0.6%  |
+| fannkuch    | 0.250s  | 0.251s  | +0.4%  |
+| fib         | 0.671s  | 0.669s  | -0.2%  |
+| mandelbrot  | 0.368s  | 0.366s  | -0.4%  |
+| nbody       | 0.675s  | 0.665s  | -1.5%  |
+| wordfreq    | 0.487s  | 0.481s  | -1.1%  |

@@ -12,6 +12,7 @@ impl Checker {
             structs: HashMap::new(),
             enums: HashMap::new(),
             handles: HashMap::new(),
+            pinned: HashSet::new(),
             c_params: HashMap::new(),
             variant_values: HashMap::new(),
             consts: HashMap::new(),

@@ -1,0 +1,4 @@
+fun main() {
+    let r = scope s pinned pinned {};
+    let q = scope t pinned(1) {};
+}

@@ -217,30 +217,30 @@ static void poller_back(void) {
     lock_give(&sched_lock);
 }
 
-/* True if any worker has a fiber in its queue. */
+/* True if any worker has a fiber in its queue or its inbox. */
 static bool any_queued(void) {
     int n = __atomic_load_n(&workers_running, __ATOMIC_ACQUIRE);
     for (int i = 0; i < n; i++) {
         Worker *v = __atomic_load_n(&all_workers[i], __ATOMIC_ACQUIRE);
-        if (v != NULL && runq_any(v)) {
+        if (v != NULL && (runq_any(v) || __atomic_load_n(&v->inbox_len, __ATOMIC_ACQUIRE) > 0)) {
             return true;
         }
     }
     return false;
 }
 
-/* Wakes the main thread's worker, if parked: `main` is back for it. */
-static void wake_main_worker(void) {
+/* Wakes `w`, if parked: a fiber pinned to it is in its inbox. */
+static void wake_worker(Worker *w) {
     lock_take(&sched_lock);
-    bool was_parked = unpark_locked(main_worker);
+    bool was_parked = unpark_locked(w);
     lock_give(&sched_lock);
     if (was_parked) {
-        worker_rouse(main_worker);
+        worker_rouse(w);
     }
 }
 
-/* A fiber that yielded, or `main`'s going home, queued now that the
- * switch away from it has saved it. */
+/* A fiber that yielded, or one moving to the worker it is pinned to,
+ * queued now that the switch away from it has saved it. */
 static void requeue_finish(void) {
     Worker *w = worker;
     Fiber *f = w->requeue;
@@ -251,11 +251,10 @@ static void requeue_finish(void) {
         // what it yielded to.
         wake_idle_worker();
     }
-    Fiber *home = w->send_home;
-    if (home != NULL) {
+    Fiber *moving = w->send_home;
+    if (moving != NULL) {
         w->send_home = NULL;
-        __atomic_store_n(&home_fiber, home, __ATOMIC_RELEASE);
-        wake_main_worker();
+        make_ready(moving);
     }
 }
 
@@ -338,9 +337,32 @@ static void worker_loop(void) {
 /* The program's entry returned on `main`'s fiber: back to the main thread,
  * where `lugha_rt_main` returns, if it isn't there. */
 static void main_go_home(void) {
-    if (worker == main_worker) {
-        return;
+    if (worker != main_worker) {
+        pin_to(main_worker);
     }
-    worker->send_home = current;
-    switch_away(false, false);
+}
+
+/* Pins the running fiber to `w`, moving it there first if it runs
+ * elsewhere: queued on `w`'s inbox once its switch has saved it. */
+static void pin_to(Worker *w) {
+    Fiber *self = current;
+    __atomic_store_n(&self->pin, w, __ATOMIC_RELEASE);
+    if (worker != w) {
+        worker->send_home = self;
+        switch_away(false, false);
+    }
+}
+
+/* Generated code's call before an extern taking or giving a pinned
+ * handle: the running task stays on this worker from now on. With one
+ * worker, nothing to do. */
+void lugha_rt_pin_here(void) {
+    Fiber *self = current;
+    if (workers_wanted > 1 && self != NULL) {
+        // A pinned scope ending doesn't free it: the handle may outlive it.
+        self->pin_kept = true;
+        if (self->pin == NULL) {
+            __atomic_store_n(&self->pin, worker, __ATOMIC_RELEASE);
+        }
+    }
 }

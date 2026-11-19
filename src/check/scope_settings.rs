@@ -49,6 +49,11 @@ impl Checker {
                         self.sendable_conversion(f, &found, &to);
                     }
                 }
+                // Its body and tasks stay on one worker thread.
+                ("pinned", None) => {}
+                ("pinned", Some(_)) => {
+                    self.report(errors::scope_word("`pinned` takes no value", w.name.span));
+                }
                 ("limit", Some(n)) => {
                     self.expect_type(n, &Expect::of(Type::I64));
                 }
@@ -63,7 +68,7 @@ impl Checker {
                 }
                 _ => {
                     let message = format!(
-                        "`{name}` isn't a scope setting: write `independent`, `independent(f)`, `limit n`, `within ms` or `until t`"
+                        "`{name}` isn't a scope setting: write `independent`, `independent(f)`, `limit n`, `within ms`, `until t` or `pinned`"
                     );
                     self.report(errors::scope_word(&message, w.name.span));
                 }

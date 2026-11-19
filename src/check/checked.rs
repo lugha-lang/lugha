@@ -56,6 +56,9 @@ pub struct Checked {
     /// Whether the program has a `spawn`: only then does generated
     /// code count down to preemption.
     pub uses_tasks: bool,
+    /// The handles declared `pinned`, by key: an extern call taking or
+    /// giving one pins its task to its worker first.
+    pub pinned: HashSet<String>,
     /// How each extern with callbacks passes its parameters to C, by key.
     pub c_params: super::CParams,
     /// Variants used as function values: the enum type they

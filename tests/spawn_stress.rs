@@ -36,7 +36,7 @@ static void *in(LughaScope *s, void (*entry)(void *, void *, void *), void *code
 }
 
 static void enter(LughaScope *s, int64_t limit) {
-    lugha_rt_scope_enter(s, NULL, 0, NULL, NULL, limit, -1, -1);
+    lugha_rt_scope_enter(s, NULL, 0, NULL, NULL, limit, -1, -1, 0);
 }
 
 static int32_t leave(LughaScope *s) {

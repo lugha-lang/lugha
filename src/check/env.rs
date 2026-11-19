@@ -80,6 +80,7 @@ impl Checker {
                 None => Type::Unit,
             };
             if is_extern {
+                let blocking = matches!(item, Item::Extern(e) if e.blocking.is_some());
                 // Only numbers and strings cross the C boundary;
                 // handles and callbacks too.
                 let annotations = declared.iter().map(|p| &p.ty).chain(ret);
@@ -96,6 +97,10 @@ impl Checker {
                             self.report(d);
                         }
                         continue;
+                    }
+                    // A helper thread isn't the thread that made it.
+                    if blocking && self.is_pinned(ty) {
+                        self.report(errors::blocking_pinned(ty, at));
                     }
                     let d = match ty {
                         // A written callback, checked by `extern_params`.

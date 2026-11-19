@@ -8,7 +8,8 @@
 //! it back. A task's stack never holds C's frames, so C code can't run
 //! past a task stack's end, which has no guard page. A C function marked
 //! [`BLOCKING`] goes through `lugha_rt_c_blocking` instead, which runs the
-//! thunk on a helper thread while the task waits.
+//! thunk on a helper thread while the task waits. One marked [`PINNED`]
+//! first calls `lugha_rt_pin_here()`, keeping its task on this worker.
 
 use inkwell::attributes::AttributeLoc;
 use inkwell::context::Context;
@@ -24,6 +25,10 @@ const THUNK: &str = "lugha_c_";
 
 /// The attribute on an `extern blocking fun`'s declaration.
 pub(super) const BLOCKING: &str = "lugha-blocking";
+
+/// The attribute on an extern taking or giving a pinned handle: each call
+/// first pins the task to its worker (`lugha_rt_pin_here`).
+pub(super) const PINNED: &str = "lugha-pinned";
 
 /// Rewrites every call of a C function in `module` to run on the C stack.
 pub(super) fn calls_on_c_stack<'ctx>(context: &'ctx Context, module: &Module<'ctx>) {
@@ -56,6 +61,12 @@ pub(super) fn calls_on_c_stack<'ctx>(context: &'ctx Context, module: &Module<'ct
             true => switch(context, module, "lugha_rt_c_blocking"),
             false => c_call,
         };
+        if callee
+            .get_string_attribute(AttributeLoc::Function, PINNED)
+            .is_some()
+        {
+            pin_here(context, module, call);
+        }
         rewrite(context, module, (function, call), through, n);
     }
 }
@@ -84,6 +95,17 @@ fn switch<'ctx>(context: &'ctx Context, module: &Module<'ctx>, name: &str) -> Fu
             .fn_type(&[ptr.into(), ptr.into()], false);
         module.add_function(name, ty, Some(Linkage::External))
     })
+}
+
+/// `lugha_rt_pin_here()` just before `call`.
+fn pin_here<'ctx>(context: &'ctx Context, module: &Module<'ctx>, call: InstructionValue<'ctx>) {
+    let pin = module.get_function("lugha_rt_pin_here").unwrap_or_else(|| {
+        let ty = context.void_type().fn_type(&[], false);
+        module.add_function("lugha_rt_pin_here", ty, Some(Linkage::External))
+    });
+    let builder = context.create_builder();
+    builder.position_before(&call);
+    builder.build_call(pin, &[], "").expect("positioned");
 }
 
 /// Turns `call`, in `function`, into a frame and a call of `c_call` with

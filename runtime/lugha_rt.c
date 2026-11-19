@@ -203,10 +203,19 @@ typedef struct Worker {
      * while others steal from its head; the task it runs next, and how
      * many picks in a row took that; picks in all. */
     struct Fiber *ring[RUNQ_SIZE];
-    /* A fiber that yielded, and `main`'s going home, to queue once the
-     * switch away from them has saved them (workers.c). */
+    /* A fiber that yielded, and one moving to the worker it is now pinned
+     * to (`main` going home included), to queue once the switch away from
+     * them has saved them (workers.c). */
     struct Fiber *requeue;
     struct Fiber *send_home;
+    /* Its pinned fibers made ready, first in first out, under its own
+     * lock; no other worker takes them (runq.c). How many, read without
+     * the lock; whether the last pick came from there. */
+    uint32_t inbox_lock;
+    struct Fiber *inbox_head;
+    struct Fiber *inbox_tail;
+    int64_t inbox_len;
+    bool inbox_turn;
     uint32_t ring_head;
     uint32_t ring_tail;
     struct Fiber *run_next;

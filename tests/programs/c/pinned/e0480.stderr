@@ -1,0 +1,17 @@
+error[E0480]: a `blocking` extern can't take or give `Ctx`, a pinned handle: it runs on a helper thread
+  --> tests/programs/c/pinned/e0480.la:3:33
+  |
+3 | extern blocking fun ctx_load(c: Ctx): i64;
+  |                                 ^^^
+  |
+  = help: a pinned handle stays on the thread that made it; drop `blocking`, so the call runs on the task's own thread
+
+error[E0480]: a `blocking` extern can't take or give `Ctx`, a pinned handle: it runs on a helper thread
+  --> tests/programs/c/pinned/e0480.la:4:33
+  |
+4 | extern blocking fun ctx_open(): Ctx;
+  |                                 ^^^
+  |
+  = help: a pinned handle stays on the thread that made it; drop `blocking`, so the call runs on the task's own thread
+
+For more about E0480, run `lughac explain E0480`.

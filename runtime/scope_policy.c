@@ -9,6 +9,8 @@
  * scope's policy says (`lugha_rt_task_policy`): failing an all-or-nothing
  * scope; printed, or given to the handler, by an `independent` one (the
  * scope runs on); printed, then failing the root scope, for a root task.
+ * The root scope, `main`'s, waits for its tasks when `main` returns or
+ * unwinds, and a failure there ends the program.
  *
  * A fragment, not compiled on its own: joined after scopes.c.
  */
@@ -168,4 +170,60 @@ void lugha_rt_task_name(LughaTask *t, LughaString *name) {
     lugha_rt_rc_retain(name);
     lugha_rt_rc_release(t->name);
     t->name = name;
+}
+
+/* The root scope, which `main` and tests take. */
+void *lugha_rt_scope_root(void) {
+    RT_SECTION();
+    ensure_started();
+    root_scope.owner = &main_fiber;
+    return &root_scope;
+}
+
+/* True if a root-scope task failed. */
+static int32_t root_scope_failed(void) {
+    return root_scope.failed != TASK_OK;
+}
+
+/* Waits for the root scope's tasks, and lets go of them and of its
+ * failure, once reported. */
+static void root_scope_wait(void) {
+    scope_wait(&root_scope);
+    lock_take(&root_scope.lock);
+    LughaTask *done = root_scope.tasks;
+    root_scope.tasks = NULL;
+    lock_give(&root_scope.lock);
+    for (LughaTask *t = done; t != NULL;) {
+        LughaTask *next = t->scope_next;
+        lugha_rt_rc_release(t);
+        t = next;
+    }
+    lugha_rt_rc_release(root_scope.error_box);
+    lugha_rt_rc_release(root_scope.panic);
+    lugha_rt_rc_release(root_scope.failed_task);
+    root_scope.error_box = NULL;
+    root_scope.panic = NULL;
+    root_scope.failed_task = NULL;
+}
+
+/* `main` unwound: when cancelled because a root-scope task failed, the
+ * other tasks, cancelled too, stop before the program ends. */
+void lugha_rt_scope_root_unwound(void) {
+    RT_SECTION();
+    if (current != NULL && current->cancelled != REASON_NONE) {
+        current->unwinding = false;
+        root_scope_wait();
+        current->unwinding = true;
+    }
+}
+
+/* When `main` returns: its scope's tasks finish first. True if one failed:
+ * the program then ends with 101, as after an unhandled panic. */
+int32_t lugha_rt_scope_root_finish(void) {
+    RT_SECTION();
+    if (current == NULL) {
+        return 0;
+    }
+    root_scope_wait();
+    return root_scope_failed();
 }

@@ -111,7 +111,12 @@ fn item(item: &Item) -> String {
             params(&e.params),
             ret(&e.ret)
         ),
-        Item::ExternType(t) => format!("({}extern-type {})", visibility(t.visibility), t.name.name),
+        Item::ExternType(t) => format!(
+            "({}extern-type {}{})",
+            visibility(t.visibility),
+            t.name.name,
+            if t.pinned.is_some() { " pinned" } else { "" }
+        ),
         Item::Const(c) => format!(
             "({}const {} {} {})",
             visibility(c.visibility),

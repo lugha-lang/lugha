@@ -36,6 +36,15 @@ pub(super) fn abi_attribute(context: &inkwell::context::Context, ty: &Type) -> O
 }
 
 impl<'ctx> Lowerer<'ctx> {
+    /// True for a pinned handle, or `Option` of one.
+    fn is_pinned(&self, ty: &Type) -> bool {
+        match ty {
+            Type::Handle(key) => self.pinned.contains(key),
+            Type::Option(inner) => self.is_pinned(inner),
+            _ => false,
+        }
+    }
+
     /// Declares every function of `unit` as `lugha_fn_<symbol>`, in source
     /// order. In a module the symbol starts with the module's path:
     /// `lugha_fn_geometry/origin`.
@@ -136,11 +145,19 @@ impl<'ctx> Lowerer<'ctx> {
                     (f, None)
                 }
             };
-            // The C-stack pass sends a `blocking` extern's calls to a helper.
+            // The C-stack pass sends a `blocking` extern's calls to a helper,
+            // and pins the task before a call that takes or gives a pinned
+            // handle.
             if matches!(item, Item::Extern(e) if e.blocking.is_some()) {
                 let mark = self
                     .context
                     .create_string_attribute(super::c_stack::BLOCKING, "");
+                function.add_attribute(AttributeLoc::Function, mark);
+            }
+            if is_extern && params.iter().chain(ret.as_ref()).any(|t| self.is_pinned(t)) {
+                let mark = self
+                    .context
+                    .create_string_attribute(super::c_stack::PINNED, "");
                 function.add_attribute(AttributeLoc::Function, mark);
             }
             if !is_extern {

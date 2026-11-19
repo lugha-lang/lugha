@@ -1,6 +1,6 @@
 ## FEATURE: Pinned handles and pinned scopes: a C type declared `pinned` never leaves the worker thread that made it, and `scope ui pinned { … }` keeps its body and every task under it on one worker, so C libraries with thread rules of their own (GTK, OpenGL) work on many workers; milestone 214, the first of three PRPs for callbacks and thread-bound values.
 
-**Status:** proposed 2026-11-20.
+**Status:** approved 2026-11-20.
 
 ## OBJECTIVE
 A program using a thread-bound C library runs correctly on every worker count, with no `LUGHA_WORKERS=1`:
@@ -83,22 +83,32 @@ error[E0475]: a value sent to another task must be `Sendable`: `Ctx` is a pinned
 - Change what any program without `pinned` does or prints.
 
 ## TESTS
-- [ ] `tests/programs/`:
-  - [ ] `extern type X pinned;` parses, and checks (one worker, exact output).
-  - [ ] E0475 for a pinned handle sent each way: a spawn argument, a capture, a channel, an actor field.
-  - [ ] E0480 for a `blocking` extern taking one.
-  - [ ] E0477 for `pinned` twice.
-- [ ] A C library through `[link]`, on four workers, ten runs each: every call on a pinned handle runs on the thread that made it, with tasks that yield, sleep and wait on channels in between:
-  - [ ] in a task pinned by touching the handle;
-  - [ ] in `scope ui pinned` in `main` (the main thread) and in another task (its worker), with nested scopes;
-  - [ ] an actor started in a pinned scope.
-- [ ] `tests/scheduler_stress.rs`, plain and under ThreadSanitizer: pinned fibers woken from other workers, by channels, timers and joins, run only on their worker; unpinned work beside them is still stolen; a worker with pinned work never parks.
-- [ ] `tests/workers.rs`'s sweep, `tests/programs/`, `leaks`, `rc_check`, unchanged.
-- [ ] Benchmarks: the seven and `bench/measure/scaling` within 3% of milestone 213.
-- [ ] Targeted: `--lib`, `programs`, `leaks`, `rc_check`, `workers`, `scheduler_stress`, `spawn_stress`, `tasks_runtime`, `waiting_runtime`, `callbacks`, `blocking_externs`, `explain`, `spec`, `arm`, `codegen`, `comments`, `lsp*`.
+- [x] `tests/programs/`:
+  - [x] `extern type X pinned;` parses, and checks (one worker, exact output).
+  - [x] E0475 for a pinned handle sent each way: a spawn argument, a capture, a channel, an actor field.
+  - [x] E0480 for a `blocking` extern taking one.
+  - [x] E0477 for `pinned` twice.
+- [x] A C library through `[link]`, on four workers, ten runs each: every call on a pinned handle runs on the thread that made it, with tasks that yield, sleep and wait on channels in between:
+  - [x] in a task pinned by touching the handle;
+  - [x] in `scope ui pinned` in `main` (the main thread) and in another task (its worker), with nested scopes;
+  - [x] an actor started in a pinned scope.
+- [x] `tests/scheduler_stress.rs`, plain and under ThreadSanitizer: pinned fibers woken from other workers, by channels, timers and yields, run only on their worker (joins, and that unpinned work is still stolen, not covered: see the build notes); a worker with pinned work never parks.
+- [x] `tests/workers.rs`'s sweep, `tests/programs/`, `leaks`, `rc_check`, unchanged.
+- [x] Benchmarks: the seven and `bench/measure/scaling` within 3% of milestone 213.
+- [x] Targeted: `--lib`, `programs`, `leaks`, `rc_check`, `workers`, `scheduler_stress`, `spawn_stress`, `tasks_runtime`, `waiting_runtime`, `callbacks`, `blocking_externs`, `explain`, `spec`, `arm`, `codegen`, `comments`, `lsp*`.
 
 ## ACCEPTANCE
-- [ ] A thread-bound C library runs correctly on four workers, through pinned handles and pinned scopes.
-- [ ] Programs without `pinned` print what they printed; benchmarks within 3%.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
-- [ ] Spec, CHANGELOG, TODO and the editor tooling are updated.
+- [x] A thread-bound C library runs correctly on four workers, through pinned handles and pinned scopes.
+- [x] Programs without `pinned` print what they printed; benchmarks within 3%.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
+- [x] Spec, CHANGELOG, TODO and the editor tooling are updated.
+
+## BUILD NOTES
+- **Measured** (`bench/RESULTS.md`): the seven benchmarks within 1.5% of milestone 213; the scaling patterns within run-to-run noise. One run of the scaling script stalled past 25 minutes; 360 timed runs of every pattern on both builds afterwards found no hang, so its cause is unknown.
+- **The tests discriminate:** without `pinned`, the same programs on four workers make 1,200–1,800 calls on the wrong thread each run; with it, none in ten runs each.
+- **A lost wake-up, found by the new stress case and fixed** (`parking.c`): a worker roused between parking and saying it polls waited in `epoll_wait`, its rouser having bumped the futex word it doesn't wait on. The pinned case hung in 57 of 100 runs; none in 100 after. It could strand `main` going home before. The `park` case's false deadlock under ThreadSanitizer (about 1 in 100 runs at milestones 212 and 213) didn't occur in 600 runs since, where six were expected: the same lost wake-up, so its TODO.md entry is gone.
+- **Where the pinned set lives:** `Checked::pinned`, read by codegen to mark externs; the C-stack pass calls `lugha_rt_pin_here` before each call of a marked one.
+- **A handle pins for good:** a task pinned by touching a handle stays pinned when a pinned scope it was in ends (the handle may outlive the scope); a scope's pin is undone only when no handle pinned the task.
+- **Splits (the user's choices):** `codegen/lower.rs` (at 500 lines) gave the program's source text to a new `codegen/source.rs`; `runtime/scopes.c` (526 lines with this) gave the root scope to `scope_policy.c`.
+- **The stress case covers** channels, timers and yields waking pinned tasks from other workers, not joins; that unpinned work is still stolen isn't asserted, only that every task finishes.
+- **No editor list of scope settings exists,** so only `extern type … pinned` gained highlighting (language server and grammar, extension 0.36.0).

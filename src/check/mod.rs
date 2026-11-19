@@ -256,6 +256,8 @@ pub(super) struct Checker {
     enums: HashMap<String, enums::EnumInfo>,
     /// Every `extern type`, by key: where it is declared.
     handles: HashMap<String, Span>,
+    /// See `Checked::pinned`.
+    pinned: HashSet<String>,
     /// See `Checked::c_params`.
     c_params: callbacks::CParams,
     /// See `Checked::variant_values`.

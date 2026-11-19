@@ -98,17 +98,23 @@ impl Parser<'_> {
         }
     }
 
-    /// `extern fun …;`, `extern "symbol" fun …;` or `extern type Name;`.
+    /// `extern fun …;`, `extern "symbol" fun …;` or `extern type Name [pinned];`.
     pub(super) fn extern_item(&mut self) -> PResult<Item> {
         let start = self.bump().start;
         // `type` isn't a keyword: only right after `extern` does it start a handle type.
         if matches!(self.peek(), TokenKind::Ident(word) if word == "type") {
             self.bump();
             let name = self.ident("type name")?;
+            // `pinned` is a name everywhere else.
+            let pinned = match self.peek() {
+                TokenKind::Ident(word) if word == "pinned" => Some(self.bump()),
+                _ => None,
+            };
             self.expect(&TokenKind::Semi)?;
             return Ok(Item::ExternType(ExternTypeDecl {
                 visibility: None,
                 name,
+                pinned,
                 span: Span::new(start, self.prev_end()),
             }));
         }

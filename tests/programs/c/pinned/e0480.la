@@ -1,0 +1,6 @@
+// A `blocking` extern runs on a helper thread: no pinned handle there.
+extern type Ctx pinned;
+extern blocking fun ctx_load(c: Ctx): i64;
+extern blocking fun ctx_open(): Ctx;
+
+fun main() {}

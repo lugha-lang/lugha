@@ -5,6 +5,14 @@ extern type GtkWidget;
 //     ^^^^ keyword.other.type.lugha
 //          ^^^^^^^^^ entity.name.type.lugha
 
+extern type Window pinned;
+// <------ keyword.other.extern.lugha
+//          ^^^^^^ entity.name.type.lugha
+//                 ^^^^^^ keyword.other.pinned.lugha
+
+let pinned = 1;
+//  ^^^^^^ - keyword.other.pinned.lugha
+
 extern struct Color { r: u8 }
 // <------ keyword.other.extern.lugha
 //     ^^^^^^ keyword.other.struct.lugha

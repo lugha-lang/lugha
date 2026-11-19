@@ -11,7 +11,8 @@ use super::control::Loop;
 use super::function::Signature;
 use super::runtime::Constants;
 use super::scope::Scopes;
-use super::{CodegenError, ModuleSource, SourceInfo};
+use super::source::OwnedSource;
+use super::{CodegenError, ModuleSource};
 use crate::ast::{ExprId, Item};
 use crate::check::{Checked, Enums, InterfaceShape, Iteration, Structs, Type, Unit};
 use crate::span::Span;
@@ -99,6 +100,8 @@ pub(super) struct Lowerer<'ctx> {
     pub(super) closure_fns: HashMap<ExprId, FunctionValue<'ctx>>,
     /// How externs with callbacks pass their parameters (`Checked::c_params`).
     pub(super) c_params: crate::check::CParams,
+    /// The handles declared `pinned` (`Checked::pinned`).
+    pub(super) pinned: HashSet<String>,
     /// C entries made so far, for `lugha_cfn_<n>`.
     pub(super) c_entries: usize,
     /// Variants used as function values (`Checked::variant_values`).
@@ -182,47 +185,6 @@ pub(super) struct Lowerer<'ctx> {
     pub(super) location: Option<(FunctionValue<'ctx>, [BasicValueEnum<'ctx>; 3])>,
 }
 
-/// One module's source, owned so the lowerer has no extra lifetime.
-pub(super) struct OwnedFile {
-    pub name: String,
-    base: usize,
-    text: String,
-}
-
-/// Every module's source, in offset order.
-pub(super) struct OwnedSource {
-    pub files: Vec<OwnedFile>,
-}
-
-impl OwnedSource {
-    /// The file holding `offset`, and `offset` within it.
-    pub(super) fn file_at(&self, offset: usize) -> (&OwnedFile, usize) {
-        let file = self
-            .files
-            .iter()
-            .rev()
-            .find(|f| f.base <= offset)
-            .unwrap_or(&self.files[0]);
-        (file, offset - file.base.min(offset))
-    }
-
-    /// The source text from `start` to `end`, as written.
-    pub(super) fn written(&self, start: usize, end: usize) -> &str {
-        let (file, local) = self.file_at(start);
-        let end = (local + end.saturating_sub(start)).min(file.text.len());
-        file.text.get(local.min(end)..end).unwrap_or("")
-    }
-
-    pub(super) fn line_col(&self, offset: usize) -> (usize, usize) {
-        let (file, local) = self.file_at(offset);
-        SourceInfo {
-            name: &file.name,
-            text: &file.text,
-        }
-        .line_col(local)
-    }
-}
-
 /// Lowers a checked program of modules into one verified LLVM module for `target`.
 pub(super) fn lower<'ctx>(
     context: &'ctx Context,
@@ -268,6 +230,7 @@ pub(super) fn lower<'ctx>(
         presets: HashMap::new(),
         closure_fns: HashMap::new(),
         c_params: checked.c_params.clone(),
+        pinned: checked.pinned.clone(),
         c_entries: 0,
         variant_values: checked.variant_values.clone(),
         const_uses: checked.const_uses.clone(),
@@ -307,16 +270,7 @@ pub(super) fn lower<'ctx>(
         loop_labels: std::collections::HashMap::new(),
         defers: Vec::new(),
         constants: Constants::default(),
-        source: OwnedSource {
-            files: sources
-                .iter()
-                .map(|s| OwnedFile {
-                    name: s.name.to_string(),
-                    base: s.base,
-                    text: s.text.to_string(),
-                })
-                .collect(),
-        },
+        source: OwnedSource::new(sources),
         located: checked.located.clone(),
         located_functions: std::collections::HashSet::new(),
         location: None,

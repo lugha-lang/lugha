@@ -78,9 +78,10 @@ impl Printer<'_> {
             Top::Import(i) => self.import(i),
             Top::Item(Item::Fun(f)) => self.fun(f),
             Top::Item(Item::ExternType(t)) => text(format!(
-                "{}extern type {};",
+                "{}extern type {}{};",
                 visibility(t.visibility),
-                self.ident(&t.name)
+                self.ident(&t.name),
+                if t.pinned.is_some() { " pinned" } else { "" }
             )),
             Top::Item(Item::Const(c)) => concat(vec![
                 text(format!(

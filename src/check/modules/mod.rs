@@ -147,6 +147,7 @@ fn check_with(
             used,
             captures: checker.captures,
             uses_tasks: checker.uses_tasks,
+            pinned: checker.pinned,
             c_params: checker.c_params,
             variant_values: checker.variant_values,
             consts: checker

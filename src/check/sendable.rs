@@ -41,6 +41,8 @@ impl Checker {
         match ty {
             Type::Ref(_) | Type::Fun(..) | Type::Task(_) => fail(),
             Type::Struct(key, _) if key == SCOPE => fail(),
+            // Its C library allows it only on the thread that made it.
+            Type::Handle(key) if self.pinned.contains(key) => fail(),
             // One task owns an actor's state; others only send it messages.
             Type::Actor(..) => Some(None),
             // A channel is sendable when what it carries is.
@@ -96,6 +98,9 @@ impl Checker {
             ),
             Unmet::Missing(Type::Task(_)) => format!("{part} is a task handle"),
             Unmet::Missing(Type::Struct(k, _)) if k == SCOPE => format!("{part} is a scope handle"),
+            Unmet::Missing(t @ Type::Handle(_)) => {
+                format!("{part} is `{t}`, a pinned handle, which stays on the thread that made it")
+            }
             Unmet::Missing(t) => format!("{part} is a `{t}`, which isn't sendable"),
             Unmet::Unbounded(name) => {
                 format!("{part} is the type parameter `{name}`, not bounded `Sendable`")

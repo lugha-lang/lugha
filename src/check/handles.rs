@@ -2,12 +2,21 @@
 //! an opaque C pointer type. Handles compare by address and do nothing
 //! else; only C makes them, as an extern's result or a callback's argument.
 
-use super::Checker;
 use super::env::is_intrinsic;
 use super::errors;
+use super::{Checker, Type};
 use crate::ast::{Item, Program};
 
 impl Checker {
+    /// True for a pinned handle, or `Option` of one.
+    pub(super) fn is_pinned(&self, ty: &Type) -> bool {
+        match ty {
+            Type::Handle(key) => self.pinned.contains(key),
+            Type::Option(inner) => self.is_pinned(inner),
+            _ => false,
+        }
+    }
+
     /// Pass 0: every `extern type`, before structs, so fields may hold handles.
     pub(super) fn collect_handles(&mut self, program: &Program) {
         for item in &program.items {
@@ -23,6 +32,9 @@ impl Checker {
             } else {
                 self.register_item(&key, t.visibility);
                 self.hover.define(t.name.span, t.name.span);
+                if t.pinned.is_some() {
+                    self.pinned.insert(key.clone());
+                }
                 self.handles.insert(key, t.name.span);
             }
         }

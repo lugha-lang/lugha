@@ -75,6 +75,10 @@ typedef struct LughaScope {
     /* Its deadline (monotonic ns, 0: none), and the next scope with one. */
     int64_t deadline;
     struct LughaScope *deadline_next;
+    /* The worker its body and tasks run on when pinned, its own or an
+     * enclosing scope's, else NULL; the owner's pin before it began. */
+    Worker *pinned;
+    Worker *owner_pin;
 } LughaScope;
 
 /* Generated code keeps a scope's record in its frame, in this many bytes. */
@@ -216,8 +220,12 @@ static void scope_task_done(Fiber *f) {
  * the body, is the current fiber's innermost. `name` is the scope's,
  * `policy` and the handler (`code`, `env`) what a task's failure does,
  * `limit` how many tasks may run at once (0: any; below 0 panics). */
+static void scope_pin(LughaScope *s, bool pinned);
+static void pin_to(Worker *w);
+
 void lugha_rt_scope_enter(LughaScope *s, LughaString *name, int32_t policy, void *code,
-                          void *env, int64_t limit, int64_t within, int64_t until) {
+                          void *env, int64_t limit, int64_t within, int64_t until,
+                          int32_t pinned) {
     RT_SECTION();
     ensure_started();
     // `limit` is -1 when the scope says none.
@@ -240,14 +248,26 @@ void lugha_rt_scope_enter(LughaScope *s, LughaString *name, int32_t policy, void
     s->outer = current->scopes;
     current->scopes = s;
     deadline_start(s, within, until);
+    scope_pin(s, pinned != 0);
 }
 
-/* The root scope, which `main` and tests take. */
-void *lugha_rt_scope_root(void) {
-    RT_SECTION();
-    ensure_started();
-    root_scope.owner = &main_fiber;
-    return &root_scope;
+/* `s` pinned, by `pinned` or by the scope it is in (its owner's, or the
+ * one its owner's task started in): its owner moves there, if it isn't,
+ * and stays while it runs. A task already pinned keeps its worker; with
+ * one worker, nothing is pinned. */
+static void scope_pin(LughaScope *s, bool pinned) {
+    LughaScope *outer = s->outer != NULL ? s->outer : current->started_in;
+    Worker *to = outer != NULL ? outer->pinned : NULL;
+    if (to == NULL && pinned && workers_wanted > 1) {
+        // `main`'s pins to the main thread, which toolkits expect.
+        to = current == &main_fiber ? main_worker : worker;
+    }
+    s->owner_pin = current->pin;
+    if (to == NULL) {
+        return;
+    }
+    s->pinned = current->pin != NULL ? current->pin : to;
+    pin_to(s->pinned);
 }
 
 /* `s.spawn(…)`: a new task, started in `s`. */
@@ -262,6 +282,7 @@ LughaTask *lugha_rt_task_spawn_in(LughaScope *s, void (*entry)(void *, void *, v
     LughaTask *task = task_create(entry, code, env, result_size);
     Fiber *f = task->fiber;
     f->started_in = s;
+    f->pin = s->pinned;
     lugha_rt_rc_retain(task);
     task->scope_next = s->tasks;
     s->tasks = task;
@@ -293,6 +314,10 @@ void lugha_rt_scope_end(LughaScope *s) {
  * cancellation it made over. */
 static void scope_pop(LughaScope *s) {
     current->scopes = s->outer;
+    // Free again once its pinned scope ends, unless a handle pinned it.
+    if (s->pinned != NULL && !current->pin_kept) {
+        __atomic_store_n(&current->pin, s->owner_pin, __ATOMIC_RELEASE);
+    }
     deadline_stop(s);
     lugha_rt_rc_release(s->name);
     lugha_rt_rc_release(s->handler_env);
@@ -442,52 +467,4 @@ static void woke(int64_t fired) {
     if (fired == CANCELLED) {
         cancel_unwind();
     }
-}
-
-/* When `main` returns: its scope's tasks finish first. True if one failed:
- * the program then ends with 101, as after an unhandled panic. */
-/* True if a root-scope task failed. */
-static int32_t root_scope_failed(void) {
-    return root_scope.failed != TASK_OK;
-}
-
-/* Waits for the root scope's tasks, and lets go of them and of its
- * failure, once reported. */
-static void root_scope_wait(void) {
-    scope_wait(&root_scope);
-    lock_take(&root_scope.lock);
-    LughaTask *done = root_scope.tasks;
-    root_scope.tasks = NULL;
-    lock_give(&root_scope.lock);
-    for (LughaTask *t = done; t != NULL;) {
-        LughaTask *next = t->scope_next;
-        lugha_rt_rc_release(t);
-        t = next;
-    }
-    lugha_rt_rc_release(root_scope.error_box);
-    lugha_rt_rc_release(root_scope.panic);
-    lugha_rt_rc_release(root_scope.failed_task);
-    root_scope.error_box = NULL;
-    root_scope.panic = NULL;
-    root_scope.failed_task = NULL;
-}
-
-/* `main` unwound: when cancelled because a root-scope task failed, the
- * other tasks, cancelled too, stop before the program ends. */
-void lugha_rt_scope_root_unwound(void) {
-    RT_SECTION();
-    if (current != NULL && current->cancelled != REASON_NONE) {
-        current->unwinding = false;
-        root_scope_wait();
-        current->unwinding = true;
-    }
-}
-
-int32_t lugha_rt_scope_root_finish(void) {
-    RT_SECTION();
-    if (current == NULL) {
-        return 0;
-    }
-    root_scope_wait();
-    return root_scope_failed();
 }
