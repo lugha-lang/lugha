@@ -418,6 +418,7 @@ fn units(modules: &[Module]) -> Vec<check::Unit<'_>> {
             path: &m.path,
             program: m.program.as_ref().expect("every module parsed"),
             imports: &m.imports,
+            ffi_denied: m.ffi_denied.as_deref(),
             package: m.package.as_deref(),
             origin: check::Origin::of(m),
         })

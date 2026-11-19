@@ -227,6 +227,7 @@ pub(crate) mod test_util {
             package: None,
             folder: None,
             imports: Vec::new(),
+            ffi_denied: None,
         };
         let mut modules = vec![main];
         let mut errors = Vec::new();
@@ -238,6 +239,7 @@ pub(crate) mod test_util {
                 path: &m.path,
                 program: m.program.as_ref().expect("parsed"),
                 imports: &m.imports,
+                ffi_denied: m.ffi_denied.as_deref(),
                 package: m.package.as_deref(),
                 origin: check::Origin::of(m),
             })
@@ -275,6 +277,7 @@ pub(crate) mod test_util {
             path: &[],
             program: &program,
             imports: &[],
+            ffi_denied: None,
             package: None,
             origin: None,
         };
@@ -295,6 +298,7 @@ pub(crate) mod test_util {
             path: &[],
             program: &program,
             imports: &[],
+            ffi_denied: None,
             package: None,
             origin: None,
         };

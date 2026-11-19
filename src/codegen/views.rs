@@ -195,6 +195,15 @@ impl<'ctx> Lowerer<'ctx> {
         let count = self.get(&args[0], &Type::U64)?.into_int_value();
         let f = self.get(&args[1], &fun_type)?;
         let i64_type = self.context.i64_type();
+        // A view's length is an `i64` and its size in bytes must not wrap:
+        // past that, `n` would read as negative or wrap the bounds check.
+        let (size, align) = super::structs::layout(element, &self.structs, &self.enums);
+        let limit = i64_type.const_int(i64::MAX as u64 / size.max(1), false);
+        let too_long = self
+            .builder
+            .build_int_compare(IntPredicate::UGT, count, limit, "too_long")
+            .expect(POSITIONED);
+        self.panic_if(too_long, "view length too large", at);
         let b = &self.builder;
         let address = b
             .build_ptr_to_int(pointer, i64_type, "address")
@@ -207,7 +216,6 @@ impl<'ctx> Lowerer<'ctx> {
             .expect(POSITIONED);
         let empty_null = b.build_and(null, some, "null.some").expect(POSITIONED);
         self.panic_if(empty_null, "NULL CPtr given to view", at);
-        let align = super::structs::layout(element, &self.structs, &self.enums).1;
         let rem = self
             .builder
             .build_int_unsigned_rem(address, i64_type.const_int(align, false), "rem")

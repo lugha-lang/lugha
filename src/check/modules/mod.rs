@@ -21,6 +21,9 @@ pub struct Unit<'a> {
     pub imports: &'a [Vec<String>],
     /// The module's package (`Module::package`); `None` for the root.
     pub package: Option<&'a str>,
+    /// E0333's help when that package has no `ffi` grant
+    /// (`Module::ffi_denied`): its `p.view` is refused.
+    pub ffi_denied: Option<&'a str>,
     /// Its file and package folder, for `include_bytes`/`include_str`; `None` for bundled and
     /// in-memory sources.
     pub origin: Option<Origin<'a>>,
@@ -307,6 +310,7 @@ impl Checker {
     fn enter(&mut self, unit: &Unit) {
         self.module = unit.path.to_vec();
         self.package = unit.package.map(str::to_string);
+        self.ffi_denied = unit.ffi_denied.map(str::to_string);
         self.origin = unit
             .origin
             .map(|o| (o.file.to_path_buf(), o.folder.to_path_buf()));
@@ -379,6 +383,7 @@ pub(crate) mod test_util {
                 path: &m.path,
                 program: m.program.as_ref().expect("parsed"),
                 imports: &m.imports,
+                ffi_denied: m.ffi_denied.as_deref(),
                 package: m.package.as_deref(),
                 origin: super::Origin::of(m),
             })
@@ -479,6 +484,7 @@ mod root_tests {
                 path: &m.path,
                 program: m.program.as_ref().expect("parsed"),
                 imports: &m.imports,
+                ffi_denied: m.ffi_denied.as_deref(),
                 package: m.package.as_deref(),
                 origin: super::Origin::of(m),
             })

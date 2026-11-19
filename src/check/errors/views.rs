@@ -76,3 +76,14 @@ pub(in crate::check) fn view_function(ty: &Type, span: Span) -> Diagnostic {
     )
     .with_help("write the view's type on its parameter: `fun(bytes: View<u8>) { … }`")
 }
+
+/// E0333: `p.view` in a package no `ffi` grant covers; `help` names the
+/// program's entry to change.
+pub(in crate::check) fn view_ungranted(package: &str, help: &str, span: Span) -> Diagnostic {
+    Diagnostic::error(
+        "E0333",
+        format!("package `{package}` reads C's memory (`p.view`) but has no `ffi` permission"),
+        span,
+    )
+    .with_help(help.to_string())
+}

@@ -39,6 +39,7 @@ pub(super) fn parse_module(
                 package: None,
                 folder: None,
                 imports: Vec::new(),
+                ffi_denied: None,
             };
         }
     };
@@ -92,6 +93,7 @@ pub(super) fn parse_module(
         package: None,
         folder: None,
         imports: Vec::new(),
+        ffi_denied: None,
     }
 }
 

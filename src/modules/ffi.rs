@@ -85,16 +85,43 @@ fn reach(packages: &Packages, start: &str) -> Vec<String> {
     seen
 }
 
-/// E0333 for every package declaring C code that no grant covers, added to
-/// `loaded`; the packages that may run C, each with the grant that lets it,
-/// sorted by name.
-pub(super) fn check(packages: &Packages, loaded: &mut Loaded) -> Vec<Holder> {
+/// Every package a grant covers, with the grant that does.
+fn covered(packages: &Packages) -> HashMap<String, String> {
     let mut covered: HashMap<String, String> = HashMap::new();
     for grant in &packages.grants {
         for package in reach(packages, grant) {
             covered.entry(package).or_insert_with(|| grant.clone());
         }
     }
+    covered
+}
+
+/// Every package among `of` (each module's package, `None` for the root)
+/// other than the program's own and std that no grant covers, with E0333's
+/// help for it: such a package may not read C's memory either, which only
+/// the checker can see it do (`p.view`).
+pub(super) fn denied<'a>(
+    packages: &Packages,
+    of: impl IntoIterator<Item = &'a Option<String>>,
+) -> HashMap<String, String> {
+    let covered = covered(packages);
+    let mut denied = HashMap::new();
+    for name in of.into_iter().flatten() {
+        if name == STD || packages.own.as_ref() == Some(name) || covered.contains_key(name) {
+            continue;
+        }
+        denied
+            .entry(name.clone())
+            .or_insert_with(|| grant_help(packages, name));
+    }
+    denied
+}
+
+/// E0333 for every package declaring C code that no grant covers, added to
+/// `loaded`; the packages that may run C, each with the grant that lets it,
+/// sorted by name.
+pub(super) fn check(packages: &Packages, loaded: &mut Loaded) -> Vec<Holder> {
+    let covered = covered(packages);
     let mut holders = Vec::new();
     for needs in needing(packages, loaded) {
         if let Some(through) = covered.get(&needs.package) {
@@ -107,18 +134,30 @@ pub(super) fn check(packages: &Packages, loaded: &mut Loaded) -> Vec<Holder> {
     holders
 }
 
-/// E0333 for `needs`, with help naming the program's entry to change: the
+/// E0333 for `needs`, with help naming the program's entry to change.
+fn ungranted(packages: &Packages, needs: &Needs) -> Diagnostic {
+    Diagnostic::error(
+        "E0333",
+        format!(
+            "package `{}` declares C code ({}) but has no `ffi` permission",
+            needs.package, needs.how
+        ),
+        needs.at,
+    )
+    .with_help(grant_help(packages, &needs.package))
+}
+
+/// E0333's help for package `name`: the program's entry to change, the
 /// package's own when the program lists it, else the dependency of the
 /// program's that brings it in.
-fn ungranted(packages: &Packages, needs: &Needs) -> Diagnostic {
+fn grant_help(packages: &Packages, name: &str) -> String {
     let direct = packages.listed.get(&None).into_iter().flatten();
-    let brings = direct.clone().find(|d| **d == needs.package).or_else(|| {
+    let brings = direct.clone().find(|d| *d == name).or_else(|| {
         direct
             .clone()
-            .find(|d| reach(packages, d).contains(&needs.package))
+            .find(|d| reach(packages, d).iter().any(|r| r == name))
     });
-    let name = &needs.package;
-    let help = match brings {
+    match brings {
         Some(d) if d == name => format!(
             "C code can do anything, so the program must trust it: add `allow = [\"ffi\"]` to `{name}`'s entry in lugha.toml"
         ),
@@ -126,14 +165,45 @@ fn ungranted(packages: &Packages, needs: &Needs) -> Diagnostic {
             "C code can do anything, so the program must trust it: add `allow = [\"ffi\"]` to `{d}`'s entry in lugha.toml (`{name}` is one of its dependencies)"
         ),
         None => "C code can do anything, so the program must trust it: grant it with `allow = [\"ffi\"]` in lugha.toml".to_string(),
-    };
-    Diagnostic::error(
-        "E0333",
-        format!(
-            "package `{name}` declares C code ({}) but has no `ffi` permission",
-            needs.how
-        ),
-        needs.at,
-    )
-    .with_help(help)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::modules::fetch::Fetcher;
+    use std::path::PathBuf;
+
+    /// The program lists `outer` (granted, depending on `report`) and
+    /// `plain` (not granted), and is package `app` itself.
+    fn packages() -> Packages {
+        let mut p = Packages::new(PathBuf::new(), PathBuf::new(), Fetcher::none());
+        p.listed
+            .insert(None, vec!["outer".to_string(), "plain".to_string()]);
+        p.listed
+            .insert(Some("outer".to_string()), vec!["report".to_string()]);
+        p.grants = vec!["outer".to_string()];
+        p.own = Some("app".to_string());
+        p
+    }
+
+    #[test]
+    fn only_packages_no_grant_covers_are_denied_with_their_entry() {
+        let of = [
+            None,
+            Some("app"),
+            Some("std"),
+            Some("outer"),
+            Some("report"),
+            Some("plain"),
+            Some("plain"),
+        ]
+        .map(|p| p.map(str::to_string));
+        let denied = denied(&packages(), &of);
+        assert_eq!(denied.len(), 1, "{denied:?}");
+        assert!(
+            denied["plain"].contains("to `plain`'s entry in lugha.toml"),
+            "{denied:?}"
+        );
+    }
 }

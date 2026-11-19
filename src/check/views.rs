@@ -96,6 +96,14 @@ impl Checker {
             self.report(errors::arity(&name.name, 2, args.len(), call.span));
             return Some(self.unchecked(args));
         };
+        // The length is trusted, so reading C's memory is as dangerous as
+        // running C: a package no grant covers may not.
+        if let (Some(help), Some(package)) = (&self.ffi_denied, &self.package)
+            && self.ffi_reported.insert(package.clone())
+        {
+            let error = errors::view_ungranted(package, help, name.span);
+            self.report(error);
+        }
         // C's memory is outside the program: no constant reads it.
         self.effect("view", "uses C memory", name.span);
         self.expect_type(count, &super::expr::Expect::of(Type::U64));

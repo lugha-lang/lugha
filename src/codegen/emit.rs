@@ -71,6 +71,7 @@ pub fn emit_ir(
             path: &[],
             program,
             imports: &[],
+            ffi_denied: None,
             package: None,
             origin: None,
         }],
@@ -154,6 +155,7 @@ pub fn emit_object(
         path: &[],
         program,
         imports: &[],
+        ffi_denied: None,
         package: None,
         origin: None,
     }];

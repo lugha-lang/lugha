@@ -119,7 +119,7 @@ fun main(console: Console) {
 "#;
 
 /// Programs that panic on a view, each with its message.
-const PANICS: [(&str, &str); 4] = [
+const PANICS: [(&str, &str); 7] = [
     (
         "memory_data().view(4, fun(v: View<u8>) = v[4]);",
         "index out of bounds",
@@ -132,6 +132,20 @@ const PANICS: [(&str, &str); 4] = [
     (
         "memory_data().view(4, fun(v: View<u8>) = v.slice(2, 5).len);",
         "slice out of bounds",
+    ),
+    // One past the most `u32`s an `i64` length's bytes can count.
+    (
+        "memory_data().view(2305843009213693952, fun(v: View<u32>) = v.len);",
+        "view length too large",
+    ),
+    (
+        "memory_data().view(18446744073709551615, fun(v: View<u8>) = v.len);",
+        "view length too large",
+    ),
+    // At the limit the length is fine, so the alignment check is reached.
+    (
+        "odd().view(2305843009213693951, fun(v: View<i32>) = v.len);",
+        "not aligned",
     ),
 ];
 
@@ -155,7 +169,7 @@ fn views_read_and_write_c_memory_in_place() {
 }
 
 #[test]
-fn views_panic_out_of_bounds_misaligned_and_mismatched() {
+fn views_panic_out_of_bounds_misaligned_mismatched_and_too_long() {
     let head = "extern fun memory_data(): CPtr;\nextern fun odd(): CPtr;\nfun main() {\n";
     for (body, message) in PANICS {
         let out = Case::new(&format!("{head}    {body}\n}}\n"), SIDE).run("-O0");

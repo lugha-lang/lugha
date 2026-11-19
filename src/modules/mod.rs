@@ -66,6 +66,10 @@ pub struct Module {
     /// Each import's module path, in order, as resolved through the
     /// manifests: a package's own `import util.x;` is `geo.util.x`.
     pub imports: Vec<Vec<String>>,
+    /// E0333's help when its package has no `ffi` grant, so may not read
+    /// C's memory (`p.view`); `None` for the program, std and granted
+    /// packages.
+    pub ffi_denied: Option<String>,
 }
 
 /// A `lugha.toml` that was read, so its diagnostics map back to it.
@@ -325,6 +329,10 @@ pub fn load_all(roots: &[PathBuf], read: &mut Read<'_>, env: LoadEnv) -> Result<
     // Before the program's modules take its package's name, below: they
     // never need a grant.
     loaded.ffi = ffi::check(&packages, &mut loaded);
+    let denied = ffi::denied(&packages, loaded.modules.iter().map(|m| &m.package));
+    for module in &mut loaded.modules {
+        module.ffi_denied = module.package.as_ref().and_then(|p| denied.get(p).cloned());
+    }
     loaded.ffi_before = packages.fetcher.locked_ffi();
     // A program under its package's manifest (in `test/`, `examples/`, …)
     // sees the package's package-level items. Set

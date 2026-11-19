@@ -20,6 +20,7 @@ fn with_units<R>(program: &Program, f: impl FnOnce(&[Unit]) -> R) -> R {
         package: None,
         folder: None,
         imports: Vec::new(),
+        ffi_denied: None,
     };
     let mut modules = vec![main];
     let mut prelude_errors = Vec::new();
@@ -34,6 +35,7 @@ fn with_units<R>(program: &Program, f: impl FnOnce(&[Unit]) -> R) -> R {
             path: &m.path,
             program: m.program.as_ref().expect("both parsed"),
             imports: &m.imports,
+            ffi_denied: m.ffi_denied.as_deref(),
             package: m.package.as_deref(),
             origin: super::Origin::of(m),
         })

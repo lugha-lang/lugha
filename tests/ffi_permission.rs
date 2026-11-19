@@ -186,6 +186,92 @@ fn only_the_program_grants() {
     );
 }
 
+/// A package reading C's memory through a `CPtr` it is handed, and the
+/// program's own C, which needs no grant, to make one.
+const REPORT: &str = "public fun peek(p: CPtr): u8 = p.view(1, fun(v: View<u8>) = v[0]);\n";
+const CALLOC: &str = "extern fun calloc(n: u64, size: u64): CPtr;";
+
+#[test]
+fn an_ungranted_package_viewing_c_memory_is_e0333() {
+    let t = Temp::new();
+    t.package("report", REPORT, &[], "");
+    t.app(
+        "report = { path = \"../report\" }\n",
+        &format!("import report;\n{CALLOC}"),
+        "report.peek(calloc(1, 8))",
+    );
+    let out = t.lughac(&["check"]);
+    let stderr = text(&out.stderr);
+    assert_eq!(out.status.code(), Some(1), "{stderr}");
+    assert!(
+        stderr.contains(
+            "error[E0333]: package `report` reads C's memory (`p.view`) but has no `ffi` permission"
+        ) && stderr.contains("add `allow = [\"ffi\"]` to `report`'s entry in lugha.toml"),
+        "{stderr}"
+    );
+}
+
+#[test]
+fn a_grant_lets_a_package_view_c_memory_directly_or_through_a_dependent() {
+    let t = Temp::new();
+    t.package("report", REPORT, &[], "");
+    t.app(
+        "report = { path = \"../report\", allow = [\"ffi\"] }\n",
+        &format!("import report;\n{CALLOC}"),
+        "report.peek(calloc(1, 8))",
+    );
+    let out = t.lughac(&["run"]);
+    assert_eq!(
+        (out.status.code(), text(&out.stdout)),
+        (Some(0), "0\n".to_string()),
+        "{}",
+        text(&out.stderr)
+    );
+    let t = Temp::new();
+    t.package("report", REPORT, &[], "");
+    t.package(
+        "outer",
+        "import report;\n\npublic fun peek(p: CPtr): u8 = report.peek(p);\n",
+        &["report"],
+        "",
+    );
+    t.app(
+        "outer = { path = \"../outer\", allow = [\"ffi\"] }\n",
+        &format!("import outer;\n{CALLOC}"),
+        "outer.peek(calloc(1, 8))",
+    );
+    let out = t.lughac(&["run"]);
+    assert_eq!(
+        (out.status.code(), text(&out.stdout)),
+        (Some(0), "0\n".to_string()),
+        "{}",
+        text(&out.stderr)
+    );
+}
+
+#[test]
+fn passing_a_cptr_or_taking_a_view_needs_no_grant() {
+    let t = Temp::new();
+    t.package(
+        "pass",
+        "public fun along(p: CPtr): CPtr = p;\n\npublic fun first(v: View<u8>): u8 = v[0];\n",
+        &[],
+        "",
+    );
+    t.app(
+        "pass = { path = \"../pass\" }\n",
+        &format!("import pass;\n{CALLOC}"),
+        "pass.along(calloc(1, 8)).view(1, fun(v: View<u8>) = pass.first(v))",
+    );
+    let out = t.lughac(&["run"]);
+    assert_eq!(
+        (out.status.code(), text(&out.stdout)),
+        (Some(0), "0\n".to_string()),
+        "{}",
+        text(&out.stderr)
+    );
+}
+
 fn git(dir: &Path, args: &[&str]) {
     let out = Command::new("git")
         .arg("-C")

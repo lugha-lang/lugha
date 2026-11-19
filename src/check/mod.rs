@@ -206,6 +206,7 @@ pub fn check(program: &Program) -> Result<(Checked, Vec<Diagnostic>), Vec<Diagno
         path: &[],
         program,
         imports: &[],
+        ffi_denied: None,
         package: None,
         origin: None,
     }])
@@ -306,6 +307,10 @@ pub(super) struct Checker {
     module: Vec<String>,
     /// Its package; `None` for the root package.
     package: Option<String>,
+    /// E0333's help when its package may not read C's memory
+    /// (`Unit::ffi_denied`), and the packages already told so, once each.
+    ffi_denied: Option<String>,
+    ffi_reported: std::collections::HashSet<String>,
     /// Its file and package folder, for includes.
     origin: Option<(std::path::PathBuf, std::path::PathBuf)>,
     /// See `Checked::includes`.

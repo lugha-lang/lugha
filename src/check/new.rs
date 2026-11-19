@@ -35,6 +35,8 @@ impl Checker {
             element_hints: HashMap::new(),
             module: Vec::new(),
             package: None,
+            ffi_denied: None,
+            ffi_reported: std::collections::HashSet::new(),
             origin: None,
             includes: HashMap::new(),
             include_reads: HashMap::new(),

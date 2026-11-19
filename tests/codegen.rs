@@ -47,6 +47,7 @@ fn emit(src: &str, opt: OptLevel, cpu: Cpu, object: &Path) {
         package: None,
         folder: None,
         imports: Vec::new(),
+        ffi_denied: None,
     };
     let mut all = vec![main];
     let mut errors = Vec::new();
@@ -58,6 +59,7 @@ fn emit(src: &str, opt: OptLevel, cpu: Cpu, object: &Path) {
             path: &m.path,
             program: m.program.as_ref().expect("parsed"),
             imports: &m.imports,
+            ffi_denied: m.ffi_denied.as_deref(),
             package: m.package.as_deref(),
             origin: check::Origin::of(m),
         })
