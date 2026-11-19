@@ -48,7 +48,6 @@ pub const RUNTIME_PARTS: [(&str, &str); 43] = [
     ("rc.c", include_str!("../../runtime/rc.c")),
     ("process.c", include_str!("../../runtime/process.c")),
     ("test.c", include_str!("../../runtime/test.c")),
-    ("callbacks.c", include_str!("../../runtime/callbacks.c")),
     ("cstr.c", include_str!("../../runtime/cstr.c")),
     ("tasks.c", include_str!("../../runtime/tasks.c")),
     ("runq.c", include_str!("../../runtime/runq.c")),
@@ -61,6 +60,7 @@ pub const RUNTIME_PARTS: [(&str, &str); 43] = [
         "scope_policy.c",
         include_str!("../../runtime/scope_policy.c"),
     ),
+    ("callbacks.c", include_str!("../../runtime/callbacks.c")),
     ("scope_time.c", include_str!("../../runtime/scope_time.c")),
     ("cells.c", include_str!("../../runtime/cells.c")),
     ("chans.c", include_str!("../../runtime/chans.c")),
@@ -76,7 +76,7 @@ pub const RUNTIME_PARTS: [(&str, &str); 43] = [
 ];
 
 /// Every runtime function codegen may call; `lugha_rt.c` defines them all.
-pub const RUNTIME_SYMBOLS: [&str; 154] = [
+pub const RUNTIME_SYMBOLS: [&str; 159] = [
     "lugha_rt_init",
     "lugha_rt_task_go",
     "lugha_rt_print_begin",
@@ -202,6 +202,11 @@ pub const RUNTIME_SYMBOLS: [&str; 154] = [
     "lugha_rt_unwound_to_c",
     "lugha_rt_scope_enter",
     "lugha_rt_pin_here",
+    "lugha_rt_cb_leave",
+    "lugha_rt_cb_hold",
+    "lugha_rt_cb_queue",
+    "lugha_rt_cb_task_panicked",
+    "lugha_rt_cb_caught",
     "lugha_rt_scope_root",
     "lugha_rt_task_spawn_in",
     "lugha_rt_scope_end",
@@ -257,7 +262,6 @@ pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/rc.c"),
     include_str!("../../runtime/process.c"),
     include_str!("../../runtime/test.c"),
-    include_str!("../../runtime/callbacks.c"),
     include_str!("../../runtime/cstr.c"),
     include_str!("../../runtime/tasks.c"),
     include_str!("../../runtime/runq.c"),
@@ -267,6 +271,7 @@ pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/spawn.c"),
     include_str!("../../runtime/scopes.c"),
     include_str!("../../runtime/scope_policy.c"),
+    include_str!("../../runtime/callbacks.c"),
     include_str!("../../runtime/scope_time.c"),
     include_str!("../../runtime/cells.c"),
     include_str!("../../runtime/chans.c"),

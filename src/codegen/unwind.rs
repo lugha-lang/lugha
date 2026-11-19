@@ -191,9 +191,9 @@ impl<'ctx> Lowerer<'ctx> {
     }
 
     /// In a function C calls (a callback's entry): a panic never unwinds
-    /// into C, so every call here that may unwind gets a pad ending the
-    /// program instead.
-    pub(super) fn unwind_stops_here(&mut self) {
+    /// into C, so every call here that may unwind gets a pad running
+    /// `stop`, which must end with a return or `unreachable`.
+    pub(super) fn unwind_stops_here(&mut self, stop: impl FnOnce(&mut Self)) {
         let Some(entry) = self.function.and_then(|f| f.get_first_basic_block()) else {
             return;
         };
@@ -202,11 +202,7 @@ impl<'ctx> Lowerer<'ctx> {
             return;
         }
         let (block, landed) = self.cleanup_block();
-        self.in_pad(block, |this| {
-            let end = this.runtime("lugha_rt_unwound_to_c", &[], None);
-            this.builder.build_call(end, &[], "").expect(POSITIONED);
-            this.builder.build_unreachable().expect(POSITIONED);
-        });
+        self.in_pad(block, stop);
         let pad = self.pad_entry((block, landed), |_| {});
         for call in calls {
             self.give_pad(call, pad);

@@ -66,6 +66,13 @@ pub(super) struct CSig<'ctx> {
     pub fn_type: FunctionType<'ctx>,
 }
 
+impl CSig<'_> {
+    /// True if C returns the result through a pointer it passes first.
+    pub(super) fn returns_in_memory(&self) -> bool {
+        matches!(self.ret, Ret::Memory(_))
+    }
+}
+
 /// True if a C signature carries a struct by value: only then does it need lowering.
 pub(super) fn has_struct(kinds: &[CKind], ret: &Type) -> bool {
     matches!(ret, Type::Struct(..))

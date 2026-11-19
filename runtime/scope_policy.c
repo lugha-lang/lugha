@@ -209,6 +209,7 @@ static void root_scope_wait(void) {
 /* `main` unwound: when cancelled because a root-scope task failed, the
  * other tasks, cancelled too, stop before the program ends. */
 void lugha_rt_scope_root_unwound(void) {
+    callbacks_stop(&root_scope);
     RT_SECTION();
     if (current != NULL && current->cancelled != REASON_NONE) {
         current->unwinding = false;
@@ -220,6 +221,7 @@ void lugha_rt_scope_root_unwound(void) {
 /* When `main` returns: its scope's tasks finish first. True if one failed:
  * the program then ends with 101, as after an unhandled panic. */
 int32_t lugha_rt_scope_root_finish(void) {
+    callbacks_stop(&root_scope);
     RT_SECTION();
     if (current == NULL) {
         return 0;

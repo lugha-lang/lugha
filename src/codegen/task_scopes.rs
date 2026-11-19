@@ -31,7 +31,7 @@ pub(super) const ENDED_PANICKED: u64 = 3;
 
 /// The 8-byte words a scope's record takes in its frame (the runtime's
 /// `LughaScope` checks that it fits).
-const SCOPE_RECORD_WORDS: u32 = 24;
+const SCOPE_RECORD_WORDS: u32 = 26;
 
 /// A scope or shield whose body is being lowered: where its pads stop.
 pub(super) struct Catch<'ctx> {
@@ -72,7 +72,7 @@ impl<'ctx> Lowerer<'ctx> {
         // Every use names the slot itself, so its frame keeps it to the end.
         let rec = record;
         let mut enter = vec![rec.into()];
-        enter.extend(self.scope_settings(scope)?);
+        enter.extend(self.scope_settings(scope, &failure)?);
         let params = [
             ptr.clone(),
             ptr.clone(),
@@ -83,6 +83,7 @@ impl<'ctx> Lowerer<'ctx> {
             Type::I64,
             Type::I64,
             Type::I32,
+            ptr.clone(),
         ];
         self.rt("lugha_rt_scope_enter", &params, None, &enter);
 

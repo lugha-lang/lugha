@@ -7,7 +7,9 @@
 //!   the global `lugha_cbv_<n>` before the call, and the entry calls it.
 //! - A callback with `data` gets the trampoline `lugha_cb_<signature>`, one
 //!   per C signature, and the `data` argument is `lugha_rt_cb_pin(code, env)`:
-//!   the trampoline reads the closure back from it.
+//!   the trampoline reads the closure back from it, while its scope runs.
+//!   A queued one's (no result, not `inline`), `lugha_cbq_<signature>`,
+//!   starts a task instead (queued_callbacks.rs).
 //! - A `release` argument is `lugha_rt_cb_release`.
 
 use inkwell::attributes::AttributeLoc;
@@ -113,13 +115,18 @@ impl<'ctx> Lowerer<'ctx> {
                 CParam::Value | CParam::Pointer(_) | CParam::Elements { .. } => {
                     written.next().expect("checked arity")
                 }
-                CParam::Callback { params, ret, data } => {
+                CParam::Callback {
+                    params,
+                    ret,
+                    data,
+                    queued,
+                } => {
                     let pair = written.next().expect("checked arity").into_struct_value();
                     match data {
                         None => self.static_entry(pair, params, ret).into(),
                         Some(at) => {
                             pinned = Some(self.pin(pair));
-                            self.trampoline(params, ret, *at).into()
+                            self.trampoline(params, ret, *at, *queued).into()
                         }
                     }
                 }
@@ -214,7 +221,7 @@ impl<'ctx> Lowerer<'ctx> {
         let entry =
             self.module
                 .add_function(&format!("lugha_cfn_{n}"), fn_type, Some(Linkage::Internal));
-        self.c_body(entry, params, ret, None, |this, _| {
+        self.c_body(entry, params, ret, (None, false), |this, _| {
             this.builder
                 .build_load(pair_type, slot, "pair")
                 .expect(POSITIONED)
@@ -224,9 +231,17 @@ impl<'ctx> Lowerer<'ctx> {
     }
 
     /// `lugha_cb_<signature>`: calls the closure pinned in its `data`
-    /// parameter, at index `data`. Emitted once per signature.
-    fn trampoline(&mut self, params: &[Type], ret: &Type, data: usize) -> PointerValue<'ctx> {
-        let name = format!("lugha_cb_{}", c_signature(params, ret, Some(data)));
+    /// parameter, at index `data`; `lugha_cbq_…` when `queued`, starting a
+    /// task that calls it. Emitted once per signature.
+    fn trampoline(
+        &mut self,
+        params: &[Type],
+        ret: &Type,
+        data: usize,
+        queued: bool,
+    ) -> PointerValue<'ctx> {
+        let kind = if queued { "cbq" } else { "cb" };
+        let name = format!("lugha_{kind}_{}", c_signature(params, ret, Some(data)));
         if let Some(existing) = self.module.get_function(&name) {
             return existing.as_global_value().as_pointer_value();
         }
@@ -234,27 +249,23 @@ impl<'ctx> Lowerer<'ctx> {
         let entry = self
             .module
             .add_function(&name, fn_type, Some(Linkage::Internal));
-        self.c_body(entry, params, ret, Some(data), |this, pinned| {
-            let ptr = this.context.ptr_type(Default::default());
-            let pinned = pinned.expect("a trampoline has its data parameter");
-            // The pin holds the function value itself: `{ code, env }`.
-            let pair_type = this.context.struct_type(&[ptr.into(), ptr.into()], false);
-            this.builder
-                .build_load(pair_type, pinned, "pair")
-                .expect(POSITIONED)
-                .into_struct_value()
+        // The closure comes from the pin, its captures held for the call.
+        self.c_body(entry, params, ret, (Some(data), queued), |_, _| {
+            unreachable!("a trampoline holds its closure through its pin")
         });
         entry.as_global_value().as_pointer_value()
     }
 
-    /// The body of a C entry `entry`: get the function value with `pair`,
-    /// convert C's arguments (all but `data`), call it, convert its result.
+    /// The body of a C entry `entry`: get the function value (with `pair`,
+    /// or from the pin in the `data` parameter at `data`), convert C's
+    /// arguments (all but `data`), call it, convert its result; when
+    /// `queued`, start a task to call it instead. A panic stops here.
     fn c_body(
         &mut self,
         entry: FunctionValue<'ctx>,
         params: &[Type],
         ret: &Type,
-        data: Option<usize>,
+        (data, queued): (Option<usize>, bool),
         pair: impl FnOnce(&mut Self, Option<PointerValue<'ctx>>) -> StructValue<'ctx>,
     ) {
         // Counted arrays are two C parameters each.
@@ -269,8 +280,12 @@ impl<'ctx> Lowerer<'ctx> {
         self.function = Some(entry);
         self.builder
             .position_at_end(self.context.append_basic_block(entry, "entry"));
-        // Lugha code runs only on the program's thread, never on a helper
-        // running a `blocking` extern: the runtime checks before any runs.
+        // The closure's captures, held while it runs: let go of on a panic.
+        let held = self.entry_alloca(&Type::String, "held.env");
+        let null = self.context.ptr_type(Default::default()).const_null();
+        self.builder.build_store(held, null).expect(POSITIONED);
+        // Never on a helper thread; inside an inline callback, no
+        // cancellation point unwinds.
         let enter = self.runtime("lugha_rt_cb_enter", &[], None);
         self.builder.build_call(enter, &[], "").expect(POSITIONED);
         let (all, sret): (Vec<BasicValueEnum>, _) = match &sig {
@@ -278,13 +293,29 @@ impl<'ctx> Lowerer<'ctx> {
             None => (entry.get_param_iter().collect(), None),
         };
         let pinned = c_data.map(|at| all[at].into_pointer_value());
-        let pair = pair(self, pinned);
+        let pair = match pinned {
+            Some(pinned) => {
+                // Once its scope's body has ended, nothing runs.
+                let (pair, live) = self.hold_callback(pinned, held);
+                let (dead, go) = (self.append("cb.stopped"), self.append("cb.live"));
+                self.builder
+                    .build_conditional_branch(live, go, dead)
+                    .expect(POSITIONED);
+                self.builder.position_at_end(dead);
+                self.rt("lugha_rt_cb_leave", &[], None, &[]);
+                self.c_entry_return(sig.as_ref(), sret, ret, None);
+                self.builder.position_at_end(go);
+                pair
+            }
+            None => pair(self, None),
+        };
         let mut incoming = all
             .into_iter()
             .enumerate()
             .filter(|(i, _)| Some(*i) != c_data)
             .map(|(_, p)| p);
         let mut values: Vec<BasicMetadataValueEnum> = Vec::with_capacity(params.len());
+        let mut plain = Vec::with_capacity(params.len());
         let mut copies = Vec::new();
         for ty in params {
             let value = incoming.next().expect("C passes every parameter");
@@ -296,6 +327,7 @@ impl<'ctx> Lowerer<'ctx> {
             } else {
                 value
             };
+            plain.push(value);
             let value = if is_aggregate(ty) {
                 // Function values take aggregates as a pointer to the caller's copy.
                 let slot = self.entry_alloca(ty, "arg");
@@ -306,34 +338,46 @@ impl<'ctx> Lowerer<'ctx> {
             };
             values.push(value.into());
         }
-        let result = self.call_pair(pair, (params, ret), values);
-        self.copy_back(copies);
-        if let Some(sig) = &sig {
+        let leave = |this: &mut Self| {
+            this.rt("lugha_rt_cb_leave", &[], None, &[]);
+        };
+        if let (true, Some(pinned)) = (queued, pinned) {
+            // The block takes the held captures over.
+            let pins = params.iter().any(|t| self.is_pinned(t));
+            self.queue_call(pinned, pair, params, plain, pins);
+            self.builder.build_store(held, null).expect(POSITIONED);
+            leave(self);
+            self.c_entry_return(sig.as_ref(), sret, ret, None);
+        } else {
+            let result = self.call_pair(pair, (params, ret), values);
+            self.copy_back(copies);
+            if pinned.is_some() {
+                let env = self
+                    .builder
+                    .build_load(null.get_type(), held, "held")
+                    .expect(POSITIONED);
+                self.rt("lugha_rt_rc_release", &[Type::String], None, &[env]);
+            }
+            leave(self);
             let result = match result {
-                Value::Val(result) if is_nullable_handle(ret) => {
-                    Some(self.nullable_to_c(result, ret))
-                }
-                Value::Val(result) => Some(result),
+                Value::Val(v) => Some(v),
                 Value::Void | Value::Never => None,
             };
-            self.c_sig_return(sig, sret, result);
-            self.unwind_stops_here();
-            self.function = saved_function;
-            if let Some(block) = saved_block {
-                self.builder.position_at_end(block);
-            }
-            return;
+            self.c_entry_return(sig.as_ref(), sret, ret, result);
         }
-        match result {
-            Value::Val(result) if is_nullable_handle(ret) => {
-                let result = self.nullable_to_c(result, ret);
-                self.builder.build_return(Some(&result))
-            }
-            Value::Val(result) => self.builder.build_return(Some(&result)),
-            Value::Void | Value::Never => self.builder.build_return(None),
-        }
-        .expect(POSITIONED);
-        self.unwind_stops_here();
+        let ret = ret.clone();
+        self.unwind_stops_here(|this| {
+            let env = this
+                .builder
+                .build_load(null.get_type(), held, "held")
+                .expect(POSITIONED);
+            this.rt("lugha_rt_rc_release", &[Type::String], None, &[env]);
+            let pinned: BasicValueEnum = pinned.unwrap_or(null).into();
+            this.rt("lugha_rt_cb_caught", &[Type::String], None, &[pinned]);
+            let sig = this.entry_sig(&c_params, &ret, c_data);
+            let sret = Self::entry_sret(sig.as_ref(), entry);
+            this.c_entry_return(sig.as_ref(), sret, &ret, None);
+        });
         self.function = saved_function;
         if let Some(block) = saved_block {
             self.builder.position_at_end(block);

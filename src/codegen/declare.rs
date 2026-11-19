@@ -37,7 +37,7 @@ pub(super) fn abi_attribute(context: &inkwell::context::Context, ty: &Type) -> O
 
 impl<'ctx> Lowerer<'ctx> {
     /// True for a pinned handle, or `Option` of one.
-    fn is_pinned(&self, ty: &Type) -> bool {
+    pub(super) fn is_pinned(&self, ty: &Type) -> bool {
         match ty {
             Type::Handle(key) => self.pinned.contains(key),
             Type::Option(inner) => self.is_pinned(inner),

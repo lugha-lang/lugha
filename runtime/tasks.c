@@ -113,6 +113,9 @@ struct Fiber {
     struct Worker *pin;
     /* Pinned by a handle: stays pinned until it ends. */
     bool pin_kept;
+    /* How many inline C callbacks it is inside: no cancellation point
+     * unwinds there, since C waits for the callback (callbacks.c). */
+    int32_t in_callback;
     Fiber *prev_live;
     Fiber *next_live;
     /* In a `join` wait list. */

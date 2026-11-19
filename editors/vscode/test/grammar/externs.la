@@ -13,6 +13,12 @@ extern type Window pinned;
 let pinned = 1;
 //  ^^^^^^ - keyword.other.pinned.lugha
 
+extern fun on_draw(f: fun(W, data) inline, u: data);
+//                                 ^^^^^^ storage.modifier.inline.lugha
+
+let inline = 1;
+//  ^^^^^^ - storage.modifier.inline.lugha
+
 extern struct Color { r: u8 }
 // <------ keyword.other.extern.lugha
 //     ^^^^^^ keyword.other.struct.lugha

@@ -157,7 +157,7 @@ const REGISTRY: &str = "typedef void (*cb_t)(long, void *);\n\
     void drop(long i) { rels[i](datas[i]); cbs[i] = 0; released++; }\n\
     long released_count(void) { return released; }\n";
 
-const REGISTRY_EXTERNS: &str = "extern fun reg(f: fun(i64, data), user: data, rel: release): i64;\n\
+const REGISTRY_EXTERNS: &str = "extern fun reg(f: fun(i64, data) inline, user: data, rel: release): i64;\n\
     extern fun fire(i: i64, x: i64);\n\
     extern fun fire_all(x: i64);\n\
     extern fun drop(i: i64);\n\
@@ -268,7 +268,7 @@ fn renamed_externs_call_one_c_function_with_different_callbacks() {
 }
 
 #[test]
-fn a_panic_in_a_callback_ends_the_program() {
+fn a_panic_in_an_inline_callback_gives_c_zero_and_fails_the_scope() {
     let case = Case::new(
         "extern fun apply_sum(n: i64, f: fun(i64): i64): i64;\n\
          fun boom(x: i64): i64 { if x == 2 { panic(\"no twos\"); } x }\n\
@@ -276,9 +276,12 @@ fn a_panic_in_a_callback_ends_the_program() {
         "long apply_sum(long n, long (*f)(long)) { long s = 0; for (long i = 0; i < n; i++) s += f(i); return s; }\n",
     );
     let out = case.lughac(&["run", "main.la"]);
+    // 0 + 1 + 0 + 3: C got 0 for the call that panicked, and went on; the
+    // root scope failed, so the program ends with 101 once `main` returns.
     assert_eq!(out.status.code(), Some(101), "{}", text(&out.stderr));
+    assert_eq!(text(&out.stdout), "4\n");
     assert!(
-        text(&out.stderr).contains("panic: no twos"),
+        text(&out.stderr).contains("task `callback` panicked: no twos"),
         "{}",
         text(&out.stderr)
     );
@@ -298,7 +301,7 @@ fn bad_callback_programs_are_rejected_with_their_codes() {
 }
 
 #[test]
-fn a_panic_in_a_callback_unwinds_to_it_and_ends_the_program() {
+fn a_panic_in_an_inline_callback_unwinds_to_its_entry_only() {
     let case = Case::new(
         &[
             REGISTRY_EXTERNS,
@@ -316,10 +319,14 @@ fn a_panic_in_a_callback_unwinds_to_it_and_ends_the_program() {
         REGISTRY,
     );
     let out = case.lughac(&["run", "main.la"]);
+    // The callback's `defer` runs; `main` goes on and ends normally.
     assert_eq!(out.status.code(), Some(101), "{}", text(&out.stderr));
-    assert_eq!(text(&out.stdout), "callback cleaned up\n");
+    assert_eq!(
+        text(&out.stdout),
+        "callback cleaned up\nmain isn't unwound\n"
+    );
     assert!(
-        text(&out.stderr).contains("panic: callback failed"),
+        text(&out.stderr).contains("task `callback` panicked: callback failed"),
         "{}",
         text(&out.stderr)
     );
@@ -363,7 +370,7 @@ fn a_callback_may_call_c_again() {
 }
 
 #[test]
-fn a_callback_that_would_wait_panics() {
+fn an_inline_callback_that_would_wait_panics_into_its_scope() {
     let case = Case::new(
         "import std.task;\n\
          extern fun apply_sum(n: i64, f: fun(i64): i64): i64;\n\
@@ -379,7 +386,7 @@ fn a_callback_that_would_wait_panics() {
     let out = case.lughac(&["run", "main.la"]);
     assert_eq!(out.status.code(), Some(101));
     assert!(
-        text(&out.stderr).contains("panic: a C callback can't wait: start a task instead"),
+        text(&out.stderr).contains("task `callback` panicked: an inline C callback can't wait"),
         "{}",
         text(&out.stderr)
     );

@@ -133,6 +133,11 @@ pub(super) fn answer(text: &str, names: Option<(&Names, &str)>) -> SemanticToken
             {
                 Some((Kind::Keyword, 0))
             }
+            // `cb: fun(…) inline` in an extern's parameters: a keyword
+            // only after a function type's closing `)` or result.
+            TokenKind::Ident(word) if word == "inline" && inline_after_callback(&tokens, i) => {
+                Some((Kind::Keyword, 0))
+            }
             // `extern type Name pinned;`: a keyword only there.
             TokenKind::Ident(word)
                 if word == "pinned"
@@ -172,6 +177,27 @@ pub(super) fn answer(text: &str, names: Option<(&Names, &str)>) -> SemanticToken
 /// variant (`Some`, `None`, `Ok`, `Err`): neither has a declaration, so the
 /// check names nothing there. A program's own name of the same spelling
 /// resolves, and wins before this is asked.
+/// True if `inline` at `i` ends a parameter whose type is a function
+/// type: `cb: fun(W, data) inline,`.
+fn inline_after_callback(tokens: &[Token], i: usize) -> bool {
+    let ends = matches!(
+        tokens.get(i + 1).map(|t| &t.kind),
+        Some(TokenKind::Comma | TokenKind::RParen)
+    );
+    let mut depth = 0usize;
+    for t in tokens[..i].iter().rev() {
+        match t.kind {
+            TokenKind::RParen => depth += 1,
+            TokenKind::LParen if depth == 0 => return false,
+            TokenKind::LParen => depth -= 1,
+            TokenKind::Fun if depth == 0 => return ends,
+            TokenKind::Comma if depth == 0 => return false,
+            _ => {}
+        }
+    }
+    false
+}
+
 fn intrinsic(word: &str, next: Option<&Token>) -> Option<(Kind, u32)> {
     if ["Some", "None", "Ok", "Err"].contains(&word) {
         return Some((Kind::EnumMember, DEFAULT_LIBRARY));
@@ -353,6 +379,15 @@ mod tests {
         let keyword = Kind::Keyword as u32;
         assert!(tokens.contains(&(0, 7, 8, keyword, 0)), "{tokens:?}");
         assert!(!tokens.contains(&(1, 4, 8, keyword, 0)), "{tokens:?}");
+    }
+
+    #[test]
+    fn inline_is_a_keyword_only_after_a_callbacks_type() {
+        let tokens =
+            decoded("extern fun on(f: fun(i64, data) inline, u: data);\nlet inline = 1;\n");
+        let keyword = Kind::Keyword as u32;
+        assert!(tokens.contains(&(0, 32, 6, keyword, 0)), "{tokens:?}");
+        assert!(!tokens.contains(&(1, 4, 6, keyword, 0)), "{tokens:?}");
     }
 
     #[test]

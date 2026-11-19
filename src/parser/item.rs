@@ -224,6 +224,7 @@ impl Parser<'_> {
             name,
             ty: self.ty()?,
             mode: None,
+            inline: None,
         })
     }
 

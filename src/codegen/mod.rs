@@ -72,6 +72,7 @@ mod owning;
 mod patterns;
 mod places;
 mod printing;
+mod queued_callbacks;
 mod rc;
 mod rc_at;
 mod rc_objects;

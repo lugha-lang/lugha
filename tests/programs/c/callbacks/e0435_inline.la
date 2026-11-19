@@ -1,0 +1,4 @@
+// Only a callback can be `inline`.
+extern fun count(n: i64 inline): i64;
+
+fun main() {}

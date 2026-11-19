@@ -41,7 +41,7 @@ fn error_type() -> Type {
 }
 
 /// `Failure<e>` and `FailureKind<e>`.
-fn failure_types(e: &Type) -> (Type, Type) {
+pub(super) fn failure_types(e: &Type) -> (Type, Type) {
     (
         Type::Struct("$prelude.Failure".to_string(), vec![e.clone()]),
         Type::Enum("$prelude.FailureKind".to_string(), vec![e.clone()]),
@@ -51,10 +51,12 @@ fn failure_types(e: &Type) -> (Type, Type) {
 impl<'ctx> Lowerer<'ctx> {
     /// The scope's settings as `lugha_rt_scope_enter`'s arguments after the
     /// record: its name, policy, handler code and environment, limit,
-    /// deadline and whether it is pinned.
+    /// deadline, whether it is pinned, and its handler for a callback
+    /// task's panic.
     pub(super) fn scope_settings(
         &mut self,
         scope: &ScopeExpr,
+        failure: &Type,
     ) -> Result<Vec<BasicValueEnum<'ctx>>, CodegenError> {
         let ptr = self.context.ptr_type(Default::default());
         let i32_type = self.context.i32_type();
@@ -63,6 +65,7 @@ impl<'ctx> Lowerer<'ctx> {
         let none = self.context.i64_type().const_all_ones();
         let (mut limit, mut within, mut until) = (none, none, none);
         let mut pinned = 0;
+        let mut panic_handler = ptr.const_null();
         for w in &scope.words {
             match (w.name.name.as_str(), &w.arg) {
                 ("independent", None) => policy = POLICY_PRINT,
@@ -72,6 +75,8 @@ impl<'ctx> Lowerer<'ctx> {
                     let part = |i| self.builder.build_extract_value(pair, i, "handler");
                     code = part(0).expect("a pair has 2 fields").into_pointer_value();
                     env = part(1).expect("a pair has 2 fields").into_pointer_value();
+                    // A callback task's panic reaches the handler through it.
+                    panic_handler = self.scope_panic_handler(failure);
                 }
                 ("limit", Some(n)) => limit = self.get(n, &Type::I64)?.into_int_value(),
                 ("within", Some(ms)) => within = self.get(ms, &Type::I64)?.into_int_value(),
@@ -89,6 +94,7 @@ impl<'ctx> Lowerer<'ctx> {
             within.into(),
             until.into(),
             i32_type.const_int(pinned, false).into(),
+            panic_handler.into(),
         ])
     }
 
@@ -192,7 +198,7 @@ impl<'ctx> Lowerer<'ctx> {
     }
 
     /// `Failure { task: name, kind }` of type `failure`, both handed over.
-    fn failure_struct(
+    pub(super) fn failure_struct(
         &mut self,
         failure: &Type,
         name: PointerValue<'ctx>,

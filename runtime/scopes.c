@@ -79,10 +79,15 @@ typedef struct LughaScope {
      * enclosing scope's, else NULL; the owner's pin before it began. */
     Worker *pinned;
     Worker *owner_pin;
+    /* The callbacks registered in it, still running (callbacks.c), and
+     * for `independent(f)`, the generated function that builds a panic's
+     * `Failure<E>` and calls the handler with it. */
+    struct CbRecord *callbacks;
+    void (*panic_handler)(LughaString *text, LughaString *task, void *code, void *env);
 } LughaScope;
 
 /* Generated code keeps a scope's record in its frame, in this many bytes. */
-_Static_assert(sizeof(LughaScope) <= 192, "a scope's record fits its frame slot");
+_Static_assert(sizeof(LughaScope) <= 208, "a scope's record fits its frame slot");
 
 /* `main`'s scope: its owner is the main fiber. */
 static LughaScope root_scope;
@@ -222,10 +227,13 @@ static void scope_task_done(Fiber *f) {
  * `limit` how many tasks may run at once (0: any; below 0 panics). */
 static void scope_pin(LughaScope *s, bool pinned);
 static void pin_to(Worker *w);
+static void callbacks_stop(LughaScope *s);
+static LughaTask *spawn_into(LughaScope *s, void (*entry)(void *, void *, void *), void *code,
+                             void *env, int64_t result_size, bool room);
 
 void lugha_rt_scope_enter(LughaScope *s, LughaString *name, int32_t policy, void *code,
                           void *env, int64_t limit, int64_t within, int64_t until,
-                          int32_t pinned) {
+                          int32_t pinned, void *panic_handler) {
     RT_SECTION();
     ensure_started();
     // `limit` is -1 when the scope says none.
@@ -243,6 +251,7 @@ void lugha_rt_scope_enter(LughaScope *s, LughaString *name, int32_t policy, void
     s->handler_code = code;
     lugha_rt_rc_retain(env);
     s->handler_env = env;
+    s->panic_handler = panic_handler;
     s->limit = limit < 0 ? 0 : limit;
     s->owner = current;
     s->outer = current->scopes;
@@ -273,11 +282,20 @@ static void scope_pin(LughaScope *s, bool pinned) {
 /* `s.spawn(…)`: a new task, started in `s`. */
 LughaTask *lugha_rt_task_spawn_in(LughaScope *s, void (*entry)(void *, void *, void *),
                                   void *code, void *env, int64_t result_size) {
+    return spawn_into(s, entry, code, env, result_size, true);
+}
+
+/* A new task in `s`; with `room`, waiting while `limit n` of its tasks
+ * run (a queued callback doesn't: C never waits on Lugha). */
+static LughaTask *spawn_into(LughaScope *s, void (*entry)(void *, void *, void *), void *code,
+                             void *env, int64_t result_size, bool room) {
     ensure_started();
     lugha_rt_cancel_point();
     // Only the scope's own lock: spawners in other scopes don't wait.
     lock_take(&s->lock);
-    scope_room(s);
+    if (room) {
+        scope_room(s);
+    }
     // Queued once generated code has set it up (`lugha_rt_task_go`).
     LughaTask *task = task_create(entry, code, env, result_size);
     Fiber *f = task->fiber;
@@ -304,8 +322,11 @@ LughaTask *lugha_rt_task_spawn_in(LughaScope *s, void (*entry)(void *, void *, v
     return task;
 }
 
-/* The body has finished: waits for every task. */
+/* The body has finished: its callbacks stop, and it waits for every
+ * task. */
 void lugha_rt_scope_end(LughaScope *s) {
+    // Before the section: the callback lock comes before the scopes lock.
+    callbacks_stop(s);
     RT_SECTION();
     scope_wait(s);
 }
@@ -343,6 +364,7 @@ static void scope_pop(LughaScope *s) {
 /* The body is left early: its tasks are cancelled and waited for, and the
  * scope ends; a failure meanwhile is dropped, as the exit goes on. */
 void lugha_rt_scope_leave(LughaScope *s) {
+    callbacks_stop(s);
     RT_SECTION();
     cancel_tasks(s, REASON_PARENT);
     scope_wait(s);
@@ -357,6 +379,7 @@ void lugha_rt_scope_leave(LughaScope *s) {
  * over; one from outside stays, to go on once the scope ends. Then the
  * tasks are cancelled and waited for. */
 void lugha_rt_scope_caught(LughaScope *s) {
+    callbacks_stop(s);
     RT_SECTION();
     overflow_over();
     Panic *caught = current->in_flight;
@@ -445,7 +468,8 @@ static bool panic_caught(void) {
     if (current == NULL) {
         return false;
     }
-    return current->scopes != NULL || current->started_in != NULL;
+    // Inside an inline callback, the registering scope reports it.
+    return current->scopes != NULL || current->started_in != NULL || current->in_callback > 0;
 }
 
 /* At a safe point: a cancelled task unwinds from here. */
@@ -453,6 +477,10 @@ void lugha_rt_cancel_point(void) {
     // Not cancelled, the common case: no lock taken.
     Fiber *self = current;
     if (self == NULL || __atomic_load_n(&self->cancelled, __ATOMIC_ACQUIRE) == REASON_NONE) {
+        return;
+    }
+    // Inside an inline C callback: C waits for it, so it runs on.
+    if (self->in_callback > 0) {
         return;
     }
     RT_SECTION();

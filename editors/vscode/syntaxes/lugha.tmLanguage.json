@@ -116,6 +116,11 @@
           "name": "storage.modifier.out.lugha",
           "match": "\\b(?:out|ptr)(?=\\s+[A-Za-z_0-9\\[\"'#])|(?<=\\bextern\\s)union\\b"
         },
+        {
+          "comment": "`inline` after an extern callback's type (v18, milestone 215): `cb: fun(W, data) inline,`.",
+          "name": "storage.modifier.inline.lugha",
+          "match": "(?<=[)A-Za-z0-9_>\\]])\\s+inline(?=\\s*[,)])"
+        },
         { "name": "keyword.operator.as.lugha", "match": "\\bas\\b" },
         { "name": "constant.language.boolean.lugha", "match": "\\b(true|false)\\b" },
         { "name": "variable.language.self.lugha", "match": "\\bself\\b" },

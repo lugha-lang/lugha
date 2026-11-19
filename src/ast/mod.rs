@@ -293,6 +293,9 @@ pub struct Param {
     /// `out`, `ptr` or `mut` before an extern's parameter: how it reaches C
     /// by address, and where the word is.
     pub mode: Option<(PassMode, Span)>,
+    /// `inline` after an extern callback's type: C's call runs it at once,
+    /// rather than starting a task.
+    pub inline: Option<Span>,
 }
 
 /// How an extern's parameter reaches C by address.

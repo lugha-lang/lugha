@@ -41,11 +41,16 @@ impl Parser<'_> {
         Some((mode, self.bump()))
     }
 
-    /// An extern's parameter: `[out | ptr | mut] name: T`.
+    /// An extern's parameter: `[out | ptr | mut] name: T [inline]`.
     pub(super) fn extern_param(&mut self) -> PResult<Param> {
         let mode = self.mode_word(false);
         let mut param = self.param("parameter name")?;
         param.mode = mode;
+        // `inline` is a name everywhere else; the checker says it fits only
+        // a callback.
+        if matches!(self.peek(), TokenKind::Ident(w) if w == "inline") {
+            param.inline = Some(self.bump());
+        }
         Ok(param)
     }
 

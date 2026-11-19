@@ -1,0 +1,9 @@
+// A queued callback runs as a task of its scope: what it captures crosses.
+extern fun on_event(f: fun(i64, data), user: data);
+extern fun on_now(f: fun(i64, data) inline, user: data);
+
+fun main() {
+    let total = Ref.new(0);
+    on_event(fun(n: i64) { total.set(n); });
+    on_now(fun(n: i64) { total.set(n); });
+}

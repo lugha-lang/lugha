@@ -951,6 +951,8 @@ sensor_start(fun(x: f64) {                           // inline on the foreign th
 
 **Replaces:** v17 §8's rule that a callback is called on the OS thread that registered it; uncollectable memory for callback closures (3.1).
 
+**Later: guest mode** (milestone 215 left it for later, with macOS). A framework that owns its thread's loop and never returns from it (Cocoa's `NSApplication run`, Qt's `exec()`, Android's Looper) can't be driven from a Lugha loop, so callbacks queued for that thread would wait. As gtk-rs (`spawn_future_local`), Python's qasync and Swift's `MainActor` do, the runtime would run as a guest inside it: a file descriptor the framework watches, and a call, made from an idle or fd source the program registers, that runs the tasks ready on this thread and returns. Never from inside an arbitrary callback.
+
 **Why:** toolkits and C libraries impose thread rules of their own; the language states them as types and callback rules instead of building any one toolkit's model in. Alternative rejected: a UI capability in the language.
 
 ---

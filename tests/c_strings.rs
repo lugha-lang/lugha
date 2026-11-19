@@ -91,8 +91,8 @@ const EXTERNS: &str = "extern fun greeting(): string;\n\
     extern fun text_len(s: Option<string>): i64;\n\
     extern fun null_text(): string;\n\
     extern fun getenv(name: string): Option<string>;\n\
-    extern fun each_word(f: fun(string, data), u: data);\n\
-    extern fun maybe_word(f: fun(Option<string>, data), u: data);\n";
+    extern fun each_word(f: fun(string, data) inline, u: data);\n\
+    extern fun maybe_word(f: fun(Option<string>, data) inline, u: data);\n";
 
 #[test]
 fn c_text_is_copied_into_lugha_strings() {

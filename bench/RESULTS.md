@@ -495,3 +495,17 @@ The single-task benchmarks and chanping, 9 interleaved runs each, medians:
 | mandelbrot  | 0.368s  | 0.366s  | -0.4%  |
 | nbody       | 0.675s  | 0.665s  | -1.5%  |
 | wordfreq    | 0.487s  | 0.481s  | -1.1%  |
+
+## 2026-11-20 — callbacks registered against a scope (PRP-247, milestone 215)
+
+No benchmark calls back into Lugha, so these check the runtime's new work elsewhere (a cancellation point's one more test, a larger scope record) costs nothing. Milestone 214 against this one, 9 interleaved runs each, medians:
+
+| benchmark   | before  | after   | change |
+|-------------|---------|---------|--------|
+| binarytrees | 0.979s  | 0.974s  | -0.6%  |
+| chanping    | 0.408s  | 0.415s  | +1.8%  |
+| fannkuch    | 0.262s  | 0.266s  | +1.3%  |
+| fib         | 0.727s  | 0.708s  | -2.5%  |
+| mandelbrot  | 0.375s  | 0.370s  | -1.3%  |
+| nbody       | 0.693s  | 0.695s  | +0.3%  |
+| wordfreq    | 0.512s  | 0.517s  | +1.1%  |

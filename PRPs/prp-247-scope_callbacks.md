@@ -1,6 +1,6 @@
 ## FEATURE: Callbacks registered against a scope: a C callback with user data and no result runs as a task in the scope that registered it, unless marked `inline`; a panic in an inline callback fails that scope instead of ending the program; events after the scope's body ends are dropped and its captures let go of; milestone 215, the second of three PRPs for callbacks and thread-bound values.
 
-**Status:** proposed 2026-11-20.
+**Status:** approved 2026-11-20.
 
 ## OBJECTIVE
 A callback may wait, and the program's own loop drives the C library:
@@ -101,23 +101,35 @@ error: scope `ui` failed: panic: not yet
 - Run tasks from inside a callback.
 
 ## TESTS
-- [ ] `tests/callbacks.rs` (a C file per case, `[link]`):
-  - [ ] A queued callback runs after the extern call returns, as a task in the registering scope, and may wait (`task.sleep`, a channel).
-  - [ ] An `inline` one runs during the call; one with a result is inline without the mark; one without `data` is inline.
-  - [ ] A queued callback's panic fails its scope by its policy (all-or-nothing, `independent`).
-  - [ ] An inline callback's panic: C gets 0, and the scope fails with the message; the program doesn't end.
-  - [ ] Cancellation during an inline callback waits until it returns.
-  - [ ] After the scope's body ends, C's calls are dropped (counted on the C side), and the captures are let go of (`LUGHA_RC_REPORT`: nothing left) before C's `release`.
-  - [ ] A queued callback taking a pinned handle runs on the thread C called from (four workers).
-  - [ ] The existing cases, updated with `inline` where they mean "during the call".
-- [ ] `tests/programs/c/callbacks/`: E0475 for a queued callback capturing a `Ref`, and none when it is `inline`; E0481; `inline` parsing and formatting.
-- [ ] `tests/workers.rs`'s sweep, `tests/programs/`, `leaks`, `rc_check`, `c_strings`, `c_memory`, `extern_structs`, `arm`.
-- [ ] Benchmarks: the seven within 3% of milestone 214 (nothing there calls back).
-- [ ] Targeted: `--lib`, `programs`, `callbacks`, `c_strings`, `c_memory`, `c_arrays`, `extern_structs`, `arm`, `leaks`, `rc_check`, `workers`, `pinned`, `blocking_externs`, `explain`, `spec`, `codegen`, `comments`, `parser`, `fmt`, `lsp_semantic_tokens`.
+- [x] `tests/callbacks.rs` (a C file per case, `[link]`):
+  - [x] A queued callback runs after the extern call returns, as a task in the registering scope, and may wait (`task.sleep`, a channel).
+  - [x] An `inline` one runs during the call; one with a result is inline without the mark; one without `data` is inline.
+  - [x] A queued callback's panic fails its scope by its policy (all-or-nothing, `independent`).
+  - [x] An inline callback's panic: C gets 0, and the scope fails with the message; the program doesn't end.
+  - [x] Cancellation during an inline callback waits until it returns.
+  - [x] After the scope's body ends, C's calls are dropped (counted on the C side), and the captures are let go of (`LUGHA_RC_REPORT`: nothing left) before C's `release`.
+  - [x] A queued callback taking a pinned handle runs on the thread C called from (four workers).
+  - [x] The existing cases, updated with `inline` where they mean "during the call".
+- [x] `tests/programs/c/callbacks/`: E0475 for a queued callback capturing a `Ref`, and none when it is `inline`; E0481; `inline` parsing and formatting.
+- [x] `tests/workers.rs`'s sweep, `tests/programs/`, `leaks`, `rc_check`, `c_strings`, `c_memory`, `extern_structs`, `arm`.
+- [x] Benchmarks: the seven within 3% of milestone 214 (nothing there calls back).
+- [x] Targeted: `--lib`, `programs`, `callbacks`, `c_strings`, `c_memory`, `c_arrays`, `extern_structs`, `arm`, `leaks`, `rc_check`, `workers`, `pinned`, `blocking_externs`, `explain`, `spec`, `codegen`, `comments`, `parser`, `fmt`, `lsp_semantic_tokens`.
 
 ## ACCEPTANCE
-- [ ] A callback-driven program can wait inside its callbacks, with a loop it drives itself, on one or four workers.
-- [ ] An inline callback's panic fails its scope; C never sees an unwind.
-- [ ] No callback runs after its scope's body ends, and its captures are freed by then.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
-- [ ] Spec, the Draft, CHANGELOG (Breaking), TODO and the editor tooling are updated.
+- [x] A callback-driven program can wait inside its callbacks, with a loop it drives itself, on one or four workers.
+- [x] An inline callback's panic fails its scope; C never sees an unwind.
+- [x] No callback runs after its scope's body ends, and its captures are freed by then.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
+- [x] Spec, the Draft, CHANGELOG (Breaking), TODO and the editor tooling are updated.
+
+## BUILD NOTES
+- **Panics are reported by tasks:** a panic in an inline callback, or in a queued one, is reported by a task of the registering scope (`lugha_rt_cb_caught` starts one; a queued callback's own task calls `lugha_rt_cb_task_panicked`), so the scope's policy runs exactly as for its other tasks, never while C waits or a lock is held. Printing uses a task's usual line, ``task `callback` panicked: …``.
+- **`independent(f)` and callbacks:** the handler takes a `Failure<E>`, and a callback's entry can't know `E` (the registering scope is found at run time). Each `independent(f)` scope now passes `lugha_rt_scope_enter` a function made for its `E` (`lugha_scope_panic.<n>`) that builds the failure and calls the handler; the scope's record grew to 26 words.
+- **Design item 4, refined:** for a callback without `data`, or once the registering scope's body has ended, the panic fails the calling task's innermost scope (always running while the task is), rather than "the task C called from" itself.
+- **A program that never started a task:** `lugha_rt_cb_enter` starts the runtime, so a panic in a callback always has a task to stop in, and the root scope reports it (exit 101 once `main` returns; before, the program ended at once).
+- **The callback lock** comes before the scopes lock; callbacks stop before a scope's section opens (`lugha_rt_scope_end`, `_leave`, `_caught`, the root's finish).
+- **`runtime/callbacks.c`** moved after `scope_policy.c` in the join order; the helper-thread check stays in `helpers.c` as `callback_on_helper`.
+- **Existing tests changed meaning:** `tests/callbacks.rs`'s registry and `tests/c_strings.rs`'s `each_word`/`maybe_word`, `tests/c_memory.rs`'s `call_host` (a `Ref<T[]>`) are `inline` now; the two panic tests check the new behaviour; the "can't wait" panic is reworded. `docs/errors/E0435.md`'s example and spec §8's `on_clicked` example changed for the same reason.
+- **The pinned-handle case discriminates:** without `pinned`, 171–230 calls of 400 ran on the wrong thread; with it, none.
+- **Measured** (`bench/RESULTS.md`): the seven benchmarks within 3% of milestone 214 (nothing there calls back).
+- **A fix to milestone 214 on the way:** its spec added E0479 and E0480 to the error table without registering their pages in `src/explain.rs`, so `tests/explain.rs` fails on `main` at m214; registered here with E0481.

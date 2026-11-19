@@ -17,11 +17,14 @@ pub enum CParam {
     Value,
     /// A C function pointer: the next argument, a function value of type
     /// `fun(params): ret`. `data` is where C passes the user data back
-    /// among the C function's parameters, if it does.
+    /// among the C function's parameters, if it does. `queued`: C's call
+    /// starts a task in the registering scope (a callback with `data`, no
+    /// result, and not `inline`); else it runs during C's call.
     Callback {
         params: Vec<Type>,
         ret: Type,
         data: Option<usize>,
+        queued: bool,
     },
     /// The user data C hands back: lughac passes the pinned closure.
     Data,
@@ -107,9 +110,15 @@ impl Checker {
                 }
                 None => {}
             }
+            if let (Some(at), false) = (p.inline, matches!(p.ty.kind, TypeKind::Fun(..))) {
+                self.report(errors::callback_decl(
+                    "only a callback can be `inline`: a function type C calls",
+                    at,
+                ));
+            }
             let ty = match &p.ty.kind {
                 TypeKind::Fun(params, ret) => {
-                    let callback = self.callback(&p.ty, params, ret.as_deref());
+                    let callback = self.callback(&p.ty, params, ret.as_deref(), p.inline.is_some());
                     if let CParam::Callback { data: Some(_), .. } = callback {
                         with_data.push(p.ty.span);
                     }
@@ -170,6 +179,7 @@ impl Checker {
         whole: &Annotation,
         params: &[Annotation],
         ret: Option<&Annotation>,
+        inline: bool,
     ) -> CParam {
         let (mut types, mut data) = (Vec::new(), None);
         for (i, p) in params.iter().enumerate() {
@@ -216,26 +226,68 @@ impl Checker {
                 ty
             }
         };
+        let queued = data.is_some() && ret == Type::Unit && !inline;
+        // C reads a `Ref<T[]>` back when the call returns, before a
+        // queued callback has run.
+        if queued {
+            for (p, ty) in params.iter().filter(|p| marker(p).is_none()).zip(&types) {
+                if matches!(ty, Type::Ref(inner) if matches!(**inner, Type::Array(_))) {
+                    self.report(errors::queued_ref(p.span));
+                }
+            }
+        }
         CParam::Callback {
             params: types,
             ret,
             data,
+            queued,
         }
     }
 
     /// E0436 for each argument of a call to extern `key` going to a
     /// callback without `data` that isn't a function's name or a closure
-    /// capturing nothing: C keeps only a code pointer.
+    /// capturing nothing: C keeps only a code pointer. E0475 for one going
+    /// to a queued callback that isn't sendable: it runs as another task.
     pub(super) fn static_callbacks(&mut self, key: &str, args: &[Expr]) {
         let Some(plan) = self.c_params.get(key) else {
             return;
         };
-        let written = plan
+        let written: Vec<&CParam> = plan
             .iter()
-            .filter(|c| matches!(c, CParam::Value | CParam::Callback { .. }));
+            .filter(|c| matches!(c, CParam::Value | CParam::Callback { .. }))
+            .collect();
+        let queued: Vec<bool> = written
+            .iter()
+            .map(|c| matches!(c, CParam::Callback { queued: true, .. }))
+            .collect();
         let bare: Vec<bool> = written
+            .iter()
             .map(|c| matches!(c, CParam::Callback { data: None, .. }))
             .collect();
+        for (arg, queued) in args.iter().zip(queued) {
+            let ty = self.types[arg.id.0 as usize].clone();
+            let (true, Some(ty)) = (queued, ty) else {
+                continue;
+            };
+            // A named function always crosses; a closure when each of its
+            // captures does; any other function value never.
+            match self.fun_origins.get(&arg.id).cloned() {
+                Some(super::FunOrigin::Named(_)) => {}
+                Some(super::FunOrigin::Closure(_, _, captured)) => {
+                    for (name, t) in captured {
+                        let head =
+                            format!("a queued callback, run as a task, can't capture `{name}`");
+                        if self.must_send(&t, &head, arg.span) {
+                            break;
+                        }
+                    }
+                }
+                None => {
+                    let head = "a queued callback runs as a task, so its function crosses to it";
+                    self.must_send(&ty, head, arg.span);
+                }
+            }
+        }
         for (arg, bare) in args.iter().zip(bare) {
             let fixed = match &arg.kind {
                 ExprKind::Closure(_) => self.captures.get(&arg.id).is_none_or(Vec::is_empty),
@@ -254,7 +306,7 @@ mod tests {
     use crate::check::test_util::{errors, ok};
 
     const CONNECT: &str = "extern type W;\n\
-        extern fun connect(w: W, f: fun(W, data), user: data, destroy: release, flags: i32): u64;\n\
+        extern fun connect(w: W, f: fun(W, data) inline, user: data, destroy: release, flags: i32): u64;\n\
         extern fun sort(n: i64, cmp: fun(i64, i64): i32);\n\
         extern fun make(): W;\n";
 
@@ -274,6 +326,23 @@ mod tests {
                  sort(3, fun(a, b) = 0);\n\
              }",
         ));
+    }
+
+    #[test]
+    fn a_queued_callbacks_captures_must_cross_to_its_task() {
+        let externs = "extern fun on(f: fun(i64, data), user: data);\n";
+        let code = |src: &str| errors(src).first().map(|e| e.0);
+        ok(&format!(
+            "{externs}fun main(console: Console) {{ let n = 2; on(fun(x: i64) {{ console.println(x + n); }}); }}"
+        ));
+        let shared = format!(
+            "{externs}fun main() {{ let r = Ref.new(0); on(fun(x: i64) {{ r.set(x); }}); }}"
+        );
+        assert_eq!(code(&shared), Some("E0475"));
+        let value = format!("{externs}fun g(f: fun(i64)) {{ on(f); }}\nfun main() {{}}");
+        assert_eq!(code(&value), Some("E0475"));
+        let array = "extern fun each(f: fun(Ref<i64[]>, data), user: data);\nfun main() {}";
+        assert_eq!(code(array), Some("E0481"));
     }
 
     #[test]

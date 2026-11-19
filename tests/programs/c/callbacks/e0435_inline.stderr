@@ -1,0 +1,9 @@
+error[E0435]: only a callback can be `inline`: a function type C calls
+  --> tests/programs/c/callbacks/e0435_inline.la:2:25
+  |
+2 | extern fun count(n: i64 inline): i64;
+  |                         ^^^^^^
+  |
+  = help: write the callback as `cb: fun(T, data)` and its user data as a parameter `user: data`; `release` is the function C calls when it drops the callback
+
+For more about E0435, run `lughac explain E0435`.

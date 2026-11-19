@@ -133,7 +133,12 @@ impl Printer<'_> {
             let mode = p
                 .mode
                 .map_or(String::new(), |(m, _)| format!("{} ", m.word()));
-            text(format!("{mode}{}: {}", self.ident(&p.name), self.ty(&p.ty)))
+            let inline = if p.inline.is_some() { " inline" } else { "" };
+            text(format!(
+                "{mode}{}: {}{inline}",
+                self.ident(&p.name),
+                self.ty(&p.ty)
+            ))
         }));
         list("(", items, ")")
     }

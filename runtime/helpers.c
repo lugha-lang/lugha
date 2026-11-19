@@ -159,10 +159,10 @@ static void job_grow(char **buffer, size_t *cap, size_t len, size_t more) {
 /* True on a helper thread, where Lugha code must never run. */
 static __thread bool on_helper;
 
-/* `lugha_rt_cb_enter()`: the first call of every C entry into Lugha (a
- * callback). On a helper thread, running a `blocking` extern, Lugha code
- * can't run: the program ends. No cleanups run, being on the wrong thread. */
-void lugha_rt_cb_enter(void) {
+/* At every C entry into Lugha (a callback, callbacks.c): on a helper
+ * thread, running a `blocking` extern, Lugha code can't run, so the
+ * program ends. No cleanups run, being on the wrong thread. */
+static void callback_on_helper(void) {
     if (on_helper) {
         fflush(stdout);
         fputs("panic: a C callback ran on a helper thread, during a `blocking` extern call\n",

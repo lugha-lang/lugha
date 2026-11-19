@@ -81,7 +81,9 @@ pub(in crate::check) fn unscoped_actor(span: Span) -> Diagnostic {
 /// E0475: a value that isn't sendable crosses to another task: `head`
 /// says which and how, `why` names its first part that isn't.
 pub(in crate::check) fn not_sendable(head: &str, why: &str, span: Span) -> Diagnostic {
-    let help = if why.contains("type parameter") {
+    let help = if head.starts_with("a queued callback") {
+        "mark the callback `inline` in the extern (`cb: fun(W, data) inline`) to run it during C's call, or capture only sendable values"
+    } else if why.contains("type parameter") {
         "add `Sendable` to its bounds: `<T: Sendable>`"
     } else if why.contains("pinned handle") {
         "do the work that needs it in this task, or start the other tasks in a `pinned` scope and make the handle in each"
