@@ -133,10 +133,10 @@ pub(super) fn answer(text: &str, names: Option<(&Names, &str)>) -> SemanticToken
             {
                 Some((Kind::Keyword, 0))
             }
-            // `cb: direct fun(…)`, `cb: spawned fun(…)`: words only right
+            // `cb: direct fun(…)`, `spawned` or `realtime`: words only right
             // after a parameter's `:` and before `fun`.
             TokenKind::Ident(word)
-                if (word == "direct" || word == "spawned")
+                if (word == "direct" || word == "spawned" || word == "realtime")
                     && i > 0
                     && tokens[i - 1].kind == TokenKind::Colon
                     && tokens.get(i + 1).is_some_and(|t| t.kind == TokenKind::Fun) =>

@@ -83,7 +83,10 @@ fn check_with(
     units: &[Unit],
     tests: Option<usize>,
 ) -> Result<(Checked, Vec<Diagnostic>), Vec<Diagnostic>> {
-    let (checker, monos, layouts, used) = run_with(units, tests.is_some());
+    let (mut checker, monos, layouts, used) = run_with(units, tests.is_some());
+    // Once every body is typed: what `realtime` callbacks reach.
+    let realtime = super::realtime::check(units, &checker);
+    checker.diagnostics.extend(realtime);
     if checker
         .diagnostics
         .iter()

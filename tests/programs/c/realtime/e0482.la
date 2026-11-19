@@ -1,0 +1,31 @@
+// What a `realtime` callback can't do, each rule once.
+import std.task;
+
+extern fun on_tick(f: realtime fun(i64, data), user: data);
+extern blocking fun slow(n: i64): i64;
+
+interface Shape { fun area(self): i64; }
+struct Square { side: i64 }
+impl Shape for Square { fun area(self): i64 = self.side * self.side; }
+
+fun apply(f: fun(i64): i64, n: i64): i64 = f(n);
+fun area_of(s: Shape): i64 = s.area();
+
+fun main(console: Console) {
+    let xs = [1, 2, 3];
+    let (tx, rx) = Chan<i64>.unbounded();
+    on_tick(fun(n: i64) { let s = "tick {n}"; });
+    on_tick(fun(n: i64) { let a = [n, n]; });
+    on_tick(fun(n: i64) { let mut ys = xs; ys.push(n); });
+    on_tick(fun(n: i64) { let mut ys = xs; ys[0] = n; });
+    on_tick(fun(n: i64) { let r = Ref.new(n); });
+    on_tick(fun(n: i64) { let sq: Shape = Square { side: n }; });
+    on_tick(fun(n: i64) { let f = fun(): i64 = n; });
+    on_tick(fun(n: i64) { tx.send(n); });
+    on_tick(fun(n: i64) { let t = rx.try_recv(); });
+    on_tick(fun(n: i64) { task.sleep(n); });
+    on_tick(fun(n: i64) { console.println(n); });
+    on_tick(fun(n: i64) { let m = slow(n); });
+    on_tick(fun(n: i64) { let m = apply(fun(x: i64): i64 = x * 2, n); });
+    on_tick(fun(n: i64) { let m = area_of(Square { side: n }); });
+}

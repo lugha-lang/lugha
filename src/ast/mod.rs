@@ -305,6 +305,9 @@ pub enum CallbackRun {
     Direct,
     /// `spawned fun(…)`: a task in the registering scope, per call.
     Spawned,
+    /// `realtime fun(…)`: as `direct`, and checked never to allocate or
+    /// wait.
+    Realtime,
 }
 
 impl CallbackRun {
@@ -313,6 +316,7 @@ impl CallbackRun {
         match self {
             CallbackRun::Direct => "direct",
             CallbackRun::Spawned => "spawned",
+            CallbackRun::Realtime => "realtime",
         }
     }
 }

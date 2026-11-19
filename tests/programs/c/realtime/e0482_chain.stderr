@@ -1,0 +1,15 @@
+error[E0482]: a `realtime` callback can't allocate: this string is built at run time
+   --> tests/programs/c/realtime/e0482_chain.la:4:29
+   |
+ 4 | fun label(n: i64): string = "n = {n}";
+   |                             ^^^^^^^^^
+ 5 | fun step(n: i64): i64 {
+ 6 |     let s = label(n);
+   |             -------- `label` is called here, on the way from the callback
+   .
+11 |     on_tick(fun(n: i64) { let m = step(n); });
+   |                                   ------- `step` is called here, on the way from the callback
+   |
+   = help: `realtime` callbacks run on C's real-time thread, where allocating or waiting can stall it: do the work in a task, handing it values through a `Ring`
+
+For more about E0482, run `lughac explain E0482`.

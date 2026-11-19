@@ -156,3 +156,27 @@ fn two_writers_at_once_panic() {
     )
     .runs(0, "done\n", "a ring has one writer at a time");
 }
+
+#[test]
+fn a_realtime_callback_on_cs_thread_fills_a_ring() {
+    Case::new(
+        "extern \"on_threads\" fun on_threads_rt(f: realtime fun(i64, data): i64, u: data, threads: i64, n: i64, pause_ms: i64);\n\
+         fun scaled(i: i64): i64 = i * 2;\n\
+         fun main(console: Console) {\n\
+             let (tx, rx) = Ring<i64>.new(64);\n\
+             let r = scope s {\n\
+                 on_threads_rt(fun(i: i64): i64 = match tx.try_send(scaled(i)) { .Sent => 1, _ => 0 }, 1, 100000, 0);\n\
+                 let reader = s.spawn(fun(): i64 {\n\
+                     let mut got = 0;\n\
+                     for _ of rx { got += 1; }\n\
+                     got\n\
+                 }());\n\
+                 join_threads();\n\
+                 tx.close();\n\
+                 console.println(reader.join().unwrap() == given_sum());\n\
+             };\n\
+             console.println(r.is_ok());\n\
+         }\n",
+    )
+    .runs(0, "true\ntrue\n", "");
+}

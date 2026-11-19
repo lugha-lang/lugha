@@ -1,0 +1,140 @@
+error[E0482]: a `realtime` callback can't allocate: this string is built at run time
+   --> tests/programs/c/realtime/e0482.la:17:35
+   |
+17 |     on_tick(fun(n: i64) { let s = "tick {n}"; });
+   |                                   ^^^^^^^^^^
+   |
+   = help: `realtime` callbacks run on C's real-time thread, where allocating or waiting can stall it: do the work in a task, handing it values through a `Ring`
+
+error[E0482]: a `realtime` callback can't allocate: this array is made at run time
+   --> tests/programs/c/realtime/e0482.la:18:35
+   |
+18 |     on_tick(fun(n: i64) { let a = [n, n]; });
+   |                                   ^^^^^^
+   |
+   = help: `realtime` callbacks run on C's real-time thread, where allocating or waiting can stall it: do the work in a task, handing it values through a `Ring`
+
+error[E0482]: a `realtime` callback can't allocate: `push`: this method may allocate a new array or string
+   --> tests/programs/c/realtime/e0482.la:19:44
+   |
+19 |     on_tick(fun(n: i64) { let mut ys = xs; ys.push(n); });
+   |                                            ^^^^^^^^^^
+   |
+   = help: `realtime` callbacks run on C's real-time thread, where allocating or waiting can stall it: do the work in a task, handing it values through a `Ring`
+
+error[E0482]: a `realtime` callback can't allocate: writing an array's element may copy the array first
+   --> tests/programs/c/realtime/e0482.la:20:44
+   |
+20 |     on_tick(fun(n: i64) { let mut ys = xs; ys[0] = n; });
+   |                                            ^^^^^
+   |
+   = help: `realtime` callbacks run on C's real-time thread, where allocating or waiting can stall it: do the work in a task, handing it values through a `Ring`
+
+error[E0482]: a `realtime` callback can't allocate: `Ref.new` makes a box
+   --> tests/programs/c/realtime/e0482.la:21:35
+   |
+21 |     on_tick(fun(n: i64) { let r = Ref.new(n); });
+   |                                   ^^^^^^^^^^
+   |
+   = help: `realtime` callbacks run on C's real-time thread, where allocating or waiting can stall it: do the work in a task, handing it values through a `Ring`
+
+error[E0482]: a `realtime` callback can't allocate: converting to an interface value boxes it
+   --> tests/programs/c/realtime/e0482.la:22:43
+   |
+22 |     on_tick(fun(n: i64) { let sq: Shape = Square { side: n }; });
+   |                                           ^^^^^^^^^^^^^^^^^^
+   |
+   = help: `realtime` callbacks run on C's real-time thread, where allocating or waiting can stall it: do the work in a task, handing it values through a `Ring`
+
+error[E0482]: a `realtime` callback can't allocate: this closure captures, so its environment is allocated
+   --> tests/programs/c/realtime/e0482.la:23:35
+   |
+23 |     on_tick(fun(n: i64) { let f = fun(): i64 = n; });
+   |                                   ^^^^^^^^^^^^^^
+   |
+   = help: `realtime` callbacks run on C's real-time thread, where allocating or waiting can stall it: do the work in a task, handing it values through a `Ring`
+
+error[E0482]: a `realtime` callback can't wait: `send`: a channel's methods take its lock
+   --> tests/programs/c/realtime/e0482.la:24:27
+   |
+24 |     on_tick(fun(n: i64) { tx.send(n); });
+   |                           ^^^^^^^^^^
+   |
+   = help: `realtime` callbacks run on C's real-time thread, where allocating or waiting can stall it: do the work in a task, handing it values through a `Ring`
+
+error[E0482]: a `realtime` callback can't wait: `try_recv`: a channel's methods take its lock
+   --> tests/programs/c/realtime/e0482.la:25:35
+   |
+25 |     on_tick(fun(n: i64) { let t = rx.try_recv(); });
+   |                                   ^^^^^^^^^^^^^
+   |
+   = help: `realtime` callbacks run on C's real-time thread, where allocating or waiting can stall it: do the work in a task, handing it values through a `Ring`
+
+error[E0482]: a `realtime` callback can't wait: `$os.sleep`, the runtime's I/O and waiting
+   --> <std>/task.la:12:5
+   |
+12 |     $os.sleep(ms);
+   |     ^^^^^^^^^^^^^
+   |
+   --> tests/programs/c/realtime/e0482.la:26:27
+   |
+26 |     on_tick(fun(n: i64) { task.sleep(n); });
+   |                           ------------- `sleep` is called here, on the way from the callback
+   |
+   = help: `realtime` callbacks run on C's real-time thread, where allocating or waiting can stall it: do the work in a task, handing it values through a `Ring`
+
+error[E0482]: a `realtime` callback can't call what can't be checked: `println`, a method of an interface value
+   --> tests/programs/c/realtime/e0482.la:27:27
+   |
+27 |     on_tick(fun(n: i64) { console.println(n); });
+   |                           ^^^^^^^^^^^^^^^^^^
+   |
+   = help: `realtime` callbacks run on C's real-time thread, where allocating or waiting can stall it: do the work in a task, handing it values through a `Ring`
+
+error[E0482]: a `realtime` callback can't allocate: converting to an interface value boxes it
+   --> tests/programs/c/realtime/e0482.la:27:43
+   |
+27 |     on_tick(fun(n: i64) { console.println(n); });
+   |                                           ^
+   |
+   = help: `realtime` callbacks run on C's real-time thread, where allocating or waiting can stall it: do the work in a task, handing it values through a `Ring`
+
+error[E0482]: a `realtime` callback can't wait: a `blocking` extern runs on a helper thread while its caller waits
+   --> tests/programs/c/realtime/e0482.la:28:35
+   |
+28 |     on_tick(fun(n: i64) { let m = slow(n); });
+   |                                   ^^^^^^^
+   |
+   = help: `realtime` callbacks run on C's real-time thread, where allocating or waiting can stall it: do the work in a task, handing it values through a `Ring`
+
+error[E0482]: a `realtime` callback can't call what can't be checked: a call through a function value
+   --> tests/programs/c/realtime/e0482.la:11:44
+   |
+11 | fun apply(f: fun(i64): i64, n: i64): i64 = f(n);
+   |                                            ^^^^
+   .
+29 |     on_tick(fun(n: i64) { let m = apply(fun(x: i64): i64 = x * 2, n); });
+   |                                   ---------------------------------- `apply` is called here, on the way from the callback
+   |
+   = help: `realtime` callbacks run on C's real-time thread, where allocating or waiting can stall it: do the work in a task, handing it values through a `Ring`
+
+error[E0482]: a `realtime` callback can't call what can't be checked: `area`, a method of an interface value
+   --> tests/programs/c/realtime/e0482.la:12:30
+   |
+12 | fun area_of(s: Shape): i64 = s.area();
+   |                              ^^^^^^^^
+   .
+30 |     on_tick(fun(n: i64) { let m = area_of(Square { side: n }); });
+   |                                   --------------------------- `area_of` is called here, on the way from the callback
+   |
+   = help: `realtime` callbacks run on C's real-time thread, where allocating or waiting can stall it: do the work in a task, handing it values through a `Ring`
+
+error[E0482]: a `realtime` callback can't allocate: converting to an interface value boxes it
+   --> tests/programs/c/realtime/e0482.la:30:43
+   |
+30 |     on_tick(fun(n: i64) { let m = area_of(Square { side: n }); });
+   |                                           ^^^^^^^^^^^^^^^^^^
+   |
+   = help: `realtime` callbacks run on C's real-time thread, where allocating or waiting can stall it: do the work in a task, handing it values through a `Ring`
+
+For more about E0482, run `lughac explain E0482`.

@@ -120,6 +120,7 @@ impl<'ctx> Lowerer<'ctx> {
                     ret,
                     data,
                     spawned,
+                    ..
                 } => {
                     let pair = written.next().expect("checked arity").into_struct_value();
                     match data {

@@ -19,6 +19,9 @@ extern fun on_draw(f: direct fun(W, data), u: data);
 extern fun on_click(f: spawned fun(W, data), u: data);
 //                     ^^^^^^^ storage.modifier.callback.lugha
 
+extern fun on_note(f: realtime fun(i64, data), u: data);
+//                    ^^^^^^^^ storage.modifier.callback.lugha
+
 let direct = 1;
 //  ^^^^^^ - storage.modifier.callback.lugha
 

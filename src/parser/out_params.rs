@@ -61,6 +61,9 @@ impl Parser<'_> {
             (TokenKind::Ident(w), TokenKind::Fun) if w == "spawned" => {
                 Some((CallbackRun::Spawned, self.bump()))
             }
+            (TokenKind::Ident(w), TokenKind::Fun) if w == "realtime" => {
+                Some((CallbackRun::Realtime, self.bump()))
+            }
             _ => None,
         };
         let ty = self.ty()?;
@@ -69,7 +72,7 @@ impl Parser<'_> {
             let at = self.bump();
             self.error(
                 Diagnostic::error("E0201", "`inline` after a callback's type is gone", at)
-                    .with_help("write how C's call runs it before `fun`: `cb: direct fun(…)`, or `cb: spawned fun(…)` for a task"),
+                    .with_help("write how C's call runs it before `fun`: `cb: direct fun(…)`, `cb: spawned fun(…)` for a task, or `cb: realtime fun(…)`"),
             );
         }
         Ok(Param {

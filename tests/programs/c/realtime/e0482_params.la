@@ -1,0 +1,5 @@
+// C's call copies a string or an array: an allocation.
+extern fun on_text(f: realtime fun(string, data), user: data);
+extern fun on_block(f: realtime fun(f32[], data), user: data);
+
+fun main() {}

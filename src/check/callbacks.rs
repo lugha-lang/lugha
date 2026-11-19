@@ -27,6 +27,9 @@ pub enum CParam {
         ret: Type,
         data: Option<usize>,
         spawned: bool,
+        /// Written `realtime fun(…)`: checked never to allocate or wait
+        /// (`check/realtime.rs`); otherwise run as `direct`.
+        realtime: bool,
     },
     /// The user data C hands back: lughac passes the pinned closure.
     Data,
@@ -117,12 +120,11 @@ impl Checker {
                     let run = p.run.map(|(r, _)| r);
                     if run.is_none() {
                         self.report(errors::callback_decl(
-                            "say how C's call runs this callback: `direct fun(…)` (during the call) or `spawned fun(…)` (as a task)",
+                            "say how C's call runs this callback: `direct fun(…)` (during the call), `spawned fun(…)` (as a task) or `realtime fun(…)` (during the call, checked never to allocate or wait)",
                             p.ty.span,
                         ));
                     }
-                    let spawned = run == Some(CallbackRun::Spawned);
-                    let callback = self.callback(&p.ty, params, ret.as_deref(), spawned);
+                    let callback = self.callback(&p.ty, params, ret.as_deref(), run);
                     if let CParam::Callback { data: Some(_), .. } = callback {
                         with_data.push(p.ty.span);
                     }
@@ -183,8 +185,10 @@ impl Checker {
         whole: &Annotation,
         params: &[Annotation],
         ret: Option<&Annotation>,
-        spawned: bool,
+        run: Option<CallbackRun>,
     ) -> CParam {
+        let spawned = run == Some(CallbackRun::Spawned);
+        let realtime = run == Some(CallbackRun::Realtime);
         let (mut types, mut data) = (Vec::new(), None);
         for (i, p) in params.iter().enumerate() {
             match marker(p) {
@@ -242,6 +246,20 @@ impl Checker {
             };
             self.report(errors::callback_decl(message, whole.span));
         }
+        // C's call copies a string or an array into a new Lugha value.
+        if realtime {
+            for (p, ty) in params.iter().filter(|p| marker(p).is_none()).zip(&types) {
+                let copied = match ty {
+                    Type::String | Type::Array(_) => true,
+                    Type::Option(inner) => **inner == Type::String,
+                    Type::Ref(inner) => matches!(**inner, Type::Array(_)),
+                    _ => false,
+                };
+                if copied {
+                    self.report(errors::realtime_param(ty, p.span));
+                }
+            }
+        }
         let runs_as_task = spawned && data.is_some() && ret == Type::Unit;
         // C reads a `Ref<T[]>` back when the call returns, before a
         // spawned callback has run.
@@ -257,6 +275,7 @@ impl Checker {
             ret,
             data,
             spawned: runs_as_task,
+            realtime,
         }
     }
 

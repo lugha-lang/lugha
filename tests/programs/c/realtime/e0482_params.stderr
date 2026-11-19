@@ -1,0 +1,17 @@
+error[E0482]: a `realtime` callback can't take `string`: C's call copies it into a new Lugha value, an allocation
+  --> tests/programs/c/realtime/e0482_params.la:2:36
+  |
+2 | extern fun on_text(f: realtime fun(string, data), user: data);
+  |                                    ^^^^^^
+  |
+  = help: take numbers, `bool`, handles or extern structs, or make the callback `direct`
+
+error[E0482]: a `realtime` callback can't take `f32[]`: C's call copies it into a new Lugha value, an allocation
+  --> tests/programs/c/realtime/e0482_params.la:3:37
+  |
+3 | extern fun on_block(f: realtime fun(f32[], data), user: data);
+  |                                     ^^^^^
+  |
+  = help: take numbers, `bool`, handles or extern structs, or make the callback `direct`
+
+For more about E0482, run `lughac explain E0482`.

@@ -1,6 +1,6 @@
 ## FEATURE: `cb: realtime fun(…)`: a `direct` callback the compiler checks never allocates or waits, in its body or in any Lugha function it calls (Clang's `nonblocking` model), an error otherwise; milestone 219, the last §4.8 PRP (borrowed views of C's memory come after, in a PRP of their own).
 
-**Status:** proposed 2026-11-21.
+**Status:** approved 2026-11-21.
 
 ## OBJECTIVE
 A sensor or MIDI callback on C's real-time thread is checked to be safe there:
@@ -81,17 +81,25 @@ error[E0482]: a `realtime` callback can't allocate: this string is built at run 
 - Run-time checking (Rust's `assert_no_alloc`, Clang's RealtimeSanitizer): compile time only.
 
 ## TESTS
-- [ ] `tests/programs/c/realtime/`:
-  - [ ] a `realtime` callback writing a ring, doing arithmetic, calling a helper and a plain extern: checks and runs;
-  - [ ] E0482 for each rule: interpolation, an array literal, `push`, an element write, `Ref.new`, an interface conversion, a capturing closure, a channel's `send` and `try_recv`, `task.sleep`, `console.println`, a `blocking` extern, a function-value call, a `string` parameter;
-  - [ ] E0482 through a chain of two helpers, naming both;
-  - [ ] a generic helper: allowed for one instance, refused for one that allocates.
-- [ ] `tests/foreign_threads.rs`: a `realtime` callback on C's thread filling a ring, on one and four workers.
-- [ ] `--lib` unit tests for the analysis (each rule, the chain, recursion between helpers).
-- [ ] Targeted: `--lib`, `programs`, `foreign_threads`, `rings`, `callbacks`, `explain`, `spec`, `parser`, `fmt`, `lsp_semantic_tokens`, `comments`; `editors/vscode` `npm test`.
+- [x] `tests/programs/c/realtime/`:
+  - [x] a `realtime` callback writing a ring, doing arithmetic, calling a helper and a plain extern: checks and runs;
+  - [x] E0482 for each rule: interpolation, an array literal, `push`, an element write, `Ref.new`, an interface conversion, a capturing closure, a channel's `send` and `try_recv`, `task.sleep`, `console.println`, a `blocking` extern, a function-value call, a `string` parameter;
+  - [x] E0482 through a chain of two helpers, naming both;
+  - [x] a generic helper (unit tests): one passing values allowed, one calling a type parameter's method refused (see the notes).
+- [x] `tests/rings.rs` (beside the ring cases, which have the C harness): a `realtime` callback on C's thread filling a ring, on one and four workers.
+- [x] `--lib` unit tests for the analysis (each rule, the chain, recursion between helpers).
+- [x] Targeted: `--lib`, `programs`, `foreign_threads`, `rings`, `callbacks`, `explain`, `spec`, `parser`, `fmt`, `lsp_semantic_tokens`, `comments`; `editors/vscode` `npm test`.
 
 ## ACCEPTANCE
-- [ ] A `realtime` callback that allocates or waits, directly or through Lugha functions it calls, doesn't compile, and the error says where and why.
-- [ ] One that only computes and writes rings compiles and runs as a `direct` callback.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
-- [ ] Spec, the Draft, CHANGELOG, TODO, the error page and the editor tooling updated.
+- [x] A `realtime` callback that allocates or waits, directly or through Lugha functions it calls, doesn't compile, and the error says where and why.
+- [x] One that only computes and writes rings compiles and runs as a `direct` callback.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
+- [x] Spec, the Draft, CHANGELOG, TODO, the error page and the editor tooling updated.
+
+## BUILD NOTES
+- **The pass** is `src/check/realtime/` (the walk in `walk.rs`, unit tests in `tests.rs`), run after type checking over the typed program. It starts at each argument for a `realtime` parameter and follows named functions and methods (prelude and std included) once each; a cycle of helpers is walked once.
+- **Generic helpers are checked once, not per instance:** a type parameter's method or operator can't be followed (its code depends on the instance), so it counts as a call that can't be checked. That is stricter than the PRP's "per instance", but simpler and never wrong; a helper that only passes `T` values along is allowed.
+- **`console.println` is reported as an interface method** (`Console` is an interface value), which is what it is: the message says it can't be checked, rather than "I/O". Std's own I/O, reached through named functions, ends in `$os.*` and is reported as waiting.
+- **The allowed case is a unit test,** not a program in `tests/programs/c/realtime/`: a program there would need its C function linked. The run itself is `tests/rings.rs`.
+- **The E0482 cases** are three programs: every rule in `e0482.la` (16 errors), a chain of two helpers, and refused parameter types.
+- **The editor:** the language server colours `realtime` before `fun` as a keyword; the VS Code grammar and the extern snippet know it (extension 0.39.0).

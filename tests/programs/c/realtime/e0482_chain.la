@@ -1,0 +1,12 @@
+// Reached through helpers: the error names each call on the way.
+extern fun on_tick(f: realtime fun(i64, data), user: data);
+
+fun label(n: i64): string = "n = {n}";
+fun step(n: i64): i64 {
+    let s = label(n);
+    n + 1
+}
+
+fun main() {
+    on_tick(fun(n: i64) { let m = step(n); });
+}
