@@ -48,8 +48,21 @@ static char **free_stacks;
 static size_t free_count;
 static size_t free_capacity;
 
+/* The pool's own lock: stacks are taken under `rt_lock` (spawning) and
+ * given back without it (by the fiber landing after a finished one). */
+static uint32_t pool_lock;
+
+static char *new_stack_locked(void);
+
 /* A stack for a new task: from the pool, else carved from a region. */
 static char *new_stack(void) {
+    lock_take(&pool_lock);
+    char *stack = new_stack_locked();
+    lock_give(&pool_lock);
+    return stack;
+}
+
+static char *new_stack_locked(void) {
     if (free_count > 0) {
         return free_stacks[--free_count];
     }
@@ -80,6 +93,7 @@ static char *new_stack(void) {
 static void give_stack(char *stack) {
     // Advice the kernel may refuse: the pages then stay, still reusable.
     madvise(stack, stack_size, MADV_DONTNEED);
+    lock_take(&pool_lock);
     if (free_count == free_capacity) {
         size_t capacity = free_capacity == 0 ? 64 : free_capacity * 2;
         char **grown = realloc(free_stacks, capacity * sizeof *grown);
@@ -90,6 +104,7 @@ static void give_stack(char *stack) {
         free_capacity = capacity;
     }
     free_stacks[free_count++] = stack;
+    lock_give(&pool_lock);
 }
 
 /* Gives a finished fiber's stack back once another one is running on its own. */

@@ -8,14 +8,12 @@
  * covers every worker. A worker never exits: blocks it carved are freed
  * back to it.
  *
- * Every worker takes ready fibers from one queue under `rt_lock`. With none
- * ready it runs its idle loop, a fiber of its own: one idle worker at a
- * time waits in `epoll_wait` for sockets, helper jobs and the wake-up
- * event, until the next timer (the poller); the others sleep on their own
- * condition variable. An idle worker is woken only for work the waking
- * worker won't take itself: a spawned task, what the poller found, or what
- * is left after a worker took one. A task woken by a message waits for its
- * waker's worker, so a channel ping-pong stays on one thread.
+ * A worker with nothing ready runs its idle loop, a fiber of its own,
+ * without any lock held, looking for work and parking (parking.c). Go's
+ * protocol keeps a task from being stranded: making a task ready wakes a
+ * parked worker only when none is spinning, a spinner finding work wakes
+ * another, at most half the busy workers spin, and a spinner about to park
+ * looks at every queue once more after it stops counting as spinning.
  *
  * `main` ends on the main thread, where `lugha_rt_main` returns: its fiber
  * hands itself back there when the program's entry returns.
@@ -24,21 +22,18 @@
  * `net_waiting`) and jobs.c (the `epoll` set, the wake-up event).
  */
 
-enum { WORKERS_MOST = 256 };
-
-/* How many workers the program runs, how many have started, and each. */
-static int workers_wanted = 1;
-static int workers_running = 1;
 static bool workers_started;
-static Worker *all_workers[WORKERS_MOST];
-static Worker *main_worker;
 
-/* Workers in their idle loop, and whether one of them is the poller. */
-static int workers_idle;
+/* Parked workers, under `sched_lock`; how many, and how many spin, read
+ * without it. */
+static Worker *parked_workers[WORKERS_MOST];
+static int parked_count;
+static int idle_workers;
+static int spinning_workers;
+
+/* Whether a worker waits in `epoll_wait`, and until when (-1: no timer). */
 static bool poller_busy;
-
-/* `main`'s fiber, waiting for the main thread to take it back. */
-static Fiber *home_fiber;
+static int64_t poll_until = -1;
 
 /* The number of CPUs this process may run on. */
 static int cpus_usable(void) {
@@ -83,8 +78,7 @@ static void idle_entry(void *code, void *env, void *result) {
     worker_loop();
 }
 
-/* The calling worker's idle loop, a fiber of its own on a pooled stack,
- * started inside a section (it runs holding the lock). */
+/* The calling worker's idle loop, a fiber of its own on a pooled stack. */
 static void idle_make(void) {
     Fiber *f = lugha_rc_internal(sizeof(Fiber));
     f->map = new_stack();
@@ -92,36 +86,37 @@ static void idle_make(void) {
     budget_fill(f->map);
     f->entry = idle_entry;
     f->wake_at = -1;
-    f->rt_depth = 1;
     fiber_frame(f);
-    worker->idle = f;
+    __atomic_store_n(&worker->idle, f, __ATOMIC_RELEASE);
 }
 
-/* A worker thread: its signals, C stack and idle loop, then it waits for
+/* A worker thread: its signals, C stack and idle loop, then it looks for
  * work forever. Only the main thread takes Ctrl-C. */
 static void *worker_thread(void *arg) {
-    (void)arg;
     sigset_t interrupt;
     sigemptyset(&interrupt);
     sigaddset(&interrupt, SIGINT);
     pthread_sigmask(SIG_BLOCK, &interrupt, NULL);
     lugha_rt_worker_enter();
     stack_overflow_handler_thread();
+    worker->index = (int)(intptr_t)arg;
+    worker->steal_seed = (uint32_t)(intptr_t)arg * 2654435761u + 1;
     // Where this thread's native stack is saved as it goes to its loop.
     static __thread Fiber boot;
 #if defined(__SANITIZE_THREAD__)
     boot.tsan = __tsan_get_current_fiber();
 #endif
-    rt_enter();
     c_stack_make();
     idle_make();
-    current = &boot;
+    __atomic_store_n(&worker->running, &boot, __ATOMIC_RELEASE);
+    __atomic_store_n(&all_workers[worker->index], worker, __ATOMIC_RELEASE);
     switch_to(worker->idle, false);
     die("panic: internal error: a worker's boot came back\n");
     return NULL;
 }
 
-/* Starts the other workers, at the first spawn after lockdown. */
+/* Starts the other workers, at the first spawn after lockdown, inside the
+ * spawn's section. */
 static void workers_start(void) {
     if (workers_started || workers_wanted <= 1 || !helpers_allowed || virtual_time()) {
         return;
@@ -139,167 +134,210 @@ static void workers_start(void) {
     pthread_attr_setstacksize(&attr, 256 * 1024);
     for (int i = 1; i < workers_wanted; i++) {
         pthread_t thread;
-        if (pthread_create(&thread, &attr, worker_thread, NULL) != 0) {
+        if (pthread_create(&thread, &attr, worker_thread, (void *)(intptr_t)i) != 0) {
             break;
         }
-        workers_running++;
+        __atomic_fetch_add(&workers_running, 1, __ATOMIC_ACQ_REL);
     }
     pthread_attr_destroy(&attr);
 }
 
-/* Sleeps the calling worker, the lock let go of meanwhile, until another
- * rouses it (`worker_rouse`, under the lock). */
-static void worker_sleep(void) {
-    Worker *w = worker;
-    uint32_t seen = __atomic_load_n(&w->wake, __ATOMIC_ACQUIRE);
-    w->sleeping = true;
-    rt_lock_give();
-    while (__atomic_load_n(&w->wake, __ATOMIC_ACQUIRE) == seen) {
-        futex_wait(&w->wake, seen);
-    }
-    rt_lock_take();
-    w->sleeping = false;
-}
-
+/* Wakes `w`, parked: from its futex word, or out of `epoll_wait`. */
 static void worker_rouse(Worker *w) {
-    w->sleeping = false;
+    if (__atomic_load_n(&w->polling, __ATOMIC_ACQUIRE)) {
+        poller_kick();
+        return;
+    }
     __atomic_fetch_add(&w->wake, 1, __ATOMIC_RELEASE);
     futex_wake(&w->wake, 1);
 }
 
-/* Wakes a sleeping or polling worker, if any is idle. */
-static void wake_idle_worker(void) {
-    if (workers_idle == 0) {
-        return;
+/* Takes `w` off the parked list; false if someone already did. Under
+ * `sched_lock`. */
+static bool unpark_locked(Worker *w) {
+    if (!w->parked) {
+        return false;
     }
-    pthread_mutex_lock(&workers_lock);
-    for (Worker *w = workers; w != NULL; w = w->next_worker) {
-        if (w->sleeping) {
-            worker_rouse(w);
-            pthread_mutex_unlock(&workers_lock);
-            return;
+    for (int i = 0; i < parked_count; i++) {
+        if (parked_workers[i] == w) {
+            parked_workers[i] = parked_workers[--parked_count];
+            break;
         }
     }
-    pthread_mutex_unlock(&workers_lock);
-    if (poller_busy) {
-        poller_kick();
-    }
+    w->parked = false;
+    __atomic_fetch_sub(&idle_workers, 1, __ATOMIC_ACQ_REL);
+    return true;
 }
 
-/* Wakes the main thread's worker, wherever it waits. */
+/* Wakes a parked worker to spin, unless one spins already (Go's
+ * `wakep`): it finds what was made ready, and wakes another if more is. */
+static void wake_idle_worker(void) {
+    if (__atomic_load_n(&idle_workers, __ATOMIC_ACQUIRE) == 0) {
+        return;
+    }
+    int none = 0;
+    if (__atomic_load_n(&spinning_workers, __ATOMIC_ACQUIRE) != 0 ||
+        !__atomic_compare_exchange_n(&spinning_workers, &none, 1, false, __ATOMIC_ACQ_REL,
+                                     __ATOMIC_RELAXED)) {
+        return;
+    }
+    lock_take(&sched_lock);
+    // A sleeper rather than the poller, which keeps polling.
+    Worker *w = NULL;
+    for (int i = 0; i < parked_count && w == NULL; i++) {
+        if (!__atomic_load_n(&parked_workers[i]->polling, __ATOMIC_ACQUIRE)) {
+            w = parked_workers[i];
+        }
+    }
+    if (w == NULL && parked_count > 0) {
+        w = parked_workers[0];
+    }
+    if (w != NULL) {
+        unpark_locked(w);
+        w->spinning = true;
+    }
+    lock_give(&sched_lock);
+    if (w == NULL) {
+        __atomic_fetch_sub(&spinning_workers, 1, __ATOMIC_ACQ_REL);
+        return;
+    }
+    worker_rouse(w);
+}
+
+/* The poller, back from `epoll_wait`, is busy again before it wakes the
+ * tasks it found: a worker parking meanwhile mustn't see everyone idle. */
+static void poller_back(void) {
+    Worker *w = worker;
+    __atomic_store_n(&w->polling, false, __ATOMIC_RELEASE);
+    lock_take(&sched_lock);
+    unpark_locked(w);
+    lock_give(&sched_lock);
+}
+
+/* True if any worker has a fiber in its queue. */
+static bool any_queued(void) {
+    int n = __atomic_load_n(&workers_running, __ATOMIC_ACQUIRE);
+    for (int i = 0; i < n; i++) {
+        Worker *v = __atomic_load_n(&all_workers[i], __ATOMIC_ACQUIRE);
+        if (v != NULL && runq_any(v)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Wakes the main thread's worker, if parked: `main` is back for it. */
 static void wake_main_worker(void) {
-    if (main_worker->sleeping) {
+    lock_take(&sched_lock);
+    bool was_parked = unpark_locked(main_worker);
+    lock_give(&sched_lock);
+    if (was_parked) {
         worker_rouse(main_worker);
-    } else if (main_worker->polling) {
+    }
+}
+
+/* A fiber that yielded, or `main`'s going home, queued now that the
+ * switch away from it has saved it. */
+static void requeue_finish(void) {
+    Worker *w = worker;
+    Fiber *f = w->requeue;
+    if (f != NULL) {
+        w->requeue = NULL;
+        make_ready(f);
+        // It ran a slice: another worker may take it, while this one runs
+        // what it yielded to.
+        wake_idle_worker();
+    }
+    Fiber *home = w->send_home;
+    if (home != NULL) {
+        w->send_home = NULL;
+        __atomic_store_n(&home_fiber, home, __ATOMIC_RELEASE);
+        wake_main_worker();
+    }
+}
+
+/* `poll_until` while the poller works out its wait: any new timer kicks. */
+#define POLL_TIMING INT64_MIN
+
+/* A timer at `at` was just added (its heap's `next_timer` stored first):
+ * the poller, if its wait would outlast it, times its wait again. Both
+ * sides use sequentially consistent order, so either the poller's reading
+ * of the timers sees this one, or this sees the poller's wait and kicks. */
+static void timers_changed(int64_t at) {
+    if (!__atomic_load_n(&poller_busy, __ATOMIC_SEQ_CST)) {
+        return;
+    }
+    int64_t until = __atomic_load_n(&poll_until, __ATOMIC_SEQ_CST);
+    if (until == POLL_TIMING || until < 0 || at < until) {
         poller_kick();
     }
 }
 
-static void timers_changed(void) {
-    if (poller_busy) {
-        poller_kick();
-    }
+/* Sockets waited on or helper jobs out. */
+static bool events_out(void) {
+    return __atomic_load_n(&net_waiting, __ATOMIC_ACQUIRE) > 0 ||
+           __atomic_load_n(&jobs_out, __ATOMIC_ACQUIRE) > 0;
 }
 
-/* The next fiber this worker may run: `main`'s, back home, first. */
-static Fiber *take_ready(void) {
-    if (home_fiber != NULL && worker == main_worker) {
-        Fiber *f = home_fiber;
-        home_fiber = NULL;
-        return f;
-    }
-    return pop_ready();
-}
-
-/* True if something ready waits for this worker: a fiber, or `main` back
- * home on the main thread. */
-static bool ready_here(void) {
-    return ready_head != NULL || (home_fiber != NULL && worker == main_worker);
-}
-
-/* Something may happen without a task acting: a timer, a socket, a helper
- * job or a Ctrl-C to see to. */
-static bool events_pending(int64_t at) {
-    return at >= 0 || net_waiting > 0 || jobs_out > 0 || interrupts != 0;
-}
-
-/* The next sleeper's, deadline's or shield's time; -1 for none. */
-static int64_t next_timer(void) {
-    int64_t at = sleepers == NULL ? -1 : sleepers->wake_at;
-    int64_t timer = next_time();
-    if (timer >= 0 && (at < 0 || timer < at)) {
-        at = timer;
+/* The earliest time something is due: a sleeper on any worker, a scope's
+ * deadline or a shield's end; -1 for none. */
+static int64_t next_due(void) {
+    int64_t at = earliest_timer();
+    if (__atomic_load_n(&timed_any, __ATOMIC_ACQUIRE)) {
+        RT_SECTION();
+        int64_t timed = next_time();
+        if (timed >= 0 && (at < 0 || timed < at)) {
+            at = timed;
+        }
     }
     return at;
 }
 
-/* Nothing is ready for this worker: in a virtual-time run, time jumps to
- * the next timer; else it waits as the poller, or sleeps. A deadlock is
- * every worker idle with nothing that could wake one. */
-static void idle_wait(void) {
-    int64_t at = next_timer();
-    if (virtual_time()) {
-        if (!events_pending(at)) {
-            deadlock();
-        }
-        if (net_waiting > 0) {
-            poll_sockets(at < 0 ? -1 : 0);
-        }
-        if (ready_head == NULL && at > virtual_ns) {
-            virtual_ns = at;
-        }
-        return;
-    }
-    workers_idle++;
-    if (workers_idle == workers_running && home_fiber == NULL && !events_pending(at)) {
-        deadlock();
-    }
-    if (!poller_busy) {
-        wake_open();
-        poller_busy = true;
-        worker->polling = true;
-        int64_t wait = at < 0 ? -1 : at - now_ns();
-        poll_sockets(at >= 0 && wait < 0 ? 0 : wait);
-        worker->polling = false;
-        poller_busy = false;
-        // Off to run what it found: another worker polls on, while timers,
-        // sockets or jobs are out.
-        if (ready_here() && events_pending(next_timer())) {
-            wake_idle_worker();
-        }
-    } else {
-        worker_sleep();
-    }
-    workers_idle--;
+/* Something may happen without a task acting: a timer, a socket, a helper
+ * job or a Ctrl-C to see to. */
+static bool events_pending(void) {
+    return next_due() >= 0 || events_out() ||
+           __atomic_load_n(&interrupts, __ATOMIC_ACQUIRE) != 0;
 }
 
-/* A worker's idle loop: runs whatever is ready, else waits for it. Each
- * fiber it switches to comes back here when nothing else is ready. */
+/* At a scheduling point with something pending, and every 61st anyway:
+ * this worker's due timers; deadlines, shields and Ctrl-C, when there are
+ * any; and every 61st, what sockets and helpers have ready, when no worker
+ * polls. */
+static void sched_tick_slow(Worker *w) {
+    bool look = w->tick_left <= 0;
+    if (look) {
+        w->tick_left = PICKS_FAIR;
+    }
+    run_due_timers(w);
+    if (__atomic_load_n(&timed_any, __ATOMIC_ACQUIRE) ||
+        __atomic_load_n(&interrupts, __ATOMIC_ACQUIRE) != 0) {
+        RT_SECTION();
+        check_times();
+    }
+    if (look && events_out() &&
+        !__atomic_load_n(&poller_busy, __ATOMIC_ACQUIRE)) {
+        poll_sockets(0);
+    }
+}
+
+/* Looks for work until it finds some, parking between looks (parking.c). */
+static Fiber *find_work(void);
+
+/* A worker's idle loop: runs whatever it finds. Each fiber it switches to
+ * comes back here when nothing else is ready. */
 static void worker_loop(void) {
     for (;;) {
-        wake_due_sleepers();
-        Fiber *f = take_ready();
-        if (f != NULL) {
-            // More than this worker takes: another may run it.
-            if (ready_head != NULL) {
-                wake_idle_worker();
-            }
-            switch_to(f, false);
-            continue;
-        }
-        idle_wait();
+        switch_to(find_work(), false);
     }
 }
 
 /* The program's entry returned on `main`'s fiber: back to the main thread,
  * where `lugha_rt_main` returns, if it isn't there. */
 static void main_go_home(void) {
-    RT_SECTION();
     if (worker == main_worker) {
         return;
     }
-    home_fiber = current;
-    wake_main_worker();
-    Fiber *next = pop_ready();
-    switch_to(next != NULL ? next : worker->idle, false);
+    worker->send_home = current;
+    switch_away(false, false);
 }

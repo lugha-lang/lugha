@@ -100,7 +100,7 @@ static void fiber_exit(Fiber *self) {
     /* Its joiners hold the task themselves now. */
     lugha_rt_rc_release(task);
     worker->zombie = self;
-    schedule();
+    switch_away(false, false);
     die("panic: internal error: a finished green thread ran again\n");
 }
 
@@ -175,6 +175,11 @@ static void task_go(LughaTask *task) {
     wake_idle_worker();
 }
 
+/* Lets every ready thread run first, if any is (no section open). */
+static void yield_now(void) {
+    switch_away(false, true);
+}
+
 /* `lugha_rt_task_go(task)`: generated code's start of a task it finished
  * setting up (its result's visit, its name, an actor's record). */
 void lugha_rt_task_go(LughaTask *task) {
@@ -206,16 +211,9 @@ void *lugha_rt_task_join(LughaTask *task) {
 
 /* `task.yield_now()`: lets every ready thread run first. */
 void lugha_rt_task_yield(void) {
-    RT_SECTION();
     ensure_started();
     lugha_rt_cancel_point();
-    wake_due_sleepers();
-    poll_ready_sockets();
-    if (ready_head == NULL) {
-        return;
-    }
-    make_ready(current);
-    schedule();
+    yield_now();
     lugha_rt_cancel_point();
 }
 
@@ -245,10 +243,7 @@ void lugha_rt_task_preempt(void) {
     if (worker->on_c_stack) {
         return;
     }
-    RT_SECTION();
-    check_times();
     lugha_rt_cancel_point();
-    if (live_count > 1) {
-        lugha_rt_task_yield();
-    }
+    yield_now();
+    lugha_rt_cancel_point();
 }

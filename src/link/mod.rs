@@ -26,7 +26,7 @@ pub use self::inputs::{Plan, PlanError};
 
 /// The runtime's source files, in the order they are joined: the core first,
 /// since it holds every `#include`, then the fragments that rely on it.
-pub const RUNTIME_PARTS: [(&str, &str); 40] = [
+pub const RUNTIME_PARTS: [(&str, &str); 43] = [
     ("lugha_rt.c", include_str!("../../runtime/lugha_rt.c")),
     ("rt_lock.c", include_str!("../../runtime/rt_lock.c")),
     ("stack.c", include_str!("../../runtime/stack.c")),
@@ -51,6 +51,8 @@ pub const RUNTIME_PARTS: [(&str, &str); 40] = [
     ("callbacks.c", include_str!("../../runtime/callbacks.c")),
     ("cstr.c", include_str!("../../runtime/cstr.c")),
     ("tasks.c", include_str!("../../runtime/tasks.c")),
+    ("runq.c", include_str!("../../runtime/runq.c")),
+    ("timers.c", include_str!("../../runtime/timers.c")),
     ("waiting.c", include_str!("../../runtime/waiting.c")),
     ("stacks.c", include_str!("../../runtime/stacks.c")),
     ("spawn.c", include_str!("../../runtime/spawn.c")),
@@ -68,6 +70,7 @@ pub const RUNTIME_PARTS: [(&str, &str); 40] = [
     ("cmem.c", include_str!("../../runtime/cmem.c")),
     ("net.c", include_str!("../../runtime/net.c")),
     ("workers.c", include_str!("../../runtime/workers.c")),
+    ("parking.c", include_str!("../../runtime/parking.c")),
     ("resolve.c", include_str!("../../runtime/resolve.c")),
     ("udp.c", include_str!("../../runtime/udp.c")),
 ];
@@ -256,6 +259,8 @@ pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/callbacks.c"),
     include_str!("../../runtime/cstr.c"),
     include_str!("../../runtime/tasks.c"),
+    include_str!("../../runtime/runq.c"),
+    include_str!("../../runtime/timers.c"),
     include_str!("../../runtime/waiting.c"),
     include_str!("../../runtime/stacks.c"),
     include_str!("../../runtime/spawn.c"),
@@ -270,6 +275,7 @@ pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/cmem.c"),
     include_str!("../../runtime/net.c"),
     include_str!("../../runtime/workers.c"),
+    include_str!("../../runtime/parking.c"),
     include_str!("../../runtime/resolve.c"),
     include_str!("../../runtime/udp.c"),
 );

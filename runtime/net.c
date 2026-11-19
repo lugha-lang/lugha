@@ -20,9 +20,13 @@ static int32_t net_error(LughaString **error, const char *message) {
 }
 
 /* Wakes every thread whose socket is ready; waits up to `wait_ns` (< 0
- * forever) for the first, the lock let go of meanwhile. A thread already
+ * forever) for the first, holding no lock while it waits. A thread already
  * woken by its timeout is skipped; helper jobs come back, and the workers'
  * wake-up event is taken (workers.c). */
+/* The poller stops counting as parked before what it found wakes tasks
+ * (workers.c). */
+static void poller_back(void);
+
 static void poll_sockets(int64_t wait_ns) {
     int ms = -1;
     if (wait_ns >= 0) {
@@ -30,14 +34,15 @@ static void poll_sockets(int64_t wait_ns) {
         ms = rounded > INT32_MAX ? INT32_MAX : (int)rounded;
     }
     struct epoll_event events[NET_EVENTS];
-    int n;
-    if (ms == 0) {
-        n = epoll_wait(net_epoll, events, NET_EVENTS, 0);
-    } else {
-        rt_lock_give();
-        n = epoll_wait(net_epoll, events, NET_EVENTS, ms);
-        rt_lock_take();
+    int n = epoll_wait(net_epoll, events, NET_EVENTS, ms);
+    if (ms != 0) {
+        poller_back();
     }
+    if (n <= 0) {
+        return;
+    }
+    // What it found wakes tasks: under the lock, as every wake is.
+    RT_SECTION();
     for (int i = 0; i < n; i++) {
         if (events[i].data.ptr == &helper_tag) {
             jobs_collect();
@@ -51,12 +56,6 @@ static void poll_sockets(int64_t wait_ns) {
         if (f != NULL && is_waiting(f)) {
             wake(f, 0);
         }
-    }
-}
-
-static void poll_ready_sockets(void) {
-    if (net_waiting > 0 || jobs_out > 0) {
-        poll_sockets(0);
     }
 }
 
@@ -81,11 +80,11 @@ static int wait_fd(int fd, uint32_t events, int64_t deadline) {
     if (deadline >= 0) {
         add_sleeper(current, deadline);
     }
-    net_waiting++;
+    __atomic_add_fetch(&net_waiting, 1, __ATOMIC_ACQ_REL);
     current->cancellable = true;
     int64_t why = block();
     current->cancellable = false;
-    net_waiting--;
+    __atomic_sub_fetch(&net_waiting, 1, __ATOMIC_ACQ_REL);
     if (why == TIMED_OUT || why == CANCELLED) {
         /* Disarmed, so a late event can't wake this thread again. */
         struct epoll_event off = {.events = 0, .data = {.ptr = NULL}};

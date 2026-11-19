@@ -94,7 +94,7 @@ static void jobs_collect(void) {
     Job *job = helpers_finished();
     while (job != NULL) {
         Job *next = job->next;
-        jobs_out--;
+        __atomic_sub_fetch(&jobs_out, 1, __ATOMIC_ACQ_REL);
         if (job->hold != NULL) {
             lugha_rt_rc_release(job->hold);
             job->hold = NULL;
@@ -178,7 +178,7 @@ static void job_run(Job *job) {
         lugha_rt_rc_retain(job->hold);
     }
     job->waiter = current;
-    jobs_out++;
+    __atomic_add_fetch(&jobs_out, 1, __ATOMIC_ACQ_REL);
     helper_event_open();
     helper_submit(job);
     current->cancellable = !job->holds_task;

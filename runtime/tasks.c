@@ -105,9 +105,13 @@ struct Fiber {
     Fiber *next_live;
     /* In a `join` wait list. */
     Fiber *wait_next;
-    /* Sleepers, by deadline; `wake_at` < 0 when not sleeping. */
-    Fiber *sleep_next;
+    /* When it sleeps until, < 0 when it doesn't; the worker whose timer
+     * heap holds it, and where (timers.c). */
     int64_t wake_at;
+    struct Worker *timer_owner;
+    int64_t heap_at;
+    /* How deep in runtime sections it switched away (waiting.c). */
+    int64_t rt_saved;
     /* Which wait woke it: a `select` case, or TIMED_OUT; WAITING before. */
     int64_t fired;
     /* The actor this fiber runs (actors.c), or NULL. */
@@ -121,8 +125,6 @@ struct Fiber {
      * and the `Ref` boxes it is printing (print.c). */
     int64_t number;
     ShowStack show;
-    /* Its depth in runtime sections while switched out (`RT_SECTION`). */
-    int64_t rt_depth;
 #if defined(__SANITIZE_THREAD__)
     /* ThreadSanitizer's record of it, told of each switch. */
     void *tsan;
@@ -137,10 +139,6 @@ enum { WAITING = -1, TIMED_OUT = -2, DEFAULT_ARM = -1, CANCELLED = -3, PARKING =
 /* The running fiber, of the running worker. */
 #define current (worker->running)
 static Fiber main_fiber;
-/* Ready fibers, first in first out, for every worker (under `rt_lock`). */
-static Fiber *ready_head;
-static Fiber *ready_tail;
-static Fiber *sleepers;
 static Fiber *live;
 static int64_t live_count;
 /* Fibers started so far, `main` included. */
@@ -360,74 +358,9 @@ static void ensure_started(void) {
 #if defined(__SANITIZE_THREAD__)
     main_fiber.tsan = __tsan_get_current_fiber();
 #endif
-    current = &main_fiber;
+    __atomic_store_n(&worker->running, &main_fiber, __ATOMIC_RELEASE);
     live = &main_fiber;
     live_count = 1;
     idle_make();
     tasks_started = 1;
-}
-
-static void make_ready(Fiber *f) {
-    f->next = NULL;
-    if (ready_tail == NULL) {
-        ready_head = f;
-    } else {
-        ready_tail->next = f;
-    }
-    ready_tail = f;
-}
-
-static Fiber *pop_ready(void) {
-    Fiber *prev = NULL;
-    Fiber *f = ready_head;
-    // Shuffled: any ready task, from the seed.
-    if (sched_mode == MODE_SHUFFLE && f != NULL) {
-        uint64_t n = 0;
-        for (Fiber *g = ready_head; g != NULL; g = g->next) {
-            n++;
-        }
-        for (uint64_t k = shuffle_next() % n; k > 0; k--) {
-            prev = f;
-            f = f->next;
-        }
-    }
-    if (f != NULL) {
-        if (prev == NULL) {
-            ready_head = f->next;
-        } else {
-            prev->next = f->next;
-        }
-        if (ready_tail == f) {
-            ready_tail = prev;
-        }
-    }
-    return f;
-}
-
-static void unsleep(Fiber *f) {
-    if (f->wake_at < 0) {
-        return;
-    }
-    for (Fiber **at = &sleepers; *at != NULL; at = &(*at)->sleep_next) {
-        if (*at == f) {
-            *at = f->sleep_next;
-            break;
-        }
-    }
-    f->wake_at = -1;
-}
-
-/* A new timer: the worker waiting for events times its wait again
- * (workers.c). */
-static void timers_changed(void);
-
-static void add_sleeper(Fiber *f, int64_t deadline) {
-    timers_changed();
-    f->wake_at = deadline;
-    Fiber **at = &sleepers;
-    while (*at != NULL && (*at)->wake_at <= deadline) {
-        at = &(*at)->sleep_next;
-    }
-    f->sleep_next = *at;
-    *at = f;
 }

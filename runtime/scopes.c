@@ -96,7 +96,7 @@ static void cancel_fiber(Fiber *f, int32_t reason, LughaString *text, void *by) 
     if (f == NULL || f->cancelled != REASON_NONE) {
         return;
     }
-    f->cancelled = reason;
+    __atomic_store_n(&f->cancelled, reason, __ATOMIC_RELEASE);
     if (text != NULL) {
         // Made by the canceller, read by `f`.
         lugha_rt_rc_mark(text);
@@ -279,7 +279,7 @@ static void scope_pop(LughaScope *s) {
     }
     s->tasks = NULL;
     if (current->cancelled_by == s) {
-        current->cancelled = REASON_NONE;
+        __atomic_store_n(&current->cancelled, REASON_NONE, __ATOMIC_RELEASE);
         current->cancelled_by = NULL;
         lugha_rt_rc_release(current->cancel_text);
         current->cancel_text = NULL;
@@ -396,10 +396,12 @@ static bool panic_caught(void) {
 
 /* At a safe point: a cancelled task unwinds from here. */
 void lugha_rt_cancel_point(void) {
-    RT_SECTION();
-    if (current == NULL || current->cancelled == REASON_NONE) {
+    // Not cancelled, the common case: no lock taken.
+    Fiber *self = current;
+    if (self == NULL || __atomic_load_n(&self->cancelled, __ATOMIC_ACQUIRE) == REASON_NONE) {
         return;
     }
+    RT_SECTION();
     if (current->unwinding ? shield_cut_off() : !shielded(current)) {
         cancel_unwind();
     }

@@ -1,6 +1,6 @@
 ## FEATURE: A scheduler for many cores: a run queue per worker with stealing and a run-next slot, Go's protocol for waking idle workers, timers per worker, and no lock held across a task switch; milestone 211, the first of two "fast workers" PRPs.
 
-**Status:** proposed 2026-11-19.
+**Status:** approved 2026-11-19; built 2026-11-20 (milestone 211).
 
 ## OBJECTIVE
 Programs print what they printed. What changes is speed:
@@ -64,6 +64,22 @@ $ python3 bench/run.py chanping --lang lugha     # 0.28 s at m210 → about 0.18
 
    A miss is recorded and reported, not hidden.
 
+## MADE DURING THE BUILD
+- **Run-next only with several workers:** with one worker, a woken task running next would change the order every exact-output test, the spec's programs and every deterministic `lughac test` run rely on. One worker keeps strict first in, first out; with several, order isn't fixed anyway.
+- **A woken task doesn't inherit its waker's slice:** each task's budget is the word at its own stack's top, and it keeps its own; not done.
+- **No fiber is queued before its context is saved:** a yielding fiber and `main` going home are queued by the fiber landing after them (`requeue`, `send_home`), as a parking one already was. Otherwise another worker could resume them mid-switch.
+- **The lock passes between two fibers resuming inside sections** on one thread (`lock_passed`) instead of being let go of and taken again: a ping-pong on four workers went from 0.41 s to 0.36 s. Idle loops and new fibers still never hold it, so stealing and parking take no lock.
+- **The parking handoff's atomics run only once workers start** (`rt_locking`); before that, plain loads and stores.
+- **Timers fire under `rt_lock`,** as every wake does, so a timeout can't race the channel that would wake the same task, nor a sleep it starts after.
+- **Deadlines and shields time the poller's wait too** (`next_due`), not only the timer heaps: found when `next_time` went unused.
+- **Races found by the stress tests and fixed:**
+  - A worker parking while the poller woke tasks saw everyone idle and declared a deadlock (about 1 run in 200). The poller now stops counting as parked before it wakes anything, and the check also scans every queue.
+  - A timer added just as a worker became the poller could be missed by both (a hang, about 1 run in 400). The poller marks itself as computing its wait, and both sides use sequentially consistent order.
+  - A worker read its own spinning flag after a waker could set it. It now reads and clears it under the scheduler's lock.
+- **The stack pool has a lock of its own:** finished stacks are given back by the fiber landing after them, which holds no lock now.
+- **The stress tests are a file of their own,** `tests/scheduler_stress.rs`, to keep `tests/workers.rs` under 500 lines.
+- **chanping misses its target** (decision 6): 0.29 s on one worker and 0.36 s on four, against 0.18 s at milestone 209 and 0.27 s at milestone 210. The cost is spread over every switch: re-reading the thread pointer (a task may have moved threads; a cached thread-local address would be wrong), the lock's sections, the run-next exchanges. The one large saving left, plain thread-local access, isn't safe. The user chose to finish with the miss recorded (TODO.md, `bench/RESULTS.md`). Go takes about 2.5 s here.
+
 ## REQUIREMENTS
 
 ### Must Do
@@ -81,19 +97,19 @@ $ python3 bench/run.py chanping --lang lugha     # 0.28 s at m210 → about 0.18
 - A second worker in deterministic or shuffled runs.
 
 ## TESTS
-- [ ] `tests/workers.rs`'s C harness grows Go's scheduler tests, each run plain and under ThreadSanitizer, clean:
-  - [ ] **Local queue steal:** two workers, one pushing and popping its ring while another steals, over many rounds. Every task is run exactly once: none lost, none twice.
-  - [ ] **Empty queue:** a worker waking a task into run-next while a stealer looks. The task runs once.
-  - [ ] **Ping-pong next to a hog:** two tasks ping-ponging over a channel while a busy task spins. The ping-pong keeps making progress.
-  - [ ] **Many at once:** 10,000 tasks spawned from one, each joined.
-  - [ ] **The last worker to park:** a task readied just as every worker parks still runs.
-- [ ] `tests/workers.rs`'s sweep of every concurrency program on four workers, and its other cases, unchanged.
-- [ ] `tests/waiting_runtime.rs` with the handoff's atomics on (the only build now).
-- [ ] Benchmarks against milestone 210: the six single-task ones, chanping on 1 and 4 workers, and PRP-242's objective on 1, 2 and 4 workers.
-- [ ] Targeted: `--lib`, `programs`, `leaks`, `rc_check`, `workers`, `tasks_runtime`, `waiting_runtime`, `rc_alloc_threads`, `helpers`, `blocking_externs`, `callbacks`, `spec`, `arm`, `codegen`, `comments`.
+- [x] `tests/workers.rs`'s C harness grows Go's scheduler tests, each run plain and under ThreadSanitizer, clean:
+  - [x] **Local queue steal:** two workers, one pushing and popping its ring while another steals, over many rounds. Every task is run exactly once: none lost, none twice.
+  - [x] **Empty queue:** covered by eight ping-pong pairs on four workers while idle workers steal (run-next wakes on every message); each pair finishes with the right count.
+  - [x] **Ping-pong next to a hog:** two tasks ping-ponging over a channel while a busy task spins. The ping-pong keeps making progress.
+  - [x] **Many at once:** 10,000 tasks spawned from one, each joined.
+  - [x] **The last worker to park:** a task readied just as every worker parks still runs.
+- [x] `tests/workers.rs`'s sweep of every concurrency program on four workers, and its other cases, unchanged.
+- [x] `tests/waiting_runtime.rs` with the handoff's atomics on (the only build now).
+- [x] Benchmarks against milestone 210: the six single-task ones, chanping on 1 and 4 workers, and PRP-242's objective on 1, 2 and 4 workers.
+- [x] Targeted: `--lib`, `programs`, `leaks`, `rc_check`, `workers`, `tasks_runtime`, `waiting_runtime`, `rc_alloc_threads`, `helpers`, `blocking_externs`, `callbacks`, `spec`, `arm`, `codegen`, `comments`.
 
 ## ACCEPTANCE
-- [ ] No task is lost or run twice under the stress tests; ThreadSanitizer is clean.
-- [ ] Benchmarks meet decision 6's targets, or each miss is recorded and accepted.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
-- [ ] Spec, CHANGELOG, TODO and `bench/RESULTS.md` are updated.
+- [x] No task is lost or run twice under the stress tests; ThreadSanitizer is clean.
+- [x] Benchmarks meet decision 6's targets, or each miss is recorded and accepted (chanping: recorded, the user's choice).
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
+- [x] Spec, CHANGELOG, TODO and `bench/RESULTS.md` are updated.

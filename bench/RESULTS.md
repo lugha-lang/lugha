@@ -388,3 +388,28 @@ Two cores give 1.9×; hyperthreads add little to a loop of integer division.
 
 - **The stack check and budget** from the stack pointer (`sp & mask`, the budget in the stack's top word) measured alone: fib +2.5%, nbody −0.3%, chanping −6% against milestone 209. fib's final −11.8% came with the rest; code layout, likely.
 - **chanping** is slower on one worker too (0.25–0.27 s): measured in a C harness against the runtime, about 0.03 s of the 0.075 s is reading the thread pointer afresh on each access (a task may have moved between threads), about 0.04 s the lock's sections, even with the lock itself skipped while one thread runs, and the rest the switch's extra bookkeeping. Accepted for now; the next PRP reworks exactly these (TODO.md).
+
+## 2026-11-20 — a scheduler for many cores (PRP-243, milestone 211)
+
+Each program built by milestone 210's compiler and by this one, at `-O2`, run 9 times each, interleaved; the median of each. The machine has 2 cores, 4 threads.
+
+| benchmark   | before  | after   | change |
+|-------------|---------|---------|--------|
+| fib         | 0.688s  | 0.694s  | +0.9%  |
+| fannkuch    | 0.256s  | 0.258s  | +0.9%  |
+| mandelbrot  | 0.371s  | 0.371s  | -0.1%  |
+| nbody       | 0.679s  | 0.678s  | -0.3%  |
+| binarytrees | 0.902s  | 0.896s  | -0.7%  |
+| wordfreq    | 0.497s  | 0.501s  | +0.7%  |
+| chanping    | 0.267s  | 0.390s  | +45.7% |
+
+`chanping`, three runs each:
+
+| workers | milestone 209 | milestone 210 | milestone 211 |
+|---------|---------------|---------------|---------------|
+| 1       | 0.17–0.18s    | 0.24–0.25s    | 0.29–0.37s    |
+| 4       | 0.18s         | 0.26s         | 0.37–0.38s    |
+
+PRP-242's four busy tasks, two runs each: 3.15–3.26 s on one worker, 1.58–1.70 s on two, 1.55–1.60 s on four, the same as milestone 210.
+
+The target was chanping within 10% of milestone 209: missed, and shipped with the miss (the user's call). A C harness against the runtime (0.305 s for 2 million round trips on one worker, against 0.16 s at milestone 209) put the cost at about 0.05 s for reading the thread pointer afresh on each access, 0.03 s for the parking handoff's compare-and-swaps, 0.03 s for the scheduling tick, 0.01 s for the run-next exchanges and the rest in the sections. Kept: passing the lock between two fibers resuming inside sections (four workers 0.41 s → 0.36 s in the harness), plain handoff operations until workers start, a tick that does nothing when nothing is pending. Go takes about 2.5 s on the same benchmark here.

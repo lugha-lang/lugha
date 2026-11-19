@@ -150,6 +150,9 @@ void *lugha_rc_internal(size_t size);
 #define RC_SMALL 272
 #define RC_CLASSES (RC_SMALL / 16 + 1)
 
+/* Tasks a worker's own run queue holds (runq.c), a power of two. */
+#define RUNQ_SIZE 256
+
 /* What one worker thread schedules and allocates with: the task it runs
  * and the ones ready to, its blocks, and the per-thread state of counting
  * and `select`. Every fragment reaches the running thread's through
@@ -184,12 +187,44 @@ typedef struct Worker {
     /* How deep the running fiber is in runtime sections (`RT_SECTION`):
      * the thread holds `rt_lock` while it is above 0. */
     int64_t rt_depth;
-    /* Its idle loop (workers.c), where it waits for work; whether it waits
-     * there now on its condition variable, or as the poller. */
+    /* Its idle loop (workers.c), where it looks for work and waits for it;
+     * the word it sleeps on; whether it sleeps now, or waits as the
+     * poller; whether it is looking for work to steal (spinning); its
+     * place among the workers, and its own random state for stealing. */
     struct Fiber *idle;
     uint32_t wake;
     bool sleeping;
     bool polling;
+    bool spinning;
+    bool parked;
+    int index;
+    uint32_t steal_seed;
+    /* Its run queue (runq.c): a ring it pushes and pops at its own ends
+     * while others steal from its head; the task it runs next, and how
+     * many picks in a row took that; picks in all. */
+    struct Fiber *ring[RUNQ_SIZE];
+    /* A fiber that yielded, and `main`'s going home, to queue once the
+     * switch away from them has saved them (workers.c). */
+    struct Fiber *requeue;
+    struct Fiber *send_home;
+    uint32_t ring_head;
+    uint32_t ring_tail;
+    struct Fiber *run_next;
+    int next_streak;
+    /* Picks until the shared queue's turn; scheduling points until the
+     * next full look at timers and sockets (workers.c). */
+    int fair_left;
+    int tick_left;
+    /* Set by a fiber switching to one that resumes inside its own
+     * sections: the lock passes to it, untouched (waiting.c). */
+    bool lock_passed;
+    /* Its sleepers (timers.c): a heap by time under its own lock, and the
+     * earliest time, -1 for none, read by others without the lock. */
+    struct Fiber **heap;
+    int64_t heap_len;
+    int64_t heap_cap;
+    uint32_t heap_lock;
+    int64_t next_timer;
     /* Its freed blocks of each class, linked through their first word; the
      * unused end of its newest chunk of each class (rc_alloc.c). */
     void *lists[RC_CLASSES];
@@ -209,7 +244,7 @@ typedef struct Worker {
  * is one `fs`-relative access (x86-64; `tpidr_el0` on ARM64). Every thread
  * has one; a helper thread's is never used, since helpers never make or
  * keep Lugha values. */
-static __thread Worker this_worker = {.pick_state = 0x9e3779b97f4a7c15u};
+static __thread Worker this_worker = {.pick_state = 0x9e3779b97f4a7c15u, .next_timer = -1};
 
 /* The thread pointer, read fresh: a task may move to another thread at a
  * switch, and a compiler may keep a thread-local address in a register

@@ -1,6 +1,6 @@
 /*
- * waiting.c — part of lugha_rt.c: how a task waits and is woken, and the
- * scheduler's loop that runs the next ready task.
+ * waiting.c — part of lugha_rt.c: how a task waits and is woken, and how
+ * a worker switches from one fiber to the next.
  *
  * A fiber's `fired` word says where its wait stands:
  *
@@ -15,52 +15,41 @@
  * hasn't switched away from it at all, simply runs on: never resumed from
  * a half-saved context.
  *
- * While tasks can't move between threads (one worker), nothing else touches
- * `fired`, so the same steps compile to plain loads and stores: an
- * uncontended compare-and-swap on every wait and wake costs a ping-pong of
- * two tasks a fifth of its time, and even a flag read at run time to skip
- * them costs a tenth. Built with `LUGHA_TASKS_CROSS_THREADS` 1, they are
- * atomic.
+ * A waker holds `rt_lock`; the fiber parking doesn't, and may be on
+ * another thread, so `fired` changes atomically. Neither a waiting fiber
+ * nor its waker holds the lock across a switch (`switch_away`).
  *
- * A fragment, not compiled on its own: joined right after tasks.c (fibers,
- * the ready queue, sleepers).
+ * A fragment, not compiled on its own: joined after tasks.c (fibers),
+ * runq.c (the ready fibers) and timers.c (sleepers).
  */
 
-/* 1 once fibers may be woken from other threads than their worker's. */
-#ifndef LUGHA_TASKS_CROSS_THREADS
-#define LUGHA_TASKS_CROSS_THREADS 0
-#endif
-
-static int64_t fired_of(const Fiber *f) {
-#if LUGHA_TASKS_CROSS_THREADS
-    return __atomic_load_n(&f->fired, __ATOMIC_ACQUIRE);
-#else
-    return f->fired;
-#endif
+/* `fired` changes atomically once other workers run (`rt_locking`); before
+ * that, only this thread touches it, and plain loads and stores do. */
+static inline int64_t fired_of(const Fiber *f) {
+    return rt_locking ? __atomic_load_n(&f->fired, __ATOMIC_ACQUIRE) : f->fired;
 }
 
-static void fired_set(Fiber *f, int64_t to) {
-#if LUGHA_TASKS_CROSS_THREADS
-    __atomic_store_n(&f->fired, to, __ATOMIC_RELEASE);
-#else
-    f->fired = to;
-#endif
+static inline void fired_set(Fiber *f, int64_t to) {
+    if (rt_locking) {
+        __atomic_store_n(&f->fired, to, __ATOMIC_RELEASE);
+    } else {
+        f->fired = to;
+    }
 }
 
 /* `f->fired` from `*was` to `to`, if it is still `*was`; else false, with
  * what it is in `*was`. */
-static bool fired_swap(Fiber *f, int64_t *was, int64_t to) {
-#if LUGHA_TASKS_CROSS_THREADS
-    return __atomic_compare_exchange_n(&f->fired, was, to, false, __ATOMIC_ACQ_REL,
-                                       __ATOMIC_ACQUIRE);
-#else
+static inline bool fired_swap(Fiber *f, int64_t *was, int64_t to) {
+    if (rt_locking) {
+        return __atomic_compare_exchange_n(&f->fired, was, to, false, __ATOMIC_ACQ_REL,
+                                           __ATOMIC_ACQUIRE);
+    }
     if (f->fired != *was) {
         *was = f->fired;
         return false;
     }
     f->fired = to;
     return true;
-#endif
 }
 
 /* True while `f` waits: parked, or parking. */
@@ -69,7 +58,9 @@ static bool is_waiting(const Fiber *f) {
     return fired == WAITING || fired == PARKING;
 }
 
-/* Wakes a waiting fiber for `why` (a case index, TIMED_OUT or CANCELLED). */
+/* Wakes a waiting fiber for `why` (a case index, TIMED_OUT or CANCELLED),
+ * under `rt_lock`. Woken by a running task, it runs next on its waker's
+ * worker; by the scheduler (a timer, the poller), behind what is ready. */
 static void wake(Fiber *f, int64_t why) {
     int64_t was = fired_of(f);
     do {
@@ -81,70 +72,59 @@ static void wake(Fiber *f, int64_t why) {
     unsleep(f);
     // A fiber still parking is queued by its worker once it is saved.
     if (was == WAITING) {
-        make_ready(f);
+        Worker *w = worker;
+        if (w->running != w->idle) {
+            ready_next(f);
+        } else {
+            make_ready(f);
+        }
     }
 }
 
 /* After a switch saved the fiber that was parking: it may be resumed
  * from now on. Woken meanwhile, it is queued here instead. */
 static void park_finish(void) {
-    Fiber *f = worker->parking;
+    Worker *w = worker;
+    Fiber *f = w->parking;
     if (f == NULL) {
         return;
     }
-    worker->parking = NULL;
+    w->parking = NULL;
     int64_t expected = PARKING;
     if (!fired_swap(f, &expected, WAITING)) {
         make_ready(f);
     }
 }
 
-static void check_times(void);
-
-static void wake_due_sleepers(void) {
-    // Deadlines, shields and Ctrl-C (scope_time.c).
-    check_times();
-    if (sleepers == NULL) {
-        return;
-    }
-    int64_t now = now_ns();
-    while (sleepers != NULL && sleepers->wake_at <= now) {
-        Fiber *f = sleepers;
-        sleepers = f->sleep_next;
-        f->wake_at = -1;
-        wake(f, TIMED_OUT);
-    }
-}
-
 /* Gives a finished fiber's stack back (stacks.c). */
 static void reap(void);
 
+/* A fiber that yielded, or `main`'s going home (workers.c), queued once
+ * its switch has saved it. */
+static void requeue_finish(void);
+
 /* What the fiber landing on a worker does first, before its own code: the
- * fiber it replaced is saved now, so its park completes and, had it
- * finished, its stack goes back. A fiber starting holds no section, so
- * the lock the switch kept is let go of. */
+ * fiber it replaced is saved now, so its park completes, a yielding one
+ * is queued, and a finished one's stack goes back. */
 static void landed(void) {
     park_finish();
+    requeue_finish();
     reap();
-    if (worker->rt_depth == 0) {
-        rt_lock_give();
-    }
 }
 
 /* Switches to `next`, on this thread; `parking`: the current fiber is in
- * `block`. The fiber may come back on another thread: everything after the
- * swap reads `worker` afresh. */
+ * `block`. No section is open: the fiber may come back on another thread,
+ * and everything after the swap reads `worker` afresh. */
 static void switch_to(Fiber *next, bool parking) {
-    Fiber *prev = current;
+    Worker *w = worker;
+    Fiber *prev = w->running;
     if (next == prev) {
         return;
     }
     if (parking) {
-        worker->parking = prev;
+        w->parking = prev;
     }
-    prev->rt_depth = worker->rt_depth;
-    worker->rt_depth = next->rt_depth;
-    current = next;
+    __atomic_store_n(&w->running, next, __ATOMIC_RELEASE);
 #if defined(__SANITIZE_THREAD__)
     __tsan_switch_to_fiber(next->tsan, 0);
 #endif
@@ -152,12 +132,6 @@ static void switch_to(Fiber *next, bool parking) {
     /* Back on `prev`'s stack: another fiber ran and switched back. */
     landed();
 }
-
-/* Wakes threads whose sockets are ready, without waiting (net.c). */
-static void poll_ready_sockets(void);
-
-/* The next ready fiber this worker may run (workers.c). */
-static Fiber *take_ready(void);
 
 /* Each waiting task and what it waits on, after a deadlock (actors.c). */
 static void report_waits(void);
@@ -169,29 +143,75 @@ static void deadlock(void) {
     program_exit(101);
 }
 
-/* Runs the next ready fiber; the current one has already queued itself, or
- * is parking (`parking`). With none ready, the worker's idle loop runs
- * (workers.c), until something wakes this fiber and a worker takes it. */
-static void schedule_from(bool parking) {
-    if (worker->on_c_stack) {
+/* Due timers, deadlines, shields and Ctrl-C, and now and then what
+ * sockets and helpers have ready (workers.c): at each scheduling point,
+ * nearly free when none of them is pending. */
+static void sched_tick_slow(Worker *w);
+
+/* Whether any scope has a deadline or any fiber a shield, and how many
+ * Ctrl-Cs arrived (scope_time.c): read without the lock. */
+static bool timed_any;
+static int interrupts;
+
+static inline void sched_tick(void) {
+    Worker *w = worker;
+    if (--w->tick_left > 0 && __atomic_load_n(&w->next_timer, __ATOMIC_ACQUIRE) < 0 &&
+        !__atomic_load_n(&timed_any, __ATOMIC_ACQUIRE) &&
+        __atomic_load_n(&interrupts, __ATOMIC_ACQUIRE) == 0) {
+        return;
+    }
+    sched_tick_slow(w);
+}
+
+/* The current fiber stops running here: parking (`parking`, in `block`),
+ * yielding (`yielding`, queued again once saved), or finished. With
+ * nothing else ready the worker's idle loop runs; a yielding fiber with
+ * nothing to yield to runs on. Its runtime sections close as it switches:
+ * the lock is let go of, or, when the next fiber resumes inside sections
+ * of its own, passed to it untouched (`lock_passed`). Idle loops and new
+ * fibers never hold it. When this fiber runs again, wherever, its
+ * sections open again. */
+static void switch_away(bool parking, bool yielding) {
+    Worker *w = worker;
+    if (w->on_c_stack) {
         panic_with("a C callback can't wait: start a task instead", 45);
     }
-    wake_due_sleepers();
-    // Woken already (a deadline): nothing to switch to, it runs on.
-    if (parking && !is_waiting(current)) {
+    sched_tick();
+    int64_t depth = w->rt_depth;
+    Fiber *self = w->running;
+    // Woken already (a timer): nothing to switch to, it runs on.
+    if (parking && !is_waiting(self)) {
         return;
     }
     Fiber *next = take_ready();
-    switch_to(next != NULL ? next : worker->idle, parking);
-}
-
-static void schedule(void) {
-    schedule_from(false);
+    if (next == NULL && yielding) {
+        return;
+    }
+    if (next == NULL) {
+        next = w->idle;
+    }
+    w->rt_depth = 0;
+    if (depth > 0) {
+        if (next->rt_saved > 0) {
+            w->lock_passed = true;
+        } else {
+            rt_lock_give();
+        }
+    }
+    self->rt_saved = depth;
+    if (yielding) {
+        w->requeue = self;
+    }
+    switch_to(next, parking);
+    // Perhaps on another thread now: `w` is stale, `self` isn't.
+    rt_reopen(depth);
+    self->rt_saved = 0;
 }
 
 /* Blocks the current fiber until something wakes it; what did. */
 static int64_t block(void) {
-    fired_set(current, PARKING);
-    schedule_from(true);
-    return fired_of(current);
+    Fiber *self = current;
+    fired_set(self, PARKING);
+    switch_away(true, false);
+    return fired_of(self);
 }

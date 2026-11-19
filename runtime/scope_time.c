@@ -28,8 +28,15 @@ static LughaScope *deadlines;
 /* Fibers inside a shield, through `shield_next`. */
 static Fiber *shielded_fibers;
 
-/* How many Ctrl-Cs arrived, and whether the root scope was cancelled for one. */
-static volatile sig_atomic_t interrupts;
+/* `timed_any` (waiting.c): whether any scope has a deadline or any fiber a
+ * shield, read without the lock at each scheduling point. */
+static void timed_note(void) {
+    __atomic_store_n(&timed_any, deadlines != NULL || shielded_fibers != NULL,
+                     __ATOMIC_RELEASE);
+}
+
+/* Whether the root scope was cancelled for a Ctrl-C (`interrupts`,
+ * waiting.c, counts them). */
 static bool shutting_down;
 
 /* Monotonic nanoseconds from milliseconds, without overflowing. */
@@ -70,7 +77,8 @@ static void deadline_start(LughaScope *s, int64_t within, int64_t until) {
     if (own != 0) {
         s->deadline_next = deadlines;
         deadlines = s;
-        timers_changed();
+        timed_note();
+        timers_changed(own);
     }
 }
 
@@ -79,6 +87,7 @@ static void deadline_stop(LughaScope *s) {
     for (LughaScope **at = &deadlines; *at != NULL; at = &(*at)->deadline_next) {
         if (*at == s) {
             *at = s->deadline_next;
+            timed_note();
             return;
         }
     }
@@ -87,7 +96,8 @@ static void deadline_stop(LughaScope *s) {
 /* Fires what is due: scopes past their deadline, waits in a shield past
  * its deadline with a cancellation held, and a Ctrl-C. */
 static void check_times(void) {
-    if (deadlines == NULL && shielded_fibers == NULL && interrupts == 0) {
+    if (deadlines == NULL && shielded_fibers == NULL &&
+        __atomic_load_n(&interrupts, __ATOMIC_ACQUIRE) == 0) {
         return;
     }
     int64_t now = now_ns();
@@ -112,7 +122,8 @@ static void check_times(void) {
             wake(f, CANCELLED);
         }
     }
-    if (interrupts > 0 && !shutting_down) {
+    timed_note();
+    if (__atomic_load_n(&interrupts, __ATOMIC_ACQUIRE) > 0 && !shutting_down) {
         shutting_down = true;
         cancel_tasks(&root_scope, REASON_SHUTDOWN);
         cancel_fiber(&main_fiber, REASON_SHUTDOWN, NULL, NULL);
@@ -156,7 +167,8 @@ void lugha_rt_shield_enter(int64_t ms) {
         current->shield_next = shielded_fibers;
         current->shield_in_unwind = current->unwinding;
         shielded_fibers = current;
-        timers_changed();
+        timed_note();
+        timers_changed(until);
     } else if (until < current->shield_until) {
         current->shield_until = until;
     }
@@ -174,6 +186,7 @@ void lugha_rt_shield_exit(void) {
         for (Fiber **at = &shielded_fibers; *at != NULL; at = &(*at)->shield_next) {
             if (*at == current) {
                 *at = current->shield_next;
+                timed_note();
                 break;
             }
         }
@@ -232,8 +245,7 @@ static void poller_kick(void);
  * started (no scheduler to act on it), ends the program at once. */
 static void on_interrupt(int sig) {
     (void)sig;
-    interrupts++;
-    if (interrupts > 1 || !tasks_started) {
+    if (__atomic_add_fetch(&interrupts, 1, __ATOMIC_ACQ_REL) > 1 || !tasks_started) {
         _exit(130);
     }
     // A worker waiting for events sees it at once.
