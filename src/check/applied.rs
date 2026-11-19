@@ -215,7 +215,7 @@ pub(super) mod tests {
             }\n\
         }\n\
         struct Repeat<T> { x: T, left: i64 }\n\
-        impl Source<T> for Repeat<T> {\n\
+        impl<T> Source<T> for Repeat<T> {\n\
             fun next(mut self): Option<T> {\n\
                 if self.left == 0 { return None; }\n\
                 self.left -= 1;\n\

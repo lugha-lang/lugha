@@ -1,5 +1,6 @@
 use super::{PResult, Parser};
 use crate::ast::{Bound, FunDecl, InterfaceDecl, InterfaceItem, Type, TypeParam};
+use crate::diagnostic::Diagnostic;
 use crate::lexer::TokenKind;
 use crate::span::Span;
 
@@ -40,7 +41,7 @@ impl Parser<'_> {
         Ok((params, defaults))
     }
 
-    /// `interface Name[: I, J] { fun area(self): f64; … }`.
+    /// `interface Name[: I + J] { fun area(self): f64; … }`.
     pub(super) fn interface_decl(&mut self) -> PResult<InterfaceDecl> {
         let start = self.bump().start;
         let name = self.ident("interface name")?;
@@ -48,8 +49,20 @@ impl Parser<'_> {
         let mut extends = Vec::new();
         if self.eat(&TokenKind::Colon) {
             extends.push(self.bound()?);
-            while self.eat(&TokenKind::Comma) {
+            // The old `interface I: A, B`: E0215 at the first `,`, read as
+            // it meant.
+            let mut comma = None;
+            loop {
+                if self.at(&TokenKind::Comma) {
+                    let at = self.bump();
+                    comma.get_or_insert(at);
+                } else if !self.eat(&TokenKind::Plus) {
+                    break;
+                }
                 extends.push(self.bound()?);
+            }
+            if let Some(at) = comma {
+                self.error(parents_comma(&name.name, &extends, at));
             }
         }
         let open = self.expect(&TokenKind::LBrace)?;
@@ -164,6 +177,13 @@ impl Parser<'_> {
             span: t.span,
         })
     }
+}
+
+/// E0215: a `,` between an interface's parents, which `+` joins.
+fn parents_comma(name: &str, parents: &[Bound], comma: Span) -> Diagnostic {
+    let joined: Vec<String> = parents.iter().map(Bound::written).collect();
+    Diagnostic::error("E0215", "an interface's parents are joined with `+`", comma)
+        .with_help(format!("write `interface {name}: {}`", joined.join(" + ")))
 }
 
 #[cfg(test)]

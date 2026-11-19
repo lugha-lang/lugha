@@ -197,8 +197,8 @@ fn declarations_struct_enum_impl_interface_extern_import() {
         "import a.b as c;\npublic import m { X, y as z };\npublic import r { * };\nstruct P<T> {\n    private x: T,\n    y: i64,\n}\nenum E {\n    A,\n    B(i64, string),\n}\n",
     );
     check(
-        "impl Stack<T>{fun push(mut self,x:T){}\nfun len(self):i64=0;}",
-        "impl Stack<T> {\n    fun push(mut self, x: T) {}\n    fun len(self): i64 = 0;\n}\n",
+        "impl<T> Stack<T>{fun push(mut self,x:T){}\nfun len(self):i64=0;}",
+        "impl<T> Stack<T> {\n    fun push(mut self, x: T) {}\n    fun len(self): i64 = 0;\n}\n",
     );
     check(
         "interface Shape<T:Eq+Ord>{fun area(self):f64;fun name(self):string{\"s\"}}\nextern fun abs(x:i32):i32;",

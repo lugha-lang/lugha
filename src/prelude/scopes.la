@@ -10,7 +10,7 @@
  */
 struct Scope<E> { $rec: CPtr }
 
-impl Scope<E> {
+impl<E> Scope<E> {
     /** The milliseconds left before the scope's deadline (`within`, `until`), or `None` without one. */
     fun remaining(self): Option<i64> {
         let left = $os.scope_remaining(self.$rec);
@@ -82,7 +82,7 @@ enum FailureKind<E> {
     Deadline,
 }
 
-impl Display for Failure<E: Display> {
+impl<E: Display> Display for Failure<E> {
     fun show(self): string = match self.kind {
         .Error(e) => "task `{self.task}` failed: {e}",
         .Panic(message) => "task `{self.task}` panicked: {message}",
@@ -91,7 +91,7 @@ impl Display for Failure<E: Display> {
 }
 
 /** A failed scope is an error: `scope s { … }?` passes it on. */
-impl Error for Failure<E: Error> {}
+impl<E: Error> Error for Failure<E> {}
 
 /** What an `independent` scope does with a failure it has no handler for. */
 fun $report_failure(f: Failure<Error>) {

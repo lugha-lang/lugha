@@ -2,7 +2,7 @@
 struct Pair<T> { a: T, b: T }
 enum Shape<T> { Circle(T), Empty }
 struct Stack<T> { items: T[] }
-impl Stack<T> {
+impl<T> Stack<T> {
     fun new(): Stack<T> = Stack { items: [] };
     fun size(self): i64 = self.items.len;
 }

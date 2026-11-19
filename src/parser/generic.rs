@@ -172,7 +172,7 @@ mod tests {
     #[test]
     fn impl_headers_name_the_type_and_its_parameters() {
         assert_eq!(
-            program("impl Stack<T> { fun new(): Stack<T> = Stack { items: [] }; }"),
+            program("impl<T> Stack<T> { fun new(): Stack<T> = Stack { items: [] }; }"),
             "(impl Stack (type-params T) (fun new () (applied Stack T) (block (struct-lit Stack (items (array))))))"
         );
         assert_eq!(program("impl geometry.Vec2 {}"), "(impl geometry.Vec2)");

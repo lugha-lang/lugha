@@ -211,7 +211,7 @@ mod tests {
     const LIB: &str = "fun max<T: Ord>(a: T, b: T): T = if a > b { a } else { b };\n\
         fun first<T>(xs: T[]): Option<T> = if xs.len > 0 { Some(xs[0]) } else { None };\n\
         struct Stack<T> { items: T[] }\n\
-        impl Stack<T> {\n\
+        impl<T> Stack<T> {\n\
             fun new(): Stack<T> = Stack { items: [] };\n\
             fun push(mut self, x: T) { self.items.push(x); }\n\
             fun pop(mut self): Option<T> = self.items.pop();\n\

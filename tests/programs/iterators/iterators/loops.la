@@ -14,7 +14,7 @@ impl Count {
 
 struct Repeat<T> { x: T, left: i64 }
 
-impl Repeat<T> {
+impl<T> Repeat<T> {
     fun next(mut self): Option<T> {
         if self.left == 0 {
             return None;

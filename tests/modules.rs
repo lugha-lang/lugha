@@ -154,7 +154,7 @@ fn generic_instances_get_their_own_symbols() {
     f.file(
         "main.la",
         "import a.b;\nstruct Stack<T> { items: T[] }\n\
-         impl Stack<T> { fun push(mut self, x: T) { self.items.push(x); } fun tag<U>(self, u: U): U = u; }\n\
+         impl<T> Stack<T> { fun push(mut self, x: T) { self.items.push(x); } fun tag<U>(self, u: U): U = u; }\n\
          fun main() { let mut s = Stack { items: [\"x\"] }; s.push(\"y\"); let t = s.tag(1.5); \
          let p = b.max(b.Point { x: 1 }); }\n",
     )

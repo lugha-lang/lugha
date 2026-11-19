@@ -1,5 +1,5 @@
 struct Stack<T> { items: T[] }
-impl Stack<T> { fun new(): Stack<T> = Stack { items: [] }; }
+impl<T> Stack<T> { fun new(): Stack<T> = Stack { items: [] }; }
 
 fun main() {
     let s = Stack::<i64>.new();

@@ -4,7 +4,7 @@ interface Sized {
 
 struct Stack<T> { items: T[] }
 
-impl Sized for Stack<T> {
+impl<T> Sized for Stack<T> {
     fun size(self): i64 = self.items.len;
 }
 

@@ -1,0 +1,9 @@
+error[E0214]: a generic `impl` names its type parameters after `impl`
+  --> tests/programs/interfaces/one_spelling/e0214.la:3:6
+  |
+3 | impl Grid<T: Num> {
+  |      ^^^^^^^^^^^^
+  |
+  = help: write `impl<T: Num> Grid<T>`
+
+For more about E0214, run `lughac explain E0214`.

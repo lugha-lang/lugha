@@ -5,7 +5,7 @@ enum Cmd<M> {
     Send(M),
 }
 
-impl Cmd<M> {
+impl<M> Cmd<M> {
     fun none(): Cmd<M> = Cmd.Nothing;
     fun send(m: M): Cmd<M> = Cmd.Send(m);
 }

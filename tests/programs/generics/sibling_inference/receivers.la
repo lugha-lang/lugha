@@ -5,7 +5,7 @@ enum Node<M> {
     Wrapped(Node<M>, i64),
 } with Eq
 
-impl Node<M> {
+impl<M> Node<M> {
     fun pad(self, n: i64): Node<M> = Node.Wrapped(self, n);
 }
 

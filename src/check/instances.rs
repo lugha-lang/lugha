@@ -397,7 +397,7 @@ mod tests {
     #[test]
     fn methods_take_the_impls_arguments_then_their_own() {
         let src = "struct Stack<T> { items: T[] }\n\
-            impl Stack<T> {\n\
+            impl<T> Stack<T> {\n\
                 fun new(): Stack<T> = Stack { items: [] };\n\
                 fun push(mut self, x: T) { self.items.push(x); }\n\
                 fun tag<U>(self, u: U): U = u;\n\
@@ -437,7 +437,7 @@ mod tests {
     fn calls_through_bounds_reach_generic_methods() {
         let src = "interface Sized { fun size(self): i64; }\n\
             struct Stack<T> { items: T[] }\n\
-            impl Sized for Stack<T> { fun size(self): i64 = self.items.len; }\n\
+            impl<T> Sized for Stack<T> { fun size(self): i64 = self.items.len; }\n\
             fun count<T: Sized>(x: T): i64 = x.size();\n\
             fun main() { let n = count(Stack { items: [true] }); }";
         assert_eq!(monos(src), ["count<Stack<bool>>", "Stack.size@Sized<bool>"]);

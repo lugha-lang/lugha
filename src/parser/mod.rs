@@ -17,6 +17,7 @@ mod describe;
 mod expr;
 mod format;
 mod generic;
+mod impl_forms;
 mod import;
 mod interface;
 mod item;
@@ -94,7 +95,8 @@ pub fn parse_partial_from(tokens: &[Token], first: u32) -> (Program, Vec<Diagnos
         no_label: false,
         diagnostics: Vec::new(),
     };
-    let (imports, items) = parser.program();
+    let (imports, mut items) = parser.program();
+    impl_forms::normalise(&mut items, &imports, &mut parser.diagnostics);
     let program = Program {
         imports,
         items,

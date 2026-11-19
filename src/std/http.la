@@ -133,7 +133,7 @@ impl Response {
  * response. It is sendable, since each connection's task calls it: a named
  * function, or a closure that captured only sendable values.
  */
-public interface Handler: fun(Request): Response, Sendable {}
+public interface Handler: fun(Request): Response + Sendable {}
 
 /**
  * Serves forever: each connection gets its own task, each request a call

@@ -38,7 +38,7 @@ impl Source<string> for Words {
 
 struct Repeat<T> { x: T, left: i64 }
 
-impl Source<T> for Repeat<T> {
+impl<T> Source<T> for Repeat<T> {
     fun next(mut self): Option<T> {
         if self.left == 0 {
             return None;

@@ -55,7 +55,7 @@ pub(super) fn params(generics: &[Generic]) -> Vec<Type> {
 }
 
 /// A declaration's parameters under the names an `impl` gives them
-/// (`impl Stack<U>`); bounds stay those of the declaration, their
+/// (`impl<U> Stack<U>`); bounds stay those of the declaration, their
 /// interface arguments renamed too.
 pub(super) fn renamed(declared: &[Generic], names: &[Ident]) -> Vec<Generic> {
     let to: Vec<Type> = names.iter().map(|n| Type::Param(n.name.clone())).collect();
@@ -297,7 +297,7 @@ mod tests {
             struct Pair<A, B> { a: A, b: B }\n\
             enum Tree<T: Eq> { Leaf, Node(T, Tree<T>) }\n\
             struct Stack<T> { items: T[] }\n\
-            impl Stack<T> {\n\
+            impl<T> Stack<T> {\n\
                 fun new(): Stack<T> = Stack { items: [] };\n\
                 fun push(mut self, x: T) { self.items.push(x); }\n\
                 fun pair<U>(self, u: U): Pair<Stack<T>, U> = Pair { a: self, b: u };\n\
@@ -318,7 +318,7 @@ mod tests {
             [("E0316", "P")]
         );
         assert_eq!(
-            errors("struct S<T> { x: T }\nimpl S<T> { fun f<T>(self) {} }\nfun main() {}"),
+            errors("struct S<T> { x: T }\nimpl<T> S<T> { fun f<T>(self) {} }\nfun main() {}"),
             [("E0316", "T")]
         );
         assert_eq!(errors("struct Eq {}\nfun main() {}"), [("E0302", "Eq")]);
@@ -342,7 +342,9 @@ mod tests {
             [("E0418", "Stack")]
         );
         assert_eq!(
-            errors(&format!("{pair}impl Stack<T, U> {{}}\nfun main() {{}}")),
+            errors(&format!(
+                "{pair}impl<T, U> Stack<T, U> {{}}\nfun main() {{}}"
+            )),
             [("E0418", "Stack")]
         );
     }

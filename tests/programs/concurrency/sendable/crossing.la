@@ -15,7 +15,7 @@ struct Job {
     scores: Map<string, i64>,
 }
 
-interface Task2: fun(): i64, Sendable {}
+interface Task2: fun(): i64 + Sendable {}
 
 fun work(job: Job, tally: Tally, out: Sender<string>) {
     tally.add(job.id);

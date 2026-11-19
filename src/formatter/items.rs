@@ -143,11 +143,8 @@ impl Printer<'_> {
             }
             Top::Item(Item::Enum(e)) => self.enumeration(e),
             Top::Item(Item::Impl(i)) => {
-                let mut head = "impl ".to_string();
-                // `impl<T: B> I for T[]`: the parameters come first.
-                if i.target.is_some() {
-                    head = format!("impl{} ", self.type_params(&i.params));
-                }
+                // A generic block's parameters come first: `impl<T: B> Grid<T>`.
+                let mut head = format!("impl{} ", self.type_params(&i.params));
                 if let Some(b) = &i.interface {
                     head.push_str(&format!("{} for ", self.bound(b)));
                 }
@@ -156,11 +153,16 @@ impl Printer<'_> {
                 }
                 match &i.target {
                     Some(t) => head.push_str(&format!("{} ", self.ty(t))),
-                    None => head.push_str(&format!(
-                        "{}{} ",
-                        self.ident(&i.ty),
-                        self.type_params(&i.params)
-                    )),
+                    None => {
+                        let names: Vec<&str> =
+                            i.params.iter().map(|p| p.name.name.as_str()).collect();
+                        let args = if names.is_empty() {
+                            String::new()
+                        } else {
+                            format!("<{}>", names.join(", "))
+                        };
+                        head.push_str(&format!("{}{args} ", self.ident(&i.ty)));
+                    }
                 }
                 if i.derive {
                     return text(format!("{head}= derive;"));
@@ -386,7 +388,7 @@ impl Printer<'_> {
             String::new()
         } else {
             let names: Vec<String> = i.extends.iter().map(|b| self.bound(b)).collect();
-            format!(": {}", names.join(", "))
+            format!(": {}", names.join(" + "))
         };
         let head = format!(
             "{}{}interface {}{}{extends} ",

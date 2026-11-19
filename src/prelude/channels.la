@@ -16,7 +16,7 @@ enum TryRecv<T> {
     Closed,
 }
 
-impl Scope<E> {
+impl<E> Scope<E> {
     /**
      * One receiver fed by every one of `inputs`: a task of this scope
      * forwards each input's values, and the merged channel closes once

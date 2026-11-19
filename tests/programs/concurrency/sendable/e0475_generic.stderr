@@ -28,6 +28,6 @@ error[E0475]: a spawned call can't capture `f`: it is a function value, `fun(): 
 6 |     s.spawn(f());
   |             ^^^
   |
-  = help: pass the function itself, or take an interface that requires `Sendable`: `interface Job: fun(), Sendable {}`
+  = help: pass the function itself, or take an interface that requires `Sendable`: `interface Job: fun() + Sendable {}`
 
 For more about E0475, run `lughac explain E0475`.

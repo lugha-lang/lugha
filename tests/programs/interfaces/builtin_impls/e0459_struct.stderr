@@ -1,7 +1,0 @@
-error[E0459]: this `impl Show for …` is for `Box<T>`: a struct's or enum's block writes its parameters after its name, without `impl<…>`
-  --> tests/programs/interfaces/builtin_impls/e0459_struct.la:8:18
-  |
-8 | impl<T> Show for Box<T> {
-  |                  ^^^^^^
-
-For more about E0459, run `lughac explain E0459`.

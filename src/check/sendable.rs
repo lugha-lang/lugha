@@ -271,7 +271,7 @@ mod tests {
 
     #[test]
     fn functions_cross_by_what_they_captured() {
-        let job = "interface Job: fun(): i64, Sendable {}\nfun run(j: Job): i64 = j();\nfun one(): i64 = 1;\n";
+        let job = "interface Job: fun(): i64 + Sendable {}\nfun run(j: Job): i64 = j();\nfun one(): i64 = 1;\n";
         ok(&format!(
             "{job}fun main() {{ let k = 2; let a = run(one) + run(fun(): i64 = k); }}"
         ));

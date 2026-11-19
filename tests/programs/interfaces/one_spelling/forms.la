@@ -1,0 +1,37 @@
+// One spelling for a generic block, `impl<T> Grid<T>`, for a program's
+// own type, an interface's block and a bounded one; `+` joins an
+// interface's parents.
+struct Grid<T> { cells: T[] }
+
+impl<T> Grid<T> {
+    fun size(self): i64 = self.cells.len;
+}
+
+impl<T: Num> Grid<T> {
+    fun total(self): T {
+        let mut sum = self.cells[0];
+        for i in 1..self.cells.len { sum = sum + self.cells[i]; }
+        sum
+    }
+}
+
+interface Sized { fun count(self): i64; }
+interface Labelled: Sized + Display { }
+
+impl<T> Sized for Grid<T> {
+    fun count(self): i64 = self.size();
+}
+
+impl<T> Display for Grid<T> {
+    fun show(self): string = "grid of {self.size()}";
+}
+
+impl<T> Labelled for Grid<T> { }
+
+fun describe(l: Labelled): string = "{l} ({l.count()})";
+
+fun main(console: Console) {
+    let g = Grid { cells: [1, 2, 3] };
+    console.println("{g.size()} {g.total()}");
+    console.println(describe(g));
+}

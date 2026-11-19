@@ -14,7 +14,7 @@ impl Add for Money {
 // A tiny NdArray: element arithmetic needs `T: Num` on the impl.
 struct Grid<T> { data: T[] }
 
-impl Grid<T: Num> {
+impl<T: Num> Grid<T> {
     fun total(self): T {
         let mut s: T = 0;
         for x of self.data {
@@ -24,7 +24,7 @@ impl Grid<T: Num> {
     }
 }
 
-impl Add for Grid<T: Num> {
+impl<T: Num> Add for Grid<T> {
     fun add(self, o: Grid<T>): Grid<T> {
         let mut out = self;
         for i in 0..self.data.len {
@@ -34,7 +34,7 @@ impl Add for Grid<T: Num> {
     }
 }
 
-impl Mul<T> for Grid<T: Num> {
+impl<T: Num> Mul<T> for Grid<T> {
     fun mul(self, k: T): Grid<T> {
         let mut out = self;
         for i in 0..self.data.len {
@@ -44,7 +44,7 @@ impl Mul<T> for Grid<T: Num> {
     }
 }
 
-impl Neg for Grid<T: Num> {
+impl<T: Num> Neg for Grid<T> {
     fun neg(self): Grid<T> {
         let mut out = self;
         for i in 0..self.data.len {
@@ -54,7 +54,7 @@ impl Neg for Grid<T: Num> {
     }
 }
 
-impl Grid<T> {
+impl<T> Grid<T> {
     fun size(self): i64 = self.data.len;
 }
 

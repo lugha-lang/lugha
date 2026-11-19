@@ -8,7 +8,7 @@ actor Queue<T: Sendable> {
     items: T[],
 }
 
-impl Source<T> for Queue<T: Sendable> {
+impl<T: Sendable> Source<T> for Queue<T> {
     fun next_one(mut self): Option<T> = self.items.pop();
 }
 

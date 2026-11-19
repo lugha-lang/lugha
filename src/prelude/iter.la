@@ -9,7 +9,7 @@
 // The elements of an array, in order: `xs.iter()`.
 struct ArrayIter<T> { xs: T[], at: i64 }
 
-impl ArrayIter<T> {
+impl<T> ArrayIter<T> {
     fun next(mut self): Option<T> {
         if self.at == self.xs.len {
             return None;
@@ -51,7 +51,7 @@ fun range(from: i64, to: i64): Range = Range { at: from, end: to };
 // `f` of each value: `it.map(f)`.
 struct Mapped<T, U> { src: Iter<T>, f: fun(T): U }
 
-impl Mapped<T, U> {
+impl<T, U> Mapped<T, U> {
     fun next(mut self): Option<U> = match self.src.next() {
         .Some(x) => Some(self.f(x)),
         .None => None,
@@ -64,7 +64,7 @@ fun iter_map<T, U>(it: Iter<T>, f: fun(T): U): Mapped<T, U> = Mapped { src: it, 
 // The values `keep` is true for: `it.filter(keep)`.
 struct Filter<T> { src: Iter<T>, keep: fun(T): bool }
 
-impl Filter<T> {
+impl<T> Filter<T> {
     fun next(mut self): Option<T> {
         while let .Some(x) = self.src.next() {
             if self.keep(x) {
@@ -81,7 +81,7 @@ fun iter_filter<T>(it: Iter<T>, keep: fun(T): bool): Filter<T> = Filter { src: i
 // The first `n` values, then nothing more is pulled: `it.take(n)`.
 struct Take<T> { src: Iter<T>, left: i64 }
 
-impl Take<T> {
+impl<T> Take<T> {
     fun next(mut self): Option<T> {
         if self.left <= 0 {
             return None;
@@ -97,7 +97,7 @@ fun iter_take<T>(it: Iter<T>, n: i64): Take<T> = Take { src: it, left: n };
 // Every value after the first `n`: `it.skip(n)`.
 struct Skip<T> { src: Iter<T>, left: i64 }
 
-impl Skip<T> {
+impl<T> Skip<T> {
     fun next(mut self): Option<T> {
         while self.left > 0 {
             self.left -= 1;
@@ -118,7 +118,7 @@ struct Indexed<T> { public i: i64, public value: T }
 
 struct Enumerate<T> { src: Iter<T>, at: i64 }
 
-impl Enumerate<T> {
+impl<T> Enumerate<T> {
     fun next(mut self): Option<Indexed<T>> = match self.src.next() {
         .Some(x) => {
             self.at += 1;

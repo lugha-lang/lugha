@@ -1,6 +1,6 @@
 struct Arr<T> { xs: T[] }
 
-impl Mul for Arr<T: Num> {
+impl<T: Num> Mul for Arr<T> {
     fun mul(self, o: Arr<T>): Arr<T> {
         let mut out: T[] = [];
         for i in 0..self.xs.len {
@@ -10,7 +10,7 @@ impl Mul for Arr<T: Num> {
     }
 }
 
-impl Mul<T> for Arr<T: Num> {
+impl<T: Num> Mul<T> for Arr<T> {
     fun mul(self, k: T): Arr<T> {
         let mut out: T[] = [];
         for x of self.xs {

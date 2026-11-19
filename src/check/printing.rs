@@ -207,7 +207,7 @@ mod tests {
 
     const TYPES: &str = "struct P { x: i64, s: string }\nenum E { A(f64), B }\n\
         struct Stack<T> { items: T[] }\n\
-        impl Display for Stack<T> { fun show(self): string = \"stack\"; }\n\
+        impl<T> Display for Stack<T> { fun show(self): string = \"stack\"; }\n\
         interface Shape { fun area(self): f64; }\nfun nothing() {}\n";
 
     fn monos(body: &str) -> Vec<String> {

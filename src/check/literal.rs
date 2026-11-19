@@ -231,7 +231,7 @@ mod tests {
         // Generic methods, and closures inside generic functions.
         assert_eq!(
             errors(
-                "struct B<T> { v: T }\nimpl B<T: Num> { fun up(self): T = self.v + 1000; }\nfun main() { let b = B { v: 1 as i8 }; let c = b.up(); }"
+                "struct B<T> { v: T }\nimpl<T: Num> B<T> { fun up(self): T = self.v + 1000; }\nfun main() { let b = B { v: 1 as i8 }; let c = b.up(); }"
             ),
             [("E0402", "1000")]
         );

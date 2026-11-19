@@ -90,7 +90,7 @@ mod tests {
     const SRC: &str = "fun twice(n: i64): i64 = n * 2;
 fun max<T: Ord>(a: T, b: T): T { if a > b { a } else { b } }
 struct Box<T> { v: T }
-impl Box<T> { fun map<U>(self, f: fun(T): U): Box<U> = Box { v: f(self.v) }; fun put(mut self, v: T) { self.v = v; } }
+impl<T> Box<T> { fun map<U>(self, f: fun(T): U): Box<U> = Box { v: f(self.v) }; fun put(mut self, v: T) { self.v = v; } }
 fun main() { }
 ";
 

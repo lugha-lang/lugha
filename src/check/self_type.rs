@@ -91,7 +91,7 @@ mod tests {
             fun plus(self, other: Money): Money = Money { cents: self.cents + other.cents };\n\
         }\n\
         struct Stack<T> { items: T[] }\n\
-        impl Ordered for Stack<T> { fun less(self, other: Stack<T>): bool = self.items.len < other.items.len; }\n\
+        impl<T> Ordered for Stack<T> { fun less(self, other: Stack<T>): bool = self.items.len < other.items.len; }\n\
         struct Bad { n: i64 }\n\
         impl Bad { fun less(self, other: i64): bool = false; }\n";
 

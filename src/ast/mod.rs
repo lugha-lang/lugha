@@ -256,8 +256,8 @@ pub struct ImplDecl {
     pub module: Option<Ident>,
     /// The type the methods belong to.
     pub ty: Ident,
-    /// The type's parameters, `impl Stack<T>`, with bounds
-    /// for every method of the block, `impl NdArray<T: Num>`.
+    /// The block's parameters, `impl<T> Stack<T>`, with bounds
+    /// for every method of the block, `impl<T: Num> NdArray<T>`.
     pub params: Vec<TypeParam>,
     /// Methods and associated functions in order.
     pub methods: Vec<FunDecl>,
@@ -279,7 +279,8 @@ pub struct ImplDecl {
     /// `f64[]` in `impl Show for f64[]` or `impl<T: Show> Show for T[]`: a
     /// block for a type that isn't a struct, enum, actor or extern type by
     /// name, written as any type; `params` are then the `impl<…>` ones.
-    /// `None` for a block written `impl I for Name<T: B>`.
+    /// `None` for a struct's, enum's, actor's or extern type's block,
+    /// `impl<T: B> I for Name<T>` (`parser::impl_forms`).
     pub target: Option<Box<Type>>,
 }
 

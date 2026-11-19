@@ -303,7 +303,7 @@ mod tests {
         // Generic: the base fixes the type arguments, then the value converts.
         ok("interface Named { fun name(self): string; }\n\
             struct W<T> { v: T, n: string }\n\
-            impl Named for W<T> { fun name(self): string = self.n; }\n\
+            impl<T> Named for W<T> { fun name(self): string = self.n; }\n\
             fun main(console: Console) { let w = W { v: 1, n: \"a\" }; let s: Named = W { n: \"b\", ..w }; console.println(s.name()); }");
     }
 

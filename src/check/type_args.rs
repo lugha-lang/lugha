@@ -93,7 +93,7 @@ mod tests {
         fun two<A, B>(a: A, b: B): A = a;\n\
         struct Pair<T> { a: T, b: T }\n\
         struct Stack<T> { items: T[] }\n\
-        impl Stack<T> { fun new(): Stack<T> = Stack { items: [] }; }\n";
+        impl<T> Stack<T> { fun new(): Stack<T> = Stack { items: [] }; }\n";
 
     fn ty(body: &str, name: &str) -> Type {
         let_type(&format!("{LIB}fun main() {{ {body} }}"), name)

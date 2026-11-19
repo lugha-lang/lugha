@@ -1,5 +1,5 @@
 //! Bounds on `impl` blocks:
-//! `impl NdArray<T: Num> { … }` gives every method of the block those
+//! `impl<T: Num> NdArray<T> { … }` gives every method of the block those
 //! bounds on top of the type's own, checked at each use like a function's.
 
 use super::Checker;
@@ -43,8 +43,8 @@ mod tests {
     use crate::check::test_util::{errors, ok};
 
     const BOX: &str = "struct Box<T> { v: T }\n\
-        impl Box<T: Ord> { fun bigger(self, o: T): bool = self.v > o; }\n\
-        impl Box<T> { fun get(self): T = self.v; }\n";
+        impl<T: Ord> Box<T> { fun bigger(self, o: T): bool = self.v > o; }\n\
+        impl<T> Box<T> { fun get(self): T = self.v; }\n";
 
     #[test]
     fn an_impl_s_bounds_reach_its_methods() {
@@ -60,7 +60,7 @@ mod tests {
         let found = errors(&src);
         assert_eq!(found.first().map(|(c, _)| *c), Some("E0451"), "{found:?}");
         let unknown = errors(
-            "struct Box<T> { v: T }\nimpl Box<T: Nope> { fun get(self): T = self.v; }\nfun main() {}",
+            "struct Box<T> { v: T }\nimpl<T: Nope> Box<T> { fun get(self): T = self.v; }\nfun main() {}",
         );
         assert_eq!(
             unknown.first().map(|(c, _)| *c),

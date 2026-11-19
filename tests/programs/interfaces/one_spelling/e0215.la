@@ -1,0 +1,4 @@
+interface Sized { fun count(self): i64; }
+interface Labelled: Sized, Display { }
+
+fun main() {}

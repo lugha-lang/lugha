@@ -16,7 +16,7 @@ impl Number for Cents {
 
 struct Pair<T> { a: T, b: T }
 
-impl Number for Pair<T> {
+impl<T> Number for Pair<T> {
     fun zero(): Pair<T> = panic("no zero pair");
     fun plus(self, other: Pair<T>): Pair<T> = other;
     // Its own `twice` replaces the default.

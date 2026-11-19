@@ -46,12 +46,12 @@ interface FromItems<T> {
 }
 
 /** `Map { "ann": 31, "bo": 40 }`; a later equal key replaces the value. */
-impl FromEntries<K, V> for Map<K: Key, V> {
+impl<K: Key, V> FromEntries<K, V> for Map<K, V> {
     fun from_entries(keys: K[], values: V[]): Map<K, V> = $map_of(keys, values);
 }
 
 /** `Set { 1, 2, 3 }`; an item already in it is kept once. */
-impl FromItems<T> for Set<T: Key> {
+impl<T: Key> FromItems<T> for Set<T> {
     fun from_items(items: T[]): Set<T> = $set_of(items);
 }
 
@@ -93,7 +93,7 @@ fun $set_of<T: Key>(xs: T[]): Set<T> {
     s
 }
 
-impl Map<K: Key, V> {
+impl<K: Key, V> Map<K, V> {
     /**
      * Sets `k` to `v` in place: replaced, or added at the end, after growing
      * the table when it is full. Everything here changes `self` where it is,
@@ -231,7 +231,7 @@ impl Map<K: Key, V> {
 }
 
 // `==` on maps needs equal values too.
-impl Map<K: Key, V: Eq> {
+impl<K: Key, V: Eq> Map<K, V> {
     /** True if both have the same keys with equal values, in any order: `==`. */
     fun same(self, other: Map<K, V>): bool {
         if self.len != other.len {
@@ -246,7 +246,7 @@ impl Map<K: Key, V: Eq> {
     }
 }
 
-impl Set<T: Key> {
+impl<T: Key> Set<T> {
     /** True if `x` is in the set. */
     fun has(self, x: T): bool = self.$map.has(x);
 
@@ -360,7 +360,7 @@ impl<T> Option<T> {
     }
 }
 
-impl Result<T, E> {
+impl<T, E> Result<T, E> {
     /** `f` of the `Ok` value, or the `Err` unchanged: chains steps that may each fail: `r.and_then(f)`. */
     fun and_then<U>(self, f: fun(T): Result<U, E>): Result<U, E> {
         let r = self;

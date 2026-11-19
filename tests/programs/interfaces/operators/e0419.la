@@ -1,6 +1,6 @@
 struct Grid<T> { data: T[] }
 
-impl Grid<T: Num> {
+impl<T: Num> Grid<T> {
     fun total(self): T {
         let mut s: T = 0;
         for x of self.data {

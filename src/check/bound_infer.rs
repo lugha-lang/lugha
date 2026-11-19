@@ -149,7 +149,7 @@ mod tests {
         struct Words { xs: string[] }\n\
         impl Source<string> for Words { fun next(mut self): Option<string> = None; }\n\
         struct Repeat<T> { x: T }\n\
-        impl Source<T> for Repeat<T> { fun next(mut self): Option<T> = Some(self.x); }\n\
+        impl<T> Source<T> for Repeat<T> { fun next(mut self): Option<T> = Some(self.x); }\n\
         struct Holder { c: Count }\n\
         impl Box<Count> for Holder { fun get(self): Count = self.c; }\n\
         fun collect<T, S: Source<T>>(src: S): T[] = [];\n\

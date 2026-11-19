@@ -91,7 +91,7 @@ pub(in crate::check) fn not_sendable(head: &str, why: &str, span: Span) -> Diagn
     } else if why.contains("pinned handle") {
         "do the work that needs it in this task, or start the other tasks in a `pinned` scope and make the handle in each"
     } else if why.contains("function value") {
-        "pass the function itself, or take an interface that requires `Sendable`: `interface Job: fun(), Sendable {}`"
+        "pass the function itself, or take an interface that requires `Sendable`: `interface Job: fun() + Sendable {}`"
     } else {
         "keep shared state in an actor, or send copies through a channel: a `Ref` belongs to one task"
     };

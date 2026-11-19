@@ -8,10 +8,10 @@ interface From<T> { fun from(x: T): Self; }
 interface Sized { fun size(self): i64; }
 
 struct Stack<T> { items: T[] }
-impl Source<T> for Stack<T> {
+impl<T> Source<T> for Stack<T> {
     fun next(mut self): Option<T> = self.items.pop();
 }
-impl Sized for Stack<T> {
+impl<T> Sized for Stack<T> {
     fun size(self): i64 = self.items.len;
 }
 

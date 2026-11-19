@@ -343,7 +343,7 @@ mod tests {
     use crate::check::{End, test_util};
 
     const SRC: &str = "struct P<T> { x: T, n: i64 }
-impl P<T> { fun len(self): i64 = self.n; fun make(x: T): P<T> = P { x: x, n: 0 }; }
+impl<T> P<T> { fun len(self): i64 = self.n; fun make(x: T): P<T> = P { x: x, n: 0 }; }
 enum Shape { Circle(f64), Dot }
 impl Shape { fun unit(): Shape = Shape.Dot; }
 interface Area { fun area(self): f64; }

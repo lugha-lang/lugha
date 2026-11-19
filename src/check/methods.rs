@@ -144,7 +144,7 @@ impl Checker {
             };
             // An `impl I for SomeActor` block's methods are the actor's too.
             self.in_actor = (i.actor || self.actors.contains(&owner)).then(|| owner.clone());
-            // The block's own bounds (`impl Error for Failure<E: Error>`).
+            // The block's own bounds (`impl<E: Error> Error for Failure<E>`).
             let declared = self.generics_of(&owner);
             let outer = self.impl_generics(&declared, &i.params);
             let saved = std::mem::replace(&mut self.type_params, outer);
@@ -276,7 +276,7 @@ mod tests {
         assert_eq!(let_type(&src, "c"), Type::F64);
         // Generic, and a field of type `T`, which isn't a function field.
         ok(
-            "struct B<T> { v: T }\nimpl B<T> { fun v(self): T = self.v; }\n\
+            "struct B<T> { v: T }\nimpl<T> B<T> { fun v(self): T = self.v; }\n\
             fun main() { let b = B { v: 1 }; let n: i64 = b.v + b.v(); }",
         );
     }

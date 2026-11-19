@@ -3,7 +3,7 @@
 
 struct Stack<T> { items: T[] }
 
-impl Stack<T> {
+impl<T> Stack<T> {
     fun new(): Self = Self { items: [] };
     fun with(self, x: T): Self {
         let mut s = self;

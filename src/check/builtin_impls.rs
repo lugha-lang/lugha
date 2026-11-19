@@ -11,12 +11,8 @@ use super::derive::{Block, Covers};
 use super::derive_match::{block_type, label, names, overlap};
 use super::methods::Method;
 use super::{Checker, Type, errors};
-use crate::ast::{AppliedType, Expr, Ident, ImplDecl, Item, Program, TypeKind};
+use crate::ast::{Expr, Ident, ImplDecl, Item, Program};
 use crate::modules::impls::item_name;
-
-/// The prelude's types that a block written `impl I for Name<…>` may be
-/// for, when no type of the program has that name.
-const NAMED: [&str; 4] = ["Option", "Result", "Map", "Set"];
 
 /// The parameters `ty` mentions, each once, in order.
 fn params_in(ty: &Type, out: &mut Vec<String>) {
@@ -59,39 +55,10 @@ fn module_of(key: &str) -> &str {
 
 impl Checker {
     /// The type a block for a built-in type is for, as written: its
-    /// `target`, or `Option<Point>` written like a struct's block when no
-    /// type of the program is named `Option`.
+    /// `target`, which the parser leaves on every block that isn't a
+    /// struct's, enum's, actor's or extern type's.
     pub(super) fn builtin_target(&self, i: &ImplDecl) -> Option<crate::ast::Type> {
-        if let Some(t) = &i.target {
-            return Some((**t).clone());
-        }
-        i.interface.as_ref()?;
-        let name = &i.ty.name;
-        let own = i.module.is_some() || self.named_type(&self.key(name)).is_some();
-        if own || !NAMED.contains(&name.as_str()) {
-            return None;
-        }
-        // Its "parameters" are the types it is for: `Option<Point>`.
-        let args: Vec<crate::ast::Type> = i
-            .params
-            .iter()
-            .map(|p| crate::ast::Type {
-                kind: TypeKind::Named(p.name.name.clone()),
-                span: p.name.span,
-            })
-            .collect();
-        let kind = match (name.as_str(), <[crate::ast::Type; 1]>::try_from(args)) {
-            ("Option", Ok([inner])) => TypeKind::Option(Box::new(inner)),
-            (_, args) => TypeKind::Applied(Box::new(AppliedType {
-                module: None,
-                name: i.ty.clone(),
-                args: args.map_or_else(|a| a, Vec::from),
-            })),
-        };
-        Some(crate::ast::Type {
-            kind,
-            span: i.ty.span,
-        })
+        i.target.as_deref().cloned()
     }
 
     /// Pass 2, after the derive blocks: every block for a built-in type.
@@ -290,7 +257,7 @@ impl Checker {
             }
             Type::Struct(k, _) | Type::Enum(k, _) | Type::Handle(k) if !k.starts_with('$') => {
                 return Some(format!(
-                    "is for `{ty}`: a struct's or enum's block writes its parameters after its name, without `impl<…>`"
+                    "is for `{ty}`: a struct's or enum's block names its own parameters, in order, `impl<T> Grid<T>`"
                 ));
             }
             _ => return None,

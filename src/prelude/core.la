@@ -322,7 +322,7 @@ impl<T> Option<T> {
     }
 }
 
-impl Result<T, E> {
+impl<T, E> Result<T, E> {
     /** The `Ok` value; panics at the call with `unwrap on Err: ` and the error's debug form otherwise: `r.unwrap()`. */
     @caller_location
     fun unwrap(self): T = match self {

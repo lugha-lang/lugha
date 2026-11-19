@@ -78,9 +78,10 @@ fn a_block_is_written_where_and_for_what_it_may_be() {
         codes("impl<T, U> Show for T[] { fun label(self): string = \"\"; }"),
         ["E0459"]
     );
-    assert_eq!(
-        codes("struct B<T> { v: T }\nimpl<T> Show for B<T> { fun label(self): string = \"\"; }"),
-        ["E0459"]
+    // A struct's block is spelled `impl<T> … B<T>`, like any other.
+    assert!(
+        codes("struct B<T> { v: T }\nimpl<T> Show for B<T> { fun label(self): string = \"\"; }")
+            .is_empty()
     );
     assert_eq!(
         codes(

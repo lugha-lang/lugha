@@ -15,7 +15,7 @@ impl Sized for Box {
 
 struct Stack<T> { items: T[] }
 
-impl Sized for Stack<T> {
+impl<T> Sized for Stack<T> {
     fun size(self): i64 = self.items.len;
     fun grow(mut self) { self.items.clear(); }
 }

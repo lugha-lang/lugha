@@ -87,7 +87,7 @@ mod tests {
 
     #[test]
     fn a_generic_impls_self_carries_its_parameters() {
-        let src = "impl Stack<T> { fun f(self, o: Self): Option<Self> = None; }";
+        let src = "impl<T> Stack<T> { fun f(self, o: Self): Option<Self> = None; }";
         assert_eq!(
             program(src),
             "(impl Stack (type-params T) \

@@ -2,7 +2,9 @@
 //! `self` receiver.
 
 use super::{PResult, Parser};
-use crate::ast::{Block, Bound, EnumDecl, FunDecl, Ident, ImplDecl, Param, Receiver, Variant};
+use crate::ast::{
+    Block, Bound, EnumDecl, FunDecl, Ident, ImplDecl, Param, Receiver, Type, TypeParam, Variant,
+};
 use crate::diagnostic::Diagnostic;
 use crate::lexer::TokenKind;
 use crate::span::Span;
@@ -60,9 +62,26 @@ impl Parser<'_> {
         } else {
             None
         };
-        let (module, ty, params, target) = if generic || !self.named_ahead() {
-            // Any other type: `f64`, `Point[]`, `(A, B)`, `Map<string, V>`;
-            // without an interface, the prelude's `impl<T> T[] { … }`.
+        // The old `impl Grid<T: Num>`: E0214, read as the block it meant.
+        if !generic && self.bounded_header_ahead() {
+            let first = self.ident("type name")?;
+            let (module, ty) = self.qualified_name(first, "type name")?;
+            let params = self.type_params()?;
+            let shown: Vec<String> = params.iter().map(|p| self.param_text(p)).collect();
+            let names: Vec<&str> = params.iter().map(|p| p.name.name.as_str()).collect();
+            let at = Span::new(ty.span.start, self.prev_end());
+            self.error(super::impl_forms::long_form_error(
+                &ty.name,
+                &shown.join(", "),
+                &names.join(", "),
+                at,
+            ));
+            return self.impl_rest(start, interface, (module, ty, params, None));
+        }
+        let (module, ty, params, target) = if generic || !self.bare_name_ahead() {
+            // Any other type: `Grid<T>`, `Point[]`, `(A, B)`, `Map<string, V>`;
+            // a program type's `impl<T> Grid<T>` becomes a struct's block once
+            // the file is parsed (`parser::impl_forms`).
             let t = self.ty()?;
             let name = Ident {
                 name: t.written(),
@@ -84,8 +103,18 @@ impl Parser<'_> {
             } else {
                 (None, first)
             };
-            (module, ty, self.impl_params()?, None)
+            (module, ty, Vec::new(), None)
         };
+        self.impl_rest(start, interface, (module, ty, params, target))
+    }
+
+    /// An `impl` after its header: `= derive;` or its methods.
+    fn impl_rest(
+        &mut self,
+        start: usize,
+        interface: Option<Box<Bound>>,
+        (module, ty, params, target): ImplHead,
+    ) -> PResult<ImplDecl> {
         // `impl I for T = derive;`: the items come from `I`'s derive blocks.
         let derive = interface.is_some() && self.eat(&TokenKind::Eq);
         let mut methods = Vec::new();
@@ -100,6 +129,13 @@ impl Parser<'_> {
             // `Self` means this type throughout the block.
             let names: Vec<Ident> = params.iter().map(|p| p.name.clone()).collect();
             methods = match &target {
+                // `impl<T> Grid<T>`, a program type's block: `Self` is also
+                // the type in expressions (`Self { … }`, `Self.Variant`).
+                Some(t) if super::impl_forms::own_header(t, &params).is_some() => {
+                    let ty =
+                        super::impl_forms::own_header(t, &params).expect("checked by the guard");
+                    self.in_impl(&ty, &names, |p| p.impl_methods(open))?
+                }
                 Some(t) => {
                     let outer = self.impl_target.replace((**t).clone());
                     let methods = self.impl_methods(open);
@@ -158,11 +194,12 @@ impl Parser<'_> {
             .any(|t| *t == TokenKind::For)
     }
 
-    /// True if a struct's, enum's, actor's or extern type's name comes next,
-    /// as `impl I for` writes it: `Name`, `m.Name` or `Name<T: B, …>`, then
-    /// the block's `{` or `= derive`. Any other type is read as a type.
-    fn named_ahead(&self) -> bool {
+    /// True if a bare name comes next, `Name` or `m.Name`, then the block's
+    /// `{` or `= derive`: a struct's, enum's, actor's or extern type's
+    /// block. Anything else is read as a type.
+    fn bare_name_ahead(&self) -> bool {
         let mut n = 0;
+        // A number's block (`impl i64 { … }`, the prelude's) is read as a type.
         if !matches!(self.peek_at(n), TokenKind::Ident(_)) {
             return false;
         }
@@ -171,43 +208,6 @@ impl Parser<'_> {
             && matches!(self.peek_at(n + 1), TokenKind::Ident(_))
         {
             n += 2;
-        }
-        if *self.peek_at(n) == TokenKind::Lt {
-            // Parameters, each a name with optional bounds (`T`, `T: Ord`);
-            // anything else there (`Option<Point[]>`) makes it a type.
-            let mut depth = 0usize;
-            let mut start = true;
-            loop {
-                let token = self.peek_at(n);
-                if depth == 1 && start {
-                    let named = matches!(token, TokenKind::Ident(_))
-                        && matches!(
-                            self.peek_at(n + 1),
-                            TokenKind::Colon | TokenKind::Comma | TokenKind::Gt
-                        );
-                    if !named {
-                        return false;
-                    }
-                }
-                start = false;
-                match token {
-                    TokenKind::Lt => {
-                        depth += 1;
-                        start = depth == 1;
-                    }
-                    TokenKind::Comma if depth == 1 => start = true,
-                    TokenKind::Gt => {
-                        depth -= 1;
-                        if depth == 0 {
-                            n += 1;
-                            break;
-                        }
-                    }
-                    TokenKind::Eof | TokenKind::LBrace => return false,
-                    _ => {}
-                }
-                n += 1;
-            }
         }
         matches!(self.peek_at(n), TokenKind::LBrace | TokenKind::Eq)
     }
@@ -310,6 +310,10 @@ impl Parser<'_> {
 }
 
 /// The number type a keyword names, for an `impl` of one.
+/// An `impl` block's header: the module and name of the type (for a
+/// struct's block), its parameters, and the type as written otherwise.
+type ImplHead = (Option<Ident>, Ident, Vec<TypeParam>, Option<Box<Type>>);
+
 fn number_type(kind: &TokenKind) -> Option<&'static str> {
     Some(match kind {
         TokenKind::TyI8 => "i8",
@@ -346,14 +350,14 @@ mod tests {
         for src in [
             "impl Shape for Circle { }",
             "impl Shape for geo.Circle { }",
-            "impl Source<T> for Stack<T: Ord, U> { }",
+            "impl<T: Ord, U> Source<T> for Stack<T, U> { }",
             "impl Json for Point = derive;",
         ] {
             let i = block(src);
             assert!(i.target.is_none(), "{src}");
         }
         assert_eq!(
-            block("impl Source<T> for Stack<T: Ord, U> { }")
+            block("impl<T: Ord, U> Source<T> for Stack<T, U> { }")
                 .params
                 .len(),
             2

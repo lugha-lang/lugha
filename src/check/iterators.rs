@@ -148,9 +148,9 @@ mod tests {
     const LIB: &str = "struct Count { n: i64 }\n\
         impl Count { fun next(mut self): Option<i64> = None; }\n\
         struct Repeat<T> { x: T }\n\
-        impl Repeat<T> { fun next(mut self): Option<T> = Some(self.x); }\n\
+        impl<T> Repeat<T> { fun next(mut self): Option<T> = Some(self.x); }\n\
         interface Source<T> { fun next(mut self): Option<T>; }\n\
-        impl Source<T> for Repeat<T> { fun next(mut self): Option<T> = Some(self.x); }\n\
+        impl<T> Source<T> for Repeat<T> { fun next(mut self): Option<T> = Some(self.x); }\n\
         struct Stuck { n: i64 }\n\
         impl Stuck { fun next(self): Option<i64> = None; }\n\
         struct Takes { n: i64 }\n\

@@ -1,6 +1,6 @@
 struct Tree<T> { value: T, kids: Self[] }
 
-impl Tree<T> {
+impl<T> Tree<T> {
     fun size(self): i64 {
         let mut n = 1;
         for k of self.kids {

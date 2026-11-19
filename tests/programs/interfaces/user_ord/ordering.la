@@ -38,7 +38,7 @@ impl Ord for Level {
 
 struct Box<T> { v: T } with Eq
 
-impl Ord for Box<T: Ord> {
+impl<T: Ord> Ord for Box<T> {
     fun cmp(self, o: Box<T>): Ordering =
         if self.v < o.v {
             Ordering.Less

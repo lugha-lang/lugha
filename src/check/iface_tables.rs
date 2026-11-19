@@ -167,7 +167,7 @@ mod tests {
     fn converted_generic_types_compile_their_methods() {
         let checked = ok("interface Sized { fun size(self): i64; }\n\
             struct Stack<T> { items: T[] }\n\
-            impl Sized for Stack<T> { fun size(self): i64 = self.items.len; }\n\
+            impl<T> Sized for Stack<T> { fun size(self): i64 = self.items.len; }\n\
             fun conv<T: Sized>(x: T): Sized = x;\n\
             fun main() { let s: Sized = Stack { items: [1] }; let t = conv(Stack { items: [\"a\"] }); }");
         let monos: Vec<String> = checked

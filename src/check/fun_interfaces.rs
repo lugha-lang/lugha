@@ -338,7 +338,7 @@ mod tests {
             [("E0422", "twice(5, 1)")]
         );
         assert_eq!(
-            errors("interface Named { fun name(self): string; }\ninterface Job: fun(), Named {}\nfun run(j: Job) {}\nfun main() { run(fun() {}); }")[0].0,
+            errors("interface Named { fun name(self): string; }\ninterface Job: fun() + Named {}\nfun run(j: Job) {}\nfun main() { run(fun() {}); }")[0].0,
             "E0422"
         );
         assert_eq!(

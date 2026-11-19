@@ -278,7 +278,7 @@ fn handles_show_their_extern_type() {
 #[test]
 fn a_receiver_typed_by_its_calls_expected_type_hovers_with_it() {
     let main = "enum Node<M> { Leaf(string), Wrapped(Node<M>, i64) }\n\
-                impl Node<M> { fun pad(self, n: i64): Node<M> = Node.Wrapped(self, n); }\n\
+                impl<M> Node<M> { fun pad(self, n: i64): Node<M> = Node.Wrapped(self, n); }\n\
                 fun leaf<M>(s: string): Node<M> = Node.Leaf(s);\n\
                 enum Msg { Go }\n\
                 fun a(): Node<Msg> = leaf(\"x\").pad(8);\n\

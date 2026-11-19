@@ -24,7 +24,7 @@ pub struct ImplEntry {
     pub key: String,
     /// The interface's arguments, in the block's type parameters.
     pub args: Vec<Type>,
-    /// The block's type parameters, `T` in `impl Source<T> for Stack<T>`,
+    /// The block's type parameters, `T` in `impl<T> Source<T> for Stack<T>`,
     /// which the type's arguments replace.
     pub generics: Vec<String>,
     /// What the block's method names carry after `@` (`modules::impls`).

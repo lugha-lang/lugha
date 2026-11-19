@@ -1,0 +1,9 @@
+error[E0215]: an interface's parents are joined with `+`
+  --> tests/programs/interfaces/one_spelling/e0215.la:2:26
+  |
+2 | interface Labelled: Sized, Display { }
+  |                          ^
+  |
+  = help: write `interface Labelled: Sized + Display`
+
+For more about E0215, run `lughac explain E0215`.

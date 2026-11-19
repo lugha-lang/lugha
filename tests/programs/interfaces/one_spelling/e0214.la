@@ -1,0 +1,7 @@
+struct Grid<T> { cells: T[] }
+
+impl Grid<T: Num> {
+    fun first(self): T = self.cells[0];
+}
+
+fun main() {}

@@ -408,7 +408,7 @@ mod tests {
     fn generic_types_and_parameters_satisfy_too() {
         ok("interface Sized { fun size(self): i64; }\n\
             struct Stack<T> { items: T[] }\n\
-            impl Sized for Stack<T> { fun size(self): i64 = self.items.len; }\n\
+            impl<T> Sized for Stack<T> { fun size(self): i64 = self.items.len; }\n\
             fun count<T: Sized>(x: T): i64 = x.size();\n\
             fun pass<U: Sized>(u: U): i64 = count(u);\n\
             fun main() { let s = Stack { items: [1] }; let n = count(s); let m = pass(s); }");

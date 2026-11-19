@@ -58,7 +58,7 @@ impl Checker {
 
     /// For `r.m(…)` whose receiver `r` waits and whose method `m`'s result
     /// mentions the receiver type's own parameters (`fun pad(self, n: i64):
-    /// Node<M>` in `impl Node<M>`, `unwrap` on a `Result<T, E>`): that
+    /// Node<M>` in `impl<M> Node<M>`, `unwrap` on a `Result<T, E>`): that
     /// result, declared. Such a call waits too, and its expected type
     /// reaches the receiver (kivuli: `text("a").padding(8)`, or
     /// `json.decode(v).unwrap()`).
@@ -305,7 +305,7 @@ mod tests {
     #[test]
     fn a_waiting_receiver_takes_the_calls_expected_type() {
         let node = "enum Node<M> { Leaf(string), Wrapped(Node<M>, i64) }\n\
-            impl Node<M> {\n\
+            impl<M> Node<M> {\n\
                 fun pad(self, n: i64): Node<M> = Node.Wrapped(self, n);\n\
                 fun size(self): i64 = 1;\n\
             }\n\
@@ -361,7 +361,7 @@ mod tests {
     #[test]
     fn a_programs_own_methods_pass_it_back_too() {
         let lib = "struct Pair<T> { a: T, b: T }\n\
-            impl Pair<T> {\n\
+            impl<T> Pair<T> {\n\
                 fun first(self): T = self.a;\n\
                 fun wrap(self): Option<T> = Some(self.a);\n\
                 fun size(self): i64 = 2;\n\
@@ -382,7 +382,7 @@ mod tests {
     #[test]
     fn an_associated_function_only_its_result_types_waits() {
         let cmd = "enum Cmd<M> { Nothing, Send(M) }\n\
-            impl Cmd<M> { fun none(): Cmd<M> = Cmd.Nothing; }\n\
+            impl<M> Cmd<M> { fun none(): Cmd<M> = Cmd.Nothing; }\n\
             enum Ev { Go }\n";
         ok(&format!(
             "{cmd}fun pair<A>(a: A, b: A): A[] = [a, b];\n\
