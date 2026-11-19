@@ -4,8 +4,11 @@
  * A task's stack is a large reservation (8 MiB, smaller on a small address
  * space) carved from regions of `REGION_STACKS` stacks, each region one
  * mapping, so a program's mappings stay few however many tasks it runs.
- * Only the pages a task touches use memory; a finished task's stack gives
- * its pages back (`MADV_DONTNEED`) and waits in a pool for the next task.
+ * Only the pages a task touches use memory. A finished task's stack waits
+ * in its worker's cache, up to `STACK_CACHE`, for the next task there,
+ * pages and all; the worker gives those pages back (`MADV_DONTNEED`) when
+ * it parks. Past the cache, a stack's pages go back at once and it waits
+ * in a pool for any worker.
  * Stacks never move.
  *
  * Every stack Lugha code runs on (a task's, `main`'s, a worker's C stack)
@@ -54,8 +57,23 @@ static uint32_t pool_lock;
 
 static char *new_stack_locked(void);
 
-/* A stack for a new task: from the pool, else carved from a region. */
+/* Stacks whose pages went back to the kernel so far: what the stress tests
+ * read to see the cache spare the system call. */
+static int64_t stacks_given_back;
+
+static void give_pages_back(char *stack) {
+    // Advice the kernel may refuse: the pages then stay, still reusable.
+    madvise(stack, stack_size, MADV_DONTNEED);
+    __atomic_add_fetch(&stacks_given_back, 1, __ATOMIC_RELAXED);
+}
+
+/* A stack for a new task: from this worker's cache, else from the pool,
+ * else carved from a region. */
 static char *new_stack(void) {
+    Worker *w = worker;
+    if (w->stack_cached > 0) {
+        return w->stack_cache[--w->stack_cached];
+    }
     lock_take(&pool_lock);
     char *stack = new_stack_locked();
     lock_give(&pool_lock);
@@ -93,10 +111,18 @@ static char *new_stack_locked(void) {
     return stack;
 }
 
-/* A finished task's stack: its pages given back, the stack kept. */
+/* A finished task's stack: kept by this worker for its next task, pages
+ * and all, while its cache has room (no system call, and none of the TLB
+ * flushes on every core that giving pages back costs); else its pages
+ * given back and the stack pooled. */
 static void give_stack(char *stack) {
-    // Advice the kernel may refuse: the pages then stay, still reusable.
-    madvise(stack, stack_size, MADV_DONTNEED);
+    Worker *w = worker;
+    if (w->stack_cached < STACK_CACHE) {
+        w->stack_dirty[w->stack_cached] = true;
+        w->stack_cache[w->stack_cached++] = stack;
+        return;
+    }
+    give_pages_back(stack);
     lock_take(&pool_lock);
     if (free_count == free_capacity) {
         size_t capacity = free_capacity == 0 ? 64 : free_capacity * 2;
@@ -109,6 +135,17 @@ static void give_stack(char *stack) {
     }
     free_stacks[free_count++] = stack;
     lock_give(&pool_lock);
+}
+
+/* A worker about to park gives its cached stacks' pages back, off the hot
+ * path: an idle program holds no more than one without the cache. */
+static void stack_cache_trim(Worker *w) {
+    for (int i = 0; i < w->stack_cached; i++) {
+        if (w->stack_dirty[i]) {
+            give_pages_back(w->stack_cache[i]);
+            w->stack_dirty[i] = false;
+        }
+    }
 }
 
 /* Gives a finished fiber's stack back once another one is running on its own. */

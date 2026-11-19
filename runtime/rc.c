@@ -301,9 +301,10 @@ static void rc_change(void *object, int64_t delta, bool check) {
         __atomic_fetch_add(&header->count, 1, __ATOMIC_RELAXED);
         return;
     }
-    int64_t before = __atomic_fetch_sub(&header->count, 1, __ATOMIC_RELEASE);
+    // Acquire as well as release, rather than a fence before the free:
+    // the same instruction on x86, and ThreadSanitizer understands it.
+    int64_t before = __atomic_fetch_sub(&header->count, 1, __ATOMIC_ACQ_REL);
     if ((before & ~RC_SHARED) == 1) {
-        __atomic_thread_fence(__ATOMIC_ACQUIRE);
         lugha_rt_rc_free(object);
     }
 }

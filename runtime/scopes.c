@@ -67,6 +67,11 @@ typedef struct LughaScope {
      * waiting in `spawn` for one to finish. */
     int64_t limit;
     Fiber *limit_waiter;
+    /* Its own lock (rt_lock.c's kind) over `tasks`, `running`, `actors`,
+     * the owner's wait and `limit_waiter`: spawning and a task's end take
+     * it, not the scopes lock; failing and cancelling, under the scopes
+     * lock, take it to walk `tasks` (parent's before child's). */
+    uint32_t lock;
     /* Its deadline (monotonic ns, 0: none), and the next scope with one. */
     int64_t deadline;
     struct LughaScope *deadline_next;
@@ -117,11 +122,13 @@ static void cancel_fiber(Fiber *f, int32_t reason, LughaString *text, void *by) 
 
 /* Cancels every unfinished task `s` started. */
 static void cancel_tasks(LughaScope *s, int32_t reason) {
+    lock_take(&s->lock);
     for (LughaTask *t = s->tasks; t != NULL; t = t->scope_next) {
-        if (!task_done(t)) {
+        if (!task_done(t) && t->fiber != NULL) {
             cancel_fiber(t->fiber, reason, NULL, s);
         }
     }
+    lock_give(&s->lock);
 }
 
 /* `s` failed: the first failure is kept, the rest are cancelled. Takes
@@ -151,20 +158,27 @@ static void scope_fail(LughaScope *s, int32_t outcome, void *table, void *box,
 
 /* Waits until no more than `left` of `s`'s tasks still run. */
 static void scope_wait_until(LughaScope *s, int64_t left) {
+    lock_take(&s->lock);
     while (s->running > left) {
         s->owner_waiting = true;
         s->wait_left = left;
         current->cancellable = false;
-        block();
+        uint32_t *locks[1] = {&s->lock};
+        block_holding(locks, 1);
+        lock_take(&s->lock);
     }
     s->owner_waiting = false;
+    lock_give(&s->lock);
 }
 
 /* Waits until every task `s` started has finished: first all but its
  * actors, which may still be called, then, once they are stopped, the
  * actors. Its owner waits even if cancelled: nothing outlives its scope. */
 static void scope_wait(LughaScope *s) {
-    scope_wait_until(s, s->actors);
+    lock_take(&s->lock);
+    int64_t actors = s->actors;
+    lock_give(&s->lock);
+    scope_wait_until(s, actors);
     scope_stop_actors(s);
     scope_wait_until(s, 0);
 }
@@ -181,6 +195,7 @@ static void scope_task_done(Fiber *f) {
     if (s == NULL) {
         return;
     }
+    lock_take(&s->lock);
     s->running--;
     if (f->actor != NULL) {
         s->actors--;
@@ -194,6 +209,7 @@ static void scope_task_done(Fiber *f) {
         s->limit_waiter = NULL;
         wake(waiter, 0);
     }
+    lock_give(&s->lock);
 }
 
 /* `scope s word… { … }` starts: its record, at `s` in the frame running
@@ -237,22 +253,32 @@ void *lugha_rt_scope_root(void) {
 /* `s.spawn(…)`: a new task, started in `s`. */
 LughaTask *lugha_rt_task_spawn_in(LughaScope *s, void (*entry)(void *, void *, void *),
                                   void *code, void *env, int64_t result_size) {
-    RT_SECTION();
+    ensure_started();
+    lugha_rt_cancel_point();
+    // Only the scope's own lock: spawners in other scopes don't wait.
+    lock_take(&s->lock);
     scope_room(s);
     // Queued once generated code has set it up (`lugha_rt_task_go`).
     LughaTask *task = task_create(entry, code, env, result_size);
-    Fiber *f = worker->last_spawned;
+    Fiber *f = task->fiber;
     f->started_in = s;
-    task->fiber = f;
     lugha_rt_rc_retain(task);
     task->scope_next = s->tasks;
     s->tasks = task;
     s->running++;
-    // A scope already failed, or leaving, stops what it starts at once.
-    if (s->failed != TASK_OK) {
-        cancel_fiber(f, REASON_SIBLING, NULL, s);
-    } else if (s->owner->cancelled != REASON_NONE) {
-        cancel_fiber(f, REASON_PARENT, NULL, s);
+    bool failed = __atomic_load_n(&s->failed, __ATOMIC_ACQUIRE) != TASK_OK;
+    bool leaving = __atomic_load_n(&s->owner->cancelled, __ATOMIC_ACQUIRE) != REASON_NONE;
+    lock_give(&s->lock);
+    // A scope already failed, or leaving, stops what it starts at once:
+    // under the scopes lock, which comes before the scope's. One failing
+    // after this saw it fine finds the task in its list.
+    if (failed || leaving) {
+        RT_SECTION();
+        if (s->failed != TASK_OK) {
+            cancel_fiber(f, REASON_SIBLING, NULL, s);
+        } else if (s->owner->cancelled != REASON_NONE) {
+            cancel_fiber(f, REASON_PARENT, NULL, s);
+        }
     }
     return task;
 }
@@ -272,12 +298,15 @@ static void scope_pop(LughaScope *s) {
     lugha_rt_rc_release(s->handler_env);
     s->name = NULL;
     s->handler_env = NULL;
-    for (LughaTask *t = s->tasks; t != NULL;) {
+    lock_take(&s->lock);
+    LughaTask *done = s->tasks;
+    s->tasks = NULL;
+    lock_give(&s->lock);
+    for (LughaTask *t = done; t != NULL;) {
         LughaTask *next = t->scope_next;
         lugha_rt_rc_release(t);
         t = next;
     }
-    s->tasks = NULL;
     if (current->cancelled_by == s) {
         __atomic_store_n(&current->cancelled, REASON_NONE, __ATOMIC_RELEASE);
         current->cancelled_by = NULL;
@@ -426,12 +455,15 @@ static int32_t root_scope_failed(void) {
  * failure, once reported. */
 static void root_scope_wait(void) {
     scope_wait(&root_scope);
-    for (LughaTask *t = root_scope.tasks; t != NULL;) {
+    lock_take(&root_scope.lock);
+    LughaTask *done = root_scope.tasks;
+    root_scope.tasks = NULL;
+    lock_give(&root_scope.lock);
+    for (LughaTask *t = done; t != NULL;) {
         LughaTask *next = t->scope_next;
         lugha_rt_rc_release(t);
         t = next;
     }
-    root_scope.tasks = NULL;
     lugha_rt_rc_release(root_scope.error_box);
     lugha_rt_rc_release(root_scope.panic);
     lugha_rt_rc_release(root_scope.failed_task);

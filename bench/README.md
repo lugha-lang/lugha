@@ -33,7 +33,7 @@ Each program takes its size as its only argument. `<name>/size.txt` holds the ti
 
 ## Measures
 
-`bench/measure/` holds Lugha-only measures, run by hand: `pauses.la` (the longest stop in steady work) and `scaling.la` with its driver `scaling.py`, which runs five patterns (spawning many tasks, many yielding, a chain of spawns, eight ping-pong pairs, trees split over tasks) on 1, 2 and 4 workers, for one or more compilers side by side: `python3 bench/measure/scaling.py --lughac old=PATH --lughac new=PATH`.
+`bench/measure/` holds Lugha-only measures, run by hand: `pauses.la` (the longest stop in steady work) and `scaling.la` with its driver `scaling.py`, which runs six patterns (spawning many tasks, eight tasks spawning in scopes of their own, many yielding, a chain of spawns, eight ping-pong pairs, trees split over tasks) on 1, 2 and 4 workers, for one or more compilers side by side: `python3 bench/measure/scaling.py --lughac old=PATH --lughac new=PATH`.
 
 ## Fairness rules
 

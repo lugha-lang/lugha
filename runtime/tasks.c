@@ -149,6 +149,9 @@ enum { WAITING = -1, TIMED_OUT = -2, DEFAULT_ARM = -1, CANCELLED = -3, PARKING =
 #define current (worker->running)
 static Fiber main_fiber;
 static Fiber *live;
+/* A leaf lock over `live`'s links: nothing is taken while holding it. */
+static uint32_t live_lock;
+/* Atomic: tasks start and end on every worker. */
 static int64_t live_count;
 /* Fibers started so far, `main` included. */
 static int64_t fibers_started = 1;

@@ -4,10 +4,10 @@
 //! may not starve beside a busy task, and a task made ready as every worker
 //! parks still runs.
 
-use std::path::PathBuf;
+#[path = "common/c_harness.rs"]
+mod c_harness;
+
 use std::process::Command;
-use std::sync::OnceLock;
-use std::time::Duration;
 
 /// The harness: each case is one argument; it prints what it saw.
 const HARNESS: &str = r#"#include "lugha_rt.c"
@@ -224,72 +224,9 @@ int main(int argc, char **argv) {
 }
 "#;
 
-/// Builds the harness once per flavour: plain, or with ThreadSanitizer.
-fn harness(tsan: bool) -> &'static PathBuf {
-    static PLAIN: OnceLock<PathBuf> = OnceLock::new();
-    static TSAN: OnceLock<PathBuf> = OnceLock::new();
-    let built = if tsan { &TSAN } else { &PLAIN };
-    built.get_or_init(|| {
-        let dir = std::env::temp_dir().join(format!(
-            "lugha-stress-{}-{}",
-            std::process::id(),
-            u8::from(tsan)
-        ));
-        std::fs::create_dir_all(&dir).expect("temp dir is writable");
-        std::fs::write(dir.join("lugha_rt.c"), lugha::link::RUNTIME_SOURCE).expect("writable");
-        std::fs::write(dir.join("harness.c"), HARNESS).expect("writable");
-        let exe = dir.join("harness");
-        let mut cc = Command::new("cc");
-        cc.args(["-std=gnu11", "-O1", "-pthread", "-funwind-tables", "-I"])
-            .arg(&dir);
-        if tsan {
-            cc.args(["-fsanitize=thread", "-g"]);
-        }
-        let out = cc
-            .arg(dir.join("harness.c"))
-            .args(["-lm", "-o"])
-            .arg(&exe)
-            .output()
-            .expect("cc runs");
-        assert!(
-            out.status.success(),
-            "{}",
-            String::from_utf8_lossy(&out.stderr)
-        );
-        exe
-    })
-}
-
-/// Runs `case` on four workers, both builds, killing a hung run: what it
-/// printed, the same for both.
+/// Runs `case` on four workers, plain and under ThreadSanitizer.
 fn run(case: &str) -> String {
-    let [plain, tsan] = [false, true].map(|tsan| {
-        let mut child = Command::new(harness(tsan))
-            .arg(case)
-            .env("LUGHA_WORKERS", "4")
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-            .expect("harness runs");
-        let started = std::time::Instant::now();
-        let limit = Duration::from_secs(if tsan { 120 } else { 30 });
-        while child.try_wait().expect("waits").is_none() {
-            if started.elapsed() > limit {
-                let _ = child.kill();
-                panic!("{case} hung (ThreadSanitizer: {tsan})");
-            }
-            std::thread::sleep(Duration::from_millis(20));
-        }
-        let out = child.wait_with_output().expect("ends");
-        let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
-        assert!(
-            out.status.success() && stderr.is_empty(),
-            "{case} (ThreadSanitizer: {tsan}): {stderr}"
-        );
-        String::from_utf8_lossy(&out.stdout).into_owned()
-    });
-    assert_eq!(plain, tsan, "{case}");
-    plain
+    c_harness::run("stress", HARNESS, case, "4")
 }
 
 #[test]

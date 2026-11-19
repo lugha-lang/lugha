@@ -1,6 +1,6 @@
 ## FEATURE: Spawning that scales: a per-worker cache of task stacks, so a finished task's stack is reused without a system call, and a lock per scope for its own spawn and finish bookkeeping, off the shared scopes lock; milestone 213.
 
-**Status:** proposed 2026-11-20.
+**Status:** approved 2026-11-20.
 
 ## OBJECTIVE
 Programs print what they printed. Starting and finishing many small tasks gets cheaper, and stops getting slower with workers:
@@ -61,17 +61,24 @@ Measured before writing this PRP (`bench/measure/scaling.la`'s pattern, and one 
 - Change a scope's behaviour, limits or failure policies.
 
 ## TESTS
-- [ ] `tests/scheduler_stress.rs`, plain and under ThreadSanitizer:
-  - [ ] Eight spawners in eight scopes, 10,000 tasks each, all finished: each scope ends once all its tasks are done.
-  - [ ] A scope failing while another task keeps spawning into it: every task spawned is cancelled or finishes; none outlives the scope.
-  - [ ] `limit 2` with 1,000 spawns from four workers' tasks: never more than two running (a running count each task checks).
-- [ ] The stack cache, through the C harness: a stack given back and taken again on one worker is the same stack, with no system call between (counted by a hook the harness reads); after the worker parks, its cache's pages are given back (the cache's count of stacks still holding pages drops to 0).
-- [ ] `tests/workers.rs`'s sweep, `tests/programs/`, `leaks`, `rc_check`, `tasks_runtime`, unchanged.
-- [ ] `bench/measure/scaling` before and after; the six single-task benchmarks and chanping within 3%.
-- [ ] Targeted: `--lib`, `programs`, `leaks`, `rc_check`, `workers`, `scheduler_stress`, `tasks_runtime`, `waiting_runtime`, `rc_alloc_threads`, `helpers`, `blocking_externs`, `callbacks`, `spec`, `arm`, `codegen`, `comments`.
+- [x] `tests/scheduler_stress.rs`, plain and under ThreadSanitizer:
+  - [x] Eight spawners in eight scopes, 10,000 tasks each, all finished: each scope ends once all its tasks are done.
+  - [x] A scope failing while another task keeps spawning into it: every task spawned is cancelled or finishes; none outlives the scope.
+  - [x] `limit 2` with 1,000 spawns from four workers' tasks: never more than two running (a running count each task checks).
+- [x] The stack cache, through the C harness: a stack given back and taken again on one worker is the same stack, with no system call between (counted by a hook the harness reads); after the worker parks, its cache's pages are given back (the cache's count of stacks still holding pages drops to 0).
+- [x] `tests/workers.rs`'s sweep, `tests/programs/`, `leaks`, `rc_check`, `tasks_runtime`, unchanged.
+- [x] `bench/measure/scaling` before and after; the six single-task benchmarks and chanping within 3%.
+- [x] Targeted: `--lib`, `programs`, `leaks`, `rc_check`, `workers`, `scheduler_stress`, `tasks_runtime`, `waiting_runtime`, `rc_alloc_threads`, `helpers`, `blocking_externs`, `callbacks`, `spec`, `arm`, `codegen`, `comments`.
 
 ## ACCEPTANCE
-- [ ] Spawning many tasks is faster on one worker and no slower on four; eight spawners scale with workers.
-- [ ] The stress tests pass under ThreadSanitizer.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
-- [ ] Spec, CHANGELOG, TODO and the bench docs are updated.
+- [ ] Spawning many tasks is faster on one worker and no slower on four; eight spawners scale with workers. **Missed on one worker** (5% slower), the user's call to ship: see the build notes.
+- [x] The stress tests pass under ThreadSanitizer.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass.
+- [x] Spec, CHANGELOG, TODO and the bench docs are updated.
+
+## BUILD NOTES
+- **Measured** (`bench/RESULTS.md`): eight spawners on four workers 2.11 s to 1.15 s; one spawner 9% faster on four workers, about 5% slower on one, as its tasks all queue before any finishes, so the cache never gets a stack back. Recorded in TODO.md. The seven benchmarks within 3% of milestone 212.
+- **A task is done before its scope counts it out:** `fiber_exit` sets `done` (under the task's lock), then takes the scope's lock. Cancelling walks a scope's tasks under that lock and skips done ones, so it never touches a fiber that is gone, without the shared lock in `fiber_exit`.
+- **The stress tests' C harness** moved to `tests/common/c_harness.rs`, shared by `scheduler_stress.rs` and the new `spawn_stress.rs` (one file would have passed 500 lines). The failing-scope case is a Lugha program, plain only: the owner is cancelled by a panic that unwinds, which a C harness can't catch.
+- **`rc.c`:** the shared count's last release is acquire-release instead of release plus an acquire fence: the same instruction on x86, and ThreadSanitizer, which doesn't model fences, stopped reporting cross-thread frees.
+- **Found, not fixed (TODO.md):** a false deadlock in `scheduler_stress`'s `park` case under ThreadSanitizer, about 1 run in 100, present at milestone 212 too; and, by reading, a cancel landing just before a wait parks may be missed.

@@ -1,7 +1,9 @@
-// scaling: how work spread over tasks speeds up with workers, five ways
+// scaling: how work spread over tasks speeds up with workers, six ways
 // (after Tokio's scheduler benchmarks, and binarytrees split over tasks).
 //
 //   spawn_many N      main starts N small tasks, each sending one value
+//   spawners N        eight tasks each start N/8 small tasks in a scope
+//                     of their own
 //   yield_many N      eight tasks each yield N times
 //   chained_spawn N   each task starts the next in a scope of its own and
 //                     waits for it, N deep
@@ -32,6 +34,15 @@ fun check(t: Tree): i64 = match t {
 
 fun one(out: Sender<i64>) {
     out.send(1);
+}
+
+fun share(n: i64, out: Sender<i64>) {
+    let r = scope s {
+        for _ in 0..n {
+            s.spawn(one(out));
+        }
+    };
+    r.unwrap();
 }
 
 fun yields(n: i64, out: Sender<i64>) {
@@ -90,6 +101,10 @@ fun main(args: string[], console: Console) {
         if mode == "spawn_many" {
             for _ in 0..n {
                 s.spawn(one(tx));
+            }
+        } else if mode == "spawners" {
+            for _ in 0..8 {
+                s.spawn(share(n / 8, tx));
             }
         } else if mode == "yield_many" {
             for _ in 0..8 {

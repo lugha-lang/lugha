@@ -94,17 +94,24 @@ void lugha_rt_task_panicked(LughaString *text, int32_t fails) {
     }
 }
 
-/* `s.spawn(…)` under `limit n`: waits while `n` of its tasks run. */
+/* `s.spawn(…)` under `limit n`: waits while `n` of its tasks run. Called
+ * and returns holding the scope's lock, parked holding it. */
 static void scope_room(LughaScope *s) {
     while (s->limit > 0 && s->running - s->actors >= s->limit) {
-        lugha_rt_cancel_point();
         s->limit_waiter = current;
         current->cancellable = true;
-        int64_t fired = block();
+        uint32_t *locks[1] = {&s->lock};
+        int64_t fired = block_holding(locks, 1);
+        lock_take(&s->lock);
         if (s->limit_waiter == current) {
             s->limit_waiter = NULL;
         }
-        woke(fired);
+        current->cancellable = false;
+        if (fired == CANCELLED) {
+            // Unwinding takes the scopes lock, which comes before this one.
+            lock_give(&s->lock);
+            woke(fired);
+        }
     }
 }
 

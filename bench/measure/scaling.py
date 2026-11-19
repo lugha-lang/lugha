@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""How work spread over tasks speeds up with workers: scaling.la's five
+"""How work spread over tasks speeds up with workers: scaling.la's six
 patterns on 1, 2 and 4 workers, the fastest of three runs each.
 
     python3 bench/measure/scaling.py                      # the release lughac
@@ -21,6 +21,7 @@ SOURCE = ROOT / "bench" / "measure" / "scaling.la"
 BUILD = ROOT / "bench" / ".build"
 PATTERNS = [
     ("spawn_many", "200000"),
+    ("spawners", "200000"),
     ("yield_many", "100000"),
     ("chained_spawn", "2000"),
     ("pairs", "100000"),

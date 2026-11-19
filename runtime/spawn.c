@@ -52,6 +52,7 @@ void lugha_rt_rc_stop_threads(void) {
     if (current == NULL) {
         return;
     }
+    lock_take(&live_lock);
     for (Fiber *f = live; f != NULL; f = f->next_live) {
         if (f == current || f == &main_fiber) {
             continue;
@@ -61,6 +62,9 @@ void lugha_rt_rc_stop_threads(void) {
         lugha_rt_rc_release(f->task);
         f->task = NULL;
     }
+    // Held while letting go: a fiber ending meanwhile on another worker
+    // unlinks itself. What these release never ends a fiber.
+    lock_give(&live_lock);
 }
 
 
@@ -74,15 +78,14 @@ __attribute__((used, visibility("hidden"))) void lugha_rt_task_fiber_main(Fiber 
 /* Finishes the running fiber: its task is done, its joiners wake, and the
  * next fiber runs; never returns. An actor's panic ends its fiber here too. */
 static void fiber_exit(Fiber *self) {
-    // Never returns: the lock goes on to the next fiber.
-    rt_enter();
     LughaTask *task = self->task;
-    scope_task_done(self);
     /* The call's environment was the fiber's to let go of. */
     lugha_rt_rc_release(self->env);
     self->env = NULL;
-    // Done, under the record's lock, after the scopes lock: its joiners
-    // park holding the record's lock, so each is parked by now.
+    // Done, under the record's lock: its joiners park holding it, so each
+    // is parked by now. Done before the scope counts it out: cancelling
+    // walks the scope's tasks under the scope's lock and skips done ones,
+    // so it never reaches this fiber once it is gone.
     lock_take(&task->lock);
     __atomic_store_n(&task->done, 1, __ATOMIC_RELEASE);
     for (Fiber *j = task->joiners; j != NULL;) {
@@ -92,6 +95,8 @@ static void fiber_exit(Fiber *self) {
     }
     task->joiners = NULL;
     lock_give(&task->lock);
+    scope_task_done(self);
+    lock_take(&live_lock);
     if (self->prev_live != NULL) {
         self->prev_live->next_live = self->next_live;
     } else {
@@ -100,7 +105,8 @@ static void fiber_exit(Fiber *self) {
     if (self->next_live != NULL) {
         self->next_live->prev_live = self->prev_live;
     }
-    live_count--;
+    lock_give(&live_lock);
+    __atomic_sub_fetch(&live_count, 1, __ATOMIC_RELAXED);
     /* Its joiners hold the task themselves now. */
     lugha_rt_rc_release(task);
     worker->zombie = self;
@@ -159,15 +165,16 @@ static LughaTask *task_create(void (*entry)(void *, void *, void *), void *code,
     f->code = code;
     f->env = env;
     f->task = task;
-    f->number = ++fibers_started;
+    f->number = __atomic_add_fetch(&fibers_started, 1, __ATOMIC_RELAXED);
     f->wake_at = -1;
     fiber_frame(f);
+    lock_take(&live_lock);
     f->next_live = live;
     live->prev_live = f;
     live = f;
-    live_count++;
+    lock_give(&live_lock);
+    __atomic_add_fetch(&live_count, 1, __ATOMIC_RELAXED);
     task->fiber = f;
-    worker->last_spawned = f;
     return task;
 }
 

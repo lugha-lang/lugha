@@ -150,8 +150,10 @@ void *lugha_rc_internal(size_t size);
 #define RC_SMALL 272
 #define RC_CLASSES (RC_SMALL / 16 + 1)
 
-/* Tasks a worker's own run queue holds (runq.c), a power of two. */
+/* Tasks a worker's own run queue holds (runq.c), a power of two; finished
+ * tasks' stacks it keeps for its next tasks (stacks.c). */
 #define RUNQ_SIZE 256
+#define STACK_CACHE 16
 
 /* What one worker thread schedules and allocates with: the task it runs
  * and the ones ready to, its blocks, and the per-thread state of counting
@@ -164,8 +166,6 @@ typedef struct Worker {
     struct Fiber *running;
     struct Fiber *zombie;
     struct Fiber *parking;
-    /* The fiber `lugha_rt_task_spawn` made last, for actors.c to mark. */
-    struct Fiber *last_spawned;
     /* True while C runs, or a C callback's Lugha code (stacks.c): on the C
      * stack, which no other task may run on. */
     bool on_c_stack;
@@ -222,6 +222,11 @@ typedef struct Worker {
      * switch has saved it (waiting.c): a `select`'s channels at most. */
     uint32_t *park_locks[65];
     int park_lock_count;
+    /* Finished tasks' stacks kept for its next tasks, and whether each
+     * still holds the pages its task touched (stacks.c). */
+    char *stack_cache[STACK_CACHE];
+    bool stack_dirty[STACK_CACHE];
+    int stack_cached;
     /* Its sleepers (timers.c): a heap by time under its own lock, and the
      * earliest time, -1 for none, read by others without the lock. */
     struct Fiber **heap;

@@ -441,3 +441,30 @@ The single-task benchmarks, 9 interleaved runs each, medians:
 | chanping    | 0.379s  | 0.395s  | +4.2%  |
 
 chanping on four workers is within the 5% target; on one worker it went from 0.29–0.35 s to 0.36–0.39 s: channel locks are real atomics even on one thread, where the shared lock was free.
+
+## 2026-11-20 — spawning that scales (PRP-245, milestone 213)
+
+`bench/measure/scaling.py`, milestone 212 against this one, the fastest of three runs, on 1, 2 and 4 workers (2 cores, 4 threads):
+
+| pattern | m212 w1 | m212 w2 | m212 w4 | m213 w1 | m213 w2 | m213 w4 |
+|---|---|---|---|---|---|---|
+| spawn_many 200000 | 1.431s | 1.611s | 1.551s | 1.410s | 1.383s | 1.976s |
+| spawners 200000 | 1.335s | 1.509s | 2.114s | 1.358s | 1.032s | 1.148s |
+| yield_many 100000 | 0.032s | 0.018s | 0.012s | 0.031s | 0.016s | 0.010s |
+| chained_spawn 2000 | 0.015s | 0.019s | 0.019s | 0.014s | 0.026s | 0.019s |
+| pairs 100000 | 0.151s | 0.090s | 0.079s | 0.153s | 0.121s | 0.081s |
+| trees 14 | 2.386s | 1.337s | 1.018s | 2.423s | 1.335s | 1.069s |
+
+`spawn_many` varies from run to run; five runs each settle it: on one worker 1.30–1.35 s at m212 against 1.36–1.51 s now, on four 1.57–1.62 s against 1.40–1.43 s. Eight tasks spawning in scopes of their own went from slowing down with workers to scaling (2.11 s to 1.15 s on four). One task spawning many is 9% faster on four workers but about 5% slower on one: its 200,000 tasks are all queued before any finishes, so the stack cache never gets a stack back, and every finished stack past it still gives its pages back; the scope's lock is now a real atomic even on one thread (TODO.md).
+
+The single-task benchmarks and chanping, 9 interleaved runs each, medians:
+
+| benchmark   | before  | after   | change |
+|-------------|---------|---------|--------|
+| binarytrees | 0.885s  | 0.881s  | -0.5%  |
+| chanping    | 0.393s  | 0.398s  | +1.2%  |
+| fannkuch    | 0.259s  | 0.259s  | +0.0%  |
+| fib         | 0.694s  | 0.691s  | -0.3%  |
+| mandelbrot  | 0.370s  | 0.367s  | -0.6%  |
+| nbody       | 0.685s  | 0.684s  | -0.1%  |
+| wordfreq    | 0.558s  | 0.537s  | -3.9%  |

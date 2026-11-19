@@ -225,11 +225,12 @@ LughaActor *lugha_rt_actor_new(void *state, const char *name, int64_t capacity) 
 /* The actor's task has started in its scope: the scope stops it once its
  * other tasks are done. */
 void lugha_rt_actor_started(LughaTask *task, LughaActor *a) {
-    RT_SECTION();
     Fiber *f = task->fiber;
-    f->actor = a;
     LughaScope *s = f->started_in;
+    lock_take(&s->lock);
+    f->actor = a;
     s->actors++;
+    lock_give(&s->lock);
 }
 
 static void post(LughaActor *a, Message *m) {
@@ -352,9 +353,12 @@ void lugha_rt_actor_stop(LughaActor *a, const char *file, int64_t line, int64_t 
 /* The scope's other tasks are done: each actor it still runs stops after
  * its queued mail. */
 static void scope_stop_actors(LughaScope *s) {
+    // Under the scope's lock, a task not yet done still has its fiber: it
+    // counts itself out under this lock after it is done.
+    lock_take(&s->lock);
     for (LughaTask *t = s->tasks; t != NULL; t = t->scope_next) {
-        LughaActor *a = t->fiber != NULL ? t->fiber->actor : NULL;
-        if (!task_done(t) && a != NULL) {
+        LughaActor *a = !task_done(t) && t->fiber != NULL ? t->fiber->actor : NULL;
+        if (a != NULL) {
             lock_take(&a->lock);
             if (a->status == RUNNING) {
                 stop_after_mail(a);
@@ -362,11 +366,15 @@ static void scope_stop_actors(LughaScope *s) {
             lock_give(&a->lock);
         }
     }
+    lock_give(&s->lock);
 }
 
 /* After a deadlock: each task or actor waiting on a channel, and where the
  * channel was made. */
 static void report_waits(void) {
+    // Every worker is parked: nothing ends meanwhile, but the list is read
+    // under its lock all the same.
+    lock_take(&live_lock);
     for (Fiber *f = live; f != NULL; f = f->next_live) {
         LughaChan *c = f->waits_on;
         if (c == NULL) {
@@ -387,4 +395,5 @@ static void report_waits(void) {
         fprintf(stderr, " waits %s the channel made at %s:%" PRId64 ":%" PRId64 "\n", how, c->file,
                 c->line, c->col);
     }
+    lock_give(&live_lock);
 }

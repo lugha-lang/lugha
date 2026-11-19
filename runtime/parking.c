@@ -96,6 +96,7 @@ static bool work_left(Worker *w) {
 /* Parks this worker until roused, or until the poll it waits in returns.
  * Called with nothing found anywhere. */
 static void park(Worker *w) {
+    stack_cache_trim(w);
     lock_take(&sched_lock);
     // Checked under the lock `wake_main_worker` takes: `main` back for the
     // main thread just before it would park, it doesn't.
