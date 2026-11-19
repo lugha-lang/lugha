@@ -203,6 +203,30 @@ static bool runq_any(Worker *v) {
 }
 
 static void wake_worker(Worker *w);
+static void wake_idle_worker(void);
+
+/* Threads C made that have called back and not exited, and callbacks
+ * with user data still registered (callbacks.c): while either is
+ * nonzero, C may still make a task ready, so no deadlock is declared. */
+static int64_t foreign_live;
+static int64_t callbacks_live;
+
+/* True while C may still call back. */
+static bool c_may_call(void) {
+    return __atomic_load_n(&foreign_live, __ATOMIC_ACQUIRE) > 0 ||
+           __atomic_load_n(&callbacks_live, __ATOMIC_ACQUIRE) > 0;
+}
+
+/* On a thread C made, which no worker takes from: `f` goes to the shared
+ * queue, and a worker is woken for it. */
+static bool foreign_ready(Fiber *f) {
+    if (!worker->foreign) {
+        return false;
+    }
+    shared_put(f, f, 1);
+    wake_idle_worker();
+    return true;
+}
 
 /* `f`, pinned, onto its worker's inbox; that worker roused if parked. */
 static void inbox_put(Fiber *f, Worker *w) {
@@ -254,7 +278,7 @@ static bool pinned_ready(Fiber *f) {
 /* `f`, woken by the running task, runs next on this worker: the fiber
  * that was to run next goes to the ring. */
 static void ready_next(Fiber *f) {
-    if (pinned_ready(f)) {
+    if (pinned_ready(f) || foreign_ready(f)) {
         return;
     }
     if (!run_next_on()) {
@@ -269,7 +293,7 @@ static void ready_next(Fiber *f) {
 
 /* `f` is ready, behind what this worker already has. */
 static void make_ready(Fiber *f) {
-    if (!pinned_ready(f)) {
+    if (!pinned_ready(f) && !foreign_ready(f)) {
         runq_put(f);
     }
 }

@@ -18,6 +18,13 @@
  * One lock guards every record's scope and every scope's list of them; it
  * comes before the scopes lock and a scope's own lock.
  *
+ * A thread C made (no runtime thread, no helper) gets, on its first
+ * callback, a fiber of its own and a C stack like a worker's, aligned and
+ * guarded, which its callbacks run on (`lugha_rt_cb_run`); a pthread key's
+ * destructor gives them back when the thread exits. It is never a worker:
+ * nothing waits there, its allocations come from the system allocator,
+ * and a task it makes ready goes to the shared queue.
+ *
  * A fragment, not compiled on its own: joined after scope_policy.c, whose
  * scopes, failures and policies it uses.
  */
@@ -65,6 +72,7 @@ void *lugha_rt_cb_pin(void *code, void *env) {
         s->callbacks->prev = r;
     }
     s->callbacks = r;
+    __atomic_add_fetch(&callbacks_live, 1, __ATOMIC_ACQ_REL);
     lock_give(&cb_lock);
     return r;
 }
@@ -87,6 +95,7 @@ void lugha_rt_cb_release(void *pinned) {
         r->scope = NULL;
         env = r->env;
         r->env = NULL;
+        __atomic_sub_fetch(&callbacks_live, 1, __ATOMIC_ACQ_REL);
     }
     lock_give(&cb_lock);
     lugha_rt_rc_release(env);
@@ -116,11 +125,86 @@ static void callbacks_stop(LughaScope *s) {
         r->prev = r->next = NULL;
         r = next;
     }
+    __atomic_sub_fetch(&callbacks_live, n, __ATOMIC_ACQ_REL);
     lock_give(&cb_lock);
     for (i = 0; i < n; i++) {
         lugha_rt_rc_release(envs[i]);
     }
     free(envs);
+}
+
+static pthread_key_t foreign_key;
+static pthread_once_t foreign_key_once = PTHREAD_ONCE_INIT;
+
+/* A thread C made exits: its fiber and C stack go back. */
+static void foreign_exit(void *unused) {
+    (void)unused;
+    Worker *w = worker;
+    // Off the list of records, its counts kept for `LUGHA_RC_REPORT`.
+    pthread_mutex_lock(&workers_lock);
+    for (Worker **at = &workers; *at != NULL; at = &(*at)->next_worker) {
+        if (*at == w) {
+            *at = w->next_worker;
+            break;
+        }
+    }
+    rc_retired_made += w->made;
+    rc_retired_freed += w->freed;
+    pthread_mutex_unlock(&workers_lock);
+    char *stack = (char *)w->c_stack_guard;
+    if (mprotect(stack, C_STACK_GUARD, PROT_READ | PROT_WRITE) == 0) {
+        // To the shared pool: a cache of this thread's ends with it.
+        w->stack_cached = STACK_CACHE;
+        give_stack(stack);
+    }
+    free(w->running);
+    w->running = NULL;
+    w->c_stack_top = NULL;
+    w->foreign = false;
+    __atomic_sub_fetch(&foreign_live, 1, __ATOMIC_ACQ_REL);
+}
+
+static void foreign_key_make(void) {
+    if (pthread_key_create(&foreign_key, foreign_exit) != 0) {
+        die("panic: can't track threads C made\n");
+    }
+}
+
+/* This thread, made by C, calls back for the first time: its fiber and C
+ * stack, kept until it exits. */
+static void foreign_attach(Worker *w) {
+    pthread_once(&foreign_key_once, foreign_key_make);
+    w->foreign = true;
+    __atomic_add_fetch(&foreign_live, 1, __ATOMIC_ACQ_REL);
+    // Listed while it lives, so `LUGHA_RC_REPORT` counts what it allocates.
+    pthread_mutex_lock(&workers_lock);
+    w->next_worker = workers;
+    workers = w;
+    pthread_mutex_unlock(&workers_lock);
+    Fiber *f = lugha_rc_internal(sizeof(Fiber));
+    f->wake_at = -1;
+    f->number = __atomic_add_fetch(&fibers_started, 1, __ATOMIC_RELAXED);
+    w->running = f;
+    c_stack_make();
+    // Any value: the destructor runs only for a non-NULL one.
+    pthread_setspecific(foreign_key, w);
+}
+
+/* `lugha_rt_cb_run(body, frame)`: every C entry into Lugha runs its body
+ * through this. On the program's own threads (and nested, already on the
+ * C stack) in place; on a thread C made, on that thread's C stack. */
+void lugha_rt_cb_run(void (*body)(void *), void *frame) {
+    Worker *w = worker;
+    if (w->runtime_thread || on_helper || w->on_c_stack) {
+        body(frame);
+        return;
+    }
+    if (!w->foreign) {
+        foreign_attach(w);
+    }
+    w->on_c_stack = true;
+    lugha_rt_on_stack(body, frame, w->c_stack_top);
+    w->on_c_stack = false;
 }
 
 /* The first call of every C entry into Lugha: on a helper thread the
@@ -175,6 +259,8 @@ static void callback_task(LughaScope *s, void (*entry)(void *, void *, void *), 
  * `args` (handed over: C's arguments and the closure); dropped once the
  * scope's body has ended. `pins`: it takes a pinned handle, so it runs on
  * the thread C called from. */
+static void panic_entry(void *code, void *env, void *result);
+
 void lugha_rt_cb_queue(void *pinned, void (*entry)(void *, void *, void *), void *args,
                        int32_t pins) {
     CbRecord *r = pinned;
@@ -182,6 +268,15 @@ void lugha_rt_cb_queue(void *pinned, void (*entry)(void *, void *, void *), void
     if (r->scope == NULL) {
         lock_give(&cb_lock);
         lugha_rt_rc_release(args);
+        return;
+    }
+    // A pinned handle belongs to C's thread, where no task runs.
+    if (pins != 0 && worker->foreign) {
+        lugha_rt_rc_release(args);
+        const char *why = "a spawned callback taking a pinned handle can't run as a task from a thread C made: make it `direct`";
+        LughaString *text = string_of(why, (int64_t)strlen(why));
+        lugha_rt_rc_mark(text);
+        callback_task(r->scope, panic_entry, text, false);
         return;
     }
     callback_task(r->scope, entry, args, pins != 0);

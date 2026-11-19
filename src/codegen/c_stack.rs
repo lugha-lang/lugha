@@ -8,7 +8,9 @@
 //! it back. A task's stack never holds C's frames, so C code can't run
 //! past a task stack's end, which has no guard page. A C function marked
 //! [`BLOCKING`] goes through `lugha_rt_c_blocking` instead, which runs the
-//! thunk on a helper thread while the task waits. One marked [`PINNED`]
+//! thunk on a helper thread while the task waits. A C entry's call of its
+//! body, marked [`CB_RUN`], goes through `lugha_rt_cb_run`, which runs it
+//! in place or, on a thread C made, on that thread's C stack. One marked [`PINNED`]
 //! first calls `lugha_rt_pin_here()`, keeping its task on this worker.
 
 use inkwell::attributes::AttributeLoc;
@@ -26,6 +28,10 @@ const THUNK: &str = "lugha_c_";
 /// The attribute on an `extern blocking fun`'s declaration.
 pub(super) const BLOCKING: &str = "lugha-blocking";
 
+/// The attribute on a C entry's call of its body: rewritten to run through
+/// `lugha_rt_cb_run`, which moves a thread C made onto a stack of its own.
+pub(super) const CB_RUN: &str = "lugha-cb-run";
+
 /// The attribute on an extern taking or giving a pinned handle: each call
 /// first pins the task to its worker (`lugha_rt_pin_here`).
 pub(super) const PINNED: &str = "lugha-pinned";
@@ -41,7 +47,10 @@ pub(super) fn calls_on_c_stack<'ctx>(context: &'ctx Context, module: &Module<'ct
             for i in block.get_instructions() {
                 if i.get_opcode() == InstructionOpcode::Call
                     && let Ok(site) = CallSiteValue::try_from(i)
-                    && site.get_called_fn_value().is_some_and(is_c)
+                    && (site.get_called_fn_value().is_some_and(is_c)
+                        || site
+                            .get_string_attribute(AttributeLoc::Function, CB_RUN)
+                            .is_some())
                 {
                     sites.push((function, i));
                 }
@@ -57,9 +66,14 @@ pub(super) fn calls_on_c_stack<'ctx>(context: &'ctx Context, module: &Module<'ct
         let marked = callee
             .get_string_attribute(AttributeLoc::Function, BLOCKING)
             .is_some();
-        let through = match marked {
-            true => switch(context, module, "lugha_rt_c_blocking"),
-            false => c_call,
+        let entry_body = CallSiteValue::try_from(call)
+            .ok()
+            .and_then(|site| site.get_string_attribute(AttributeLoc::Function, CB_RUN))
+            .is_some();
+        let through = match (entry_body, marked) {
+            (true, _) => switch(context, module, "lugha_rt_cb_run"),
+            (false, true) => switch(context, module, "lugha_rt_c_blocking"),
+            (false, false) => c_call,
         };
         if callee
             .get_string_attribute(AttributeLoc::Function, PINNED)

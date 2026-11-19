@@ -167,26 +167,26 @@ const REGISTRY_EXTERNS: &str = "extern fun reg(f: direct fun(i64, data), user: d
 fn closures_keep_their_captures_while_c_holds_them() {
     Case::new(
         &[REGISTRY_EXTERNS, "\
-             fun counter(console: Console, name: string, total: Ref<i64>): fun(i64) =\n\
-                 fun(x: i64) { total.update(fun(t) = t + x); console.println(\"{name}: {total.get()}\"); };\n\
              fun churn() { let mut i = 0; while i < 20000 { let s = \"garbage {i}\"; i += 1; } }\n\
              fun main(console: Console) {\n\
-                 let a = Ref.new(0);\n\
-                 let b = Ref.new(100);\n\
-                 let ia = reg(counter(console, \"a\", a));\n\
-                 let ib = reg(fun(x: i64) { b.update(fun(t) = t - x); console.println(\"b: {b.get()}\"); });\n\
+                 let (tx, rx) = Chan<i64>.unbounded();\n\
+                 let label = \"b {1 + 1}\";\n\
+                 let ia = reg(fun(x: i64) { console.println(\"a: {x}\"); tx.send(x); });\n\
+                 let ib = reg(fun(x: i64) { console.println(\"{label}: {100 - x}\"); tx.send(x); });\n\
                  churn();\n\
                  fire(ia, 5);\n\
                  fire(ib, 1);\n\
                  fire_all(2);\n\
                  churn();\n\
                  fire(ia, 1);\n\
-                 console.println(a.get());\n\
-                 console.println(b.get());\n\
+                 tx.close();\n\
+                 let mut sum = 0;\n\
+                 for x of rx { sum += x; }\n\
+                 console.println(sum);\n\
              }\n"].concat(),
         REGISTRY,
     )
-    .runs("a: 5\nb: 99\na: 7\nb: 97\na: 8\n8\n97\n");
+    .runs("a: 5\nb 2: 99\na: 2\nb 2: 98\na: 1\n11\n");
 }
 
 #[test]
@@ -196,15 +196,18 @@ fn release_frees_a_callback_c_drops() {
             REGISTRY_EXTERNS,
             "\
              fun main(console: Console) {\n\
-                 let seen = Ref.new(0);\n\
-                 let first = reg(fun(x: i64) { seen.update(fun(n) = n + x); });\n\
+                 let (seen, saw) = Chan<i64>.unbounded();\n\
+                 let first = reg(fun(x: i64) { seen.send(x); });\n\
                  let second = reg(fun(x: i64) { console.println(\"second {x}\"); });\n\
                  fire(first, 3);\n\
                  drop(first);\n\
                  fire_all(4);\n\
                  drop(second);\n\
                  console.println(released_count());\n\
-                 console.println(seen.get());\n\
+                 seen.close();\n\
+                 let mut total = 0;\n\
+                 for x of saw { total += x; }\n\
+                 console.println(total);\n\
              }\n",
         ]
         .concat(),

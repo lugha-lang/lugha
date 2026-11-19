@@ -134,7 +134,9 @@ static uintptr_t rc_chunk_take(Worker *w, size_t class) {
 
 /* A zeroed block of `size` bytes. */
 static void *rc_block_new(size_t size) {
-    if (size <= RC_SMALL && size > 0) {
+    // A thread C made gets no chunks: its record ends with the thread,
+    // and blocks freed elsewhere go back to their chunk's owner.
+    if (size <= RC_SMALL && size > 0 && !worker->foreign) {
         Worker *w = worker;
         size_t class = (size + 15) / 16;
         void *block = w->lists[class];

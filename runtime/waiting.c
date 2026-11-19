@@ -253,6 +253,10 @@ static inline void sched_tick(void) {
  * sections open again. */
 static void switch_away(bool parking, bool yielding) {
     Worker *w = worker;
+    if (w->on_c_stack && w->foreign) {
+        park_unlock(w);
+        panic_with("a direct callback can't wait on a thread C made: C is waiting for it; declare it `spawned fun(…)` (with `data`, no result) so it runs as a task", 145);
+    }
     if (w->on_c_stack) {
         park_unlock(w);
         panic_with("a direct C callback can't wait: C is waiting for it; declare it `spawned fun(…)` (with `data`, no result) so it runs as a task", 128);

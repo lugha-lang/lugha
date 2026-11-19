@@ -277,6 +277,32 @@ impl<'ctx> Lowerer<'ctx> {
             None => self.c_abi_entry(entry, &c_params, ret, c_data),
         }
         let (saved_block, saved_function) = (self.builder.get_insert_block(), self.function);
+        // C calls `entry`, a shell running the body through
+        // `lugha_rt_cb_run`: on a thread C made, the body runs on that
+        // thread's C stack, aligned as Lugha code needs.
+        let name = entry.get_name().to_string_lossy().into_owned();
+        let body = self.module.add_function(
+            &format!("{name}.body"),
+            entry.get_type(),
+            Some(Linkage::Internal),
+        );
+        self.builder
+            .position_at_end(self.context.append_basic_block(entry, "entry"));
+        let args: Vec<BasicMetadataValueEnum> = entry.get_param_iter().map(Into::into).collect();
+        let call = self
+            .builder
+            .build_call(body, &args, "body")
+            .expect(POSITIONED);
+        let mark = self
+            .context
+            .create_string_attribute(super::c_stack::CB_RUN, "");
+        call.add_attribute(AttributeLoc::Function, mark);
+        match call.try_as_basic_value() {
+            ValueKind::Basic(v) => self.builder.build_return(Some(&v)),
+            ValueKind::Instruction(_) => self.builder.build_return(None),
+        }
+        .expect(POSITIONED);
+        let entry = body;
         self.function = Some(entry);
         self.builder
             .position_at_end(self.context.append_basic_block(entry, "entry"));

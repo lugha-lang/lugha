@@ -1,0 +1,9 @@
+error[E0475]: a `direct` callback, which may run on a thread C made, can't capture `total`: it is a `Ref<i64>`, which two tasks would share
+  --> tests/programs/c/callbacks/e0475_direct.la:7:12
+  |
+7 |     on_now(fun(n: i64) { total.set(n); });
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = help: capture only sendable values: send to a channel, or keep shared state in an actor
+
+For more about E0475, run `lughac explain E0475`.

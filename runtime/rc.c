@@ -52,10 +52,14 @@ static void rc_list(void *object, int64_t size) {
 }
 
 /* Objects made and freed so far, by every worker. */
+/* The counts of threads C made that have exited (callbacks.c), whose
+ * records went with them. */
+static int64_t rc_retired_made, rc_retired_freed;
+
 static void rc_totals(int64_t *made, int64_t *freed) {
-    *made = 0;
-    *freed = 0;
     pthread_mutex_lock(&workers_lock);
+    *made = rc_retired_made;
+    *freed = rc_retired_freed;
     for (Worker *w = workers; w != NULL; w = w->next_worker) {
         *made += __atomic_load_n(&w->made, __ATOMIC_RELAXED);
         *freed += __atomic_load_n(&w->freed, __ATOMIC_RELAXED);

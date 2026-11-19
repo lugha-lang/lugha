@@ -62,7 +62,7 @@ static Fiber *steal_work(Worker *w) {
  * have ready, else time jumps to the next timer; with neither, deadlock. */
 static void virtual_wait(void) {
     int64_t at = next_due();
-    if (!events_pending()) {
+    if (!events_pending() && !c_may_call()) {
         RT_SECTION();
         deadlock();
     }
@@ -125,7 +125,7 @@ static void park(Worker *w) {
     if (idle == __atomic_load_n(&workers_running, __ATOMIC_ACQUIRE) &&
         __atomic_load_n(&idle_workers, __ATOMIC_ACQUIRE) == idle &&
         __atomic_load_n(&shared_len, __ATOMIC_ACQUIRE) == 0 && !any_queued() &&
-        !events_pending()) {
+        !events_pending() && !c_may_call()) {
         RT_SECTION();
         deadlock();
     }

@@ -169,6 +169,10 @@ typedef struct Worker {
     /* True while C runs, or a C callback's Lugha code (stacks.c): on the C
      * stack, which no other task may run on. */
     bool on_c_stack;
+    /* The main thread and the workers (`lugha_rt_worker_enter`); a thread
+     * C made that has called back (callbacks.c): never a worker. */
+    bool runtime_thread;
+    bool foreign;
     /* Its C stack's top (NULL: C runs where it is called, as in a C
      * harness), and the lowest address of the guard below it, where a
      * fault is C overflowing it (stack.c). */
@@ -298,6 +302,7 @@ static pthread_mutex_t workers_lock = PTHREAD_MUTEX_INITIALIZER;
  * that runs tasks. A worker thread never exits: other threads keep
  * freeing blocks back to it. */
 void lugha_rt_worker_enter(void) {
+    this_worker.runtime_thread = true;
     pthread_mutex_lock(&workers_lock);
     this_worker.next_worker = workers;
     workers = &this_worker;

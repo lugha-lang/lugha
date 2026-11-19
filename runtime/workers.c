@@ -358,7 +358,8 @@ static void pin_to(Worker *w) {
  * worker, nothing to do. */
 void lugha_rt_pin_here(void) {
     Fiber *self = current;
-    if (workers_wanted > 1 && self != NULL) {
+    // On a thread C made, the handle is that thread's: nothing to pin.
+    if (workers_wanted > 1 && self != NULL && !worker->foreign) {
         // A pinned scope ending doesn't free it: the handle may outlive it.
         self->pin_kept = true;
         if (self->pin == NULL) {

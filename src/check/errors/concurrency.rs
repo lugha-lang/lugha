@@ -81,8 +81,10 @@ pub(in crate::check) fn unscoped_actor(span: Span) -> Diagnostic {
 /// E0475: a value that isn't sendable crosses to another task: `head`
 /// says which and how, `why` names its first part that isn't.
 pub(in crate::check) fn not_sendable(head: &str, why: &str, span: Span) -> Diagnostic {
-    let help = if head.starts_with("a `spawned` callback") {
-        "make the callback `direct` in the extern (`cb: direct fun(W, data)`) to run it during C's call, or capture only sendable values"
+    let help = if head.starts_with("a `spawned` callback")
+        || head.starts_with("a `direct` callback")
+    {
+        "capture only sendable values: send to a channel, or keep shared state in an actor"
     } else if why.contains("type parameter") {
         "add `Sendable` to its bounds: `<T: Sendable>`"
     } else if why.contains("pinned handle") {

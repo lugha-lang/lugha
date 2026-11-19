@@ -141,9 +141,12 @@ fn callbacks_receive_strings() {
         &[
             EXTERNS,
             "fun main(console: Console) {\n\
-                 let total = Ref.new(0);\n\
-                 each_word(fun(w: string) { total.update(fun(n) = n + w.len); console.println(w); });\n\
-                 console.println(total.get());\n\
+                 let (lens, got) = Chan<i64>.unbounded();\n\
+                 each_word(fun(w: string) { lens.send(w.len); console.println(w); });\n\
+                 lens.close();\n\
+                 let mut total = 0;\n\
+                 for n of got { total += n; }\n\
+                 console.println(total);\n\
                  maybe_word(fun(w: Option<string>) { console.println(w.debug()); });\n\
              }\n",
         ]

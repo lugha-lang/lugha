@@ -1,0 +1,8 @@
+// A direct callback may run on a thread C made: what it captures is shared
+// with that thread.
+extern fun on_now(f: direct fun(i64, data), user: data);
+
+fun main() {
+    let total = Ref.new(0);
+    on_now(fun(n: i64) { total.set(n); });
+}

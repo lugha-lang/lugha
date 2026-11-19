@@ -263,7 +263,8 @@ impl Checker {
     /// E0436 for each argument of a call to extern `key` going to a
     /// callback without `data` that isn't a function's name or a closure
     /// capturing nothing: C keeps only a code pointer. E0475 for one going
-    /// to a `spawned` callback that isn't sendable: it runs as another task.
+    /// to a callback with `data` that isn't sendable: a `spawned` one runs
+    /// as another task, a `direct` one may run on a thread C made.
     pub(super) fn static_callbacks(&mut self, key: &str, args: &[Expr]) {
         let Some(plan) = self.c_params.get(key) else {
             return;
@@ -272,18 +273,31 @@ impl Checker {
             .iter()
             .filter(|c| matches!(c, CParam::Value | CParam::Callback { .. }))
             .collect();
-        let spawned: Vec<bool> = written
+        // For each argument: a callback C may call from elsewhere, and
+        // whether it is `spawned`.
+        let shared: Vec<Option<bool>> = written
             .iter()
-            .map(|c| matches!(c, CParam::Callback { spawned: true, .. }))
+            .map(|c| match c {
+                CParam::Callback {
+                    data: Some(_),
+                    spawned,
+                    ..
+                } => Some(*spawned),
+                _ => None,
+            })
             .collect();
         let bare: Vec<bool> = written
             .iter()
             .map(|c| matches!(c, CParam::Callback { data: None, .. }))
             .collect();
-        for (arg, spawned) in args.iter().zip(spawned) {
+        for (arg, shared) in args.iter().zip(shared) {
             let ty = self.types[arg.id.0 as usize].clone();
-            let (true, Some(ty)) = (spawned, ty) else {
+            let (Some(spawned), Some(ty)) = (shared, ty) else {
                 continue;
+            };
+            let how = match spawned {
+                true => "a `spawned` callback, run as a task,",
+                false => "a `direct` callback, which may run on a thread C made,",
             };
             // A named function always crosses; a closure when each of its
             // captures does; any other function value never.
@@ -291,16 +305,16 @@ impl Checker {
                 Some(super::FunOrigin::Named(_)) => {}
                 Some(super::FunOrigin::Closure(_, _, captured)) => {
                     for (name, t) in captured {
-                        let head =
-                            format!("a `spawned` callback, run as a task, can't capture `{name}`");
+                        let head = format!("{how} can't capture `{name}`");
                         if self.must_send(&t, &head, arg.span) {
                             break;
                         }
                     }
                 }
                 None => {
-                    let head = "a `spawned` callback runs as a task, so its function crosses to it";
-                    self.must_send(&ty, head, arg.span);
+                    let head =
+                        format!("{how} can't be a function value whose captures are unknown");
+                    self.must_send(&ty, &head, arg.span);
                 }
             }
         }
@@ -335,8 +349,8 @@ mod tests {
         ok(&with(
             "fun by(a: i64, b: i64): i32 = if a < b { -1 } else { 1 };\n\
              fun main(console: Console) {\n\
-                 let count = Ref.new(0);\n\
-                 connect(make(), fun(w: W) { count.update(fun(n) = n + 1); }, 0);\n\
+                 let (count, _counted) = Chan<i64>.unbounded();\n\
+                 connect(make(), fun(w: W) { count.send(1); }, 0);\n\
                  connect(make(), fun(w) { console.println(w.debug()); }, 1);\n\
                  sort(3, by);\n\
                  sort(3, fun(a, b) = 0);\n\
@@ -362,12 +376,19 @@ mod tests {
     }
 
     #[test]
-    fn any_function_value_goes_where_c_hands_data_back() {
+    fn named_functions_and_sendable_closures_go_where_c_hands_data_back() {
         ok(&with(
             "fun on(w: W) {}\n\
-             fun pick(): fun(W) = on;\n\
-             fun main() { let f = pick(); connect(make(), f, 0); connect(make(), on, 0); }",
+             fun main() { connect(make(), on, 0); connect(make(), fun(w: W) { on(w); }, 0); }",
         ));
+        // A function value's captures are unknown: it may run on C's thread.
+        let picked = with(
+            "fun on(w: W) {}\n\
+             fun pick(): fun(W) = on;\n\
+             fun main() { let f = pick(); connect(make(), f, 0); }",
+        );
+        let found = errors(&picked);
+        assert_eq!(found[0].0, "E0475", "{found:?}");
     }
 
     #[test]

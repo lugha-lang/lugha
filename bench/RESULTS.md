@@ -509,3 +509,19 @@ No benchmark calls back into Lugha, so these check the runtime's new work elsewh
 | mandelbrot  | 0.375s  | 0.370s  | -1.3%  |
 | nbody       | 0.693s  | 0.695s  | +0.3%  |
 | wordfreq    | 0.512s  | 0.517s  | +1.1%  |
+
+## 2026-11-20 — callbacks on threads C made (PRP-249, milestone 217)
+
+Milestone 216 against this one, 9 interleaved runs each, medians. The allocator now checks one more flag on its fast path, and every C entry calls its body through `lugha_rt_cb_run`:
+
+| benchmark   | before  | after   | change |
+|-------------|---------|---------|--------|
+| binarytrees | 0.915s  | 0.931s  | +1.8%  |
+| chanping    | 0.407s  | 0.403s  | -0.8%  |
+| fannkuch    | 0.257s  | 0.246s  | -4.1%  |
+| fib         | 0.701s  | 0.687s  | -2.1%  |
+| mandelbrot  | 0.370s  | 0.368s  | -0.5%  |
+| nbody       | 0.681s  | 0.676s  | -0.7%  |
+| wordfreq    | 0.488s  | 0.491s  | +0.6%  |
+
+C calling a `direct` callback 20,000,000 times on a worker (11 interleaved runs, medians): 0.765 s at milestone 216, 0.795 s now, +3.9% for the shell's extra call (bound: 5%). At 1,000,000 calls the run is too short to measure (+5.6% of 41 ms, mostly start-up).

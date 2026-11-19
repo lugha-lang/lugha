@@ -1,6 +1,6 @@
 ## FEATURE: Callbacks on threads C made: a `direct` callback runs on C's thread (on a Lugha stack the thread gets on its first callback), a `spawned` one becomes a task on the workers; neither can make C's thread wait; milestone 217, the first of two PRPs for C's own threads (then `Ring<T>` and the allocation lint).
 
-**Status:** proposed 2026-11-20.
+**Status:** approved 2026-11-20.
 
 ## OBJECTIVE
 A C library calling back from a thread of its own works:
@@ -88,22 +88,30 @@ task `callback` panicked: a direct callback can't wait on a thread C made: … d
 - Make C's threads workers, or run tasks on them.
 
 ## TESTS
-- [ ] `tests/foreign_threads.rs` (a C file starting pthreads, `[link]`), on one and four workers:
-  - [ ] A `direct` callback called 10,000 times from a C thread sends each value on an unbounded channel; `main` receives them all, in order.
-  - [ ] A `spawned` callback from C's thread runs as a task that sleeps and sends; every call arrives.
-  - [ ] A `direct` callback that would wait (a full bounded channel) panics; C gets 0 and goes on; the scope fails with the message.
-  - [ ] A panic in a `direct` callback on C's thread: C gets 0; the scope reports it.
-  - [ ] Recursion 10,000 deep inside a callback on C's thread works (the Lugha stack), and an overflow there is a `stack overflow` panic, not a crash.
-  - [ ] 200 short-lived C threads, each calling once, then exiting: every call arrives, the program ends, `LUGHA_RC_REPORT` shows nothing left.
-  - [ ] Strings built on C's thread and dropped on a worker (system allocation): nothing left, no crash.
-  - [ ] `main` waiting on a channel only C's thread feeds, after a 100 ms pause in C: no false deadlock.
-- [ ] `tests/programs/c/callbacks/`: E0475 for a `direct` callback capturing a `Ref`.
-- [ ] `tests/callbacks.rs`, `scope_callbacks.rs`, `pinned.rs`, `blocking_externs.rs`, `workers.rs`, `programs`, `leaks`, `rc_check`, unchanged except for captures newly checked.
-- [ ] Benchmarks: the seven within 3% of milestone 216 (the allocator's one more check on its fast path); a callback-heavy measure (C calling a `direct` callback 1,000,000 times on a worker) within 5% of milestone 216, for the entry's extra call.
-- [ ] Targeted: `--lib`, `programs`, `callbacks`, `scope_callbacks`, `foreign_threads`, `pinned`, `c_strings`, `c_memory`, `c_arrays`, `extern_structs`, `arm`, `blocking_externs`, `leaks`, `rc_check`, `rc_alloc_threads`, `workers`, `explain`, `spec`, `codegen`, `comments`.
+- [x] `tests/foreign_threads.rs` (a C file starting pthreads, `[link]`), on one and four workers:
+  - [x] A `direct` callback called 10,000 times from a C thread sends each value on an unbounded channel; `main` receives them all, in order.
+  - [x] A `spawned` callback from C's thread runs as a task that sleeps and sends; every call arrives.
+  - [x] A `direct` callback that would wait (a full bounded channel) panics; C gets 0 and goes on; the scope fails with the message.
+  - [x] A panic in a `direct` callback on C's thread: C gets 0; the scope reports it.
+  - [x] Recursion 10,000 deep inside a callback on C's thread works (the Lugha stack), and an overflow there is a `stack overflow` panic, not a crash.
+  - [x] 200 short-lived C threads, each calling once, then exiting: every call arrives, the program ends, `LUGHA_RC_REPORT` shows nothing left.
+  - [x] Strings built on C's thread and dropped on a worker (system allocation): nothing left, no crash.
+  - [x] `main` waiting on a channel only C's thread feeds, after a 100 ms pause in C: no false deadlock.
+- [x] `tests/programs/c/callbacks/`: E0475 for a `direct` callback capturing a `Ref`.
+- [x] `tests/callbacks.rs`, `scope_callbacks.rs`, `pinned.rs`, `blocking_externs.rs`, `workers.rs`, `programs`, `leaks`, `rc_check`, unchanged except for captures newly checked.
+- [x] Benchmarks: the seven within 3% of milestone 216 (the allocator's one more check on its fast path); a callback-heavy measure (C calling a `direct` callback 1,000,000 times on a worker) within 5% of milestone 216, for the entry's extra call.
+- [x] Targeted: `--lib`, `programs`, `callbacks`, `scope_callbacks`, `foreign_threads`, `pinned`, `c_strings`, `c_memory`, `c_arrays`, `extern_structs`, `arm`, `blocking_externs`, `leaks`, `rc_check`, `rc_alloc_threads`, `workers`, `explain`, `spec`, `codegen`, `comments`.
 
 ## ACCEPTANCE
-- [ ] C libraries calling back from their own threads work, with `direct` and `spawned` callbacks, on one and four workers, without leaks or false deadlocks.
-- [ ] Nothing a `direct` callback does on C's thread can make that thread wait.
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass; benchmarks within their bounds.
-- [ ] Spec, the Draft, CHANGELOG (Breaking), TODO updated.
+- [x] C libraries calling back from their own threads work, with `direct` and `spawned` callbacks, on one and four workers, without leaks or false deadlocks.
+- [x] Nothing a `direct` callback does on C's thread can make that thread wait.
+- [x] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; the targeted tests pass; benchmarks within their bounds.
+- [x] Spec, the Draft, CHANGELOG (Breaking), TODO updated.
+
+## BUILD NOTES
+- **The thread's stack is a C stack like a worker's** (aligned, with a guard page), not a pool stack as design item 2 said: callbacks then run there exactly as they do on a worker's C stack, C calls from them run in place, and a nested callback (C calling back again) needs nothing more. Its signal stack is left alone: it is C's thread.
+- **The deadlock check needed more than "a C thread has called back":** on one worker, `main` waited before C's thread had made its first call. No deadlock is declared while a C thread holds a record *or* any callback with `data` is registered (its scope's body still running): C may call either way.
+- **`LUGHA_RC_REPORT`:** a C thread's record joins the list of records while it lives, and its counts are kept when it exits, so objects made on C's threads are counted.
+- **The breaking change, in practice:** tests that collected results into a `Ref` from a `direct` callback now send them on an unbounded channel and drain it (`tests/callbacks.rs`, `tests/c_strings.rs`, the checker's unit tests); passing a `fun(…)` variable to a callback with `data` is E0475. E0475's help for callbacks is now the same for both kinds (it used to suggest `direct` for `spawned`, which no longer helps).
+- **Measured** (`bench/RESULTS.md`): the seven within 3% of milestone 216; 20,000,000 `direct` calls +3.9% (bound 5%).
+- **Stable:** `tests/foreign_threads.rs` passed five runs in a row.
