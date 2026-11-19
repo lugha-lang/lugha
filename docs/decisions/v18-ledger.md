@@ -234,9 +234,9 @@ The draft must cite every `approved` line exactly once as a rule, and contain no
 ## CBK — callbacks and thread-bound values
 
 - CBK-01 approved — General mechanisms only: thread-affine values (`extern type X pinned;`), pinned scopes whose tasks run on one specific worker, and the callback rules below.
-- CBK-02 approved — A callback that returns a value runs inline and can't pause; pausing is a runtime error saying to spawn a task.
-- CBK-03 approved — A callback that returns nothing is queued as a task in the scope it was registered with, and may pause; `inline` opts out. `inline` and `queued` are written after the callback parameter's type: `cb: fun(Window, data) inline`.
-- CBK-04 approved — A callback on a foreign thread runs inline there, can't pause, touches only sendable data, and talks to tasks through `Ring<T>`; `queued` opts in to queueing; a lint flags allocation in it.
+- CBK-02 approved — A callback that returns a value is `direct`: it runs during C's call and can't pause; pausing is a runtime error.
+- CBK-03 approved — Every extern callback says how C's call runs it, before `fun`: `cb: direct fun(Window, data)` runs during C's call, on whatever thread C uses, and can't pause; `cb: spawned fun(Window, data)` starts a task in the scope it was registered with on each call, which may pause (needs `data` and no result; its captures `Sendable`). Neither written is an error. Behaviour must be visible in the syntax, never implied by a callback's shape (the user, 2026-11-20).
+- CBK-04 approved — A `direct` callback on a foreign thread runs there, can't pause, touches only sendable data, and talks to tasks through `Ring<T>`; a `spawned` one is delivered to the workers as a task; a lint flags allocation in a `direct` callback.
 - CBK-05 approved — A panic in an inline callback is caught at the C boundary: C gets a zero value, and the registering scope gets the failure.
 - CBK-06 approved — Cancellation never interrupts an inline callback.
 - CBK-07 approved — Callbacks are registered against a scope; events after it ends are dropped, and captured values are released at C's `release` or the scope's end.
@@ -335,6 +335,7 @@ The draft must cite every `approved` line exactly once as a rule, and contain no
 - SUP-24 — Process lockdown containing C to the narrowed capabilities → SEC-05 (to the kinds `main` declared).
 - SUP-25 — Unwinding as phase 3, before the memory model is settled → ORD-03.
 - SUP-26 — `h: mut Hasher`, the `mut` after the colon → `mut h: Hasher`, as externs and `mut self` write it (PRP-198).
+- SUP-27 — A callback returning nothing queued by default, `inline` (after the type) to opt out, `queued` to opt in on foreign threads (milestone 215 built the default) → CBK-03, CBK-04: `direct`/`spawned` before `fun`, always written.
 
 ## TODO.md items this resolves
 
