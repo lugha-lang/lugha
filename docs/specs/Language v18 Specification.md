@@ -42,6 +42,7 @@ Nov 15, 2026 · @kithinji
 - Process lockdown: seccomp and Landlock limit the whole process, C code and started programs included, to the capability kinds `main` took (milestone 189; section 6).
 - A panic unwinds its task, running the pending `defer`s and letting go of what each frame holds (milestone 194; sections 5, 6, 9), through unwind tables: only calls with something to clean up get a landing pad. Programs link libgcc's unwinder, as C programs do.
 - Stacks and C calls (milestone 205; sections 7, 8, 9): a task's stack, `main`'s included, is an 8 MiB reservation from pooled regions without guard pages, so the number of tasks is bounded by memory, not the kernel's mappings; each function's entry checks the stack, and an overflow is a `stack overflow` panic that unwinds, running `defer`s; C runs on its own stack, the process's, and a C callback can't wait.
+- Small rules (milestone 224; sections 2, 5, 6): a plain `for x of xs` may change `xs`, going on over the array it started with, as map and set loops do (`for … of mut` still guards, E0507); strings take `\u{…}` as chars do; `make_dir`, `make_dirs`, `remove_file` and `remove_dir` give `Result<(), string>`; E0465 is for the program's own `debug` calls only, a dependency's printing nothing at `-O2`. **Breaking:** the four `Dir` results.
 - Nominal rules (milestone 223; sections 2, 4): an interface value converts only to an interface it extends, never by having its items' names (E0422); a block for a type built from two or more program types, `impl Show for (Point, Line)`, is written only in the interface's module (E0459), so two libraries can't both write it; the names syntax uses (`Display`, `Iter`, `Error`, the operator interfaces, `FromEntries`, `FromItems`, `Ref`, beside `Option`, `Result`, `Eq` and `Ord`) are built-in names (E0302), and every other prelude name may be a module's own. **Breaking:** all three.
 - One spelling for a generic block (milestone 222; sections 3, 4): a generic `impl`'s parameters follow `impl`, `impl<T: Num> Grid<T>`, `impl<T: Display> Show for Grid<T>`, for a program's type as for a built-in one; the old `impl Grid<T: Num>` is E0214. An interface's parents are joined with `+`, as a bound's are, `interface Store: Eq + Sendable` (E0215 for `,`); `with` keeps `,`. **Breaking:** both old spellings no longer parse.
 - Guarded views (milestone 221; sections 6, 8): `p.view(n, f)` reads and writes C's memory at a length the program vouches for, so in a package other than the program's own it needs the `ffi` permission, as an `extern` does (E0333 at its first `p.view`); passing a `CPtr` along, or taking a view, needs none. An `n` too large for a view's `i64` length panics (`view length too large`) instead of wrapping. **Breaking:** an ungranted package's `p.view` no longer builds.
@@ -383,7 +384,7 @@ Built-in type names are keywords, so they can't be shadowed by user structs. The
 | --- | --- | --- |
 | Integer | `42`, `1_000_000`, `0xFF`, `0b1010`, `0o600` | Decimal, hex, binary (v7) or octal (v17, milestone 117); `_` separators allowed between digits. A leading zero is still decimal (`0600` is six hundred) and warns W0107 |
 | Float | `3.14`, `2.0e-3` | Must have digits on both sides of the `.`; optional exponent |
-| String | `"hello\n"` | Double-quoted; escapes `\n` `\t` `\r` `\\` `\"` `\0` |
+| String | `"hello\n"` | Double-quoted; escapes `\n` `\t` `\r` `\\` `\"` `\0`, and `\u{1F600}` (one to six hex digits naming a Unicode scalar value, as a `char` takes it; v18, milestone 224) |
 | Boolean | `true`, `false` | Keywords |
 
 **Number details.**
@@ -1138,7 +1139,7 @@ let sign = if x < 0 { -1 } else if x == 0 { 0 } else { 1 };
 }
 ```
 
-**for over an array.** `for x of xs { body }` binds each element in order. `xs` is evaluated once and is not copied. `x` is an immutable binding to the element, so assigning to `x` is an error; write `xs[i]` with a range loop to modify elements. The body may not assign to `xs` or any part of it, which is checked at compile time, so the loop always sees the array as it was when the loop started. Strings are not iterable in v0.
+**for over an array.** `for x of xs { body }` binds each element in order. `xs` is evaluated once and is not copied. `x` is an immutable binding to the element, so assigning to `x` is an error; write `xs[i]` with a range loop to modify elements. The loop holds the array as it was when the loop started, and the body may change `xs` (assign it, push to it, pass it as `mut`): a write copies the array the loop holds, so the loop goes on over what it started with, as a map's or set's loop does (v18, milestone 224; before, a change was E0507). Only `for x of mut xs` guards `xs`, since it writes each element back (E0507). Strings are not iterable in v0.
 
 **for over `mut`** (v13). `for x of mut e { body }` loops over `e` itself rather than a copy. `e` must be a variable, field or element (E0502) rooted in a `let mut` local or `mut self` (E0501); a string is E0506.
 - **Over an array,** `x` is each element in turn, not a copy: `x = v`, `x += 1`, `x.field = v` and `mut self` calls on `x` change the array. `x` is still a borrowed value, so storing or returning it copies. The body may copy `e` (`let c = xs;`): later writes to `x` change `e` only, never the copy.
@@ -1191,7 +1192,7 @@ for path in paths {
 | `assert_ne(a, b)` (v16) | the same | Panics with `assert_ne failed: both <a>` if `a == b` |
 | `skip(reason)` (v17) | a `string` | In a test, ends it at once and reports it skipped with `reason`; outside a test, panics with `skip outside a test` |
 | `to_string(x)` | A value with `Display` | Returns its text, as `console.print` writes it; a `string` is itself |
-| `debug(x)` (v18) | Any value | Writes `[file:line] <x as written> = <x's debug form>` to stderr and returns `x`; E0465 in an `-O2` build |
+| `debug(x)` (v18) | Any value | Writes `[file:line] <x as written> = <x's debug form>` to stderr and returns `x`; E0465 in an `-O2` build of the program's own package (the main file's), while a dependency's `debug(x)` is just `x` there, printing nothing (v18, milestone 224) |
 | `swap(a, b)` | Two places of the same type | Exchanges their contents |
 | `parse_i64(s)` | `string` | `Some(n)` if `s` is an optional `-` followed by decimal digits and fits in `i64`, else `None`; no `+`, spaces, `_` or hex (v3) |
 | `parse_u64(s)` | `string` | `Some(n)` if `s` is decimal digits only and fits in `u64`, else `None`; no sign (v10) |
@@ -1355,10 +1356,10 @@ An integer goes to a float function through a cast: `math.sqrt(n as f64)`; `math
 | `read_bytes(path): Result<u8[], string>` | the whole file as bytes (v14) |
 | `write_bytes(path, data)`, `append_bytes(path, data): Result<i64, string>` | like `write_file` and `append_file`, writing exactly `data` (v14) |
 | `list(path): Result<string[], string>` | the entries' names sorted by their bytes, without `.` and `..`; a name that isn't UTF-8 is `Err("a name in <path> is not valid UTF-8")` |
-| `make_dir(path): Result<i64, string>` | `Ok(0)` after making one folder (mode 0777 less the umask); its parent must exist |
-| `make_dirs(path): Result<i64, string>` | `Ok(0)` after making the folder and any missing parents; already existing is fine |
-| `remove_file(path): Result<i64, string>` | `Ok(0)` after removing a file or symbolic link; a folder is `Err` |
-| `remove_dir(path): Result<i64, string>` | `Ok(0)` after removing an empty folder; a non-empty one is `Err` |
+| `make_dir(path): Result<(), string>` | makes one folder (mode 0777 less the umask); its parent must exist |
+| `make_dirs(path): Result<(), string>` | makes the folder and any missing parents; already existing is fine |
+| `remove_file(path): Result<(), string>` | removes a file or symbolic link; a folder is `Err` |
+| `remove_dir(path): Result<(), string>` | removes an empty folder; a non-empty one is `Err` |
 | `rename(from, to): Result<(), string>` | `rename(2)` (v17, milestone 115): within one file system it replaces `to` in one step, so anyone opening `to` sees the old file or the new one, never neither; across file systems it is `Err` (`Invalid cross-device link`), never a copy. Write a new version beside the old, then rename it over, to save data safely |
 | `set_mode(path, mode: i64): Result<(), string>` | `chmod(2)` (v17, milestone 115), following symbolic links; `mode` from 0 to 4095 (`0o7777`), else `Err`. a leading zero is still decimal (`0600` is six hundred, W0107): write `0o600` |
 | `sync(path): Result<(), string>` | `fsync(2)` (v17, milestone 116): a file's data, or a folder's entries, written out to the disk so they survive a power cut; `Err` (the data may not be there) with the system's message. A file is saved durably with `write_file("f.tmp", data)`, `sync("f.tmp")`, `rename("f.tmp", "f")`, `sync(".")` — the last makes the rename durable |
@@ -2119,7 +2120,7 @@ Name and type errors, reported by the checker:
 | E0462 | An interface that can't be derived for this type (v18) | `enum E { … } with Show` where `Show` has blocks for structs only; `with Display` |
 | E0463 | An interface both derived and implemented (v18) | `struct P { … } with json.Json` beside `impl json.Json for P { … }` |
 | E0464 | Retired in v18 (milestone 179; was: an interface that extends another, used as a type); never reported, never reused | |
-| E0465 | `debug` in an optimized build (v18) | `debug(x)` in a program built with `-O2` |
+| E0465 | `debug` in an optimized build (v18) | `debug(x)` in the program's own code built with `-O2` (a dependency's prints nothing instead) |
 | E0466 | Methods for a type this module doesn't declare (v18) | `impl f64 { … }`; `impl shapes.W { … }` |
 | E0467 | A discarded `Result` (v18) | `save("");` as a statement, where `save` returns a `Result` |
 | E0468 | A variant name used as a binding in a pattern (v18) | `None =>` on an `Option`; `.Some(Empty)` on an `Option<Shape>` |
@@ -2153,7 +2154,7 @@ Name and type errors, reported by the checker:
 | E0504 | `break` or `continue` outside a loop | |
 | E0505 | Block-like statement with a discarded value | `if big { 100 } else { 1 }` followed by more statements |
 | E0506 | Assignment into a string | `s[0] = 104;`, `s.len = 2;`, `for b of mut s` — strings are immutable (§4) |
-| E0507 | Assignment to the array being iterated | `for x of xs { xs[0] = x; }`, or a `mut self` call or `swap` on it; `it.next()` inside `for n of mut it` |
+| E0507 | Changing the array a `for … of mut` loop writes | `for x of mut xs { xs.push(x); }`, an assignment, a `mut self` call or `swap` on it; `it.next()` inside `for n of mut it` |
 | E0508 | An argument aliases a `mut self` receiver or a `mut` argument | `v.add(v)` where `add` takes `mut self`; `v.add(v.inner)`, `g.set(if c { g.vals } else { h })`; `both(mut a, mut a)`, `f(mut a, a)`, `p.eat(mut p.x)` (v18) |
 | E0509 | A place swapped with a part of itself | `swap(n, n.kids[0])` |
 | E0510 | A statement changes what contains the place it writes | `xs[0] = { xs.push(2); 9 };`; for a `mut self` receiver only across an index, `gs[0].f(gs.clear())` (§5) |
@@ -3779,7 +3780,7 @@ fun main(console: Console, env: Env, fs: Fs) {
 // afterwards.
 fun main(console: Console, fs: Fs) {
     let dir = fs.cwd();
-    let made = dir.make_dirs("runs/2026");
+    let _ = dir.make_dirs("runs/2026");
     let a = dir.write_file("runs/2026/b.log", "b");
     let b = dir.write_file("runs/2026/a.log", "a");
     match dir.list("runs/2026") {
@@ -3792,10 +3793,10 @@ fun main(console: Console, fs: Fs) {
         .Err(e) => console.println(e),
     }
     for name of dir.list("runs/2026").unwrap_or([]) {
-        let gone = dir.remove_file("runs/2026/{name}");
+        let _ = dir.remove_file("runs/2026/{name}");
     }
-    let x = dir.remove_dir("runs/2026");
-    let y = dir.remove_dir("runs");
+    let _ = dir.remove_dir("runs/2026");
+    let _ = dir.remove_dir("runs");
     console.println(dir.exists("runs"));
 }
 ```
@@ -3858,14 +3859,14 @@ fun main(console: Console) {
 // it never changes; paths are relative to it.
 fun main(console: Console, fs: Fs) {
     let here = fs.cwd();
-    let made = here.make_dirs("inbox/2026");
+    let _ = here.make_dirs("inbox/2026");
     let wrote = here.write_file("inbox/2026/note.txt", "hi");
     console.println(here.path().is_ok());
     console.println(here.is_file("inbox/2026/note.txt"));
     console.println(here.read_file("inbox/2026/note.txt").debug());
-    let a = here.remove_file("inbox/2026/note.txt");
-    let b = here.remove_dir("inbox/2026");
-    let c = here.remove_dir("inbox");
+    let _ = here.remove_file("inbox/2026/note.txt");
+    let _ = here.remove_dir("inbox/2026");
+    let _ = here.remove_dir("inbox");
 }
 ```
 
@@ -4328,6 +4329,7 @@ The spec is implemented in five milestones, each ending in a program that runs. 
 | 221 | Guarded views (v18) | `p.view` needs the `ffi` permission outside the program's own code (E0333); an `n` too large for a view's length panics | `tests/ffi_permission.rs`, `tests/c_memory.rs` (done) |
 | 222 | One spelling for a generic block (v18) | `impl<T: B> Grid<T>` the only form of a generic block (E0214); `+` between an interface's parents (E0215) | `tests/programs/interfaces/one_spelling/`, `src/parser/impl_forms.rs` (done) |
 | 223 | Nominal rules (v18) | interface values convert only along `extends` (E0422); one home for a block of a type built from several program types (E0459); the names syntax uses reserved (E0302) | `tests/programs/interfaces/nominal_rules/` (done) |
+| 224 | Small rules (v18) | one loop rule for arrays, maps and sets; `\u{…}` in strings; `Result<(), string>` from four `Dir` methods; E0465 for the program's own `debug` only | `tests/programs/iterators/loop_rule/`, `tests/cli.rs` (done) |
 
 In milestones 1 and 2, every value can be treated as `i64`, so codegen can start before the type checker exists. Until milestone 4 provides `lugha_rt_panic`, integer `+`, `-` and `*` wrap, and `/` and `%` stop the program with a trap on a zero divisor or `MIN / -1`. Milestone 3 then replaces that assumption with real types. The process exit code is the low 8 bits of `main`'s result, so milestone tests use results below 256.
 

@@ -139,9 +139,11 @@ mod tests {
             )
         );
         assert_eq!(
-            errors("fun main() { let mut xs = [1]; for x of xs { xs.push(x); } }"),
+            errors("fun main() { let mut xs = [1]; for x of mut xs { xs.push(x); } }"),
             [("E0507", "xs")]
         );
+        // A plain loop holds the array it started with: the body may grow it.
+        ok("fun main() { let mut xs = [1]; for x of xs { xs.push(x); } }");
     }
 
     #[test]

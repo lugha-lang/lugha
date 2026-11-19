@@ -65,6 +65,19 @@ impl Lexer<'_> {
             Some('\\') => '\\',
             Some('"') => '"',
             Some('0') => '\0',
+            // `\u{1F600}`, as a char literal takes it.
+            Some('u') => {
+                self.pos = at + 2;
+                match self.unicode_escape() {
+                    Ok(code) => value.push(char::from_u32(code).expect("a scalar value")),
+                    Err(message) => {
+                        let span = Span::new(at, self.pos);
+                        let help = r#"valid escapes are \n \t \r \\ \" \0 \u{1F600}"#;
+                        self.error(Diagnostic::error("E0103", message, span).with_help(help));
+                    }
+                }
+                return;
+            }
             // `\` at end of input or line: leave the break for `string` to report.
             None | Some('\n' | '\r') => {
                 self.pos += 1;
@@ -74,7 +87,7 @@ impl Lexer<'_> {
                 self.pos += 1 + other.len_utf8();
                 let span = Span::new(at, self.pos);
                 let message = format!("unknown escape sequence `\\{other}`");
-                let help = r#"valid escapes are \n \t \r \\ \" \0"#;
+                let help = r#"valid escapes are \n \t \r \\ \" \0 \u{1F600}"#;
                 return self.error(Diagnostic::error("E0103", message, span).with_help(help));
             }
         };
@@ -101,6 +114,22 @@ mod tests {
         assert_eq!(kinds(r#""hello\n""#), [Str("hello\n".into())]);
         assert_eq!(kinds(r#""\n\t\r\\\"\0""#), [Str("\n\t\r\\\"\0".into())]);
         assert_eq!(kinds("\"héllo 👋\""), [Str("héllo 👋".into())]);
+        assert_eq!(
+            kinds(r#""a\u{41}\u{1F600}\u{7}""#),
+            [Str("aA😀\u{7}".into())]
+        );
+    }
+
+    #[test]
+    fn a_bad_unicode_escape_in_a_string_is_e0103() {
+        for src in [
+            r#""\u41""#,
+            r#""\u{}""#,
+            r#""\u{D800}""#,
+            r#""\u{1234567}""#,
+        ] {
+            assert_eq!(errors(src)[0].0, "E0103", "{src}");
+        }
     }
 
     #[test]

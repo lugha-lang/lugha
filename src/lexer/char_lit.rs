@@ -72,7 +72,7 @@ impl Lexer<'_> {
     }
 
     /// `\u{H…}` after its `u`: one to six hex digits naming a scalar value.
-    fn unicode_escape(&mut self) -> Result<u32, String> {
+    pub(super) fn unicode_escape(&mut self) -> Result<u32, String> {
         if self.peek_char() != Some('{') {
             return Err("`\\u` needs braces: `\\u{1F600}`".to_string());
         }

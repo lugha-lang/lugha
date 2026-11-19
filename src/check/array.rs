@@ -144,26 +144,21 @@ impl Checker {
     }
 
     /// `for var of iter { body }`: `iter` is an array, `var` an immutable
-    /// element, and the body may not assign to `iter` (E0507).
+    /// element. The loop holds the array as it was when it started, so the
+    /// body may change `iter`, as a map's or set's loop may: a write copies
+    /// the array the loop holds (only `for … of mut` guards its array).
     pub(super) fn for_of(&mut self, var: &Ident, iter: &Expr, body: &Block) {
         let element = match self.value(iter, None) {
             Type::Array(element) | Type::View(_, element) => *element,
             Type::String => Type::U8,
             Type::Error | Type::Never => Type::Error,
-            // Anything with `next`: the loop works on a copy, unguarded.
+            // Anything with `next`: the loop works on a copy.
             other => return self.iterator_loop(var, iter, &other, body),
         };
-        let guard = self.place_path(iter);
-        if let Some(path) = &guard {
-            self.iterating.push((path.clone(), iter.span));
-        }
         self.push();
         self.declare(var, element, Binding::LoopVar);
         self.loop_body(body);
         self.pop();
-        if guard.is_some() {
-            self.iterating.pop();
-        }
     }
 
     /// The path of a place expression rooted in a local, if `expr` is one.
@@ -285,18 +280,20 @@ mod tests {
     }
 
     #[test]
-    fn for_of_iterates_arrays_and_guards_them() {
+    fn for_of_iterates_arrays_and_of_mut_guards_them() {
         ok("fun main() { let xs = [1, 2]; let mut t = 0; for x of xs { t += x; } }");
+        // A plain loop holds the array as it started: the body may change it.
+        ok("fun main() { let mut xs = [1]; for x of xs { xs[0] = x; xs = [2]; xs.push(3); } }");
         assert_eq!(errors("fun main() { for c of 5 { } }"), [("E0411", "5")]);
         assert_eq!(
-            errors("fun main() { let mut xs = [1]; for x of xs { xs[0] = x; } }"),
+            errors("fun main() { let mut xs = [1]; for x of mut xs { xs[0] = x; } }"),
             [("E0507", "xs[0]")]
         );
         assert_eq!(
-            errors("fun main() { let mut xs = [1]; for x of xs { xs = [2]; } }"),
+            errors("fun main() { let mut xs = [1]; for x of mut xs { xs = [2]; } }"),
             [("E0507", "xs")]
         );
-        let grid = "fun main() { let mut g = [[1, 2], [3]]; for x of g[0] { g[1][0] = x; } }";
+        let grid = "fun main() { let mut g = [[1, 2], [3]]; for x of mut g[0] { g[1][0] = x; } }";
         // Index steps might be equal, so `g[1][0]` may overlap `g[0]`: rejected conservatively.
         assert_eq!(errors(grid), [("E0507", "g[1][0]")]);
         ok("fun main() { let mut a = [1]; let b = [2]; for x of b { a[0] = x; } }");

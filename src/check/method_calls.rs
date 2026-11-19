@@ -441,7 +441,7 @@ mod tests {
         );
         assert_eq!(errors(&field), [("E0508", "r")]);
         let iter = format!(
-            "{calls}fun main() {{ let mut vs = [V {{ x: 1.0, y: 1.0 }}]; for v of vs {{ vs[0].bump(); }} }}"
+            "{calls}fun main() {{ let mut vs = [V {{ x: 1.0, y: 1.0 }}]; for v of mut vs {{ vs[0].bump(); }} }}"
         );
         assert_eq!(errors(&iter), [("E0507", "vs[0]")]);
         assert_eq!(

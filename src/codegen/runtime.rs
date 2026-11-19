@@ -148,7 +148,9 @@ impl<'ctx> Lowerer<'ctx> {
         if name == "debug" {
             let ty = self.ty(&args[0]);
             let value = self.get(&args[0], &ty)?;
-            self.debug_print(call, &args[0], &ty, value);
+            if !self.release {
+                self.debug_print(call, &args[0], &ty, value);
+            }
             return Ok(Value::Val(value));
         }
         let arg = match args.first() {

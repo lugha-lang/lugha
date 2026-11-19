@@ -14,7 +14,7 @@ fun main(console: Console, files: Fs, proc: Proc): i32 {
     let e = files.cwd().write_file("empty.txt", "");
     say(console, "note", files.cwd().size("note.txt"));
     say(console, "empty", files.cwd().size("empty.txt"));
-    let made = files.cwd().make_dir("box");
+    let _ = files.cwd().make_dir("box");
     say(console, "folder", files.cwd().size("box"));
     say(console, "missing", files.cwd().size("nope.txt"));
     say(console, "nul", files.cwd().size("note\0.txt"));

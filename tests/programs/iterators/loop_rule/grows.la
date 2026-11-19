@@ -1,0 +1,15 @@
+// A loop goes through its array as it was when it started; the body may
+// change the array, as a map's or set's loop may change its collection.
+fun main(console: Console) {
+    let mut xs = [1, 2, 3];
+    for x of xs {
+        xs.push(x * 10);
+    }
+    console.println(xs.debug());
+    let mut ages = Map { "ann": 31, "bo": 0 };
+    for (k, v) of ages {
+        if v == 0 { ages.remove(k); }
+    }
+    console.println(ages.len);
+    console.println("tab\u{9}end \u{1F600}");
+}

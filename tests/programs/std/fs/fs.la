@@ -6,16 +6,21 @@ fun show(r: Result<i64, string>): string = match r {
     .Err(e) => "err {e}",
 };
 
+fun done(r: Result<(), string>): string = match r {
+    .Ok(_) => "ok",
+    .Err(e) => "err {e}",
+};
+
 fun list(files: Fs, path: string): string = match files.cwd().list(path) {
     .Ok(names) => "{names.debug()}",
     .Err(e) => e,
 };
 
 fun main(console: Console, files: Fs) {
-    console.println(show(files.cwd().make_dir("box")));
-    console.println(show(files.cwd().make_dir("box")));
-    console.println(show(files.cwd().make_dirs("deep/er/est")));
-    console.println(show(files.cwd().make_dirs("deep/er/est")));
+    console.println(done(files.cwd().make_dir("box")));
+    console.println(done(files.cwd().make_dir("box")));
+    console.println(done(files.cwd().make_dirs("deep/er/est")));
+    console.println(done(files.cwd().make_dirs("deep/er/est")));
     let a = files.cwd().write_file("box/b.txt", "b");
     let b = files.cwd().write_file("box/a.txt", "a");
     let c = files.cwd().write_file("box/Z.txt", "z");
@@ -23,15 +28,15 @@ fun main(console: Console, files: Fs) {
     console.println("{files.cwd().exists("box")} {files.cwd().is_dir("box")} {files.cwd().is_file("box")}");
     console.println("{files.cwd().exists("box/a.txt")} {files.cwd().is_dir("box/a.txt")} {files.cwd().is_file("box/a.txt")}");
     console.println("{files.cwd().exists("nope")} {files.cwd().is_dir("nope")} {files.cwd().is_file("nope")}");
-    console.println(show(files.cwd().remove_file("box")));
-    console.println(show(files.cwd().remove_dir("box")));
-    console.println(show(files.cwd().remove_file("box/a.txt")));
-    console.println(show(files.cwd().remove_file("box/b.txt")));
-    console.println(show(files.cwd().remove_file("box/Z.txt")));
-    console.println(show(files.cwd().remove_dir("box")));
+    console.println(done(files.cwd().remove_file("box")));
+    console.println(done(files.cwd().remove_dir("box")));
+    console.println(done(files.cwd().remove_file("box/a.txt")));
+    console.println(done(files.cwd().remove_file("box/b.txt")));
+    console.println(done(files.cwd().remove_file("box/Z.txt")));
+    console.println(done(files.cwd().remove_dir("box")));
     console.println(files.cwd().exists("box"));
     console.println(list(files, "nope"));
     console.println(list(files, "deep"));
-    console.println(show(files.cwd().make_dir("bad\0name")));
+    console.println(done(files.cwd().make_dir("bad\0name")));
     console.println(files.cwd().exists("bad\0name"));
 }

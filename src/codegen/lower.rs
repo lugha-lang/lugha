@@ -28,6 +28,9 @@ pub(super) struct Lowerer<'ctx> {
     /// What the build adds for measuring or checking: simulated per-call
     /// costs (`LUGHA_CALL_COSTS=1`), the owner check (`LUGHA_RC_CHECK=1`).
     pub(super) instruments: super::Instruments,
+    /// An optimized build, a release: `debug(x)` left in a dependency is
+    /// just `x` there (the program's own is E0465 before codegen).
+    pub(super) release: bool,
     /// The slots the function being lowered releases.
     pub(super) rc_slots: super::rc_slots::RcSlots<'ctx>,
     /// Closure environment drops made so far, for their names.
@@ -190,11 +193,17 @@ pub(super) fn lower<'ctx>(
     context: &'ctx Context,
     units: &[Unit],
     checked: &Checked,
-    (sources, target, instruments): (&[ModuleSource], super::Target, super::Instruments),
+    (sources, target, instruments, release): (
+        &[ModuleSource],
+        super::Target,
+        super::Instruments,
+        bool,
+    ),
 ) -> Result<Module<'ctx>, CodegenError> {
     let mut lowerer = Lowerer {
         target,
         instruments,
+        release,
         rc_slots: Default::default(),
         rc_envs: 0,
         context,

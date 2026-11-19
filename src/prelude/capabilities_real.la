@@ -65,17 +65,20 @@ impl Dir for $Dir {
         }
         Ok(names.sort())
     }
-    fun make_dir(self, path: string): Result<i64, string> {
+    fun make_dir(self, path: string): Result<(), string> {
         self.writable()?;
-        $os.dir_make(self.h, path)
+        $os.dir_make(self.h, path)?;
+        Ok(())
     }
-    fun remove_file(self, path: string): Result<i64, string> {
+    fun remove_file(self, path: string): Result<(), string> {
         self.writable()?;
-        $os.dir_remove(self.h, path, 0)
+        $os.dir_remove(self.h, path, 0)?;
+        Ok(())
     }
-    fun remove_dir(self, path: string): Result<i64, string> {
+    fun remove_dir(self, path: string): Result<(), string> {
         self.writable()?;
-        $os.dir_remove(self.h, path, 1)
+        $os.dir_remove(self.h, path, 1)?;
+        Ok(())
     }
     fun exists(self, path: string): bool = $os.dir_kind(self.h, path) != 0;
     fun is_dir(self, path: string): bool = $os.dir_kind(self.h, path) == 2;

@@ -47,12 +47,12 @@ impl Dir for Memory {
         Ok(bytes.len)
     }
     fun list(self, path: string): Result<string[], string> = Ok(self.store.names());
-    fun make_dir(self, path: string): Result<i64, string> {
+    fun make_dir(self, path: string): Result<(), string> {
         self.store.add_folder(path);
-        Ok(0)
+        Ok(())
     }
-    fun remove_file(self, path: string): Result<i64, string> = Err("not here");
-    fun remove_dir(self, path: string): Result<i64, string> = Err("not here");
+    fun remove_file(self, path: string): Result<(), string> = Err("not here");
+    fun remove_dir(self, path: string): Result<(), string> = Err("not here");
     fun exists(self, path: string): bool = self.is_file(path) || self.is_dir(path);
     fun is_dir(self, path: string): bool = self.store.made().iter().any(fun(f: string): bool = f == path);
     fun is_file(self, path: string): bool = self.store.get(path).is_some();

@@ -299,7 +299,7 @@ mod tests {
         ));
         assert_eq!(
             errors(&format!(
-                "{POINT}fun main() {{ let mut ps = [P {{ x: 1.0, y: 2.0 }}]; for p of ps {{ ps[0].x = 1.0; }} }}"
+                "{POINT}fun main() {{ let mut ps = [P {{ x: 1.0, y: 2.0 }}]; for p of mut ps {{ ps[0].x = 1.0; }} }}"
             )),
             [("E0507", "ps[0].x")]
         );

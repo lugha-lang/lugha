@@ -1,17 +1,17 @@
-ok 0
+ok
 err File exists
-ok 0
-ok 0
+ok
+ok
 ["Z.txt", "a.txt", "b.txt"]
 true true false
 true false true
 false false false
 err Is a directory
 err Directory not empty
-ok 0
-ok 0
-ok 0
-ok 0
+ok
+ok
+ok
+ok
 false
 No such file or directory
 ["er"]

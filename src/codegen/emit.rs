@@ -106,7 +106,7 @@ pub fn emit_ir_with(
     (target, costs): (Target, Instruments),
 ) -> Result<String, CodegenError> {
     let context = Context::create();
-    let module = lower::lower(&context, units, checked, (sources, target, costs))?;
+    let module = lower::lower(&context, units, checked, (sources, target, costs, false))?;
     super::call_costs::insert_stack_checks(&context, &module);
     frames::share_all_slots(&module);
     Ok(module.print_to_string().to_string())
@@ -183,7 +183,8 @@ pub fn emit_object_modules(
     path: &Path,
 ) -> Result<(), CodegenError> {
     let context = Context::create();
-    let module = lower::lower(&context, units, checked, (sources, target, costs))?;
+    let release = opt == OptLevel::O2;
+    let module = lower::lower(&context, units, checked, (sources, target, costs, release))?;
     let machine = target_machine(opt, cpu, target)?;
     module.set_triple(&machine.get_triple());
     module.set_data_layout(&machine.get_target_data().get_data_layout());

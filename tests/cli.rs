@@ -438,3 +438,35 @@ fn debug_is_e0465_in_an_optimized_build_only() {
     assert_eq!(text(&ran.stderr), "[d.la:2] 1 + 2 = 3\n");
     assert_eq!(lughac(&dir.0, &["check", "d.la"]).status.code(), Some(0));
 }
+
+#[test]
+fn a_dependencys_debug_builds_at_o2_and_prints_nothing() {
+    let main =
+        b"import util;\n\nfun main(console: Console) {\n    console.println(util.twice(2));\n}\n";
+    let dir = TempDir::with(&[
+        ("main.la", main),
+        (
+            "lugha.toml",
+            b"[packages]\nutil = { path = \"deps/util\" }\n",
+        ),
+    ]);
+    std::fs::create_dir_all(dir.0.join("deps/util/src")).expect("temp dir is writable");
+    let manifest = "[package]\nname = \"util\"\nversion = \"1.0.0\"\nsource = \"src\"\n";
+    std::fs::write(dir.0.join("deps/util/lugha.toml"), manifest).expect("temp dir is writable");
+    let lib = "public fun twice(n: i64): i64 = debug(n * 2);\n";
+    std::fs::write(dir.0.join("deps/util/src/lib.la"), lib).expect("temp dir is writable");
+    let built = lughac(&dir.0, &["build", "-O2", "main.la", "-o", "app"]);
+    assert_eq!(built.status.code(), Some(0), "{}", text(&built.stderr));
+    let ran = Command::new(dir.0.join("app")).output().expect("app runs");
+    assert_eq!(
+        (text(&ran.stdout), text(&ran.stderr)),
+        ("4\n".into(), String::new())
+    );
+    // A development build still prints it.
+    let ran = lughac(&dir.0, &["run", "main.la"]);
+    assert!(
+        text(&ran.stderr).contains("n * 2 = 4"),
+        "{}",
+        text(&ran.stderr)
+    );
+}

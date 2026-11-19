@@ -292,11 +292,20 @@ pub(super) fn build(
     (opt, cpu, target, costs): (OptLevel, Cpu, Target, Instruments),
     exe: &Path,
 ) -> Result<(), Failure> {
-    // `debug(x)` is for development: an optimized build is a release.
+    // `debug(x)` is for development: an optimized build is a release. Only
+    // the main file's package's calls are its to remove; a dependency's
+    // print nothing there.
     if opt == OptLevel::O2 {
+        let own = |at: usize| {
+            front.modules.iter().any(|m| {
+                (m.base..=m.base + m.text.len()).contains(&at)
+                    && m.package == front.modules[0].package
+            })
+        };
         let found: Vec<Diagnostic> = checked(front)
             .debug_calls
             .iter()
+            .filter(|span| own(span.start))
             .map(|&span| debug_in_release(span))
             .collect();
         if !found.is_empty() {

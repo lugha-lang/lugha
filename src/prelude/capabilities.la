@@ -69,11 +69,11 @@ interface Dir: Sendable {
     /** The names in a folder, sorted by their bytes, without `.` and `..`; `Err` also when a name isn't UTF-8. */
     fun list(self, path: string): Result<string[], string>;
     /** Makes one folder (mode 0777 less the umask); its parent must exist. */
-    fun make_dir(self, path: string): Result<i64, string>;
+    fun make_dir(self, path: string): Result<(), string>;
     /** Removes a file or a symbolic link; never a folder. */
-    fun remove_file(self, path: string): Result<i64, string>;
+    fun remove_file(self, path: string): Result<(), string>;
     /** Removes a folder, which must be empty. */
-    fun remove_dir(self, path: string): Result<i64, string>;
+    fun remove_dir(self, path: string): Result<(), string>;
     /** Whether something exists at `path`, following symbolic links. */
     fun exists(self, path: string): bool;
     /** Whether `path` is a folder. */
@@ -110,7 +110,7 @@ interface Dir: Sendable {
     /** Adds `text` to the end of the file, making it if needed: `Ok` with the bytes written. */
     fun append_file(self, path: string, text: string): Result<i64, string> = self.append_bytes(path, text.to_bytes());
     /** Makes a folder and any missing parents; fine if it exists already. */
-    fun make_dirs(self, path: string): Result<i64, string> {
+    fun make_dirs(self, path: string): Result<(), string> {
         let mut prefix = if path.starts_with("/") { "/" } else { "" };
         for part of path.split("/") {
             if part.len == 0 {
@@ -121,7 +121,7 @@ interface Dir: Sendable {
                 self.make_dir(prefix)?;
             }
         }
-        Ok(0)
+        Ok(())
     }
 }
 

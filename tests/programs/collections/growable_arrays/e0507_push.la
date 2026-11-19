@@ -1,6 +1,6 @@
 fun main() {
     let mut xs = [1, 2];
-    for x of xs {
+    for x of mut xs {
         xs.push(x);
     }
 }

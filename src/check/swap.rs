@@ -122,7 +122,7 @@ mod tests {
             "cannot swap inside a string: strings are immutable"
         );
         let d = diagnostics(
-            "fun main() { let mut xs = [1, 2]; let mut y = 0; for x of xs { swap(xs[0], y); } }",
+            "fun main() { let mut xs = [1, 2]; let mut y = 0; for x of mut xs { swap(xs[0], y); } }",
         );
         assert_eq!(
             (d[0].code, d[0].message.as_str()),

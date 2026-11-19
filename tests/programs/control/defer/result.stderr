@@ -1,4 +1,4 @@
-error[E0456]: a deferred statement must have type (), found Result<i64, string>
+error[E0456]: a deferred statement must have type (), found Result<(), string>
   --> tests/programs/control/defer/result.la:4:11
   |
 4 |     defer files.cwd().remove_file("tmp.txt");
