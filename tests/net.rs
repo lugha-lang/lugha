@@ -299,3 +299,97 @@ fun main(console: Console, net: Net, root: Scope) {{
     ));
     case.runs("true\nErr(\"localhost has no public address\")\nnear\nby ip\ntrue\ntrue\n");
 }
+
+#[test]
+fn closing_a_socket_wakes_the_tasks_waiting_on_it() {
+    // Each waiter is woken with `Err("closed")` by another task's `close`,
+    // and the program ends: before, they waited for ever.
+    let case = Case::new(
+        "fun waits_accept(console: Console, l: Listener) {
+    console.println(\"accept: {l.accept().is_err()}\");
+}
+
+fun waits_read(console: Console, c: Conn) {
+    match c.read(10) {
+        .Ok(b) => console.println(\"read: ok {b.len}\"),
+        .Err(e) => console.println(\"read: {e}\"),
+    }
+}
+
+fun waits_udp(console: Console, u: Udp) {
+    match u.recv_from(10) {
+        .Ok(_) => console.println(\"udp: ok\"),
+        .Err(e) => console.println(\"udp: {e}\"),
+    }
+}
+
+fun main(console: Console, net: Net) {
+    let l = net.listen(\"127.0.0.1:0\").unwrap();
+    let r = scope s {
+        s.spawn(waits_accept(console, l));
+        task.sleep(30);
+        l.close();
+    };
+    let server = net.listen(\"127.0.0.1:0\").unwrap();
+    let c = net.connect(server.addr()).unwrap();
+    let kept = server.accept().unwrap();
+    let r2 = scope s {
+        s.spawn(waits_read(console, c));
+        task.sleep(30);
+        c.close();
+    };
+    let u = net.udp_bind(\"127.0.0.1:0\").unwrap();
+    let r3 = scope s {
+        s.spawn(waits_udp(console, u));
+        task.sleep(30);
+        u.close();
+    };
+    console.println(\"{r.is_ok()} {r2.is_ok()} {r3.is_ok()}\");
+    kept.close();
+    server.close();
+}
+",
+    );
+    let built = Command::new(env!("CARGO_BIN_EXE_lughac"))
+        .args(["build", "main.la", "-o", "main"])
+        .current_dir(&case.0)
+        .env("HOME", &case.0)
+        .output()
+        .expect("lughac runs");
+    assert!(
+        built.status.success(),
+        "{}",
+        String::from_utf8_lossy(&built.stderr)
+    );
+    for workers in ["1", "4"] {
+        // The program itself, so a hang is killed rather than waited on.
+        let mut child = Command::new(case.0.join("main"))
+            .env("LUGHA_WORKERS", workers)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("lughac runs");
+        let started = std::time::Instant::now();
+        while child.try_wait().expect("waitable").is_none() {
+            if started.elapsed() > std::time::Duration::from_secs(60) {
+                // Best effort: the test fails below either way.
+                let _ = child.kill();
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let out = child.wait_with_output().expect("lughac finishes");
+        assert_eq!(
+            (
+                out.status.code(),
+                String::from_utf8_lossy(&out.stdout).as_ref()
+            ),
+            (
+                Some(0),
+                "accept: true\nread: closed\nudp: closed\ntrue true true\n"
+            ),
+            "workers {workers}, stderr: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+}

@@ -95,6 +95,10 @@ int32_t lugha_rt_udp_send(int64_t fd, const LughaArray *bytes, const LughaString
         }
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
             int ready = wait_fd((int)fd, EPOLLOUT, deadline);
+            if (ready == WAIT_CLOSED) {
+                freeaddrinfo(to);
+                return net_error(error, "closed");
+            }
             if (ready == WAIT_CANCELLED) {
                 freeaddrinfo(to);
                 cancel_unwind();
@@ -152,6 +156,10 @@ int32_t lugha_rt_udp_recv(int64_t fd, int64_t max, int64_t timeout_ms, UdpDatagr
         }
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
             int ready = wait_fd((int)fd, EPOLLIN, deadline);
+            if (ready == WAIT_CLOSED) {
+                rt_scratch_done(buffer);
+                return net_error(error, "closed");
+            }
             if (ready == WAIT_CANCELLED) {
                 rt_scratch_done(buffer);
                 cancel_unwind();

@@ -78,6 +78,46 @@ static void poll_sockets(int64_t wait_ns) {
  * go of what it holds, then unwinds (`cancel_unwind`). */
 #define WAIT_CANCELLED (-1)
 
+/* `wait_fd`'s answer when another task closed the socket: the caller
+ * gives `Err("closed")` and never touches the descriptor again, whose
+ * number may already name another file. */
+#define WAIT_CLOSED (-2)
+
+/* The tasks parked on a socket, so that closing it wakes them
+ * (`lugha_rt_net_close`): an `epoll` event can't, since closing the
+ * descriptor takes it out of the set. Under the runtime's lock. */
+typedef struct {
+    int fd;
+    Fiber *fiber;
+    uint32_t gen;
+} NetWait;
+static NetWait *net_waits;
+static int64_t net_waits_len;
+static int64_t net_waits_cap;
+
+/* Lists the running task as parked on `fd` for wait `gen`. */
+static void net_waits_add(int fd, uint32_t gen) {
+    if (net_waits_len == net_waits_cap) {
+        net_waits_cap = net_waits_cap == 0 ? 16 : net_waits_cap * 2;
+        NetWait *bigger = realloc(net_waits, (size_t)net_waits_cap * sizeof *net_waits);
+        if (bigger == NULL) {
+            die("panic: out of memory\n");
+        }
+        net_waits = bigger;
+    }
+    net_waits[net_waits_len++] = (NetWait){.fd = fd, .fiber = current, .gen = gen};
+}
+
+/* Takes the running task off the list, however its wait ended. */
+static void net_waits_remove(void) {
+    for (int64_t i = 0; i < net_waits_len; i++) {
+        if (net_waits[i].fiber == current) {
+            net_waits[i] = net_waits[--net_waits_len];
+            return;
+        }
+    }
+}
+
 /* Parks this thread until `fd` is ready for `events`: 1, or 0 when
  * `deadline` (monotonic ns; < 0 for none) passes first, or WAIT_CANCELLED. */
 static int wait_fd(int fd, uint32_t events, int64_t deadline) {
@@ -99,11 +139,18 @@ static int wait_fd(int fd, uint32_t events, int64_t deadline) {
     if (deadline >= 0) {
         add_sleeper(current, deadline);
     }
+    net_waits_add(fd, next_wait_gen(current));
     __atomic_add_fetch(&net_waiting, 1, __ATOMIC_ACQ_REL);
     current->cancellable = true;
     int64_t why = block();
     current->cancellable = false;
     __atomic_sub_fetch(&net_waiting, 1, __ATOMIC_ACQ_REL);
+    // The section is open again here (`switch_away`), so the list is safe.
+    net_waits_remove();
+    if (why == SOCKET_CLOSED) {
+        // Closed, so already out of the `epoll` set.
+        return WAIT_CLOSED;
+    }
     if (why == TIMED_OUT || why == CANCELLED) {
         /* Disarmed, so a late event can't wake this thread again. */
         struct epoll_event off = {.events = 0, .data = {.ptr = NULL}};
@@ -245,6 +292,9 @@ int32_t lugha_rt_net_connect(const LughaString *addr, int64_t timeout_ms, int64_
         if (err == EINPROGRESS) {
             socklen_t len = sizeof err;
             int ready = wait_fd(s, EPOLLOUT, deadline);
+            if (ready == WAIT_CLOSED) {
+                return net_error(error, "closed");
+            }
             if (ready == WAIT_CANCELLED) {
                 close(s);
                 freeaddrinfo(list);
@@ -279,6 +329,9 @@ int32_t lugha_rt_net_accept(int64_t fd, int64_t timeout_ms, int64_t *conn, Lugha
         }
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
             int ready = wait_fd((int)fd, EPOLLIN, deadline);
+            if (ready == WAIT_CLOSED) {
+                return net_error(error, "closed");
+            }
             if (ready == WAIT_CANCELLED) {
                 cancel_unwind();
             }
@@ -309,6 +362,10 @@ int32_t lugha_rt_net_read(int64_t fd, int64_t max, int64_t timeout_ms, LughaArra
         }
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
             int ready = wait_fd((int)fd, EPOLLIN, deadline);
+            if (ready == WAIT_CLOSED) {
+                rt_scratch_done(buffer);
+                return net_error(error, "closed");
+            }
             if (ready == WAIT_CANCELLED) {
                 rt_scratch_done(buffer);
                 cancel_unwind();
@@ -337,6 +394,9 @@ int32_t lugha_rt_net_write(int64_t fd, const LughaArray *bytes, int64_t timeout_
             sent += n;
         } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
             int ready = wait_fd((int)fd, EPOLLOUT, deadline);
+            if (ready == WAIT_CLOSED) {
+                return net_error(error, "closed");
+            }
             if (ready == WAIT_CANCELLED) {
                 cancel_unwind();
             }
@@ -350,8 +410,17 @@ int32_t lugha_rt_net_write(int64_t fd, const LughaArray *bytes, int64_t timeout_
     return 1;
 }
 
-/* `$os.net_close(fd)`: closing also takes it out of the `epoll` set. */
+/* `$os.net_close(fd)`: the tasks parked on it are woken with
+ * `Err("closed")` first, since closing also takes it out of the `epoll` set
+ * and no event would reach them; then it is closed. Under the runtime's
+ * lock, so no task parks on it in between. */
 void lugha_rt_net_close(int64_t fd) {
+    RT_SECTION();
+    for (int64_t i = 0; i < net_waits_len; i++) {
+        if (net_waits[i].fd == (int)fd) {
+            wake_gen(net_waits[i].fiber, net_waits[i].gen, SOCKET_CLOSED);
+        }
+    }
     close((int)fd);
 }
 

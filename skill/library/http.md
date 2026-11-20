@@ -89,12 +89,10 @@ fun get_when_up(net: Net, url: string): http.Response {
     }
 }
 
-fun run_server(net: Net, addr: string): Result<(), string> = http.serve(net, addr, handle);
-
 fun main(console: Console, net: Net) {
     let base = "http://127.0.0.1:47321";
     let done = scope s {
-        let server = s.spawn(run_server(net, "127.0.0.1:47321"));
+        let server = s.spawn(http.serve(net, "127.0.0.1:47321", handle));
         let a = get_when_up(net, "{base}/hello?ann");
         console.println("{a.status} {a.text().unwrap()} {a.header("Content-Type").unwrap()}");
         let body = json.parse("[1, 2, 3]").unwrap();

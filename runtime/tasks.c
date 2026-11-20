@@ -150,7 +150,15 @@ struct Fiber {
 
 enum { WAIT_NONE, WAIT_RECV, WAIT_SEND, WAIT_SELECT };
 
-enum { WAITING = -1, TIMED_OUT = -2, DEFAULT_ARM = -1, CANCELLED = -3, PARKING = -4 };
+enum {
+    WAITING = -1,
+    TIMED_OUT = -2,
+    DEFAULT_ARM = -1,
+    CANCELLED = -3,
+    PARKING = -4,
+    /* A socket wait ended by another task closing the socket (net.c). */
+    SOCKET_CLOSED = -5
+};
 
 
 /* The running fiber, of the running worker. */

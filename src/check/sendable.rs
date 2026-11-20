@@ -83,6 +83,11 @@ impl Checker {
         let part = match path.as_str() {
             "" => whole.to_string(),
             "[]" => format!("an element of {whole}"),
+            // A function's capture: ` (its capture `r`)`, already quoted.
+            _ if path.starts_with(" (its capture ") => path
+                .trim_start_matches(" (")
+                .trim_end_matches(')')
+                .to_string(),
             _ => format!("`{}`", path.trim_start_matches('.')),
         };
         Some(match why {
@@ -186,6 +191,24 @@ impl Checker {
                 _ => None,
             };
             for e in args.iter().chain(receiver) {
+                // A conversion that failed for this reason already said so.
+                if self
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.code == "E0475" && d.span == e.span)
+                {
+                    reported = true;
+                    continue;
+                }
+                // An argument converted to an interface that requires
+                // `Sendable` was checked as it converted (a function's
+                // captures included); any other is judged by its own type,
+                // the value the interface holds.
+                if let Some(Type::Interface(key, _)) = self.conversions.get(&e.id)
+                    && self.requires_sendable(key)
+                {
+                    continue;
+                }
                 let ty = self.types[e.id.0 as usize].clone().unwrap_or(Type::Error);
                 let head = format!("a `{ty}` can't be passed to another task");
                 reported |= self.must_send(&ty, &head, e.span);
@@ -221,6 +244,40 @@ mod tests {
     /// The codes `src` reports, in order.
     fn codes(src: &str) -> Vec<&'static str> {
         errors(src).into_iter().map(|(c, _)| c).collect()
+    }
+
+    #[test]
+    fn a_function_converted_to_a_sendable_interface_crosses_to_a_task() {
+        let src = "interface Job: fun(i64): i64 + Sendable {}\n\
+                   fun double(x: i64): i64 = x * 2;\n\
+                   fun run(j: Job): i64 = j(21);\n\
+                   fun main() {\n\
+                       let k = 3;\n\
+                       let r = scope s {\n\
+                           let a = s.spawn(run(double));\n\
+                           let b = s.spawn(run(fun(x: i64): i64 = x + k));\n\
+                       };\n\
+                   }";
+        ok(src);
+        // A capture that isn't sendable is still refused, at the conversion.
+        let shared = "interface Job: fun(i64): i64 + Sendable {}\n\
+                      fun run(j: Job): i64 = j(21);\n\
+                      fun main() {\n\
+                          let r = Ref.new(1);\n\
+                          let t = scope s {\n\
+                              let b = s.spawn(run(fun(x: i64): i64 = x + r.get()));\n\
+                          };\n\
+                      }";
+        assert_eq!(codes(shared), ["E0475"]);
+        // A plain function type still can't cross: it may hold anything.
+        let plain = "fun run(f: fun(i64): i64): i64 = f(1);\n\
+                     fun double(x: i64): i64 = x * 2;\n\
+                     fun main() {\n\
+                         let t = scope s {\n\
+                             let a = s.spawn(run(double));\n\
+                         };\n\
+                     }";
+        assert_eq!(codes(plain), ["E0475"]);
     }
 
     #[test]
