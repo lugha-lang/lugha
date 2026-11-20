@@ -165,8 +165,24 @@ RcVisit lugha_rt_rc_drop_of(const void *object) {
     return rc_header((void *)object)->visit;
 }
 
+/* Visits `object`, already marked freed, so it releases what it holds,
+ * then gives its block back. */
+static void rc_free_one(void *object) {
+    RcHeader *header = rc_header(object);
+    if (header->visit != NULL) {
+        header->visit(object, RC_RELEASE);
+    }
+    worker->freed++;
+    if (!rc_poison) {
+        rc_block_free(header);
+    }
+}
+
 /* Frees `object`, its count gone to zero: its visit first releases what it
- * holds. A constant is never freed. */
+ * holds. A constant is never freed. Called from a visit, while this worker
+ * is already freeing, it only queues the object: the outermost call frees
+ * the queue, one object at a time, so a long chain (a list a million nodes
+ * deep) is freed in a loop rather than a million nested calls. */
 void lugha_rt_rc_free(void *object) {
     RcHeader *header = rc_header(object);
     if (header->count == RC_FREED) {
@@ -177,13 +193,25 @@ void lugha_rt_rc_free(void *object) {
     }
     // Marked first: a cycle back to this object can't free it twice.
     header->count = RC_FREED;
-    if (header->visit != NULL) {
-        header->visit(object, RC_RELEASE);
+    if (worker->releasing) {
+        if (worker->freeing_len == worker->freeing_cap) {
+            worker->freeing_cap = worker->freeing_cap == 0 ? 64 : worker->freeing_cap * 2;
+            worker->freeing = realloc(worker->freeing, (size_t)worker->freeing_cap * sizeof(void *));
+            if (worker->freeing == NULL) {
+                die("panic: out of memory\n");
+            }
+        }
+        worker->freeing[worker->freeing_len++] = object;
+        return;
     }
-    worker->freed++;
-    if (!rc_poison) {
-        rc_block_free(header);
+    // A visit never runs Lugha code, so nothing unwinds out of this loop
+    // and leaves `releasing` set.
+    worker->releasing = true;
+    rc_free_one(object);
+    while (worker->freeing_len > 0) {
+        rc_free_one(worker->freeing[--worker->freeing_len]);
     }
+    worker->releasing = false;
 }
 
 

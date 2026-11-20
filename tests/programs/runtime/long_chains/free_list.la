@@ -1,0 +1,14 @@
+// Letting go of a long list frees it node by node without recursing, so a
+// million nodes fit on any stack.
+enum List {
+    Nil,
+    Cons(i64, List),
+}
+
+fun main(console: Console) {
+    let mut list = List.Nil;
+    for _ in 0..1_000_000 {
+        list = List.Cons(1, list);
+    }
+    console.println("built");
+}

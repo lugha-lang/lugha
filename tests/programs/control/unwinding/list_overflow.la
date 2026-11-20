@@ -1,0 +1,20 @@
+// Walking a long list recursively runs out of stack: the panic unwinds,
+// letting go of the list, and ends the program as any panic in `main` does.
+enum List {
+    Nil,
+    Cons(i64, List),
+}
+
+fun sum(list: List): i64 = match list {
+    .Nil => 0,
+    .Cons(head, rest) => head + sum(rest),
+};
+
+fun main(console: Console) {
+    defer console.println("main unwound");
+    let mut list = List.Nil;
+    for _ in 0..1_000_000 {
+        list = List.Cons(1, list);
+    }
+    console.println(sum(list));
+}

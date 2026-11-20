@@ -190,6 +190,13 @@ typedef struct Worker {
     int64_t marking_cap;
     bool walking;
     bool freezing;
+    /* Objects whose count reached zero while it was already freeing one,
+     * still to be visited and freed (rc.c): freeing walks a list too, so
+     * letting go of a long chain can't overflow the stack. */
+    void **freeing;
+    int64_t freeing_len;
+    int64_t freeing_cap;
+    bool releasing;
     /* `select`'s pick: pseudo-random, the same on every run (chans.c). */
     uint64_t pick_state;
     /* How deep the running fiber is in runtime sections (`RT_SECTION`):
