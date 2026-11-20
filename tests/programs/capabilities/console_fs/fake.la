@@ -14,16 +14,16 @@ impl Console for Recorder {
     fun println(self, x: Display) { self.print(x); }
     fun eprint(self, x: Display) { self.print(x); }
     fun eprintln(self, x: Display) { self.print(x); }
-    fun read_line(self): Option<string> = Some("canned");
-    fun read_bytes(self): u8[] = [];
+    fun read_line(self): Result<Option<string>, string> = Ok(Some("canned"));
+    fun read_bytes(self): Result<u8[], string> = Ok([]);
     fun flush(self) {}
 }
 
 fun greet(console: Console, name: string) {
     console.println("hello, {name}");
     match console.read_line() {
-        .Some(line) => console.println("got {line}"),
-        .None => {}
+        .Ok(.Some(line)) => console.println("got {line}"),
+        _ => {}
     }
 }
 

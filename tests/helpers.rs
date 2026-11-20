@@ -92,7 +92,7 @@ fn a_deterministic_run_keeps_the_work_inline_and_repeats() {
 fn other_tasks_run_while_input_is_awaited() {
     let source = ticking(
         "console: Console",
-        "console.println(\"got {console.read_line().unwrap()}\");",
+        "console.println(\"got {console.read_line().unwrap().unwrap()}\");",
     );
     let dir = built(&source, &[]);
     let mut child = program(&dir)
@@ -228,4 +228,25 @@ fn one_helper_still_serves_every_task() {
         .expect("the program runs");
     assert!(out.status.success(), "{}", text(&out.stderr));
     assert_eq!(text(&out.stdout), "done true\n");
+}
+
+#[test]
+fn a_failed_read_of_stdin_is_an_error_not_the_end_of_input() {
+    let source = "fun main(console: Console) {
+    console.println(\"{console.read_line().debug()}\");
+    console.println(\"{console.read_bytes().debug()}\");
+}
+";
+    let dir = built(source, &[]);
+    // A folder as stdin: every `read` fails with EISDIR.
+    let folder = std::fs::File::open(&dir.0).expect("the folder opens");
+    let out = program(&dir)
+        .stdin(Stdio::from(folder))
+        .output()
+        .expect("the program runs");
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    assert_eq!(
+        text(&out.stdout),
+        "Err(\"stdin: Is a directory\")\nErr(\"stdin: Is a directory\")\n"
+    );
 }

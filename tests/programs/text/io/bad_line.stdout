@@ -1,0 +1,5 @@
+line: [first]
+error: line 2 is not valid UTF-8
+line: [third]
+line: [last without newline]
+end

@@ -1,4 +1,4 @@
-// Invalid bytes from read_line decoded as U+FFFD, `as char` at the edges,
+// A line of stdin that isn't UTF-8 is an error, `as char` at the edges,
 // char_from, Latin-1 classification and case, format padding (in bytes),
 // a char in a struct, and comparing chars.
 
@@ -6,8 +6,9 @@ struct Glyph { c: char, n: i64 }
 
 fun main(console: Console) {
     match console.read_line() {
-        .Some(line) => console.println(line.chars().collect().debug()),
-        .None => console.println("none"),
+        .Ok(.Some(line)) => console.println(line.chars().collect().debug()),
+        .Ok(.None) => console.println("none"),
+        .Err(e) => console.println(e),
     }
     console.println((-1).try_into<char>().unwrap_or('\u{FFFD}'));
     console.println(1114111.try_into<char>().unwrap_or('\u{FFFD}') as u32);

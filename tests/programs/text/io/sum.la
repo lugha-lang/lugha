@@ -4,14 +4,15 @@ fun main(console: Console) {
     let mut lines = 0;
     while true {
         match console.read_line() {
-            .Some(line) => {
+            .Ok(.Some(line)) => {
                 lines += 1;
                 match parse_i64(line.trim()) {
                     .Some(n) => { total += n; }
                     .None => { bad.push(line); }
                 }
             }
-            .None => { break; }
+            .Ok(.None) => { break; }
+            .Err(e) => { console.eprintln(e); break; }
         }
     }
     console.println("{lines} lines, total {total}");

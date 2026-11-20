@@ -167,8 +167,8 @@ impl Console for OneStream {
             self.under.eprintln(x);
         }
     }
-    fun read_line(self): Option<string> = None;
-    fun read_bytes(self): u8[] = [];
+    fun read_line(self): Result<Option<string>, string> = Ok(None);
+    fun read_bytes(self): Result<u8[], string> = Ok([]);
     fun flush(self) {
         self.under.flush();
     }

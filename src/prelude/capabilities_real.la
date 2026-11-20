@@ -9,8 +9,14 @@ impl Console for $Console {
     fun println(self, x: Display) { println(x.show()); }
     fun eprint(self, x: Display) { eprint(x.show()); }
     fun eprintln(self, x: Display) { eprintln(x.show()); }
-    fun read_line(self): Option<string> = read_line();
-    fun read_bytes(self): u8[] = read_stdin_bytes();
+    fun read_line(self): Result<Option<string>, string> = match read_line()? {
+        .Some((n, bytes)) => match string_from_utf8(bytes) {
+            .Ok(line) => Ok(Some(line)),
+            .Err(_) => Err("line {n} is not valid UTF-8"),
+        },
+        .None => Ok(None),
+    };
+    fun read_bytes(self): Result<u8[], string> = read_stdin_bytes();
     fun flush(self) { flush(); }
 }
 

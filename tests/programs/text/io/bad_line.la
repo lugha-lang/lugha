@@ -1,0 +1,10 @@
+// A line that isn't UTF-8 is an error and is skipped; the next call reads on.
+fun main(console: Console) {
+    loop {
+        match console.read_line() {
+            .Ok(.Some(line)) => console.println("line: [{line}]"),
+            .Ok(.None) => { console.println("end"); return; }
+            .Err(e) => console.println("error: {e}"),
+        }
+    }
+}

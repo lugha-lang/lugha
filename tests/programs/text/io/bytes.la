@@ -1,0 +1,13 @@
+// Everything left on stdin, as bytes, after a line read first.
+fun run(console: Console): Result<(), string> {
+    let first = console.read_line()?;
+    let rest = console.read_bytes()?;
+    console.println("{first.unwrap_or("none")} then {rest.len} bytes, last {rest[rest.len - 1]}");
+    let again = console.read_bytes()?;
+    console.println("then {again.len}");
+    Ok(())
+}
+
+fun main(console: Console) {
+    run(console).unwrap();
+}

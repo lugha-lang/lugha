@@ -22,25 +22,23 @@ impl<'ctx> Lowerer<'ctx> {
         args: &[Expr],
     ) -> Result<Value<'ctx>, CodegenError> {
         match name {
-            "read_line" => {
-                let line = self.out_slot(&Type::String);
-                let ok = self.call_flag("lugha_rt_read_line", &[Type::String], &[line.into()]);
-                let text = self.load_slot(line, &Type::String);
-                let option = self.ty(call);
-                let some = self.construct_values(&option, "Some", vec![text]);
-                let none = self.construct_values(&option, "None", Vec::new());
-                Ok(Value::Val(self.choose(ok, some, none)))
-            }
+            "read_line" => Ok(Value::Val(self.read_line(call))),
             "flush" => {
                 let flush = self.runtime("lugha_rt_flush", &[], None);
                 self.builder.build_call(flush, &[], "").expect(POSITIONED);
                 Ok(Value::Void)
             }
-            "read_stdin_bytes" => Ok(Value::Val(self.call_runtime_value(
-                "lugha_rt_read_stdin_bytes",
-                &[],
-                &[],
-            ))),
+            "read_stdin_bytes" => {
+                let bytes = Type::Array(Box::new(Type::U8));
+                let out = self.out_slot(&bytes);
+                let error = self.out_slot(&Type::String);
+                let ok = self.call_flag(
+                    "lugha_rt_read_stdin_bytes",
+                    &[Type::String, Type::String],
+                    &[out.into(), error.into()],
+                );
+                Ok(Value::Val(self.result(call, ok, (out, &bytes), error)))
+            }
             "eprint" | "eprintln" => {
                 let text = match args.first() {
                     Some(arg) => {
@@ -73,6 +71,66 @@ impl<'ctx> Lowerer<'ctx> {
                 Ok(Value::Never)
             }
         }
+    }
+
+    /// `read_line()`: `Ok(Some((number, bytes)))`, `Ok(None)` at the end of
+    /// input, or `Err(message)`, by the runtime's 1, 0 or -1.
+    fn read_line(&mut self, call: &Expr) -> BasicValueEnum<'ctx> {
+        let bytes = Type::Array(Box::new(Type::U8));
+        let (number, line) = (self.out_slot(&Type::I64), self.out_slot(&bytes));
+        let error = self.out_slot(&Type::String);
+        let params = [Type::String, Type::String, Type::String];
+        let function = self.runtime("lugha_rt_read_line", &params, Some(Type::I32));
+        let state = self
+            .builder
+            .build_call(
+                function,
+                &[number.into(), line.into(), error.into()],
+                "state",
+            )
+            .expect(POSITIONED);
+        let ValueKind::Basic(state) = state.try_as_basic_value() else {
+            unreachable!("`lugha_rt_read_line` returns a state")
+        };
+        let state = state.into_int_value();
+        let zero = self.context.i32_type().const_zero();
+        let (got, ok) = (
+            self.builder
+                .build_int_compare(IntPredicate::SGT, state, zero, "got")
+                .expect(POSITIONED),
+            self.builder
+                .build_int_compare(IntPredicate::SGE, state, zero, "ok")
+                .expect(POSITIONED),
+        );
+        let result = self.ty(call);
+        let Type::Enum(_, parts) = &result else {
+            unreachable!("checked: `read_line` gives a `Result`")
+        };
+        let option = parts[0].clone();
+        let Type::Option(tuple) = &option else {
+            unreachable!("checked: `read_line` gives a `Result<Option<_>, _>`")
+        };
+        let llvm = llvm_type(self.context, tuple).into_struct_type();
+        let mut pair = llvm.get_undef();
+        let parts = [
+            self.load_slot(number, &Type::I64),
+            self.load_slot(line, &bytes),
+        ];
+        for (i, part) in parts.into_iter().enumerate() {
+            let index = u32::try_from(i).expect("two elements");
+            pair = self
+                .builder
+                .build_insert_value(pair, part, index, "line")
+                .expect(POSITIONED)
+                .into_struct_value();
+        }
+        let some = self.construct_values(&option, "Some", vec![pair.into()]);
+        let none = self.construct_values(&option, "None", Vec::new());
+        let maybe = self.choose(got, some, none);
+        let message = self.load_slot(error, &Type::String);
+        let good = self.construct_values(&result, "Ok", vec![maybe]);
+        let bad = self.construct_values(&result, "Err", vec![message]);
+        self.choose(ok, good, bad)
     }
 
     /// A stack slot for a runtime out-parameter, cleared first. Any type:

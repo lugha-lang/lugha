@@ -17,10 +17,14 @@ interface Console: Sendable {
     fun eprint(self, x: Display);
     /** Writes `x`'s text and a newline to standard error, after flushing standard output. */
     fun eprintln(self, x: Display);
-    /** The next line of standard input without its line ending; `None` at the end. */
-    fun read_line(self): Option<string>;
-    /** The rest of standard input as bytes, all of it: `[]` at the end or on a read error. */
-    fun read_bytes(self): u8[];
+    /**
+     * The next line of standard input without its `\n` and a `\r` before it; `None` at the end.
+     * A line that isn't UTF-8 is `Err("line N is not valid UTF-8")` and is skipped; a failed read
+     * is `Err("stdin: …")`, never the end.
+     */
+    fun read_line(self): Result<Option<string>, string>;
+    /** The rest of standard input as bytes, all of it: `[]` at the end; a failed read is `Err("stdin: …")`. */
+    fun read_bytes(self): Result<u8[], string>;
     /** Writes out what standard output holds now: a prompt shows before a long wait. */
     fun flush(self);
     /** This console narrowed to standard output: `eprint` and `eprintln` do nothing, and there is no input. */

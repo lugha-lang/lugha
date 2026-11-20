@@ -1,5 +1,5 @@
 fun main(console: Console) {
-    let b = console.read_bytes();
+    let b = console.read_bytes().unwrap();
     console.println(b.len);
     console.println(b[0]);
 }

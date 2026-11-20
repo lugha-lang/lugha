@@ -63,7 +63,7 @@ int32_t lugha_rt_parse_f64(const LughaString *s, double *out) {
     return 1;
 }
 
-/* ---- I/O: stdin lines, stderr and exit ---- */
+/* ---- I/O: stderr and exit ---- */
 
 /* A new Lugha string holding the `len` bytes at `bytes`. */
 static LughaString *string_of(const char *bytes, int64_t len) {
@@ -72,38 +72,6 @@ static LughaString *string_of(const char *bytes, int64_t len) {
     memcpy(s->bytes, bytes, (size_t)len);
     s->bytes[len] = '\0';
     return s;
-}
-
-/* On a helper: the next line of stdin, `value` its length (-1 at the end
- * or on an error), `out` the bytes. */
-static void read_line_job(Job *job) {
-    size_t cap = 0;
-    job->value = (int64_t)getline(&job->out, &cap, stdin);
-}
-
-/* `read_line()`: 1 and the next stdin line without its `\n` (and a `\r`
- * before it) in `*out`, or 0 at the end of input or on a read error.
- * Stdout is flushed first, so a prompt written with `print` shows; the
- * read runs on a helper thread, so other tasks run while it waits. */
-int32_t lugha_rt_read_line(LughaString **out) {
-    fflush(stdout);
-    Job *job = job_new(read_line_job);
-    job_run(job);
-    if (job->value < 0) {
-        job_free(job);
-        return 0;
-    }
-    ssize_t n = (ssize_t)job->value;
-    const char *line = job->out;
-    if (n > 0 && line[n - 1] == '\n') {
-        n--;
-    }
-    if (n > 0 && line[n - 1] == '\r') {
-        n--;
-    }
-    *out = string_of(line, n);
-    job_free(job);
-    return 1;
 }
 
 /* `eprint(x)` / `eprintln(x)`, with `x` already formatted: stdout is

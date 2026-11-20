@@ -59,8 +59,12 @@ impl Checker {
             "parse_i64" => (vec![Type::String], Type::Option(Box::new(Type::I64))),
             "parse_f64" => (vec![Type::String], Type::Option(Box::new(Type::F64))),
             "parse_u64" => (vec![Type::String], Type::Option(Box::new(Type::U64))),
-            "read_line" => (Vec::new(), Type::Option(Box::new(Type::String))),
-            "read_stdin_bytes" => (Vec::new(), bytes()),
+            // The line's number and bytes; the prelude checks they are UTF-8.
+            "read_line" => {
+                let line = self.tuple_type(vec![Type::I64, bytes()]);
+                (Vec::new(), result(Type::Option(Box::new(line))))
+            }
+            "read_stdin_bytes" => (Vec::new(), result(bytes())),
             "string_from_utf8" => (vec![bytes()], result(Type::String)),
             // Stdout's buffer, out now.
             "flush" => (Vec::new(), Type::Unit),
@@ -174,7 +178,11 @@ mod tests {
         };
         assert_eq!(
             t("let l = console.read_line();", "l"),
-            Type::Option(Box::new(Type::String))
+            result(Type::Option(Box::new(Type::String)))
+        );
+        assert_eq!(
+            t("let b = console.read_bytes();", "b"),
+            result(Type::Array(Box::new(Type::U8)))
         );
         assert_eq!(
             t("let f = fs.cwd().read_file(\"p\");", "f"),

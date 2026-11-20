@@ -80,7 +80,7 @@ typedef struct {
 void lugha_rt_init(int32_t argc, char **argv);
 LughaArray *lugha_rt_args(void);
 int32_t lugha_rt_parse_f64(const LughaString *s, double *out);
-int32_t lugha_rt_read_line(LughaString **out);
+int32_t lugha_rt_read_line(int64_t *number, LughaArray **out, LughaString **error);
 void lugha_rt_eprint(const LughaString *text, int32_t newline);
 void lugha_rt_exit(int32_t code);
 void *lugha_rt_alloc(int64_t size);

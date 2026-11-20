@@ -1,6 +1,7 @@
 fun main(console: Console) {
     match console.read_line() {
-        .Some(line) => console.println("got " + line),
-        .None => console.println("no input"),
+        .Ok(.Some(line)) => console.println("got " + line),
+        .Ok(.None) => console.println("no input"),
+        .Err(e) => console.eprintln(e),
     }
 }

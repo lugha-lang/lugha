@@ -41,4 +41,4 @@ listen 0.0.0.0:8080 when 127.0.0.1 named: true
   listen 0.0.0.0:8080
 env: Some("a") None
 to stdout
-stdout_only reads: None
+stdout_only reads: Ok(None)
