@@ -93,7 +93,7 @@ found 4
 - **`let pattern = value;`** works when the pattern always fits, such as a
   tuple: `let (a, b) = pair;`.
 - **Arms give values of one type;** an arm may `return`, `break`,
-  `continue` or `panic` instead.
+  `continue` or `panic` instead, written in a block: `.None => { return 0; }`.
 
 ```lugha
 fun where_is(p: (i64, i64)): string = match p {

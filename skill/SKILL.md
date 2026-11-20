@@ -99,6 +99,11 @@ Look up exact methods here.
 | [Collections](library/collections.md) | you need an array, `Map`, `Set`, iterator, tuple, `Option` or `Result` method |
 | [Console and files](library/console-and-files.md) | you need a `Console`, `Fs`, `Dir` or `File` method and its errors |
 | [Numbers, time and randomness](library/numbers-time-random.md) | you convert numbers, use `std.math`, dates and times, random numbers or `std.task` |
+| [Network](library/net.md) | you connect, listen, resolve names, use UDP or narrow a `Net` |
+| [HTTP](library/http.md) | you make HTTP requests or serve HTTP with `std.http` |
+| [TLS and cryptography](library/tls-and-crypto.md) | you encrypt connections, hash, sign, agree on keys or seal data |
+| [JSON and TOML](library/json-and-toml.md) | you parse or write JSON or TOML, or encode your own types as JSON |
+| [Environment and processes](library/env-and-processes.md) | you read environment variables or run other programs |
 
 Other commands: `lughac skill --list` lists every page with a one-line
 summary, `lughac skill --search <text>` finds lines across them, and

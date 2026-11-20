@@ -7,7 +7,7 @@ pub const NAME: &str = "lugha";
 
 /// Every page, by its path inside the skill, in teaching order: the
 /// overview, the concepts, then the library reference.
-pub const PAGES: [(&str, &str); 19] = [
+pub const PAGES: [(&str, &str); 24] = [
     ("SKILL.md", include_str!("../skill/SKILL.md")),
     (
         "concepts/01-values-and-types.md",
@@ -77,6 +77,20 @@ pub const PAGES: [(&str, &str); 19] = [
     (
         "library/numbers-time-random.md",
         include_str!("../skill/library/numbers-time-random.md"),
+    ),
+    ("library/net.md", include_str!("../skill/library/net.md")),
+    ("library/http.md", include_str!("../skill/library/http.md")),
+    (
+        "library/tls-and-crypto.md",
+        include_str!("../skill/library/tls-and-crypto.md"),
+    ),
+    (
+        "library/json-and-toml.md",
+        include_str!("../skill/library/json-and-toml.md"),
+    ),
+    (
+        "library/env-and-processes.md",
+        include_str!("../skill/library/env-and-processes.md"),
     ),
 ];
 
