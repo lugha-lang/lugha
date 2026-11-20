@@ -25,6 +25,13 @@
 #include <openssl/ssl.h>
 #include <openssl/x509v3.h>
 
+/* OpenSSL started before `main`, without its exit-time cleanup: the
+ * process may end while a task on another worker is inside OpenSSL, which
+ * would find OpenSSL's state freed under it; the system frees it anyway. */
+__attribute__((constructor)) static void tls_openssl_start(void) {
+    OPENSSL_init_ssl(OPENSSL_INIT_NO_ATEXIT, NULL);
+}
+
 /* Raw public keys and HPKE arrived in OpenSSL 3.2; the driver turns this
  * message into E0332. */
 #if OPENSSL_VERSION_NUMBER < 0x30200000L

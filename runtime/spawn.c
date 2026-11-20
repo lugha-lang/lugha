@@ -45,11 +45,13 @@ void lugha_rt_rc_task_setup(LughaTask *task, RcVisit result_visit) {
 }
 
 /* When the entry returns, every unfinished thread stops, so what it holds as a thread (its call's environment, its
- * task, an actor's handle) is let go of. What only its stack holds stays:
- * stopping doesn't unwind. */
+ * task, an actor's handle) is let go of, for `LUGHA_RC_REPORT`'s count.
+ * What only its stack holds stays: stopping doesn't unwind. Without the
+ * report nothing is let go of: the process ends at once, and a thread
+ * still running on another worker would find its task freed under it. */
 void lugha_rt_rc_stop_threads(void) {
     RT_SECTION();
-    if (current == NULL) {
+    if (current == NULL || !rc_reporting) {
         return;
     }
     lock_take(&live_lock);

@@ -236,6 +236,17 @@ import std.tls;
 /** A PEM file's text, empty when it can't be read. */
 fun pem(fs: Fs, name: string): string = fs.cwd().read_file(name).unwrap_or(\"\");
 
+/** Waits until the server task listens at `addr`: it may run on another worker. */
+fun ready(net: Net, addr: string) {
+    for i in 0..2000 {
+        if let .Ok(c) = net.connect(addr) {
+            c.close();
+            return;
+        }
+        task.sleep(5);
+    }
+}
+
 fun handle(req: http.Request): http.Response = http.text(200, \"secure {req.method} {req.path}\");
 
 fun server(fs: Fs, net: Net, addr: string) {
@@ -248,7 +259,7 @@ fun main(console: Console, net: Net, fs: Fs, root: Scope) {
     probe.close();
     let serving = root.spawn(server(fs, net, addr));
     defer serving.cancel(\"done\");
-    task.yield_now();
+    ready(net, addr);
     let port = addr.split(\":\")[1];
     let opts = tls.Options { ca_pem: pem(fs, \"ca.pem\"), ..tls.options() };
     let res = http.request_tls(net, \"POST\", \"https://localhost:{port}/x\", Map {}, \"b\".to_bytes(), opts).unwrap();
@@ -278,6 +289,17 @@ import std.tls;
 /** A PEM file's text, empty when it can't be read. */
 fun pem(fs: Fs, name: string): string = fs.cwd().read_file(name).unwrap_or(\"\");
 
+/** Waits until the server task listens at `addr`: it may run on another worker. */
+fun ready(net: Net, addr: string) {
+    for i in 0..2000 {
+        if let .Ok(c) = net.connect(addr) {
+            c.close();
+            return;
+        }
+        task.sleep(5);
+    }
+}
+
 fun handle(req: http.Request): http.Response = http.bytes(200, [7 as u8; 17000000]);
 
 fun server(fs: Fs, net: Net, addr: string) {
@@ -306,7 +328,7 @@ fun main(console: Console, clock: Clock, net: Net, fs: Fs, root: Scope) {
     probe.close();
     let serving = root.spawn(server(fs, net, addr));
     defer serving.cancel(\"done\");
-    task.yield_now();
+    ready(net, addr);
     let url = \"https://localhost:{addr.split(\":\")[1]}/app.rkb\";
     fetch(fs, net, console, url, 33554432, \"ca.pem\");
     fetch(fs, net, console, url, 16777216, \"ca.pem\");
@@ -346,6 +368,17 @@ import std.tls;
 /** A PEM file's text, empty when it can't be read. */
 fun pem(fs: Fs, name: string): string = fs.cwd().read_file(name).unwrap_or(\"\");
 
+/** Waits until the server task listens at `addr`: it may run on another worker. */
+fun ready(net: Net, addr: string) {
+    for i in 0..2000 {
+        if let .Ok(c) = net.connect(addr) {
+            c.close();
+            return;
+        }
+        task.sleep(5);
+    }
+}
+
 fun handle(req: http.Request): http.Response = http.text(200, \"pinned {req.path}\");
 
 fun server(fs: Fs, net: Net, addr: string) {
@@ -366,7 +399,7 @@ fun main(console: Console, net: Net, fs: Fs, root: Scope) {
     probe.close();
     let serving = root.spawn(server(fs, net, addr));
     defer serving.cancel(\"done\");
-    task.yield_now();
+    ready(net, addr);
     let port = addr.split(\":\")[1];
     fetch(fs, net, console, \"https://localhost:{port}/a\", \"127.0.0.1\");
     fetch(fs, net, console, \"https://wrong.example:{port}/b\", \"127.0.0.1\");
@@ -385,4 +418,61 @@ fun main(console: Console, net: Net, fs: Fs, root: Scope) {
          certificate verify failed: hostname mismatch\n\
          address must be an IP address: localhost\ntrue\n",
     );
+}
+
+/// `main` panicking while a task on another worker is inside OpenSSL: the
+/// panic's exit, never a crash. OpenSSL's state outlives the exit, and the
+/// end of `main` frees nothing other threads hold.
+#[test]
+fn a_panic_while_another_worker_is_in_openssl_exits_with_101() {
+    let Some(case) = Case::new(
+        "import std.http;
+import std.tls;
+
+fun pem(fs: Fs, name: string): string = fs.cwd().read_file(name).unwrap_or(\"\");
+
+fun handle(req: http.Request): http.Response = http.text(200, \"hi\");
+
+fun server(fs: Fs, net: Net, addr: string) {
+    http.serve_tls(net, addr, pem(fs, \"cert.pem\"), pem(fs, \"key.pem\"), handle).unwrap();
+}
+
+fun main(net: Net, fs: Fs, root: Scope) {
+    let probe = tls.listen(net, \"127.0.0.1:0\", pem(fs, \"cert.pem\"), pem(fs, \"key.pem\")).unwrap();
+    let addr = probe.addr();
+    probe.close();
+    let serving = root.spawn(server(fs, net, addr));
+    defer serving.cancel(\"done\");
+    let r: Result<i64, string> = Err(\"boom\");
+    let n = r.unwrap();
+}
+",
+    ) else {
+        return;
+    };
+    let built = Command::new(env!("CARGO_BIN_EXE_lughac"))
+        .args(["build", "main.la", "-o", "main"])
+        .current_dir(&case.0)
+        .env("HOME", &case.0)
+        .output()
+        .expect("lughac runs");
+    assert!(
+        built.status.success(),
+        "{}",
+        String::from_utf8_lossy(&built.stderr)
+    );
+    // The crash came on most runs; several make one likely without the fix.
+    for _ in 0..8 {
+        let out = Command::new(case.0.join("main"))
+            .current_dir(&case.0)
+            .env("LUGHA_WORKERS", "4")
+            .output()
+            .expect("it runs");
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert_eq!(out.status.code(), Some(101), "{stderr}");
+        assert!(
+            stderr.contains("panic: unwrap on Err: \"boom\""),
+            "{stderr}"
+        );
+    }
 }

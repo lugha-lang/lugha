@@ -34,6 +34,10 @@ static void **rc_objects;
 static int64_t *rc_sizes;
 static int64_t rc_listed, rc_room;
 static bool rc_listing;
+
+/* Whether `LUGHA_RC_REPORT` asked for the count at exit: only then does
+ * the end of the entry let go of what the other threads hold. */
+static bool rc_reporting;
 static pthread_mutex_t rc_list_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static void rc_list(void *object, int64_t size) {
@@ -100,6 +104,7 @@ static void lugha_rc_start(void) {
         rc_listing = true;
     }
     if (report != NULL && (strcmp(report, "1") == 0 || strcmp(report, "2") == 0)) {
+        rc_reporting = true;
         atexit(rc_report);
     }
 }
