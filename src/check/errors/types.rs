@@ -134,10 +134,16 @@ pub(in crate::check) fn empty_array(span: Span) -> Diagnostic {
         .with_help("annotate it: `let xs: i64[] = [];`")
 }
 
-pub(in crate::check) fn not_iterable(ty: &Type, span: Span) -> Diagnostic {
-    Diagnostic::error("E0411", format!("cannot iterate over `{ty}`"), span).with_help(
-        "`for … of` walks arrays and anything with `fun next(mut self): Option<T>`; for a string's bytes, use `for i in 0..s.len` with `s[i]`",
-    )
+/// E0411: a loop over `ty`, which isn't an iterator; `own_next` when it
+/// has a method `next` but no `impl Iter`, which the help then names.
+pub(in crate::check) fn not_iterable(ty: &Type, own_next: bool, span: Span) -> Diagnostic {
+    let help = match own_next {
+        true => format!(
+            "`{ty}` has a method `next`, but a loop needs `impl Iter<T> for {ty} {{ fun next(mut self): Option<T> … }}`"
+        ),
+        false => "`for … of` walks arrays, strings, views, channels and any type with `impl Iter<T> for …`".to_string(),
+    };
+    Diagnostic::error("E0411", format!("cannot iterate over `{ty}`"), span).with_help(help)
 }
 
 pub(in crate::check) fn extern_array(span: Span) -> Diagnostic {

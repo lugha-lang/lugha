@@ -147,6 +147,7 @@ impl Checker {
                 super::derive::DISPLAY,
                 super::collections::FROM_ENTRIES,
                 super::collections::FROM_ITEMS,
+                super::iterators::ITER,
                 ERROR,
             ]
             .contains(&key)
@@ -164,6 +165,7 @@ impl Checker {
             super::derive::DISPLAY,
             super::collections::FROM_ENTRIES,
             super::collections::FROM_ITEMS,
+            super::iterators::ITER,
             ERROR,
         ];
         (module_of(key) != "$prelude"

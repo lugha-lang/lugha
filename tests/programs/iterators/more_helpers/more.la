@@ -5,7 +5,7 @@
 
 struct Naturals { n: i64 }
 
-impl Naturals {
+impl Iter<i64> for Naturals {
     fun next(mut self): Option<i64> {
         self.n += 1;
         Some(self.n)

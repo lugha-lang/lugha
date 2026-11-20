@@ -9,7 +9,7 @@
 // The elements of an array, in order: `xs.iter()`.
 struct ArrayIter<T> { xs: T[], at: i64 }
 
-impl<T> ArrayIter<T> {
+impl<T> Iter<T> for ArrayIter<T> {
     fun next(mut self): Option<T> {
         if self.at == self.xs.len {
             return None;
@@ -22,7 +22,7 @@ impl<T> ArrayIter<T> {
 // The bytes of a string: `s.bytes()`.
 struct Bytes { s: string, at: i64 }
 
-impl Bytes {
+impl Iter<u8> for Bytes {
     fun next(mut self): Option<u8> {
         if self.at == self.s.len {
             return None;
@@ -35,7 +35,7 @@ impl Bytes {
 // `from`, `from + 1`, … up to `to - 1`: `range(from, to)`.
 struct Range { at: i64, end: i64 }
 
-impl Range {
+impl Iter<i64> for Range {
     fun next(mut self): Option<i64> {
         if self.at >= self.end {
             return None;
@@ -51,7 +51,7 @@ fun range(from: i64, to: i64): Range = Range { at: from, end: to };
 // `f` of each value: `it.map(f)`.
 struct Mapped<T, U> { src: Iter<T>, f: fun(T): U }
 
-impl<T, U> Mapped<T, U> {
+impl<T, U> Iter<U> for Mapped<T, U> {
     fun next(mut self): Option<U> = match self.src.next() {
         .Some(x) => Some(self.f(x)),
         .None => None,
@@ -64,7 +64,7 @@ fun iter_map<T, U>(it: Iter<T>, f: fun(T): U): Mapped<T, U> = Mapped { src: it, 
 // The values `keep` is true for: `it.filter(keep)`.
 struct Filter<T> { src: Iter<T>, keep: fun(T): bool }
 
-impl<T> Filter<T> {
+impl<T> Iter<T> for Filter<T> {
     fun next(mut self): Option<T> {
         while let .Some(x) = self.src.next() {
             if self.keep(x) {
@@ -81,7 +81,7 @@ fun iter_filter<T>(it: Iter<T>, keep: fun(T): bool): Filter<T> = Filter { src: i
 // The first `n` values, then nothing more is pulled: `it.take(n)`.
 struct Take<T> { src: Iter<T>, left: i64 }
 
-impl<T> Take<T> {
+impl<T> Iter<T> for Take<T> {
     fun next(mut self): Option<T> {
         if self.left <= 0 {
             return None;
@@ -97,7 +97,7 @@ fun iter_take<T>(it: Iter<T>, n: i64): Take<T> = Take { src: it, left: n };
 // Every value after the first `n`: `it.skip(n)`.
 struct Skip<T> { src: Iter<T>, left: i64 }
 
-impl<T> Skip<T> {
+impl<T> Iter<T> for Skip<T> {
     fun next(mut self): Option<T> {
         while self.left > 0 {
             self.left -= 1;
@@ -118,7 +118,7 @@ struct Indexed<T> { public i: i64, public value: T }
 
 struct Enumerate<T> { src: Iter<T>, at: i64 }
 
-impl<T> Enumerate<T> {
+impl<T> Iter<Indexed<T>> for Enumerate<T> {
     fun next(mut self): Option<Indexed<T>> = match self.src.next() {
         .Some(x) => {
             self.at += 1;

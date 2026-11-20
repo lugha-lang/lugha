@@ -1,0 +1,9 @@
+error[E0411]: cannot iterate over `Ticks`
+  --> tests/programs/iterators/by_impl/e0411.la:8:15
+  |
+8 |     for t of (Ticks { n: 0 }) {
+  |               ^^^^^^^^^^^^^^
+  |
+  = help: `Ticks` has a method `next`, but a loop needs `impl Iter<T> for Ticks { fun next(mut self): Option<T> … }`
+
+For more about E0411, run `lughac explain E0411`.

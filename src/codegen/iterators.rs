@@ -15,7 +15,7 @@ use super::methods::key;
 use super::scope::Local;
 use super::value::llvm_type;
 use crate::ast::{Block, Expr, Ident};
-use crate::check::{Iteration, Type};
+use crate::check::{ITER, Iteration, Type};
 
 impl<'ctx> Lowerer<'ctx> {
     /// `for var of iter { body }` where `iter` isn't an array: `iter` is
@@ -171,12 +171,15 @@ impl<'ctx> Lowerer<'ctx> {
         }
     }
 
-    /// The `next` of concrete type `ty`: its own (an instance for a generic
-    /// type), else the default of the bound it came through.
+    /// The `next` of concrete type `ty`: its block's (an instance for a
+    /// generic type), else the default of the bound it came through.
     fn next_function(&self, ty: &Type, info: &Iteration) -> FunctionValue<'ctx> {
         let own = match ty {
             Type::Struct(owner, args) | Type::Enum(owner, args) => {
-                let k = key(owner, "next");
+                // The block `impl Iter<T> for …`'s `next`, never an own one.
+                let element = self.concrete(&info.element);
+                let method = self.block_method(ty, ITER, &[element], "next");
+                let k = key(owner, &method);
                 match args.is_empty() {
                     true => self.methods.get(&k).or_else(|| self.monos.get(&k)),
                     false => self.monos.get(&instance_name(&k, args)),
@@ -205,19 +208,19 @@ mod tests {
     use crate::codegen::test_util::ir;
 
     const COUNT: &str = "struct Count { n: i64 }\n\
-        impl Count { fun next(mut self): Option<i64> = None; }\n\
-        interface Source<T> { fun next(mut self): Option<T>; }\n\
-        impl Source<i64> for Count { fun next(mut self): Option<i64> = None; }\n";
+        impl Iter<i64> for Count { fun next(mut self): Option<i64> = None; }\n\
+        interface Source<T>: Iter<T> { }\n\
+        impl Source<i64> for Count { }\n";
 
     #[test]
-    fn a_loop_calls_next_on_its_own_copy() {
+    fn a_loop_calls_the_blocks_next_on_its_own_copy() {
         let ir = ir(&format!(
             "{COUNT}fun main(console: Console) {{ let c = Count {{ n: 1 }}; for n of c {{ console.println(n); }} }}"
         ));
         let main = body(&ir, "main");
         assert!(
             main.contains(
-                "call void @lugha_fn_Count.next(ptr sret(%\"Option<i64>\") %result, ptr %iter"
+                "@\"lugha_fn_Count.next@Iter<i64>\"(ptr sret(%\"Option<i64>\") %result, ptr %iter"
             ),
             "{main}"
         );

@@ -16,7 +16,7 @@ The draft must cite every `approved` line exactly once as a rule, and contain no
 
 - INT-01 approved — A type satisfies an interface only through `impl I for T { … }` (nominal). Inherent `impl T { … }` blocks remain for a type's own methods.
 - INT-02 approved — `impl I for T` may be written only in the module that declares `I` or the module that declares `T`.
-- INT-03 approved — Built-in behaviours are ordinary interfaces, found through implementations, never method names: printing (`Debug`, `Display`), `==` (`Eq`), map keys (`Key`), `<` and sorting (`Ord`), `for … of` (`Iter`), operators, JSON.
+- INT-03 approved — Built-in behaviours are ordinary interfaces, found through implementations, never method names: printing (`Debug`, `Display`), `==` (`Eq`), map keys (`Key`), `<` and sorting (`Ord`), `for … of` (`Iter`), operators, JSON. Complete with milestone 225 (`Iter`, PRP-257).
 - INT-04 approved — Operators are generic interfaces (`Add<R>`, `Sub<R>`, `Mul<R>`, `Div<R>`, `Rem<R>`, `Neg`); several right-hand types are several impls (`impl Mul<f64> for Vec2`), a number on the left is `impl Mul<Vec2> for f64`. Replaces milestones 158–159's rules.
 - INT-05 approved — A generic interface may be implemented once per type argument (`impl From<string> for Path` beside `impl From<Bytes> for Path`). Resolves TODO.md's `From<T>` item.
 - INT-06 approved — When two interfaces in scope supply a method of the same name, the call is qualified: `Shape.area(c)`.

@@ -171,7 +171,7 @@ mod tests {
     use crate::check::test_util::{errors, let_type, ok};
 
     const COUNT: &str = "struct Count { n: i64 }\n\
-        impl Count { fun next(mut self): Option<i64> { self.n += 1; Some(self.n) } }\n";
+        impl Iter<i64> for Count { fun next(mut self): Option<i64> { self.n += 1; Some(self.n) } }\n";
 
     fn ty(body: &str) -> String {
         let src = format!("{COUNT}fun main() {{ let xs = [3, 1]; {body} }}");
@@ -213,7 +213,8 @@ mod tests {
              fun main() {{ let r = two(Count {{ n: 0 }}); }}"
         ));
         let own = "struct Own { n: i64 }\n\
-            impl Own { fun next(mut self): Option<i64> = None; fun count(self): string = \"mine\"; }\n\
+            impl Iter<i64> for Own { fun next(mut self): Option<i64> = None; }\n\
+            impl Own { fun count(self): string = \"mine\"; }\n\
             fun main() { let r: string = Own { n: 1 }.count(); }";
         ok(own);
         assert_eq!(

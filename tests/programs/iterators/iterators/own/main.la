@@ -6,7 +6,7 @@ interface Sized {
 
 struct Count { n: i64, end: i64 }
 
-impl Count {
+impl Iter<i64> for Count {
     fun next(mut self): Option<i64> {
         if self.n == self.end {
             return None;

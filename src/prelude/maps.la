@@ -214,6 +214,11 @@ impl<K: Key, V> Map<K, V> {
         out
     }
 
+    /** An iterator of the entries as `(key, value)`, in order. */
+    fun iter(self): Map<K, V> = Map { $at: 0, ..self };
+}
+
+impl<K: Key, V> Iter<(K, V)> for Map<K, V> {
     /** The entries as `(key, value)`, in order: `for (k, v) of m`. */
     fun next(mut self): Option<(K, V)> {
         while self.$at < self.$keys.len {
@@ -225,9 +230,6 @@ impl<K: Key, V> Map<K, V> {
         }
         None
     }
-
-    /** An iterator of the entries as `(key, value)`, in order. */
-    fun iter(self): Map<K, V> = Map { $at: 0, ..self };
 }
 
 // `==` on maps needs equal values too.
@@ -275,12 +277,6 @@ impl<T: Key> Set<T> {
         self.len = 0;
     }
 
-    /** The values, in order: `for x of s`. */
-    fun next(mut self): Option<T> = match self.$map.next() {
-        .Some((x, _)) => Some(x),
-        .None => None,
-    };
-
     /** An iterator of the values, in order. */
     fun iter(self): Set<T> = Set { len: self.len, $map: self.$map.iter() };
 
@@ -327,6 +323,14 @@ impl<T: Key> Set<T> {
         }
         true
     }
+}
+
+impl<T: Key> Iter<T> for Set<T> {
+    /** The values, in order: `for x of s`. */
+    fun next(mut self): Option<T> = match self.$map.next() {
+        .Some((x, _)) => Some(x),
+        .None => None,
+    };
 }
 
 /** A map of an iterator's `(key, value)` pairs; a later key replaces an earlier one's value. */

@@ -2,7 +2,7 @@
 
 struct Count { n: i64, end: i64 }
 
-impl Count {
+impl Iter<i64> for Count {
     fun next(mut self): Option<i64> {
         if self.n == self.end {
             return None;
@@ -14,7 +14,7 @@ impl Count {
 
 struct Repeat<T> { x: T, left: i64 }
 
-impl<T> Repeat<T> {
+impl<T> Iter<T> for Repeat<T> {
     fun next(mut self): Option<T> {
         if self.left == 0 {
             return None;
@@ -24,13 +24,11 @@ impl<T> Repeat<T> {
     }
 }
 
-interface Source<T> {
-    fun next(mut self): Option<T>;
+// A program's own interface loops when it extends `Iter`.
+interface Source<T>: Iter<T> {
 }
 
-// Loops find `next` by name; a program's own interface needs an `impl`.
 impl Source<i64> for Count {
-    fun next(mut self): Option<i64> = self.next();
 }
 
 // A type parameter iterates through its bound.

@@ -160,8 +160,11 @@ impl<'ctx> Lowerer<'ctx> {
                 return m.signature.function;
             }
         }
-        // A nominal interface's item: the method of the type's block.
-        let method = &self.block_method(ty, key, args, name);
+        // A nominal interface's item: the method of the type's block, found
+        // at the interface's concrete arguments (a generic instance's
+        // conversion names them by its own parameters).
+        let concrete: Vec<Type> = args.iter().map(|a| self.concrete(a)).collect();
+        let method = &self.block_method(ty, key, &concrete, name);
         let own = match ty {
             Type::Handle(owner) => self.methods.get(&method_key(owner, method)),
             Type::Struct(owner, targs) | Type::Enum(owner, targs) => {

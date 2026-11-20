@@ -1,0 +1,44 @@
+// A type loops, takes the helpers and becomes an `Iter<T>` value through
+// its block `impl Iter<T> for …`; a type's own `next` beside it is what
+// `x.next()` calls, while the loop calls the block's.
+struct Count { n: i64 }
+
+impl Iter<i64> for Count {
+    fun next(mut self): Option<i64> {
+        self.n += 1;
+        if self.n <= 3 { Some(self.n) } else { None }
+    }
+}
+
+struct Both { n: i64 }
+
+impl Both {
+    fun next(mut self): Option<i64> = Some(-1);
+}
+
+impl Iter<i64> for Both {
+    fun next(mut self): Option<i64> {
+        self.n += 1;
+        if self.n <= 2 { Some(self.n * 10) } else { None }
+    }
+}
+
+fun total<I: Iter<i64>>(it: I): i64 = it.sum();
+
+fun main(console: Console) {
+    for x of (Count { n: 0 }) {
+        console.print("{x} ");
+    }
+    console.println("");
+    let evens = Count { n: 0 }.filter(fun(x: i64): bool = x % 2 == 0).collect();
+    console.println(evens.debug());
+    let it: Iter<i64> = Count { n: 0 };
+    console.println(it.count());
+    console.println(total(Count { n: 0 }));
+    let mut b = Both { n: 0 };
+    console.println(b.next().debug());
+    for x of (Both { n: 0 }) {
+        console.print("{x} ");
+    }
+    console.println("");
+}

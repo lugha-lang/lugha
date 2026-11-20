@@ -4,7 +4,7 @@ struct Holder { xs: i64[] }
 
 struct Count { n: i64, seen: i64[] }
 
-impl Count {
+impl Iter<i64> for Count {
     fun next(mut self): Option<i64> {
         self.n += 1;
         self.seen.push(self.n);

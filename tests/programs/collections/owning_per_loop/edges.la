@@ -3,7 +3,7 @@
 struct H { items: i64[] }
 struct Two { a: i64[], b: i64[] }
 struct It { n: i64, log: i64[] }
-impl It {
+impl Iter<i64> for It {
     fun next(mut self): Option<i64> {
         self.n += 1;
         self.log.push(self.n);

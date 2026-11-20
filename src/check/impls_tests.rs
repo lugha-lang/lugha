@@ -50,10 +50,10 @@ fn a_misplaced_block_is_e0459() {
         codes("impl Shape for fun(): i64 { fun area(self): f64 = 1.0; }"),
         ["E0459"]
     );
-    assert_eq!(
-        codes("impl Iter<i64> for C { fun next(mut self): Option<i64> = None; }"),
-        ["E0459"]
-    );
+    // `Iter` is met through a block, like any interface.
+    ok(&format!(
+        "{SHAPE}impl Iter<i64> for C {{ fun next(mut self): Option<i64> = None; }}\nfun main() {{}}"
+    ));
     use crate::check::modules::test_util::errors;
     let found = errors(&[
         (

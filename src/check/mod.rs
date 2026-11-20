@@ -160,7 +160,7 @@ pub use includes::{Included, MAX_INCLUDE};
 pub use input::RESOURCE;
 pub use input::prelude_helper;
 pub use instances::{Instance, lazy_key};
-pub use iterators::Iteration;
+pub use iterators::{ITER, Iteration};
 pub use layouts::UNION_MARK;
 pub use members::{Detail, Member, MemberKind, TypeMembers, type_members, value_members};
 pub use modules::{Origin, Unit, check_modules, check_test_roots, check_tests, qualify, symbol};

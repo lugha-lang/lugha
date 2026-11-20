@@ -126,7 +126,7 @@ mod tests {
 
     const LIB: &str = "struct P { n: i64 }\nimpl P { fun bump(mut self) { self.n += 1; } }\n\
         struct Count { n: i64 }\n\
-        impl Count { fun next(mut self): Option<i64> { self.n += 1; Some(self.n) } }\n";
+        impl Iter<i64> for Count { fun next(mut self): Option<i64> { self.n += 1; Some(self.n) } }\n";
 
     fn e(body: &str) -> Vec<(&'static str, String)> {
         errors(&format!("{LIB}fun main() {{ {body} }}"))

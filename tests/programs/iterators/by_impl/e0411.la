@@ -1,0 +1,10 @@
+struct Ticks { n: i64 }
+
+impl Ticks {
+    fun next(mut self): Option<i64> = None;
+}
+
+fun main() {
+    for t of (Ticks { n: 0 }) {
+    }
+}

@@ -1,10 +1,6 @@
-// A block for a function type, or for an interface met by method names.
+// A block for a function type.
 interface Shape { fun area(self): f64; }
 
-struct P { x: i64 }
-
 impl Shape for fun(): f64 { fun area(self): f64 = 1.0; }
-
-impl Iter<i64> for P { fun next(mut self): Option<i64> = None; }
 
 fun main() {}

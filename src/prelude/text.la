@@ -7,7 +7,7 @@
 // sequence gives U+FFFD and moves one byte on.
 struct Chars { s: string, at: i64 }
 
-impl Chars {
+impl Iter<char> for Chars {
     fun next(mut self): Option<char> {
         let avail = self.s.len - self.at;
         if avail <= 0 {

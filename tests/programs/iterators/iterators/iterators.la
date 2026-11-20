@@ -2,7 +2,7 @@
 
 struct Count { n: i64, end: i64 }
 
-impl Count {
+impl Iter<i64> for Count {
     fun next(mut self): Option<i64> {
         if self.n == self.end {
             return None;
@@ -14,7 +14,7 @@ impl Count {
 
 struct Fib { a: i64, b: i64, left: i64 }
 
-impl Fib {
+impl Iter<i64> for Fib {
     fun next(mut self): Option<i64> {
         if self.left == 0 {
             return None;

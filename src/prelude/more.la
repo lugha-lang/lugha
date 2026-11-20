@@ -7,7 +7,7 @@
 // `a.zip(b)`.
 struct Zip<A, B> { a: Iter<A>, b: Iter<B> }
 
-impl<A, B> Zip<A, B> {
+impl<A, B> Iter<(A, B)> for Zip<A, B> {
     fun next(mut self): Option<(A, B)> {
         let .Some(x) = self.a.next() else {
             return None;
@@ -25,7 +25,7 @@ fun iter_zip<A, B>(it: Iter<A>, other: Iter<B>): Zip<A, B> = Zip { a: it, b: oth
 // `a`'s values, then `b`'s: `a.chain(b)`.
 struct Chain<T> { a: Iter<T>, b: Iter<T>, second: bool }
 
-impl<T> Chain<T> {
+impl<T> Iter<T> for Chain<T> {
     fun next(mut self): Option<T> {
         if !self.second {
             if let .Some(x) = self.a.next() {
@@ -43,7 +43,7 @@ fun iter_chain<T>(it: Iter<T>, other: Iter<T>): Chain<T> = Chain { a: it, b: oth
 // Values while `keep` holds, then nothing more: `it.take_while(keep)`.
 struct TakeWhile<T> { src: Iter<T>, keep: fun(T): bool, done: bool }
 
-impl<T> TakeWhile<T> {
+impl<T> Iter<T> for TakeWhile<T> {
     fun next(mut self): Option<T> {
         if self.done {
             return None;
@@ -64,7 +64,7 @@ fun iter_take_while<T>(it: Iter<T>, keep: fun(T): bool): TakeWhile<T> = TakeWhil
 // Values from the first one `skip` fails for: `it.skip_while(skip)`.
 struct SkipWhile<T> { src: Iter<T>, skip: fun(T): bool, started: bool }
 
-impl<T> SkipWhile<T> {
+impl<T> Iter<T> for SkipWhile<T> {
     fun next(mut self): Option<T> {
         if self.started {
             return self.src.next();
@@ -86,7 +86,7 @@ fun iter_skip_while<T>(it: Iter<T>, skip: fun(T): bool): SkipWhile<T> = SkipWhil
 // one sits in a 0- or 1-element array, so `next` steps it in place.
 struct FlatMap<T, U, I: Iter<U>> { src: Iter<T>, f: fun(T): I, cur: I[] }
 
-impl<T, U, I> FlatMap<T, U, I> {
+impl<T, U, I> Iter<U> for FlatMap<T, U, I> {
     fun next(mut self): Option<U> {
         while true {
             if self.cur.len == 1 {

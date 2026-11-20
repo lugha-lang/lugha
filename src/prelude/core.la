@@ -51,8 +51,9 @@ fun str_at(s: string, at: i64, p: string): bool {
 /** Used by `trim`: whether `b` is a space, tab, `\n` or `\r`. */
 fun str_is_space(b: u8): bool = b == 32 || b == 9 || b == 10 || b == 13;
 
-// Anything that can be stepped through: `for x of e` loops
-// over any `e` with this `next`, whether or not it names `Iter`.
+// Anything that can be stepped through: `for x of e` loops over an `e`
+// whose type implements it, `impl Iter<T> for X { fun next(mut self) … }`;
+// a method merely named `next` doesn't count.
 interface Iter<T> { fun next(mut self): Option<T>; }
 
 impl<T> T[] {
