@@ -189,7 +189,12 @@ fn every_section_10_program_runs_as_stated() {
             std::fs::create_dir_all(parent).expect("temp dir is writable");
             std::fs::write(path, src).expect("temp dir is writable");
         }
-        for opt in ["-O0", "-O2"] {
+        let opts: &[&str] = if program.dev_only {
+            &["-O0"]
+        } else {
+            &["-O0", "-O2"]
+        };
+        for opt in opts {
             let mut command = vec!["run", opt, main];
             if !program.args.is_empty() {
                 command.push("--");

@@ -24,6 +24,9 @@ pub struct SpecProgram {
     /// Standard input, from "Run with `a` and `b` on … stdin.":
     /// each backticked item is one line.
     pub stdin: String,
+    /// Run at `-O0` only: the sentence says "in a development build"
+    /// (`debug(x)` is refused in an optimized one).
+    pub dev_only: bool,
 }
 
 /// The language specification the compiler implements.
@@ -135,6 +138,7 @@ pub fn section_10() -> Vec<SpecProgram> {
             stderr,
             args: run_args(sentence),
             stdin: run_stdin(sentence),
+            dev_only: sentence.contains("in a development build"),
         });
     }
     programs
@@ -184,6 +188,7 @@ pub fn milestone_2() -> SpecProgram {
         stderr: None,
         args: Vec::new(),
         stdin: String::new(),
+        dev_only: false,
     }
 }
 
