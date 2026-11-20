@@ -89,6 +89,17 @@ this order, so a course can follow it.
 | [Modules and packages](concepts/13-modules-and-packages.md) | you split code into files, set visibility, write `lugha.toml`, use `std` or git packages, or write `@test`s |
 | [C interop](concepts/14-c-interop.md) | you call C, link a C library, pass callbacks or C buffers, or grant a package `ffi` |
 
+## Library
+
+Look up exact methods here.
+
+| Page | Read it when |
+| --- | --- |
+| [Text](library/text.md) | you need a `string` or `char` method, a format specifier, parsing, or UTF-8 |
+| [Collections](library/collections.md) | you need an array, `Map`, `Set`, iterator, tuple, `Option` or `Result` method |
+| [Console and files](library/console-and-files.md) | you need a `Console`, `Fs`, `Dir` or `File` method and its errors |
+| [Numbers, time and randomness](library/numbers-time-random.md) | you convert numbers, use `std.math`, dates and times, random numbers or `std.task` |
+
 Other commands: `lughac skill --list` lists every page with a one-line
 summary, `lughac skill --search <text>` finds lines across them, and
 `lughac skill <page>` prints one.

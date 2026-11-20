@@ -6,8 +6,8 @@
 pub const NAME: &str = "lugha";
 
 /// Every page, by its path inside the skill, in teaching order: the
-/// overview, then the concepts.
-pub const PAGES: [(&str, &str); 15] = [
+/// overview, the concepts, then the library reference.
+pub const PAGES: [(&str, &str); 19] = [
     ("SKILL.md", include_str!("../skill/SKILL.md")),
     (
         "concepts/01-values-and-types.md",
@@ -65,6 +65,19 @@ pub const PAGES: [(&str, &str); 15] = [
         "concepts/14-c-interop.md",
         include_str!("../skill/concepts/14-c-interop.md"),
     ),
+    ("library/text.md", include_str!("../skill/library/text.md")),
+    (
+        "library/collections.md",
+        include_str!("../skill/library/collections.md"),
+    ),
+    (
+        "library/console-and-files.md",
+        include_str!("../skill/library/console-and-files.md"),
+    ),
+    (
+        "library/numbers-time-random.md",
+        include_str!("../skill/library/numbers-time-random.md"),
+    ),
 ];
 
 /// A page's name as `lughac skill` shows it: its path without `.md`.
@@ -81,14 +94,24 @@ pub fn short_name(path: &str) -> &str {
     }
 }
 
-/// The page called `name`: by its full name (`concepts/02-functions`) or its
-/// short one (`functions`), in any case.
-pub fn find(name: &str) -> Option<(&'static str, &'static str)> {
+/// The pages called `name`: the one with that full name
+/// (`concepts/02-functions`), else every page with that short one
+/// (`functions`), in any case. More than one means `name` is ambiguous.
+pub fn find(name: &str) -> Vec<(&'static str, &'static str)> {
     let name = name.trim_end_matches(".md").to_ascii_lowercase();
+    let full: Vec<_> = PAGES
+        .iter()
+        .filter(|(path, _)| page_name(path).eq_ignore_ascii_case(&name))
+        .copied()
+        .collect();
+    if !full.is_empty() {
+        return full;
+    }
     PAGES
         .iter()
-        .find(|(path, _)| page_name(path).eq_ignore_ascii_case(&name) || short_name(path) == name)
+        .filter(|(path, _)| short_name(path) == name)
         .copied()
+        .collect()
 }
 
 /// The value of `key` in a page's frontmatter (the lines between the
@@ -146,20 +169,18 @@ mod tests {
 
     #[test]
     fn pages_are_found_by_full_or_short_name() {
+        let paths = |name: &str| find(name).iter().map(|(p, _)| *p).collect::<Vec<_>>();
+        assert_eq!(paths("functions"), ["concepts/02-functions.md"]);
+        assert_eq!(paths("concepts/02-functions"), ["concepts/02-functions.md"]);
+        assert_eq!(paths("Functions.md"), ["concepts/02-functions.md"]);
+        assert_eq!(paths("SKILL"), ["SKILL.md"]);
+        assert!(paths("nothing").is_empty());
+        // A short name two pages share finds both; a full name finds one.
         assert_eq!(
-            find("functions").map(|(p, _)| p),
-            Some("concepts/02-functions.md")
+            paths("collections"),
+            ["concepts/06-collections.md", "library/collections.md"]
         );
-        assert_eq!(
-            find("concepts/02-functions").map(|(p, _)| p),
-            Some("concepts/02-functions.md")
-        );
-        assert_eq!(
-            find("Functions.md").map(|(p, _)| p),
-            Some("concepts/02-functions.md")
-        );
-        assert_eq!(find("SKILL").map(|(p, _)| p), Some("SKILL.md"));
-        assert_eq!(find("nothing"), None);
+        assert_eq!(paths("library/collections"), ["library/collections.md"]);
     }
 
     #[test]

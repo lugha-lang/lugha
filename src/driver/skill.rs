@@ -44,16 +44,25 @@ pub(super) fn run(request: &SkillRequest, stdout: &mut dyn Write, stderr: &mut d
         };
     }
     let name = request.page.as_deref().unwrap_or("SKILL");
-    match find(name) {
-        Some((_, page)) => {
+    match find(name).as_slice() {
+        [(_, page)] => {
             let _ = stdout.write_all(page.as_bytes());
             0
         }
-        None => {
+        [] => {
             let _ = writeln!(
                 stderr,
                 "error: no page `{name}`; did you mean: {}? (`lughac skill --list` lists them)",
                 suggestions(name).join(", ")
+            );
+            2
+        }
+        several => {
+            let full: Vec<&str> = several.iter().map(|(path, _)| page_name(path)).collect();
+            let _ = writeln!(
+                stderr,
+                "error: `{name}` names several pages: {}; give the full name",
+                full.join(", ")
             );
             2
         }
