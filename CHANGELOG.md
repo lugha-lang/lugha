@@ -491,3 +491,237 @@ Never deleted. Older entries are never modified.
 - Parser for the full Lugha v0 grammar, reporting several syntax errors per run with codes E0201–E0206
 - Lexer for the full Lugha v0 token set, reporting every lexical error with codes E0101–E0109
 - Acceptance-test runner: drop a `.la` program and its expected output into `tests/programs/` and `cargo test -- --ignored` checks it
+
+---
+
+## Language history (v1–v17)
+
+What each version of the language added, and which programs stopped being valid, as the specification recorded it before v18. Moved here from the head of `Language v18 Specification.md`, unchanged; v18's own changes stay in the specification while v18 is in progress.
+
+**v15.** This is v14 plus package layout, operator overloading, the standard library (`std.math`, `std.random`, `std.env`, `std.fs`, `std.process`), copy-on-write arrays, loop ownership, nested `mut self` calls, numbers as `T`, user-defined `Ord`, and format widths in characters (milestones 51–66).
+
+**v16.** This is v15 plus shared boxes (`Ref<T>`), block and doc comments, the editor tooling (`lughac lsp`, `fmt`, `test`, `explain`, `init`) and C interop (linking C libraries, callbacks and handles, strings from C, C structs by value) (milestones 67–90).
+
+**v17.** This is v16 plus green threads, channels and `select`, actors, constants, struct update syntax, variants as functions, derivable interfaces, the standard library's networking, TLS, cryptography, HTTP and JSON, and ARM64 Linux (milestones 91–163).
+
+**Changes in v17 since v16** (milestones 91–163):
+- Green threads: `spawn f(x)` runs a call concurrently and gives a `Task<T>` (a plain `Task` for a call that returns nothing) whose `join()` waits for the result. `Chan<T>` carries values between green threads: `Chan.new()` (unbuffered) or `Chan.buffered(n)`, `send`, `recv` (an `Option`, `None` once closed), `try_recv`, `close`, `is`. `select` waits on several channels at once, with an `after(ms)` timeout or a `default` that never waits. `std.task` has `sleep(ms)` and `yield_now()`. Every function stays an ordinary function: there is no `async` and no `await`, so nothing is coloured. All green threads share the program's one OS thread; a panic in any of them ends the program, as does `main` returning, and a deadlock is a panic (sections 2–9).
+- Actors: `actor Counter { count: i64, fun add(mut self, n: i64) { … } fun get(self): i64 = … }` declares state and methods together; `spawn Counter { count: 0 }` starts one and gives a handle of type `Counter`. A method call on the handle is a message, handled one at a time: one with a result waits for it, one without is queued. `stop()`, `join(): Option<string>` and `is` are every handle's; a panic ends only its actor (`join` gives the message, callers waiting panic in turn); fields are private, and nothing that may hold a `Ref` crosses an actor's boundary (E0439) (milestone 92; sections 2–9).
+- Struct update syntax: `Model { count: m.count + 1, ..m }` takes every field not written from `m` (milestone 93; sections 3, 4, 5).
+- Variants as functions: `Msg.Named` is a `fun(string): Msg` when not called, and so are `Some`, `Ok` and `Err` — `input(name, Msg.Named)`, `xs.map(Some)` (milestone 94; sections 4, 9).
+- Faster `lughac test`: a package folder's test files are built into one executable instead of one each (milestone 124; section 9).
+- Shared names: a method may be named like a field (`p.name` vs `p.name()`) or, with `self`, like a variant, where uses tell them apart; E0310 remains for a function-holding field, an associated function named like a variant, and two methods (milestone 123; section 4).
+- Files built into the program (milestone 128; sections 5, 6, 7, 9): `include_bytes("data/logo.png")` is a `u8[]` and `include_str("notes.txt")` a `string` holding the file's contents, read when the program is compiled; constant expressions, so `const LOGO: u8[] = include_bytes("logo.png");` works. The file must be inside the package's folder (E0447, 16 MiB at most); `include_str` needs UTF-8 (E0448).
+- Joining arrays: `xs + ys` is a new array of `xs`'s elements then `ys`'s, `xs += ys` and `s += t` join in place of `a = a + b`, and arrays satisfy `Add` (milestone 122; section 4).
+- `==` through `Eq` (milestone 144; sections 4, 5, 9): `Eq` is the prelude's derivable interface with `eq` and `hash`; a struct or enum writing both decides its own equality (E0454 for one alone); a type that isn't `Eq` is E0451 with a path at `==` and at `T: Eq`; derive blocks gain `derive.all(a, b, f)`. **Breaking:** a type's existing `eq`/`hash` methods now take part in `==`.
+- Hashing is written in Lugha (milestone 143; sections 4, 5): the prelude's derivable `$Hash`, which `Eq` brings with it; derive blocks gain `derive.fold`, `derive.index` and `derive … for handle` with `derive.address`. Fixed: equal sets or maps built in different orders now hash equal, so a `Set<Set<T>>` holds them once.
+- Derive blocks (milestone 142; sections 2–6, 9): `derive Show for struct { … }` says, once, how every struct (or enum, tuple, or one type such as `i64` or `T[]`) meets an interface declared in the same module; `derive.fields(…)` and its siblings reach the fields. A type's own method replaces a block's item, so `impl Date { fun to_json(self): json.Value … }` customises its JSON. **Breaking:** a struct or enum with its own `to_json`/`from_json` now has it used by `json.encode`/`decode`, and one of another shape is E0422 where it is encoded. E0451–E0453.
+- `json.encode` and `json.decode` are written in Lugha, in derive blocks of `std.$json_value` (milestone 141; section 9): nothing a program can see changes.
+- `json.decode(v)` (milestone 140; standard library, section 5): a `json.Value` back into any data type, `DecodeError` naming the path to the first mismatch; `let p: Person = json.decode(v)?;` — `?` now passes the type it is expected to give to its operand, so a generic call's type comes from it.
+- `json.encode(x)` (milestone 139; standard library, sections 8, 9): any data type to a `json.Value` with no annotation, the built-in `json.Json` bound, E0450 for what isn't data.
+- JSON in `std.http` (milestone 138): `req.json()`, `res.json()`, `post_json(url, v)`, and `http.json(status, v)` taking a `json.Value` instead of text.
+- `std.json` (milestone 137; standard library): strict RFC 8259 JSON parsing and writing in Lugha — exact `i64` integers, keys in order, duplicate keys refused, limits for hostile input.
+- `net.resolve` and `tls.Options.address` (milestone 121): every address a name resolves to, and a connection to a chosen IP address that still verifies the name (in `std.tls` and `std.http`), against DNS rebinding.
+- UDP in `std.net` (milestone 163): `udp_bind`, `udp_bind_shared`, `send_to`, `recv_from`, multicast groups and options, and `interfaces()`.
+- HPKE in `std.crypto` (milestone 162): `hpke_seal(public, info, plaintext, aad)` and `hpke_open(secret, info, sealed, aad)`, sealing to an X25519 public key (RFC 9180, base mode, one suite).
+- TLS by key (milestone 161; standard library, E0332): `tls.listen_keys`, `tls.connect_keys`, `Conn.peer_key()` and `Listener.set_accept` — mutual TLS 1.3 where each side proves an Ed25519 key from the other's list (raw public keys, RFC 7250), with no certificates. Programs loading `std.tls`, `std.http` or `std.crypto` need OpenSSL 3.2 or newer.
+- Sealing and key exchange in `std.crypto` (milestone 160): ChaCha20-Poly1305 (RFC 8439) and X25519 (RFC 7748); `CryptoError` gains `NotAuthentic` and `BadKey`.
+- `crypto.hkdf_sha256`: HKDF-SHA256 key derivation, RFC 5869 (milestone 120).
+- `http.request_tls_with`: `Limits` and `tls.Options` in one request (milestone 119).
+- `and_then` on `Option` and `Result` (milestone 118); a closure whose expected result is only partly known (`Option<U>`) takes its result from its body.
+- Octal literals (milestone 117; section 2): `0o600`; a leading zero (`0600`) stays decimal and warns W0107.
+- `fs.sync` (milestone 116): `fsync` on a file or folder, so a saved file and its rename survive a power cut.
+- Calendar dates and the local offset in `std.time` (milestone 145): `time.civil(ms, offset_s)`, `time.from_civil(c, offset_s)` and `time.local_offset(ms)`, with `Civil` and `TimeError` (standard library).
+- File streams in `std.fs` (milestone 146): `fs.open`, `fs.create` and `fs.append` give a `File` to read by line or in chunks and write piece by piece (standard library).
+- Constants computed by pure code (milestone 147; sections 6, 8): a `const`'s value may be any expression, calls, `if`, `match`, blocks, closures and interpolation included, as long as nothing it reaches prints, touches files, the operating system or C, or starts tasks, channels or actors (E0445, with the path); constants read inside the functions it calls are computed first (E0446 for a cycle through them). Still computed once before `main`, never while compiling.
+- `defer` (milestone 151; sections 2, 3, 5, 6, 9): `defer f.close();`, `defer n += 1;` or `defer { … }` runs when its block is left — its end, `return`, `?`, `break`, `continue` — last first, after a tail or `return` value is computed, reading values as they are then; a panic didn't run it until milestone 194, which unwinds. Leaving a deferred statement is E0455; one with a value is E0456. **Breaking:** `defer` is a keyword.
+- `loop` and labels (milestone 152; sections 2, 3, 5, 6, 9): `loop { … }` repeats until a `break`, and is an expression: `let x = loop { … break v; };`. A `loop` no `break` leaves has type `never`, so a function whose only exit is a `return` inside it needs no `panic("unreachable")`. `name:` labels a `loop`, `while` or `for` for `break name;` and `continue name;`. E0512 (unknown label), E0513 (a label reused inside its loop), E0514 (`break` with a value out of `while` or `for`). **Breaking:** `loop` is a keyword.
+- `fs.size` (milestone 153; standard library): a regular file's size in bytes from `stat(2)`, links followed, without opening it, so a program can refuse a file too big to read whole.
+- Semantic tokens (milestone 154; section 9): `lughac lsp` classifies every token of a file — keywords, strings, numbers, comments, operators, and names by what the check resolved them to — so editors without Lugha's TextMate grammar (Neovim, Helix, Zed) colour it, and VS Code colours names by meaning.
+- Indexing your own types (milestone 155; sections 3, 4, 8): `a[i]` on a struct, enum, interface value or bounded `T` calls `fun index(self, i: I): T`, and `a[i] = v` calls `fun set_index(mut self, i: I, v: T)`; `a[x, y]` is `a[(x, y)]` for every type, so maps with tuple keys take `m[x, y]` too.
+- Arithmetic between different types (milestones 158–159; sections 4, 8): a type may have one `add`, `sub`, `mul`, `div` and `rem` per right-hand type, chosen by the operand's exact type (`v * w` and `v * 2.0`), and `impl f64 { fun mul(self, v: V): V }` beside `V` makes `2.0 * v`; E0457, E0458.
+- `for x of mut g[i]`, `swap(g[i], b)` and `out g[i]` through a type's `index` (milestone 157; sections 4, 8): each works on a copy of the element, handed back to `set_index`; the loop hands it back on every way out but a panic.
+- Read-modify-write through `[ ]` (milestone 156; sections 4, 5, 8): a map's entry is a place, changed where it is (`m[k] += 1`, `m[k].x = v`, `m[k].push(x)`, `swap(m[a], m[b])`, `for x of mut m[k]`), and a missing key panics as a read does; `g[i] += v`, `g[i].x = v`, `g[i][j] = v` and `g[i].push(x)` on a type read the element with `index`, change the copy and hand it back with `set_index`.
+- An iterator chain's expected type reaches `map`'s closure through `collect` and the helpers between (milestone 150; section 5): `let n: Option<i64>[] = xs.iter().map(fun(x) = None).collect();`.
+- Handing over arguments (milestone 149; sections 4, 9): `x = f(x)`, where `f` keeps its parameter, no longer copies `x`'s arrays on every call; a function that stores a parameter on its last use takes it without a copy from a caller that is done with it (quadratic loops become linear). Programs print the same.
+- A generic call only its result can type takes its type through a method whose result mentions the receiver's type parameters (milestone 148; sections 4, 5): `let p: Person = json.decode(v).unwrap();`, `.expect(…)`, and a program's own methods (`let n: u8 = zeros().first();`).
+- Keeping data on disk (milestone 115): `fs.rename` (atomic within a file system), `fs.set_mode` (`chmod`), the `flush()` built-in, and `std.time` (`now_ms`, `monotonic_ms`).
+- `std.toml` (milestone 114; standard library): a read-only TOML 1.0 parser in Lugha with limits for hostile input; the prelude's `xs.join(sep)` is linear (it was quadratic).
+- `std.crypto` (milestone 113; standard library): SHA-256 (one-shot and streamed), Ed25519 keys, signing and verifying, secure random bytes and constant-time comparison, over the system's OpenSSL 3.
+- TLS (milestone 112; standard library, E0332): `std.tls` over the system's OpenSSL 3 with always-on verification, and `https://` in `std.http` (`serve_tls`, `request_tls`).
+- `std.http` (milestone 111; standard library): an HTTP/1.1 server with strict limits and a client, in Lugha over `std.net`; a literal `if` branch takes a typed sibling's type (`if c { b - 1 } else { 255 }` with `b: u8`).
+- `std.net` (milestone 110; sections 7, standard library): TCP listeners and connections whose waits pause only their green thread, through `epoll`; timeouts; UDP since milestone 163.
+- Global constants (milestone 109; sections 2, 3, 6, 8): `[private | public] const NAME: T = value;` — constant expressions only (E0445; any pure expression since milestone 147), in any order without cycles (E0446), evaluated once before `main`; no mutable statics. `const` is a keyword.
+- A float's raw bits (milestone 108; section 4): `x.to_bits()` (`f64` → `u64`, `f32` → `u32`) and `f64.from_bits(b)` / `f32.from_bits(b)`, exactly the IEEE 754 bits.
+- The unit type `()` replaces `void` (milestone 107; sections 3, 4, 6): a type and its one value, held anywhere a value is (`Result<(), E>`, `Chan<()>`); E0407 is retired; W0106 warns on `let x = log();`.
+- Extern structs hold `Option` of a handle (C's nullable pointer); unions hold plain data only, so no pointer is made up from a number (milestone 106; section 8).
+- The C boundary takes pointers (milestones 103–105; section 8): `ptr` and `mut` parameters; arrays as `xs: T[]` and `mut xs: T[]`; `extern union`; `CPtr` with `c_read`/`c_write`; callbacks taking `T[]` and `Ref<T[]>`.
+- `out` parameters on externs: `extern fun get_fuel(c: Context, out fuel: u64): bool;` and `get_fuel(ctx, out fuel)` — C writes through the pointer and the place gets the value after the call (milestone 102; sections 3, 8).
+- Maps and sets: `Map<K, V>` and `Set<T>`, built in, with `#{"ann": 31}` and `#{1, 2}` literals (`Map { … }` and `Set { … }` since v18); values like arrays, keys any `Eq` type without floats, insertion order, `m[k]`, `for (k, v) of m`, `==` regardless of order. The iterator type `it.map(f)` returns is renamed `Mapped` (milestone 101; sections 2–5, 9, 10).
+- Glob re-exports: `public import raw { * };` makes every `public` item of `raw` an item of this module, so a package's entry can flatten a sub-module (milestone 100; sections 3, 6).
+- Package entry modules: `import kivuli;` imports the package's `lib.la` (in its `source` folder) as the module `kivuli`; `lughac init --lib` writes one (milestone 99; sections 6, 9).
+- Module doc comments: a `/** … */` at the top of a file, followed by a blank line or an `import`, documents its module; hovering the module's name shows it, and the std modules are documented (milestone 98; sections 2, 9).
+- `pkg-config --cflags` may give `-mfpmath=sse`, `-msse` and `-msse2`, so a package can list C files alongside GTK (section 8).
+- `lughac fmt` hugs a call's trailing array or struct literal (`column([` … `])`) and keeps a function's header whole while its body breaks (milestone 95; section 9).
+- A generic call only its result can type takes its type from its siblings: `assert_eq(text("hi"), expected)`, `text("hi") == expected` (milestone 96; section 4).
+- Packages and tests: `lughac test` and `lughac check` on a file in a package's `source` folder build it as that package's module (`glow.diff`), so modules importing each other can be tested, and its tests are named `glow.diff.name`; programs in a package's `test/`, `tests/` and `examples/` see its package-level items; `lughac check` takes a file without `main` as a library; `lugha.lock` sits beside the governing `lugha.toml`; and `skip(reason)` reports a test skipped (milestone 97; sections 6, 9).
+- `lughac init` writes a `test/` folder with one passing test, and a program's greeting in its own module, `src/greeting.la` (milestone 129; section 9).
+- Executables run on any x86-64 CPU: lughac builds for the baseline `x86-64` level, and `--cpu=x86-64-v2|x86-64-v3|x86-64-v4|native` on `build`, `run` and `test` chooses a newer level or this machine's own CPU (milestone 130; section 9).
+- The collector is built into lughac: bdwgc 8.2.12 is compiled once from embedded source and linked into every program statically, so neither lughac nor its programs need the system's `libgc` (milestone 131; sections 7, 9). Removed in milestone 193.
+- `$LUGHA_CC` chooses the C compiler: `LUGHA_CC=clang` or `LUGHA_CC="zig cc"` (a program and its first arguments, split on spaces, never run by a shell) compiles the runtime and `[link]` C files and links; unset or blank is `cc` (milestone 132; section 9).
+- Linux on ARM64: `lughac build --target aarch64-unknown-linux-gnu` writes an ARM64 executable (green threads and actors included), compiled and linked with `aarch64-linux-gnu-gcc` unless `$LUGHA_CC` names another; extern structs cross to C by value there as AAPCS64 passes them (milestones 133–134; sections 8, 9).
+- Output lughac couldn't write is exit 2 (section 9): `lughac build --emit=ir > out.ll` on a full disk no longer exits 0. A reader that stops early is not a failure.
+
+Every valid v16 program is a valid v17 one, unless it uses `spawn`, `select`, `actor` or `const` as a name (keywords now), or declares a function named `skip` (an intrinsic since milestone 97, E0302), `flush` (one since milestone 115) or `include_bytes`/`include_str` (since milestone 128), or names the iterator type `Map` (now `Mapped`, milestone 101; a program's own `Map` is fine). A module's own `Task` or `Chan` still means its own, as for `Ref`. Within v17, a `tls.Options { … }` literal naming every field without `..base` needs `address` since milestone 121 (`..tls.options()` keeps it short).
+
+**Changes in v16 since v15** (milestones 67–90):
+- Shared boxes: `Ref<T>` is the one value that copies share. `Ref.new(v)`, `r.get()` (a copy), `r.set(v)`, `r.update(f)` and `r.is(s)` are its whole API. A closure may update a box it captured, and linked data can point at itself. Boxes aren't `Eq`, and print as `Ref(…)` when they cycle (sections 4, 7, 9).
+- `env.set_current_dir(path)` changes the program's working directory; relative paths and programs started afterwards follow it (milestone 68; "The standard library").
+- `lughac init [folder] [--lib] [--name N]` starts a program, or a library with an example, in a folder; it never overwrites a file (milestone 69; section 9).
+- `lughac lsp` is a language server: editors get `lughac check`'s diagnostics as you type, for unsaved text too (milestone 70; section 9), and hovering shows the type of an expression or a declared name, also while the program has errors (milestone 71); Go to Definition jumps from a name to its declaration (milestone 72); completion offers members after `.` and the names in scope (milestone 73); signature help shows the call being typed with its current parameter (milestone 74); and all of these keep working in a file with a syntax error, which the server checks partially (milestone 75).
+- Block comments: `/* … */`, over any number of lines, nesting, wherever whitespace may be; an unclosed one is E0113 (milestone 76; section 2).
+- Doc comments: a `/** … */` right before a declaration documents it, in Markdown with `@param` and `@returns`; the compiler ignores it, the language server shows it, and std and the prelude are documented (milestone 77; sections 2, 9).
+- Snippets in the editor: completion inserts calls with a placeholder per parameter, and `value.match` writes out every variant (milestone 78; section 9).
+- Quick fixes in the editor: a non-exhaustive `match` (E0417) offers to add every missing arm, or a `_` arm (milestone 79; section 9).
+- `lughac fmt [paths…] [--check]` rewrites `.la` files in one canonical style, keeping every comment, and checks its own output before writing (milestone 80; section 9).
+- Formatting in the editor: the language server answers Format Document with the same formatter, for unsaved text too (milestone 81; section 9).
+- More quick fixes: `let mut` for an assignment to an immutable `let` (E0501), the closest variant for a misspelled one (W0103), a std import for `math.`-style names (E0301) (milestone 82; section 9).
+- Find References and Rename in the editor, across the checked files; a rename is checked before it is offered (milestone 83; section 9).
+- `lughac test`: `@test` functions (`@` starts an attribute), `assert`, `assert_eq` and `assert_ne`, each test run in its own process, in parallel, with a time limit (milestone 84; sections 2, 3, 5, 9).
+- Tests in the editor: `lughac test --list`, `--json` and `--exact` for tools, and VS Code's Testing view with a ▶ beside each test, never in untrusted folders (milestone 85; section 9).
+- `lughac explain CODE` explains every error and warning code, diagnostics end with a line pointing to it, and the editor links each code to its explanation (milestone 86; section 9).
+- Linking C libraries: a `[link]` table in `lugha.toml` names libraries, library folders, header folders, C files to compile and `pkg-config` packages; the tables of every package a program uses apply (milestone 87; sections 6, 8, 9).
+- Callbacks and handles: `extern type Name;` declares an opaque C pointer type; a function type in an extern's parameters is a callback C can call, named functions anywhere and closures through user data (`data`, `release`); `extern "symbol" fun name(…)` gives a C function a Lugha name of its own (milestone 88; sections 3, 4, 7, 8, 9).
+- Strings from C: an extern may return `string` or `Option<string>` and take `Option<string>`, and a callback may receive them; C's text is copied, with invalid UTF-8 replaced by U+FFFD (milestone 89; section 8).
+- C structs by value: `extern struct Name { … }` has C's layout and goes to and from C (externs and callbacks) by value, exactly as C passes it on x86-64 (milestone 90; sections 3, 4, 8, 9).
+
+Every valid v15 program is a valid v16 one, unless it uses `Ref` as the name of something other than a type (a module's own type `Ref` still means its own), or declares a function named `assert`, `assert_eq` or `assert_ne`, which are intrinsics since milestone 84 (E0302).
+
+**v14.** This is v13 plus binary I/O, `char`, tuples, `format`, import aliases and whole-module re-exports, and git packages (milestones 45–50).
+
+**Changes in v15 since v14** (milestones 51–66):
+- A package's `[package]` table may give its `name`, checked against the key a manifest lists it under (E0327), and its `source`, the folder its modules start in: with `source = "src"`, `src/array.la` of package `glowworm` is `glowworm.array` (section 6).
+- A program with no `lugha.toml` beside its main file uses the nearest one above it, looking no further than a folder with `.git` or the home folder; when that manifest names a package, the program imports it by that name, so `glowworm/examples/basics.la` writes `import glowworm.array;` with no manifest of its own (section 6).
+- A file imported as two modules is E0328 (section 6).
+- A manifest path such as `".."` resolves when the main file is given with a folder (`lughac run example/main.la`); v14 reported E0322.
+- Operator overloading: `a + b` on a struct, enum or interface value calls `a.add(b)`, and likewise `-` `sub`, `*` `mul`, `/` `div`, `%` `rem` and unary `-` `neg`, for a method of the operator's shape; `a += b` is `a = a.add(b)`. The prelude's `Add`, `Sub`, `Mul`, `Div`, `Rem`, `Neg` and `Num` are bounds that the numbers (and `string`, for `Add`) satisfy, so `fun add<T: Add>(a: T, b: T): T = a + b;` works for numbers, strings and your own types; `0` and `1` are values of a `T: Num`. An `impl` block may bound its parameters, `impl<T: Num> Grid<T> { … }` (sections 3–5).
+- A standard library: `import std.math;` loads a module bundled with `lughac`, only when imported. `std.math` has `sqrt`, `pow`, `exp`, `ln`, `log10`, `sin`, `cos`, `tan`, `atan2`, `floor`, `ceil` and `round` for any `T: Float` (`f32` or `f64`, a new prelude bound), `abs`, `min`, `max` and `clamp`, and `pi()` and `e()`. `std` is a reserved package name (sections 4, 6, "The standard library").
+- Arrays are copy-on-write: a copy shares the array until either side writes to it, so copying costs a constant time and reading a copy never copies. Every copy still behaves as an independent value, and no program's output changes (sections 4, 5, 7, 9, 12). A loop makes the arrays it writes, and can't share, unique once before it starts, so its writes cost no more than before copy-on-write (milestone 56; section 9).
+- An argument of a `mut self` call may call methods on the receiver, `g.tanh(g.add(a, b))`, or read numbers and strings from it; only an argument that can be the receiver's own storage (`v.add(v)`, `v.add(v.inner)`) is E0508. The arguments run before the receiver is reached, and a change they make to a struct containing the receiver is no longer E0510 unless an array index lies between (milestone 57; sections 4–5).
+- Numbers as `T`: `n as T` and `x as f64` cast to and from a type parameter bounded by `Num` or `Float`, and any integer literal is a `T: Num` and any float literal a `T: Float` (`x * 2`, `x * 0.5`); a literal that doesn't fit an instance's type is E0402, naming the instance (milestone 58; section 4).
+- User-defined order: a struct or enum with `fun cmp(self, other: Self): Ordering`, the prelude's new `enum Ordering { Less, Equal, Greater }` (written `Ordering.Less`), is `Ord`: `<`, `<=`, `>` and `>=` call `cmp`, tuples compare through it, and `math.min`, `it.min()` and the new `xs.sort()` accept it. `==` stays structural (milestone 59; section 4).
+- An imported std module's functions and methods are compiled only when the program reaches them, as the prelude's are; every one is still checked. No program's behaviour changes, only the size of its IR (milestone 60; sections 6, 9).
+- `it.sum()` goes through one generic prelude helper for every numeric type; nothing visible changes (milestone 61; section 9).
+- `parse_i64`, `parse_u64` and `string_from_utf8` are written in Lugha in the prelude, and `string_from_utf8` and `s.chars()` share one UTF-8 decoder; results and messages are unchanged (milestone 62; section 9).
+- A format width counts characters, not bytes (`{"Zoë":<6}` pads with three spaces, not two), and any character may fill (`{n:é^9}`); text without non-ASCII characters prints as before (milestone 63; section 5).
+- `std.env`: `env.get(name)` reads an environment variable as an `Option<string>`, and `env.current_dir()` gives the working directory; nothing sets either (milestone 64; "The standard library").
+- `std.fs`: `fs.list_dir`, `make_dir`, `make_dirs`, `remove_file`, `remove_dir` (empty folders only), `exists`, `is_dir` and `is_file` (milestone 65; "The standard library").
+- `std.process`: `process.run`, `run_with` and `call` run another program with an argument list, never through a shell, and give its exit code and output (milestone 66; "The standard library").
+- `std.random`: `random.seeded(42)` or `random.from_os()` makes a generator (xoshiro256\*\*, not cryptographically secure) with `uniform`, `below`, `between`, `normal`, `chance`, `choice` and `shuffle` ("The standard library").
+
+Every valid v14 program and package is a valid v15 one: a module's own type or interface named `Add`, `Sub`, `Mul`, `Div`, `Rem`, `Neg`, `Num` or `Ordering` still means its own, as for `Iter`.
+
+**Changes in v14 since v13** (milestones 45–50):
+
+**v13.** This is v12 plus `Self` in declarations, `for … of mut`, more iterator helpers and format specifiers (milestones 41–44).
+
+- Binary I/O: `read_bytes`, `write_bytes`, `append_bytes`, `read_stdin_bytes`; `s.to_bytes()`; `string_from_utf8(bytes)`, which rejects invalid UTF-8. An index may be of any integer type (sections 4–5).
+- `char`, a Unicode scalar value: `'a'`, `'é'`, `'\u{1F600}'`; `s.chars()` and `s.char_count()`; `c as u32`, `n as char`, `char_from(n)`; classification and case for ASCII and Latin-1 (sections 2–5).
+- Tuples: `(A, B)` types and `(a, b)` values, `t.0`, patterns `(p, q)` in `match`, `if let`, `let (a, b) = t;` and `for (i, w) of …`; element-wise `==`, lexicographic `<`, printed `(1, "a")`. `zip` yields tuples, and `Pair` is gone (sections 3–5).
+- `format("{} has {:>4} items", name, n)` returns a `string`: a literal template whose holes `{}` and `{:spec}` take the further arguments in order (E0432; sections 2, 5).
+- Imports take `as`: `import a.util as u1;` binds the module as `u1`, and `import a.b { X as Y };` binds the item as `Y`. `public import a.b [as v];` re-exports the whole module, which files importing this one reach as `m.v.X` (sections 3, 6).
+- Git packages: a manifest entry `name = { git = "https://…", version = "1.2" }` fetches the newest matching `vX.Y.Z` tag with the system `git` into a per-user cache, and `lugha.lock` pins its commit; `lughac update` re-resolves, and `--offline` never runs `git` (E0325, E0326; sections 6, 9).
+
+A valid v13 program is a valid v14 program unless it uses `Pair` or `zip`'s `Pair` fields (`zip` yields tuples now: `p.first` is `p.0`), uses `char` as a name (a type keyword now), or declares a function named `format`, `read_bytes`, `write_bytes`, `append_bytes`, `read_stdin_bytes` or `string_from_utf8`, which are now intrinsics.
+
+**v12.** This is v11 plus printing any value: the prelude's `Display` and `show`, built-in forms, and `unwrap on Err: <error>` (milestones 39–40).
+
+**Changes in v13 since v12** (milestones 41–44):
+- In a struct's fields and an enum's payloads, `Self` is the type being declared: `struct Tree<T> { value: T, kids: Self[] }`, `enum List { Cons(i64, Self), Nil }` (section 4).
+- `for x of mut xs` makes `x` each element itself, so `x *= 2` changes `xs`; `for x of mut it` advances the iterator `it` itself, so a later loop resumes where a `break` left it (sections 3, 5).
+- Iterators gain `zip` (yielding the prelude's `Pair { first, second }` in v13; a tuple since v14), `chain`, `take_while`, `skip_while`, `flat_map`, `min`, `max` and `position` (section 4).
+- An interpolation may end in a format specifier: `"{pi:.2}"`, `"{n:>6}"`, `"{n:05}"`, `"{n:#x}"`, `"{name:*^9}"`; a bad one is E0431 (sections 3, 5).
+
+Every valid v12 program was a valid v13 program.
+
+**v11.** This is v10 plus package versions and named imports and re-exports (milestones 37–38).
+
+**Changes in v12 since v11** (milestones 39–40):
+- `print`, `println`, `eprint`, `eprintln`, `to_string` and `"{x}"` accept structs, enums, arrays, `Option`, `Result` and type parameters. A type with its own `fun show(self): string` (the prelude's `Display`) prints through it; any other prints in a built-in form, `Point { x: 1, y: 2 }`, `Circle(1.5)`, `[Some(1), None]`, with the strings inside it quoted (sections 4–6).
+- Interface values print as the value inside them, function values as `<fun>`, and `unwrap()` on an `Err` panics with `unwrap on Err: ` followed by the error (sections 4–5).
+
+Every valid v11 program was a valid v12 program; only the `unwrap on Err` panic message is longer.
+
+**v10.** This is v9 plus `Self` in `impl` blocks, default methods on concrete types, `i8`/`i16`/`u16` with checked, saturating and rotating methods, and iterator helpers (milestones 34–36).
+
+**Changes in v11 since v10** (milestones 37–38):
+- A package's `lugha.toml` may declare its version, `[package]` then `version = "1.4.0"`, and a manifest may require a compatible one, `geo = { path = "libs/geo", version = "1.2" }`; a version that doesn't meet it is E0324 (section 6).
+- `import a.b { X, y };` brings items into a file by name, and `public import a.b { X, y };` re-exports them as items of the module, so a program can use `shapes.Vec2` from a package it doesn't list (sections 3, 6).
+
+Every valid v10 program and manifest was valid in v11.
+
+**v9.** This is v8 plus or-patterns, `mut` bindings, `unwrap`/`expect`, `%=`, and `if let`, `while let` and `let … else` (milestones 31–33).
+
+**Changes in v10 since v9** (milestones 34–36):
+- Inside `impl T`, `Self` is `T` (with its parameters, `Stack<T>`), as a type, in struct literals (`Self { x: 0 }`), associated calls (`Self.new()`) and variants (`Self.Red`) (section 4).
+- A default method can be called on a struct or enum that lacks its own, `c.describe()`, when exactly one visible interface the type satisfies supplies it; two are E0430 (section 4).
+- `i8`, `i16` and `u16` are integer types like the others. Every integer type has `checked_add/sub/mul/div` (an `Option`), `saturating_add/sub/mul` and `rotate_left/right`, and the constants `I.MIN` and `I.MAX` (`i16.MAX`); `parse_u64(s)` parses a `u64` (sections 2–5, 8).
+- Iterator helpers: `xs.iter()`, `s.bytes()` and `range(a, b)` make iterators; `it.map(f)`, `filter`, `take`, `skip` and `enumerate` wrap one lazily, and `collect`, `count`, `fold`, `any`, `all`, `find` and `sum` consume it. `for b of s` loops over a string's bytes (sections 4–5).
+
+A valid v9 program was a valid v10 program unless it uses `i8`, `i16` or `u16` as a name, which are type keywords now, or declares a function named `parse_u64`, which is now an intrinsic.
+
+**v8.** This is v7 plus packages: a `lugha.toml` manifest, package imports, and `public` / package / `private` visibility (milestone 30).
+
+**Changes in v9 since v8** (milestones 31–33):
+- A pattern may be alternatives, `Circle(r) | Square(r) => r * 2.0` or `"q" | "quit" => …`, nested anywhere; every alternative binds the same names at the same types (E0428). `mut name` makes a binding the arm's own copy, which the arm may change (sections 3–4).
+- `o.unwrap()` and `o.expect(msg)` on `Option` and `Result` give the value inside or panic at the call (`unwrap on None`, `unwrap on Err`, or `msg`); `x %= y` is the compound remainder (sections 2–5).
+- `if let p = e { … } else { … }`, `while let p = e { … }` and `let p = e else { … };` test one pattern without a full `match`; a `let … else` block must leave (E0429) (sections 3, 5).
+
+Every valid v8 program was a valid v9 program.
+
+**v7.** This is v6 plus `u32`, `u64` and `f32`, bit operators, and wrapping and bit-counting methods on integers (milestones 27–29).
+
+**Changes in v8 since v7** (milestone 30):
+- A `lugha.toml` next to the main file lists packages, `name = "path"` under `[packages]`; `import geo.shapes;` then loads `shapes.la` from package `geo`'s folder, and a package may list its own packages in its own `lugha.toml` (section 6).
+- `public` is allowed (it was reserved, E0317): an item without a keyword is now visible within its own package, `public` makes it visible to other packages, and `private` still limits it to its module. A `public` declaration may mention only `public` types (sections 3, 6).
+
+Every valid v7 program was a valid v8 program: one without a `lugha.toml` is a single package, where the default visibility still reaches every module.
+
+**v6.** This is v5 plus generic interfaces, iterators, `Self` in interfaces and converting between interfaces (milestones 23–26).
+
+**Changes in v7 since v6** (milestones 27–29):
+- `u32`, `u64` and `f32` are numeric types: literals take them from context, arithmetic and overflow panics work at their widths, every numeric type casts to every other, and they print, interpolate and cross the C boundary (sections 2, 4, 5, 7–9).
+- Bit operators `&`, `|`, `^`, `~`, `<<` and `>>` on integers, with Rust's precedence (`flags & MASK == 0` is `(flags & MASK) == 0`), the compound forms `&=` `|=` `^=` `<<=` `>>=`, binary literals (`0b1010`), and a panic for a shift that is negative or at least the type's width (sections 2–5, 9).
+- Every integer type has `wrapping_add`, `wrapping_sub` and `wrapping_mul`, which never panic, and `count_ones`, `leading_zeros` and `trailing_zeros`, which give an `i64` (sections 4, 9).
+
+A valid v6 program was a valid v7 program unless it used `u32`, `u64` or `f32` as a name: they are type keywords now, like `i32`.
+
+**v5.** This is v4 plus interface values, type patterns, default methods and `?` converting into an interface error (milestones 20–22).
+
+**Changes in v6 since v5** (milestones 23–26):
+- An interface may take type parameters, and a bound passes it arguments: `interface Source<T> { fun next(mut self): Option<T>; }`, `fun collect<T, S: Source<T>>(src: S): T[]`. A parameter that appears only in a bound's arguments is read off the concrete type's methods. A generic interface is a type too: `let s: Source<i64> = Count { n: 0, end: 3 };` (sections 3–4, 9).
+- The prelude declares `interface Iter<T> { fun next(mut self): Option<T>; }`, and `for x of e` loops over anything with that `next`, working on a copy of `e` (sections 4–5, 9).
+- Inside an interface, `Self` is the type that satisfies it: `fun less(self, other: Self): bool`. Such an interface is a bound only; as a type it is E0427 (sections 4, 9).
+- A value of one interface type converts to another where that one is expected, when its interface declares every item of the other: a `Pet` becomes a `Named`, and `?` converts interface errors the same way (sections 4, 7, 9).
+
+Every valid v5 program was a valid v6 program.
+
+**v4.** This is v3 plus `Result` and `?`, string and `Option`/`Result` helpers, and input and output (milestones 17–19); v4.1 allows string literals inside interpolations.
+
+**Changes in v5 since v4** (milestones 20–22):
+- An interface whose items are all methods is a type: `let shapes: Shape[] = [c, sq];`. A value converts to it where an interface is expected, and a call on it runs the concrete type's method (sections 4, 7, 9).
+- A type pattern, `c: Circle => …` in a `match` on an interface value, matches when the value holds that type and binds it (sections 3–4).
+- An interface method may have a default body, which a type gets unless it has the method itself (sections 3–4, 9).
+- `?` converts an error into an interface error: in a function returning `Result<U, Error>`, `?` on a `Result<T, ParseError>` wraps the `ParseError` as an `Error` (section 4).
+
+Every valid v4 program was a valid v5 program.
+
+**v3.** This is v2 plus command-line arguments and number parsing, string interpolation, functions as values, closures, and array helpers (milestones 13–16).
+
+**Changes in v4 since v3** (milestones 17–19):
+- `Result<T, E>` is predeclared, with `Ok(x)` and `Err(e)` written without a prefix (section 4).
+- The postfix `?` gives a `Result`'s `Ok` value or an `Option`'s `Some` value, or returns the failure from the function at once (sections 2–4).
+- Strings have `lines`, `split`, `trim`, `contains`, `starts_with`, `ends_with` and `slice`, `string[]` has `join`, and `Option` and `Result` have `unwrap_or`, `ok_or`, `ok`, `map`, `map_err` and `is_*` (section 4).
+- Programs read stdin with `read_line`, read and write text files with `read_file`, `write_file` and `append_file`, write to stderr with `eprint`/`eprintln`, and stop with `exit(code)` (section 5).
+
+A valid v3 program was a valid v4 program unless it defines something named `Result`, `Ok` or `Err`, or a function named `read_line`, `read_file`, `write_file`, `append_file`, `eprint`, `eprintln` or `exit`.
