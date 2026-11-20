@@ -6,6 +6,7 @@ What's next. Shipped work is in CHANGELOG.md (and the spec's §11 milestone tabl
 
 ## Known bugs and limits
 
+None open. The ones found writing the Lugha skill (milestones 230–237) are fixed; CLAUDE.md's "Known issues" lists the specified behaviour that looks like a bug.
 
 ## Language and library
 
@@ -25,12 +26,11 @@ What's next. Shipped work is in CHANGELOG.md (and the spec's §11 milestone tabl
 - [ ] **Imports, more:** re-export chains (`m.v.w.X`), a `--package` flag, package-level (not `public`) re-exports.
 - [ ] **Listing a git package's `extern` functions at `lughac update`.** Needs a security review, like PRP-079.
 - [ ] **Checking the program's own `[package]` version,** e.g. against a minimum `lughac` version.
-- [ ] **Spec housekeeping:** tick §12 entries that later versions settled: `%=` and `mut` bindings (v9), re-exports (v11), iterating a copy / `for … of mut` (v13), Unicode text (v14).
 - Ruled out by the user (session 127): full Unicode `char` classification and case tables (§11's exclusion stands).
 
 ## Concurrency (v17)
 
-- [ ] Built-in supervisors (restart policies), links/monitors; generic actors; actors as interface values; bounded mailboxes; actors on several OS threads; a stack overflow inside an actor ending only that actor.
+- [ ] Built-in supervisors (restart policies), links/monitors; a stack overflow inside an actor ending only that actor. (Generic actors, actors as interface values, bounded mailboxes and actors on several threads shipped in milestones 201–210.)
 - [ ] **Guest mode for loop-owning frameworks** (after PRP-247, the user's call: later, alongside macOS): a wake fd and "run the tasks ready on this thread, then return", so `gtk_main()`, Qt's `exec()` and Cocoa's run loop deliver queued callbacks (the Draft, §4.8).
 - [ ] **Cancelling's lock, only if measured:** a scope's own spawn and finish bookkeeping has its own lock (PRP-245), but failing, cancelling, deadlines and shields still share the scopes lock. If a program shows it contended, move them to the scope locks, parent before child, as Go's `context` does.
 - [ ] **One task spawning many, on one worker** (after PRP-245, the user's call to ship with the miss): `bench/measure/scaling` spawn_many 1.41 s against 1.33 s at milestone 212. Its tasks are all queued before any finishes, so the stack cache never gets one back, and each finished stack past the cache still gives its pages back (`madvise`, about 40% of a spawn); without that call it ran in 0.78 s. Ideas: keep every finished stack's pages until its worker parks (pool included), at the cost of holding a burst's memory while the program stays busy; a scope lock taken in name only on one thread, as the scopes lock was.
@@ -42,14 +42,14 @@ What's next. Shipped work is in CHANGELOG.md (and the spec's §11 milestone tabl
 
 ## Portability — one platform at a time
 
-Done: portable x86-64 binaries (`--cpu`), the collector built in, `$LUGHA_CC`, Linux on ARM64 with AAPCS64 struct passing (milestones 130–134). Stages B3–E are probably v18 milestones (a `Language v18 Draft.md`).
+Done: portable x86-64 binaries (`--cpu`), `$LUGHA_CC`, Linux on ARM64 with AAPCS64 struct passing (milestones 130–134). Stages B3–E aren't in v18's plan yet.
 
 - [ ] **B3 — Building and testing for Linux ARM:** `run`/`test` under `qemu-aarch64`, ARM CI; `[build]` in `lugha.toml` (`cpu`, target).
 - [ ] **C1 — Runtime split by OS:** shared, POSIX and per-OS files (event waiting behind `lugha_rt_poll_*`).
 - [ ] **C2 — Mac runtime:** `kqueue` for `net.c`; `spawn.c`'s `MAP_STACK`, `random.c`'s `getrandom`.
 - [ ] **C3 — Mac calling rules and linking:** Apple's AArch64 differences (variadics), Mach-O, signing; built and tested on a Mac runner.
 - [ ] **D1–D3 — Windows:** runtime (files, processes, env, stack overflow), sockets, Windows x64 calling rules, `.exe` linking with MinGW first. Large.
-- [ ] **E — WebAssembly (wasm32-wasi):** decisions first (garbage collector, green threads or none, which std modules exist). Large.
+- [ ] **E — WebAssembly (wasm32-wasi):** decisions first (tasks with no threads, or none; which capabilities and std modules exist). Large.
 
 ## Editor support and tools
 
@@ -81,5 +81,4 @@ Done: portable x86-64 binaries (`--cpu`), the collector built in, `$LUGHA_CC`, L
 ## Ideas — noted, not scheduled
 
 - **Decorators:** user-written `@name` attributes that wrap a function, as Python's do (`@logged`, `@memo`); `@` is already reserved for them. Needs a way to wrap any signature (variadic generics or compile-time rewriting). Also `@test(skip)`-style arguments.
-- **Printing on derive blocks — together with the next printing feature** (decided 2026-10-31, after milestone 144): move the data shapes (structs, enums, tuples, arrays, `Option`) of `codegen/show.rs` onto a derivable prelude `Display` only when a printing feature needs the change anyway (a debug format `{x:?}`, pretty-printing, hiding or renaming fields). On its own it gives programs nothing (custom `show` already works). Functions, `Ref` cycles, tasks, channels, handles and interface values stay built in. Hold it to a printing benchmark, as `==` was.
 - **`@cfg` on items** (DECISIONS 208): code for one OS or architecture, every target checked; with portability stage C1.
