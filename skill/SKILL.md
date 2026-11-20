@@ -79,6 +79,11 @@ this order, so a course can follow it.
 | [Structs and enums](concepts/03-structs-and-enums.md) | you define your own types, methods or `with` derives |
 | [Match and patterns](concepts/04-match-and-patterns.md) | you take values apart with `match`, `if let` or `let` |
 | [Errors](concepts/05-errors.md) | you use `Option`, `Result`, `?`, `panic` or design error types |
+| [Collections](concepts/06-collections.md) | you use arrays, `Map` or `Set` |
+| [Interfaces](concepts/07-interfaces.md) | you share behaviour between types, implement `Display` or operators, or use interface values |
+| [Generics](concepts/08-generics.md) | you write `<T>` functions or types, or need a bound like `T: Ord` |
+| [Iterators](concepts/09-iterators.md) | you loop with `for … of`, make a type loopable, or chain `map`, `filter`, `take` |
+| [Capabilities](concepts/10-capabilities.md) | you print, read input, touch files, the network, the clock, the environment or other programs, or fake them in tests |
 
 Other commands: `lughac skill --list` lists every page with a one-line
 summary, `lughac skill --search <text>` finds lines across them, and
