@@ -42,9 +42,8 @@ impl<T> Stack<T> {
 }
 
 fun main(console: Console) {
-    let top = largest([3, 9, 4]).unwrap();
-    let word = largest(["pear", "apple", "plum"]).unwrap();
-    console.println("{top} {word}");
+    console.println(largest([3, 9, 4]).unwrap());
+    console.println(largest(["pear", "apple", "plum"]).unwrap());
     let mut s: Stack<string> = Stack.new();
     s.push("a");
     s.push("b");
@@ -52,7 +51,8 @@ fun main(console: Console) {
 }
 ```
 ```output
-9 plum
+9
+plum
 b 1
 ```
 
@@ -72,10 +72,6 @@ b 1
   `let s: Stack<i64> = Stack.new();`, `largest<string>([])`.
 - **Using a type** that misses a bound is an error at the call, naming the
   missing ability.
-- **The expected type steers inference:** a generic call written directly
-  as `console.println(…)`'s argument is expected to give a `Display`, so its
-  `T` is taken as `Display`. Bind the result first (`let top = largest(xs).unwrap();`)
-  or put it in a string (`"{…}"`).
 - **Generic types are written with their arguments** in type positions:
   `Stack<i64>`, `Option<Point>`, never a bare `Stack`.
 - **Bound or interface value?**

@@ -122,6 +122,11 @@ impl Checker {
         let expected = expect?;
         let head = self.waiting_head(base)?;
         let (ret, params, receiver) = self.result_of(&head, name)?;
+        // An expected interface converts the result afterwards: it doesn't
+        // make a bare `T` the interface (`console.println(xs.max().unwrap())`).
+        if matches!(expected.ty, Type::Interface(..)) && matches!(ret, Type::Param(_)) {
+            return None;
+        }
         let names: Vec<&str> = params.iter().map(String::as_str).collect();
         let mut bound = Bound::new();
         unify(&ret, &expected.ty, &names, &mut bound);
@@ -212,6 +217,22 @@ mod tests {
     const VIEW: &str = "enum View<M> { Text(string), Button(string, M) } with Eq\n\
         enum Msg { Go } with Eq\n\
         fun text<M>(s: string): View<M> = View.Text(s);\n";
+
+    #[test]
+    fn an_expected_interface_doesnt_type_an_unwrapped_receiver() {
+        // `println` expects a `Display`, which the unwrapped value becomes
+        // afterwards: it mustn't make `largest`'s `T` the interface.
+        ok(
+            "fun largest<T: Ord>(xs: T[]): Option<T> = xs.iter().max();\n\
+            fun ok_first<T>(xs: T[]): Result<T, string> = Ok(xs[0]);\n\
+            fun main(console: Console) {\n\
+                console.println(largest([3, 9]).unwrap());\n\
+                console.println(largest([\"a\"]).expect(\"none\"));\n\
+                console.println(ok_first([1.5]).unwrap());\n\
+                let d: Display = largest([1]).unwrap();\n\
+            }",
+        );
+    }
 
     #[test]
     fn assert_eq_takes_the_type_from_either_side() {
