@@ -1,0 +1,84 @@
+// A key-value store over TCP: one task per connection, the data in an actor.
+//
+// Run: lughac run kv-server.la
+// The protocol is one line per request: `SET key value`, `GET key` or `DEL key`.
+// So it runs anywhere, the program starts the server on a free port and then
+// talks to it as a client; a real server would serve until stopped.
+
+actor Store {
+    data: Map<string, string>,
+    fun set(mut self, k: string, v: string) { self.data[k] = v; }
+    fun get(self, k: string): Option<string> = self.data.get(k);
+    fun del(mut self, k: string): bool = self.data.remove(k).is_some();
+}
+
+fun answer(store: Store, line: string): string {
+    let words = line.trim().split(" ");
+    match (words[0], words.len) {
+        ("SET", 3) => {
+            store.set(words[1], words[2]);
+            "OK"
+        }
+        ("GET", 2) => store.get(words[1]).unwrap_or("(none)"),
+        ("DEL", 2) => if store.del(words[1]) { "OK" } else { "(none)" },
+        _ => "ERR unknown request: {line.trim()}",
+    }
+}
+
+fun serve_one(store: Store, c: Conn) {
+    defer c.close();
+    match c.read(1024) {
+        .Ok(bytes) => match string_from_utf8(bytes) {
+            .Ok(line) => {
+                let w = c.write("{answer(store, line)}\n".to_bytes());
+            }
+            .Err(_) => {
+                let w = c.write("ERR not UTF-8\n".to_bytes());
+            }
+        },
+        .Err(_) => {}
+    }
+}
+
+// Serves `n` connections, each in its own task, then stops listening.
+fun serve(store: Store, l: Listener, n: i64) {
+    let r = scope s {
+        for _ in 0..n {
+            match l.accept() {
+                .Ok(c) => {
+                    s.spawn(serve_one(store, c));
+                }
+                .Err(_) => {
+                    break;
+                }
+            }
+        }
+    };
+    l.close();
+}
+
+fun ask(net: Net, addr: string, request: string): string {
+    let c = net.connect(addr).unwrap();
+    defer c.close();
+    c.write("{request}\n".to_bytes()).unwrap();
+    string_from_utf8(c.read(1024).unwrap()).unwrap().trim()
+}
+
+fun main(console: Console, net: Net, root: Scope) {
+    let store = root.spawn(Store { data: Map {} });
+    let listener = net.listen("127.0.0.1:0").unwrap();
+    let addr = listener.addr();
+    let requests = ["SET lang lugha", "GET lang", "GET nope", "DEL lang", "GET lang", "PING"];
+    root.spawn(serve(store, listener, requests.len));
+    for r of requests {
+        console.println("{r} -> {ask(net, addr, r)}");
+    }
+}
+
+// Output:
+// SET lang lugha -> OK
+// GET lang -> lugha
+// GET nope -> (none)
+// DEL lang -> OK
+// GET lang -> (none)
+// PING -> ERR unknown request: PING

@@ -105,6 +105,30 @@ Look up exact methods here.
 | [JSON and TOML](library/json-and-toml.md) | you parse or write JSON or TOML, or encode your own types as JSON |
 | [Environment and processes](library/env-and-processes.md) | you read environment variables or run other programs |
 
+## Tasks
+
+How the concepts combine to do one job, end to end.
+
+| Page | Read it when |
+| --- | --- |
+| [A command-line tool](tasks/command-line-tool.md) | you write a tool taking arguments, files or standard input, with exit codes |
+| [A TCP server](tasks/tcp-server.md) | you serve connections: a task each, shared state, timeouts, stopping |
+| [An HTTP service](tasks/http-service.md) | you build a JSON API: routes, decoding bodies, errors as statuses |
+| [Wrapping a C library](tasks/wrap-a-c-library.md) | you link C code and give it a safe Lugha API |
+| [Testing](tasks/testing.md) | you write `@test`s, fake a capability, or run `lughac test` |
+
+## Examples
+
+Complete programs to read or adapt; each ends with the output it prints.
+
+| Program | What it shows |
+| --- | --- |
+| [word-count](examples/word-count.la) | arguments, files, text, an operator on your own type |
+| [parallel-sum](examples/parallel-sum.la) | a scope's tasks sending results on a channel; a failing task |
+| [kv-server](examples/kv-server.la) | a TCP protocol, a task per connection, an actor holding the data |
+| [notes-api](examples/notes-api.la) | an HTTP JSON API with an actor, routes and decoding |
+| [config](examples/config.la) | TOML settings with defaults and an environment override |
+
 Other commands: `lughac skill --list` lists every page with a one-line
 summary, `lughac skill --search <text>` finds lines across them, and
 `lughac skill <page>` prints one.

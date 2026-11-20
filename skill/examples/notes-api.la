@@ -1,0 +1,88 @@
+// A small JSON API for notes with std.http: list, add and fetch by id.
+//
+// Run: lughac run notes-api.la
+// Routes: GET /notes, POST /notes with {"text": "…"}, GET /notes/ID.
+// So it runs anywhere, the program serves on a loopback port and calls itself
+// as a client, then stops the server; a real service would serve until stopped.
+
+import std.http;
+import std.json;
+import std.task;
+
+struct Note { id: i64, text: string } with json.Json
+struct NewNote { text: string } with json.Json
+
+actor Notes {
+    all: Note[],
+    fun add(mut self, text: string): Note {
+        let note = Note { id: self.all.len + 1, text: text };
+        self.all.push(note);
+        note
+    }
+    fun list(self): Note[] = self.all;
+    fun find(self, id: i64): Option<Note> = self.all.iter().find(fun(n) = n.id == id);
+}
+
+fun reply<T: json.Json>(status: i64, value: T): http.Response = http.json(status, json.encode(value));
+
+fun handle(notes: Notes, req: http.Request): http.Response {
+    if req.path == "/notes" && req.method == "GET" {
+        return reply(200, notes.list());
+    }
+    if req.path == "/notes" && req.method == "POST" {
+        let body = match req.json() {
+            .Ok(v) => v,
+            .Err(e) => {
+                return http.text(400, e.message());
+            }
+        };
+        let new_note: Result<NewNote, json.DecodeError> = json.decode(body);
+        return match new_note {
+            .Ok(n) => reply(201, notes.add(n.text)),
+            .Err(e) => http.text(400, e.message()),
+        };
+    }
+    if req.path.starts_with("/notes/") {
+        let id = parse_i64(req.path.slice(7, req.path.len)).unwrap_or(0);
+        return match notes.find(id) {
+            .Some(n) => reply(200, n),
+            .None => http.text(404, "no note {id}"),
+        };
+    }
+    http.text(404, "no route {req.method} {req.path}")
+}
+
+fun call(net: Net, method: string, url: string, body: string): string {
+    loop {
+        match http.request(net, method, url, Map {}, body.to_bytes()) {
+            .Ok(r) => {
+                return "{r.status} {r.text().unwrap()}";
+            }
+            // The server task may not be listening yet.
+            .Err(_) => task.sleep(5),
+        }
+    }
+}
+
+fun main(console: Console, net: Net, root: Scope) {
+    let notes = root.spawn(Notes { all: [] });
+    let base = "http://127.0.0.1:47833";
+    let r = scope s {
+        let server = s.spawn(http.serve(net, "127.0.0.1:47833", fun(req: http.Request): http.Response = handle(notes, req)));
+        console.println(call(net, "POST", "{base}/notes", "{{\"text\": \"buy milk\"}}"));
+        console.println(call(net, "POST", "{base}/notes", "{{\"text\": \"call ann\"}}"));
+        console.println(call(net, "GET", "{base}/notes", ""));
+        console.println(call(net, "GET", "{base}/notes/2", ""));
+        console.println(call(net, "GET", "{base}/notes/9", ""));
+        console.println(call(net, "POST", "{base}/notes", "{{\"txt\": 1}}"));
+        server.cancel("done");
+    };
+}
+
+// Output:
+// 201 {"id":1,"text":"buy milk"}
+// 201 {"id":2,"text":"call ann"}
+// 200 [{"id":1,"text":"buy milk"},{"id":2,"text":"call ann"}]
+// 200 {"id":2,"text":"call ann"}
+// 404 no note 9
+// 400 missing field text

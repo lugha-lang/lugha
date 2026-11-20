@@ -167,20 +167,28 @@ fn run(code: &str, files: &Files) -> (Option<i32>, String, String) {
 /// - ```` ```lugha ```` checks; followed by ```` ```output ```` it runs and
 ///   prints exactly that (exit 0, or N for ```` ```lugha exit N ````);
 /// - ```` ```lugha error E0xxx ```` fails with that code;
-/// - ```` ```lugha file NAME ```` is written as `NAME` beside the next
+/// - ```` ```lugha test ```` passes `lughac test`;
+/// - ```` ```LANG file NAME ```` is written as `NAME` beside the next
 ///   example's `main.la` (kept in `files` until then);
-/// - `output`, `sh`, `text` and `toml` blocks are shown, not checked.
+/// - ```` ```lugha part ```` is a step's piece of the page's whole program,
+///   checked against it by the caller;
+/// - `output`, `sh`, `text`, `toml` and `c` blocks are shown, not checked.
 fn wrong(block: &Block, next: Option<&Block>, files: &mut Files) -> Option<String> {
     let words: Vec<&str> = block.info.split_whitespace().collect();
-    if let ["lugha", "file", name] = words.as_slice() {
+    // `lugha file x.la`, `c file glue.c`, `toml file lugha.toml`: beside the next example.
+    if let [_, "file", name] = words.as_slice() {
         files.push(((*name).to_string(), block.code.clone()));
         return None;
     }
     if !matches!(words.first(), Some(&"lugha")) {
         return match words.as_slice() {
-            ["output"] | ["sh"] | ["text"] | ["toml"] => None,
+            ["output"] | ["sh"] | ["text"] | ["toml"] | ["c"] => None,
             _ => Some(format!("unknown block info `{}`", block.info)),
         };
+    }
+    // A step's piece of the page's whole program: checked against it.
+    if words.as_slice() == ["lugha", "part"] {
+        return None;
     }
     // This example takes the files given before it.
     let files = std::mem::take(files);
@@ -189,6 +197,17 @@ fn wrong(block: &Block, next: Option<&Block>, files: &mut Files) -> Option<Strin
         lughac(&dir.0, &["check", "main.la"])
     };
     match words.as_slice() {
+        ["lugha", "test"] => {
+            let dir = folder(&block.code, &files);
+            let out = lughac(&dir.0, &["test", "main.la"]);
+            (!out.status.success()).then(|| {
+                format!(
+                    "`lughac test` failed: {}{}",
+                    text(&out.stdout),
+                    text(&out.stderr)
+                )
+            })
+        }
         ["lugha", "error", code] => {
             let out = check(&block.code);
             let shown = format!("error[{code}]");
@@ -233,6 +252,20 @@ fn every_example_compiles_and_prints_what_the_page_says() {
                 failures.push(format!("{path}:{}: {why}", block.line));
             }
             checked += 1;
+        }
+        // Every step's piece appears, word for word, in a whole program.
+        let wholes: Vec<&Block> = all
+            .iter()
+            .filter(|b| b.info.starts_with("lugha") && b.info != "lugha part")
+            .collect();
+        for part in all.iter().filter(|b| b.info == "lugha part") {
+            let piece = part.code.trim();
+            if !wholes.iter().any(|w| w.code.contains(piece)) {
+                failures.push(format!(
+                    "{path}:{}: a `lugha part` block isn't in the page's whole program",
+                    part.line
+                ));
+            }
         }
         if !files.is_empty() {
             failures.push(format!(

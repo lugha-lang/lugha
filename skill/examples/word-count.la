@@ -1,0 +1,65 @@
+// Counts lines, words and characters of each file named, like `wc`.
+//
+// Run: lughac run word-count.la notes.txt todo.txt
+// With no file names it counts a sample it writes itself, so it runs anywhere.
+
+struct Counts { lines: i64, words: i64, chars: i64 }
+
+impl Add for Counts {
+    fun add(self, o: Counts): Counts =
+        Counts { lines: self.lines + o.lines, words: self.words + o.words, chars: self.chars + o.chars };
+}
+
+fun count(text: string): Counts {
+    let mut words = 0;
+    let mut in_word = false;
+    for c of text.chars() {
+        if c.is_whitespace() {
+            in_word = false;
+        } else if !in_word {
+            in_word = true;
+            words += 1;
+        }
+    }
+    Counts { lines: text.lines().len, words: words, chars: text.char_count() }
+}
+
+fun show(console: Console, c: Counts, name: string) {
+    console.println("{c.lines:>5} {c.words:>5} {c.chars:>5} {name}");
+}
+
+fun run(console: Console, dir: Dir, names: string[]): Result<(), string> {
+    let mut total = Counts { lines: 0, words: 0, chars: 0 };
+    for name of names {
+        let c = count(dir.read_file(name)?);
+        show(console, c, name);
+        total = total + c;
+    }
+    if names.len > 1 {
+        show(console, total, "total");
+    }
+    Ok(())
+}
+
+fun main(args: string[], console: Console, fs: Fs): i32 {
+    let dir = fs.cwd();
+    let mut names = args.iter().skip(1).collect();
+    if names.len == 0 {
+        // A sample, so the program shows what it does without arguments.
+        let wrote = dir.write_file("sample.txt", "the quick brown fox\njumps over\nthe lazy dög\n");
+        let more = dir.write_file("short.txt", "hello\n");
+        names = ["sample.txt", "short.txt"];
+    }
+    match run(console, dir, names) {
+        .Ok(()) => 0,
+        .Err(e) => {
+            console.eprintln("word-count: {e}");
+            1
+        }
+    }
+}
+
+// Output:
+//     3     9    44 sample.txt
+//     1     1     6 short.txt
+//     4    10    50 total

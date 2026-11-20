@@ -6,8 +6,9 @@
 pub const NAME: &str = "lugha";
 
 /// Every page, by its path inside the skill, in teaching order: the
-/// overview, the concepts, then the library reference.
-pub const PAGES: [(&str, &str); 24] = [
+/// overview, the concepts, the library reference, the tasks, then the
+/// example programs.
+pub const PAGES: [(&str, &str); 34] = [
     ("SKILL.md", include_str!("../skill/SKILL.md")),
     (
         "concepts/01-values-and-types.md",
@@ -92,11 +93,54 @@ pub const PAGES: [(&str, &str); 24] = [
         "library/env-and-processes.md",
         include_str!("../skill/library/env-and-processes.md"),
     ),
+    (
+        "tasks/command-line-tool.md",
+        include_str!("../skill/tasks/command-line-tool.md"),
+    ),
+    (
+        "tasks/tcp-server.md",
+        include_str!("../skill/tasks/tcp-server.md"),
+    ),
+    (
+        "tasks/http-service.md",
+        include_str!("../skill/tasks/http-service.md"),
+    ),
+    (
+        "tasks/wrap-a-c-library.md",
+        include_str!("../skill/tasks/wrap-a-c-library.md"),
+    ),
+    (
+        "tasks/testing.md",
+        include_str!("../skill/tasks/testing.md"),
+    ),
+    (
+        "examples/word-count.la",
+        include_str!("../skill/examples/word-count.la"),
+    ),
+    (
+        "examples/parallel-sum.la",
+        include_str!("../skill/examples/parallel-sum.la"),
+    ),
+    (
+        "examples/kv-server.la",
+        include_str!("../skill/examples/kv-server.la"),
+    ),
+    (
+        "examples/notes-api.la",
+        include_str!("../skill/examples/notes-api.la"),
+    ),
+    (
+        "examples/config.la",
+        include_str!("../skill/examples/config.la"),
+    ),
 ];
 
-/// A page's name as `lughac skill` shows it: its path without `.md`.
+/// A page's name as `lughac skill` shows it: its path without `.md`, or
+/// an example's without `.la`.
 pub fn page_name(path: &str) -> &str {
-    path.strip_suffix(".md").unwrap_or(path)
+    path.strip_suffix(".md")
+        .or_else(|| path.strip_suffix(".la"))
+        .unwrap_or(path)
 }
 
 /// A page's short name: its last part, without a leading `NN-`.
@@ -112,7 +156,10 @@ pub fn short_name(path: &str) -> &str {
 /// (`concepts/02-functions`), else every page with that short one
 /// (`functions`), in any case. More than one means `name` is ambiguous.
 pub fn find(name: &str) -> Vec<(&'static str, &'static str)> {
-    let name = name.trim_end_matches(".md").to_ascii_lowercase();
+    let name = name
+        .trim_end_matches(".md")
+        .trim_end_matches(".la")
+        .to_ascii_lowercase();
     let full: Vec<_> = PAGES
         .iter()
         .filter(|(path, _)| page_name(path).eq_ignore_ascii_case(&name))
@@ -143,6 +190,8 @@ pub fn field<'a>(page: &'a str, key: &str) -> Option<&'a str> {
 pub fn summary(page: &str) -> &str {
     field(page, "summary")
         .or_else(|| field(page, "description"))
+        // An example program: its first comment line.
+        .or_else(|| page.lines().next()?.strip_prefix("// "))
         .unwrap_or("")
 }
 
@@ -206,6 +255,8 @@ mod tests {
         assert_eq!(short_name("concepts/02-functions.md"), "functions");
         assert_eq!(short_name("tasks/tcp-server.md"), "tcp-server");
         assert_eq!(short_name("SKILL.md"), "SKILL");
+        assert_eq!(page_name("examples/word-count.la"), "examples/word-count");
+        assert_eq!(short_name("examples/word-count.la"), "word-count");
     }
 
     #[test]
@@ -215,6 +266,10 @@ mod tests {
         assert_eq!(summary(page), "One line.");
         assert_eq!(field("# no frontmatter\n", "title"), None);
         assert_eq!(summary("# none\n"), "");
+        assert_eq!(
+            summary("// Counts words.\nfun main() {}\n"),
+            "Counts words."
+        );
     }
 
     #[test]

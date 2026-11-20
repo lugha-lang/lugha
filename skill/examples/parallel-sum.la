@@ -1,0 +1,54 @@
+// Sums squares in parallel: one task per chunk, results sent back on a channel.
+//
+// Run: lughac run parallel-sum.la
+// Shows a scope that owns its tasks, a channel collecting their results,
+// and the all-or-nothing rule when a task fails.
+
+fun sum_squares(from: i64, to: i64, out: Sender<(i64, i64)>) {
+    let mut total = 0;
+    for i in from..to {
+        total += i * i;
+    }
+    out.send((from, total));
+}
+
+fun checked(n: i64): Result<i64, string> =
+    if n < 0 { Err("negative input {n}") } else { Ok(n) };
+
+fun main(console: Console) {
+    let n = 1_000_000;
+    let chunks = 8;
+    let size = n / chunks;
+    let (tx, rx) = Chan<(i64, i64)>.unbounded();
+    let result = scope s {
+        for c in 0..chunks {
+            s.spawn(sum_squares(c * size, (c + 1) * size, tx));
+        }
+        // One result per task. The channel isn't closed here: its ends are
+        // shared handles, so closing one would close the tasks' too.
+        let mut total = 0;
+        let mut parts = 0;
+        for _ in 0..chunks {
+            let (_, part) = rx.recv().unwrap();
+            total += part;
+            parts += 1;
+        }
+        (parts, total)
+    };
+    let (parts, total) = result.unwrap();
+    console.println("{parts} parts, sum of squares below {n}: {total}");
+
+    // One task failing cancels the scope and is its result.
+    let failed = scope s {
+        s.spawn(checked(5));
+        s.spawn(checked(-1));
+    };
+    match failed {
+        .Ok(_) => console.println("all fine"),
+        .Err(f) => console.println("{f.task} failed: {f.kind.debug()}"),
+    }
+}
+
+// Output:
+// 8 parts, sum of squares below 1000000: 333332833333500000
+// checked failed: Error("negative input -1")

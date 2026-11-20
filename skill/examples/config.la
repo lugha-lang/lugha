@@ -1,0 +1,66 @@
+// Loads settings from a TOML file, with defaults and an environment override.
+//
+// Run: lughac run config.la
+// Reads app.toml from the working folder (written first if missing, so it
+// runs anywhere), then lets APP_PORT in the environment override the port.
+
+import std.toml;
+
+struct Config { name: string, port: i64, debug: bool, hosts: string[] }
+
+fun defaults(): Config = Config { name: "app", port: 8080, debug: false, hosts: ["localhost"] };
+
+fun load(dir: Dir, env: Env, path: string): Result<Config, string> {
+    let mut c = defaults();
+    if dir.exists(path) {
+        let doc = match toml.parse(dir.read_file(path)?) {
+            .Ok(d) => d,
+            .Err(e) => {
+                return Err("{path}: {e.message()}");
+            }
+        };
+        if let .Some(name) = toml.get(doc, "app.name").and_then(toml.as_text) {
+            c.name = name;
+        }
+        if let .Some(port) = toml.get(doc, "server.port").and_then(toml.as_i64) {
+            c.port = port;
+        }
+        if let .Some(debug) = toml.get(doc, "app.debug").and_then(toml.as_bool) {
+            c.debug = debug;
+        }
+        if let .Some(hosts) = toml.get(doc, "server.hosts").and_then(toml.as_array) {
+            c.hosts = hosts.map(fun(h) = toml.as_text(h).unwrap_or("?"));
+        }
+    }
+    if let .Some(text) = env.get("APP_PORT") {
+        c.port = parse_i64(text).ok_or("APP_PORT is not a number: {text}")?;
+    }
+    if c.port < 1 || c.port > 65535 {
+        return Err("port {c.port} is out of range");
+    }
+    Ok(c)
+}
+
+fun main(console: Console, fs: Fs, env: Env): i32 {
+    let dir = fs.cwd();
+    if !dir.exists("app.toml") {
+        let text = "[app]\nname = \"shop\"\ndebug = true\n\n[server]\nport = 9000\nhosts = [\"a.example\", \"b.example\"]\n";
+        let wrote = dir.write_file("app.toml", text);
+    }
+    // Only the variable this program reads, whatever else is set.
+    match load(dir, env.only(["APP_PORT"]), "app.toml") {
+        .Ok(c) => {
+            console.println("{c.name} on port {c.port}, debug {c.debug}");
+            console.println("hosts: {c.hosts.join(", ")}");
+            0
+        }
+        .Err(e) => {
+            console.eprintln("config: {e}");
+            1
+        }
+    }
+}
+
+// Output:
+// shop on port 9000, debug true
+// hosts: a.example, b.example
