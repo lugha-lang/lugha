@@ -2329,6 +2329,16 @@ Printing sites and `==` reach a type's own plain `show`/`eq` too (`show_instance
 
 ---
 
+### 227. An unnamed socket pair needs no `Net` — milestone 238 (PRP-270)
+
+**Decision:** the user's choice (2026-11-20): process lockdown allows `socketpair` with `AF_UNIX` for every program, whatever it holds; without `Net`, `socket` of every domain and `socketpair` of any other domain stay refused. SEC-05's "without `Net`, no sockets" now reads "no socket that can reach anything".
+
+**Why:** an unnamed pair has no address, so nothing outside the process can connect to it; it carries only what the process already holds, as a pipe does. Rust's `std::process` makes one to start a child, so a program holding `Proc` but not `Net` couldn't start uutils' `timeout` (Ubuntu 26.04's) or any Rust-based tool: lugha-dev's sandbox runner, which holds `Fs` and `Proc`, failed every compile.
+
+**Not now:** allowing it only with `Proc` (the user chose every program); named or abstract unix sockets, which need `socket` and stay refused.
+
+---
+
 ## OPEN — Requires human input before implementation
 
 None.

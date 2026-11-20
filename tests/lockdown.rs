@@ -181,6 +181,42 @@ fn started_programs_share_the_limits() {
 }
 
 #[test]
+fn a_unix_socket_pair_needs_no_net() {
+    let t = Temp::new();
+    let out = t.run(
+        "fun main(console: Console, proc: Proc) {
+    match proc.run(\"python3\", [\"-c\", \"import socket; socket.socketpair()\"]) {
+        .Ok(py) => console.println(py.code),
+        .Err(_) => console.println(\"no python3\"),
+    }
+    match proc.run(\"python3\", [\"-c\", \"import socket; socket.socket()\"]) {
+        .Ok(py) => console.println(py.code != 0),
+        .Err(_) => console.println(\"no python3\"),
+    }
+    // Tools that start their children through a socket pair: uutils'
+    // `timeout`, and anything on Rust's `std::process`.
+    match proc.run(\"timeout\", [\"5\", \"true\"]) {
+        .Ok(t) => console.println(t.code),
+        .Err(e) => console.println(e),
+    }
+}
+",
+        &["run"],
+    );
+    if !applied(&out).0 {
+        eprintln!("skipped: this kernel can't apply seccomp");
+        return;
+    }
+    let lines: Vec<String> = text(&out.stdout).lines().map(String::from).collect();
+    assert_eq!(lines.len(), 3, "{}{}", text(&out.stdout), text(&out.stderr));
+    if lines[0] != "no python3" {
+        assert_eq!(lines[0], "0", "an AF_UNIX socket pair was refused");
+        assert_eq!(lines[1], "true", "a socket was made without Net");
+    }
+    assert_eq!(lines[2], "0", "{}", text(&out.stderr));
+}
+
+#[test]
 fn a_plain_test_writes_only_in_its_folder() {
     let t = Temp::new();
     let probe = t.run("fun main(console: Console) {}\n", &["run"]);

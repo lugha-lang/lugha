@@ -58,8 +58,8 @@ static void lock_refuse(LockFilter *f, long nr, int error) {
 }
 
 /* The seccomp filter for `kinds`: the always-refused calls, the socket
- * calls without `Net`, the process-making calls without `Proc`; everything
- * else allowed. 1 when installed. */
+ * calls without `Net` (all but an unnamed AF_UNIX pair), the process-making
+ * calls without `Proc`; everything else allowed. 1 when installed. */
 static int lock_seccomp(int64_t kinds) {
 #ifndef LOCK_ARCH
     (void)kinds;
@@ -85,7 +85,18 @@ static int lock_seccomp(int64_t kinds) {
     lock_refuse(&f, SYS_io_uring_register, EPERM);
     if (!(kinds & LOCK_NET)) {
         lock_refuse(&f, SYS_socket, EPERM);
-        lock_refuse(&f, SYS_socketpair, EPERM);
+        // An unnamed AF_UNIX pair reaches nothing outside the process, as a
+        // pipe doesn't, and tools that start children use one (Rust's
+        // `std::process`), so it stays allowed; every other domain is
+        // refused. The kernel reads the domain as an `int`: its low word.
+        // Both paths return, so the accumulator never reaches a later check.
+        lock_emit(&f, (struct sock_filter)BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K,
+                                                   (uint32_t)SYS_socketpair, 0, 4));
+        lock_emit(&f, (struct sock_filter)BPF_STMT(BPF_LD | BPF_W | BPF_ABS,
+                                                   offsetof(struct seccomp_data, args[0])));
+        lock_emit(&f, (struct sock_filter)BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AF_UNIX, 0, 1));
+        lock_emit(&f, (struct sock_filter)BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW));
+        lock_emit(&f, (struct sock_filter)BPF_STMT(BPF_RET | BPF_K, refuse));
     }
     bool thread_check = false;
     if (!(kinds & LOCK_PROC)) {
