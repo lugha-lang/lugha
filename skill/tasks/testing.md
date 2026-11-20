@@ -15,8 +15,8 @@ runs every test in its own process and reports what failed.
 
 ## Steps
 
-1. **Write the code against capabilities,** taking a `Clock` and a `Dir`
-   as parameters rather than reaching for them.
+1. **Write the code against capabilities,** taking a `Clock` and a
+   `ReadDir` (it only reads) as parameters rather than reaching for them.
 
 ```lugha part
 fun greeting(clock: Clock): string {
@@ -32,8 +32,8 @@ fun greeting(clock: Clock): string {
 @test
 fun counts_lines_in_a_fresh_folder(dir: Dir) {
     dir.write_file("a.txt", "one\ntwo\n").unwrap();
-    assert_eq(count_lines(dir, "a.txt"), Ok(2));
-    assert(count_lines(dir, "missing.txt").is_err());
+    assert_eq(count_lines(dir.read_only(), "a.txt"), Ok(2));
+    assert(count_lines(dir.read_only(), "missing.txt").is_err());
 }
 ```
 
@@ -63,14 +63,14 @@ fun greeting(clock: Clock): string {
     if hour < 12 { "good morning" } else { "good afternoon" }
 }
 
-fun count_lines(dir: Dir, path: string): Result<i64, string> {
+fun count_lines(dir: ReadDir, path: string): Result<i64, string> {
     let text = dir.read_file(path)?;
     Ok(text.lines().len)
 }
 
 fun main(console: Console, clock: Clock, fs: Fs) {
     console.println(greeting(clock));
-    match count_lines(fs.cwd(), "notes.txt") {
+    match count_lines(fs.cwd().read_only(), "notes.txt") {
         .Ok(n) => console.println("{n} lines"),
         .Err(e) => console.eprintln(e),
     }
@@ -93,8 +93,8 @@ fun mornings_and_afternoons() {
 @test
 fun counts_lines_in_a_fresh_folder(dir: Dir) {
     dir.write_file("a.txt", "one\ntwo\n").unwrap();
-    assert_eq(count_lines(dir, "a.txt"), Ok(2));
-    assert(count_lines(dir, "missing.txt").is_err());
+    assert_eq(count_lines(dir.read_only(), "a.txt"), Ok(2));
+    assert(count_lines(dir.read_only(), "missing.txt").is_err());
 }
 ```
 

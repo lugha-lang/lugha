@@ -28,7 +28,7 @@ fun show(console: Console, c: Counts, name: string) {
     console.println("{c.lines:>5} {c.words:>5} {c.chars:>5} {name}");
 }
 
-fun run(console: Console, dir: Dir, names: string[]): Result<(), string> {
+fun run(console: Console, dir: ReadDir, names: string[]): Result<(), string> {
     let mut total = Counts { lines: 0, words: 0, chars: 0 };
     for name of names {
         let c = count(dir.read_file(name)?);
@@ -50,7 +50,7 @@ fun main(args: string[], console: Console, fs: Fs): i32 {
         let more = dir.write_file("short.txt", "hello\n");
         names = ["sample.txt", "short.txt"];
     }
-    match run(console, dir, names) {
+    match run(console, dir.read_only(), names) {
         .Ok(()) => 0,
         .Err(e) => {
             console.eprintln("word-count: {e}");

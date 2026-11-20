@@ -159,8 +159,8 @@ path leads outside the folder
 
 ## Exercises
 
-1. Write `fun count_lines(dir: Dir, path: string): Result<i64, string>`
-   and use it from `main` with `fs.cwd()`.
+1. Write `fun count_lines(dir: ReadDir, path: string): Result<i64, string>`
+   and use it from `main` with `fs.cwd().read_only()`.
 2. Write a function that times another with a `Clock` and prints how long
    it took.
 3. Write an `Env` fake over a `Map<string, string>`, and test a function

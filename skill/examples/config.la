@@ -10,7 +10,7 @@ struct Config { name: string, port: i64, debug: bool, hosts: string[] }
 
 fun defaults(): Config = Config { name: "app", port: 8080, debug: false, hosts: ["localhost"] };
 
-fun load(dir: Dir, env: Env, path: string): Result<Config, string> {
+fun load(dir: ReadDir, env: Env, path: string): Result<Config, string> {
     let mut c = defaults();
     if dir.exists(path) {
         let doc = match toml.parse(dir.read_file(path)?) {
@@ -47,8 +47,8 @@ fun main(console: Console, fs: Fs, env: Env): i32 {
         let text = "[app]\nname = \"shop\"\ndebug = true\n\n[server]\nport = 9000\nhosts = [\"a.example\", \"b.example\"]\n";
         let wrote = dir.write_file("app.toml", text);
     }
-    // Only the variable this program reads, whatever else is set.
-    match load(dir, env.only(["APP_PORT"]), "app.toml") {
+    // Only reading from here on, and only the variable this program reads.
+    match load(dir.read_only(), env.only(["APP_PORT"]), "app.toml") {
         .Ok(c) => {
             console.println("{c.name} on port {c.port}, debug {c.debug}");
             console.println("hosts: {c.hosts.join(", ")}");

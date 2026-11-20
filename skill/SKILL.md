@@ -44,7 +44,9 @@ languages it looks like.
 
 - **`main` is handed what it may touch.** There is no global `println`. A
   program takes `console: Console` to print, `fs: Fs` for files, `net: Net`
-  for the network, and passes them to the functions that need them.
+  for the network, and passes them to the functions that need them,
+  narrowed to what each needs: a function that only reads files takes a
+  `ReadDir` (`dir.read_only()`).
 - **Functions are `fun`; types follow names.** `fun add(a: i64, b: i64): i64`.
   A one-expression body is written with `=`: `fun double(x: i64): i64 = x * 2;`
 - **Bindings are immutable unless `let mut`.** The same goes for a method

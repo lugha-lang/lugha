@@ -33,12 +33,14 @@ fun main(args: string[], console: Console, fs: Fs): i32 {
     }
 ```
 
-3. **Keep the work in functions that return `Result`.** `search` doesn't
-   print errors or exit: it returns them, and `main` decides. `?` passes a
+3. **Keep the work in functions that return `Result`,** taking only what
+   they need. `search` takes a `ReadDir`, so it can't write files, which its
+   signature shows. It doesn't print errors or exit: it returns them, and
+   `main` decides. `?` passes a
    read error up with the file's name added by `map_err`.
 
 ```lugha part
-fun search(console: Console, dir: Dir, pattern: string, files: string[]): Result<i64, string> {
+fun search(console: Console, dir: ReadDir, pattern: string, files: string[]): Result<i64, string> {
     let mut found = 0;
     for name of files {
         let text = dir.read_file(name).map_err(fun(e) = "{name}: {e}")?;
@@ -98,7 +100,7 @@ fun report(console: Console, name: string, text: string, pattern: string): i64 {
     found
 }
 
-fun search(console: Console, dir: Dir, pattern: string, files: string[]): Result<i64, string> {
+fun search(console: Console, dir: ReadDir, pattern: string, files: string[]): Result<i64, string> {
     let mut found = 0;
     for name of files {
         let text = dir.read_file(name).map_err(fun(e) = "{name}: {e}")?;
@@ -130,7 +132,7 @@ fun main(args: string[], console: Console, fs: Fs): i32 {
     let result = if files.len == 0 {
         search_stdin(console, pattern)
     } else {
-        search(console, fs.cwd(), pattern, files)
+        search(console, fs.cwd().read_only(), pattern, files)
     };
     match result {
         .Ok(0) => 1,
@@ -149,8 +151,6 @@ fun main(args: string[], console: Console, fs: Fs): i32 {
 
 - Add a `-i` flag for case-insensitive matching: check `args` for it before
   the pattern, and compare with `line.to_lower()` (see `library/text`).
-- Narrow what the tool can touch: make `search` take `dir: ReadDir` and pass
-  it `fs.cwd().read_only()`, so it can't write files, by its type.
 - Test `report` and `search` with `@test` functions and a fresh folder (see
   `tasks/testing`).
 - The `examples/word-count.la` program is another complete tool.
