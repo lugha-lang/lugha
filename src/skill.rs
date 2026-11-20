@@ -7,7 +7,7 @@ pub const NAME: &str = "lugha";
 
 /// Every page, by its path inside the skill, in teaching order: the
 /// overview, then the concepts.
-pub const PAGES: [(&str, &str); 11] = [
+pub const PAGES: [(&str, &str); 15] = [
     ("SKILL.md", include_str!("../skill/SKILL.md")),
     (
         "concepts/01-values-and-types.md",
@@ -48,6 +48,22 @@ pub const PAGES: [(&str, &str); 11] = [
     (
         "concepts/10-capabilities.md",
         include_str!("../skill/concepts/10-capabilities.md"),
+    ),
+    (
+        "concepts/11-tasks-and-scopes.md",
+        include_str!("../skill/concepts/11-tasks-and-scopes.md"),
+    ),
+    (
+        "concepts/12-channels-and-actors.md",
+        include_str!("../skill/concepts/12-channels-and-actors.md"),
+    ),
+    (
+        "concepts/13-modules-and-packages.md",
+        include_str!("../skill/concepts/13-modules-and-packages.md"),
+    ),
+    (
+        "concepts/14-c-interop.md",
+        include_str!("../skill/concepts/14-c-interop.md"),
     ),
 ];
 

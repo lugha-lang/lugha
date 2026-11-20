@@ -132,9 +132,25 @@ fn pages_never_point_at_the_spec_or_history() {
     }
 }
 
-/// Builds and runs `code` alone; its exit code and stdout.
-fn run(code: &str) -> (Option<i32>, String, String) {
+/// The files a `lugha file NAME` block gave, waiting for the next example.
+type Files = Vec<(String, String)>;
+
+/// A fresh folder holding `main.la` and `files`, at their paths.
+fn folder(code: &str, files: &Files) -> TempDir {
     let dir = TempDir::with(&[("main.la", code.as_bytes())]);
+    for (name, text) in files {
+        let path = dir.0.join(name);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).expect("temp dir is writable");
+        }
+        std::fs::write(path, text).expect("temp dir is writable");
+    }
+    dir
+}
+
+/// Builds and runs `code` with `files`; its exit code, stdout and stderr.
+fn run(code: &str, files: &Files) -> (Option<i32>, String, String) {
+    let dir = folder(code, files);
     let built = lughac(&dir.0, &["build", "main.la", "-o", "main"]);
     if !built.status.success() {
         return (built.status.code(), String::new(), text(&built.stderr));
@@ -147,14 +163,29 @@ fn run(code: &str) -> (Option<i32>, String, String) {
     (out.status.code(), text(&out.stdout), text(&out.stderr))
 }
 
-/// What is wrong with one block, if anything: ```` ```lugha ```` checks;
-/// one followed by ```` ```output ```` runs and prints exactly that (exit 0, or
-/// N for ```` ```lugha exit N ````); ```` ```lugha error E0xxx ```` fails with
-/// that code. Other blocks are `output`, `sh` or `text`.
-fn wrong(block: &Block, next: Option<&Block>) -> Option<String> {
+/// What is wrong with one block, if anything:
+/// - ```` ```lugha ```` checks; followed by ```` ```output ```` it runs and
+///   prints exactly that (exit 0, or N for ```` ```lugha exit N ````);
+/// - ```` ```lugha error E0xxx ```` fails with that code;
+/// - ```` ```lugha file NAME ```` is written as `NAME` beside the next
+///   example's `main.la` (kept in `files` until then);
+/// - `output`, `sh`, `text` and `toml` blocks are shown, not checked.
+fn wrong(block: &Block, next: Option<&Block>, files: &mut Files) -> Option<String> {
     let words: Vec<&str> = block.info.split_whitespace().collect();
+    if let ["lugha", "file", name] = words.as_slice() {
+        files.push(((*name).to_string(), block.code.clone()));
+        return None;
+    }
+    if !matches!(words.first(), Some(&"lugha")) {
+        return match words.as_slice() {
+            ["output"] | ["sh"] | ["text"] | ["toml"] => None,
+            _ => Some(format!("unknown block info `{}`", block.info)),
+        };
+    }
+    // This example takes the files given before it.
+    let files = std::mem::take(files);
     let check = |code: &str| {
-        let dir = TempDir::with(&[("main.la", code.as_bytes())]);
+        let dir = folder(code, &files);
         lughac(&dir.0, &["check", "main.la"])
     };
     match words.as_slice() {
@@ -172,7 +203,7 @@ fn wrong(block: &Block, next: Option<&Block>) -> Option<String> {
             };
             match next.filter(|b| b.info == "output") {
                 Some(output) => {
-                    let (code, stdout, stderr) = run(&block.code);
+                    let (code, stdout, stderr) = run(&block.code, &files);
                     (code != Some(exit) || stdout != output.code).then(|| {
                         format!(
                             "exit {code:?} (want {exit}), stdout:\n{stdout}want:\n{}{stderr}",
@@ -186,7 +217,6 @@ fn wrong(block: &Block, next: Option<&Block>) -> Option<String> {
                 }
             }
         }
-        ["output"] | ["sh"] | ["text"] => None,
         _ => Some(format!("unknown block info `{}`", block.info)),
     }
 }
@@ -197,11 +227,17 @@ fn every_example_compiles_and_prints_what_the_page_says() {
     let mut failures = Vec::new();
     for (path, page) in PAGES {
         let all = blocks(page);
+        let mut files = Files::new();
         for (i, block) in all.iter().enumerate() {
-            if let Some(why) = wrong(block, all.get(i + 1)) {
+            if let Some(why) = wrong(block, all.get(i + 1), &mut files) {
                 failures.push(format!("{path}:{}: {why}", block.line));
             }
             checked += 1;
+        }
+        if !files.is_empty() {
+            failures.push(format!(
+                "{path}: a `lugha file` block has no example after it"
+            ));
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n---\n"));

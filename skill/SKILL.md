@@ -84,6 +84,10 @@ this order, so a course can follow it.
 | [Generics](concepts/08-generics.md) | you write `<T>` functions or types, or need a bound like `T: Ord` |
 | [Iterators](concepts/09-iterators.md) | you loop with `for … of`, make a type loopable, or chain `map`, `filter`, `take` |
 | [Capabilities](concepts/10-capabilities.md) | you print, read input, touch files, the network, the clock, the environment or other programs, or fake them in tests |
+| [Tasks and scopes](concepts/11-tasks-and-scopes.md) | you run work at the same time, wait for it, cancel it or give it a deadline |
+| [Channels and actors](concepts/12-channels-and-actors.md) | tasks pass values to each other, wait on several things with `select`, or share state through an actor |
+| [Modules and packages](concepts/13-modules-and-packages.md) | you split code into files, set visibility, write `lugha.toml`, use `std` or git packages, or write `@test`s |
+| [C interop](concepts/14-c-interop.md) | you call C, link a C library, pass callbacks or C buffers, or grant a package `ffi` |
 
 Other commands: `lughac skill --list` lists every page with a one-line
 summary, `lughac skill --search <text>` finds lines across them, and
