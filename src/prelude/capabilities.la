@@ -60,8 +60,8 @@ interface Fs: Sendable {
 interface Dir: Sendable {
     /** A folder inside this one, as a `Dir` reaching only it and below. */
     fun dir(self, path: string): Result<Dir, string>;
-    /** This folder, for reading only: every method that would change something is `Err("the folder is read-only")`. */
-    fun read_only(self): Dir;
+    /** This folder for reading only: a `ReadDir`, which has no method that changes anything. */
+    fun read_only(self): ReadDir;
     /** The whole file as text, any bytes that aren't UTF-8 shown as U+FFFD. */
     fun read_file(self, path: string): Result<string, string>;
     /** The whole file as bytes. */
@@ -127,6 +127,34 @@ interface Dir: Sendable {
         }
         Ok(())
     }
+}
+
+/**
+ * A folder that can only be read: `dir.read_only()` gives one. It is
+ * confined as a `Dir` is, and has no method that changes anything, so code
+ * given one can't write, by its type. A fake implements these ten methods.
+ */
+interface ReadDir: Sendable {
+    /** A folder inside this one, as a `ReadDir` reaching only it and below. */
+    fun dir(self, path: string): Result<ReadDir, string>;
+    /** The whole file as text, any bytes that aren't UTF-8 shown as U+FFFD. */
+    fun read_file(self, path: string): Result<string, string>;
+    /** The whole file as bytes. */
+    fun read_bytes(self, path: string): Result<u8[], string>;
+    /** The names in a folder, sorted by their bytes, without `.` and `..`; `Err` also when a name isn't UTF-8. */
+    fun list(self, path: string): Result<string[], string>;
+    /** Whether something exists at `path`, following symbolic links. */
+    fun exists(self, path: string): bool;
+    /** Whether `path` is a folder. */
+    fun is_dir(self, path: string): bool;
+    /** Whether `path` is a regular file. */
+    fun is_file(self, path: string): bool;
+    /** The size in bytes of the regular file at `path`, as `Dir`'s `size`. */
+    fun size(self, path: string): Result<i64, string>;
+    /** Opens a file for reading. */
+    fun open(self, path: string): Result<File, string>;
+    /** The folder's absolute path, or `Err` with the system's message. */
+    fun path(self): Result<string, string>;
 }
 
 /**

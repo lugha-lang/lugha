@@ -5,3 +5,4 @@ Ok(Some("first"))
 Ok(Some("second"))
 Ok(None)
 Err("read-only tape")
+Ok(["note"]) true

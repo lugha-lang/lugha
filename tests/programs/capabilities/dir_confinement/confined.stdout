@@ -18,12 +18,8 @@ Err("a path must end in a name, not `.` or `..`")
 Err("a path must end in a name, not `.` or `..`")
 Err("path leads outside the folder")
 Ok("inside")
-Err("the folder is read-only")
-Err("the folder is read-only")
-Err("the folder is read-only")
-Err("the folder is read-only")
-Err("the folder is read-only")
+Err("path leads outside the folder")
+Err("path leads outside the folder")
 true
-Err("the folder is read-only")
 true
 false

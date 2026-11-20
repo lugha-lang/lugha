@@ -90,6 +90,10 @@ pub(super) const ERROR: &str = "$prelude.Error";
 /// implements one.
 pub(super) const DIR: &str = "$prelude.Dir";
 
+/// A folder for reading only, which a `Dir`'s `read_only()` gives: a
+/// capability met only by `impl`, as `Dir` is.
+pub(super) const READ_DIR: &str = "$prelude.ReadDir";
+
 /// What the capabilities open: interfaces like them, so a fake `Dir` or
 /// `Net` can return fake files and connections.
 const OPENED: [&str; 4] = [
@@ -99,10 +103,13 @@ const OPENED: [&str; 4] = [
     "$prelude.Udp",
 ];
 
-/// True for a capability interface: those `main` may take, `Dir`, and what
-/// they open (`File`, `Listener`, `Conn`, `Udp`).
+/// True for a capability interface: those `main` may take, `Dir` and
+/// `ReadDir`, and what they open (`File`, `Listener`, `Conn`, `Udp`).
 pub(super) fn is_capability(key: &str) -> bool {
-    key == DIR || OPENED.contains(&key) || super::ENTRY_CAPABILITIES.iter().any(|(c, _)| *c == key)
+    key == DIR
+        || key == READ_DIR
+        || OPENED.contains(&key)
+        || super::ENTRY_CAPABILITIES.iter().any(|(c, _)| *c == key)
 }
 
 /// The module part of an item's key: `geo` for `geo.Circle`, `""` for an

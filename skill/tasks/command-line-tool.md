@@ -149,8 +149,8 @@ fun main(args: string[], console: Console, fs: Fs): i32 {
 
 - Add a `-i` flag for case-insensitive matching: check `args` for it before
   the pattern, and compare with `line.to_lower()` (see `library/text`).
-- Narrow what the tool can touch: pass `fs.cwd().read_only()` to `search`,
-  so even a bug can't write files.
+- Narrow what the tool can touch: make `search` take `dir: ReadDir` and pass
+  it `fs.cwd().read_only()`, so it can't write files, by its type.
 - Test `report` and `search` with `@test` functions and a fresh folder (see
   `tasks/testing`).
 - The `examples/word-count.la` program is another complete tool.

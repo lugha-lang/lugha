@@ -58,6 +58,7 @@ impl Checker {
                 | "Console"
                 | "Fs"
                 | "Dir"
+                | "ReadDir"
                 | "Clock"
                 | "Env"
                 | "Proc"

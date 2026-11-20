@@ -78,9 +78,10 @@ true
   `call(cmd, args)` start another program. There is never a shell, so
   arguments are passed exactly as given.
 - **`Entropy`:** `bytes(n)` and `next_u64()`, random from the system.
-- **Narrowing:** `console.stdout_only()`, `dir.read_only()`,
-  `dir.dir("data")`, `net.only(…)` and `env.only(…)` give a weaker value to
-  pass to code you trust less.
+- **Narrowing:** `console.stdout_only()`, `dir.dir("data")`, `net.only(…)`
+  and `env.only(…)` give a weaker value to pass to code you trust less.
+  `dir.read_only()` gives a `ReadDir`, a folder with only the reading
+  methods: a function taking one can't write, which its signature shows.
 - **Faking:** any type can implement a capability's interface, so a test
   can hand a function a console, folder or clock of its own. Capabilities
   may be passed to other tasks, so a fake is `Sendable`: one that records

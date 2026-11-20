@@ -1,0 +1,5 @@
+// A folder narrowed to reading has no method that writes.
+fun main(fs: Fs) {
+    let ro = fs.cwd().read_only();
+    let w = ro.write_file("x.txt", "y");
+}

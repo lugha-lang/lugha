@@ -1,0 +1,9 @@
+error[E0415]: no method `write_file` on `ReadDir`
+  --> tests/programs/capabilities/dir_confinement/e0415_read_only.la:4:16
+  |
+4 |     let w = ro.write_file("x.txt", "y");
+  |                ^^^^^^^^^^
+  |
+  = help: a `ReadDir` only reads; take a `Dir` to write
+
+For more about E0415, run `lughac explain E0415`.

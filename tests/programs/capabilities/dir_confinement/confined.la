@@ -35,14 +35,12 @@ fun main(console: Console, fs: Fs, proc: Proc): i32 {
     let inner = box.dir("inner").unwrap();
     console.println(inner.read_file("../moved.txt").debug());
     let ro = box.read_only();
+    // A `ReadDir` reads, confined as its `Dir` is; writing through one is
+    // a compile error (e0415_read_only.la).
     console.println(ro.read_file("moved.txt").debug());
-    console.println(ro.write_file("x.txt", "y").debug());
-    console.println(ro.make_dir("new").debug());
-    console.println(ro.remove_file("moved.txt").debug());
-    console.println(ro.rename("moved.txt", "m.txt").debug());
-    console.println(ro.set_mode("moved.txt", 0o600).debug());
-    console.println(ro.create("c.txt").is_err());
-    console.println(ro.dir("inner").unwrap().write_file("x.txt", "y").debug());
+    console.println(ro.read_file("../moved.txt").debug());
+    console.println(ro.dir("inner").unwrap().read_file("../moved.txt").debug());
+    console.println(ro.dir("..").is_err());
     console.println(box.path().unwrap().ends_with("/box"));
     console.println(here.exists("planted.txt"));
     0

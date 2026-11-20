@@ -26,9 +26,25 @@ impl File for Tape {
     fun close(self) {}
 }
 
+// The same files, for reading only.
+struct Reading { under: Memory }
+
+impl ReadDir for Reading {
+    fun dir(self, path: string): Result<ReadDir, string> = Err("one folder only");
+    fun read_file(self, path: string): Result<string, string> = self.under.read_file(path);
+    fun read_bytes(self, path: string): Result<u8[], string> = self.under.read_bytes(path);
+    fun list(self, path: string): Result<string[], string> = self.under.list(path);
+    fun exists(self, path: string): bool = self.under.exists(path);
+    fun is_dir(self, path: string): bool = self.under.is_dir(path);
+    fun is_file(self, path: string): bool = self.under.is_file(path);
+    fun size(self, path: string): Result<i64, string> = self.under.size(path);
+    fun open(self, path: string): Result<File, string> = self.under.open(path);
+    fun path(self): Result<string, string> = self.under.path();
+}
+
 impl Dir for Memory {
     fun dir(self, path: string): Result<Dir, string> = Err("one folder only");
-    fun read_only(self): Dir = self;
+    fun read_only(self): ReadDir = Reading { under: self };
     fun read_file(self, path: string): Result<string, string> = match self.read_bytes(path) {
         .Ok(b) => string_from_utf8(b),
         .Err(e) => Err(e),
@@ -91,4 +107,6 @@ fun main(console: Console, root: Scope) {
     console.println(f.read_line().debug());
     console.println(f.read_line().debug());
     console.println(f.write_text("x").debug());
+    let reading = m.read_only();
+    console.println("{reading.list(".").debug()} {reading.is_file("note")}");
 }

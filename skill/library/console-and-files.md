@@ -1,6 +1,6 @@
 ---
 title: Console and files
-summary: Console, Fs, Dir and File: every method, what it gives, and how folders are confined.
+summary: Console, Fs, Dir, ReadDir and File: every method, what it gives, and how folders are confined.
 ---
 
 # Console and files
@@ -56,8 +56,24 @@ outside it (`..` past its top, an absolute path, a link pointing out) is
 | `dir.sync(path)` | `Ok(())` once the file's data is on the disk |
 | `dir.open(path)`, `dir.create(path)`, `dir.append(path)` | `Ok(File)` to read, to write from empty, or to add to the end |
 | `dir.dir(path)` | `Ok(Dir)`: a folder inside, confined to itself |
-| `dir.read_only()` | the same folder, where every change is `Err` |
+| `dir.read_only()` | the same folder as a `ReadDir`, which has no method that changes anything |
 | `dir.path()` | `Ok(text)`: the folder's full path |
+
+### ReadDir
+
+A folder that can only be read, from `dir.read_only()`: confined as its
+`Dir` is, with only the reading methods, so code given a `ReadDir` can't
+write, which its signature shows. Calling a writing method on one is a
+compile error (E0415). Take a `ReadDir` parameter where a function only
+reads.
+
+| Item | What it gives |
+| --- | --- |
+| `r.read_file(path)`, `r.read_bytes(path)` | as on `Dir` |
+| `r.list(path)`, `r.exists(path)`, `r.is_file(path)`, `r.is_dir(path)`, `r.size(path)` | as on `Dir` |
+| `r.open(path)` | `Ok(File)` to read |
+| `r.dir(path)` | `Ok(ReadDir)`: a folder inside, confined and read-only too |
+| `r.path()` | `Ok(text)`: the folder's full path |
 
 ### File
 
@@ -100,7 +116,7 @@ fun main(console: Console, fs: Fs) {
     console.println(here.list("out/logs").unwrap().debug());
     console.println(error_of(here.dir("out").unwrap().read_file("../secret")));
     let locked = here.read_only();
-    console.println(locked.write_file("x.txt", "no").is_err());
+    console.println(locked.list("out").unwrap().debug());
     console.println("{here.size("out/logs/a.txt").unwrap()} {here.is_dir("out")}");
 }
 
@@ -113,6 +129,6 @@ fun error_of<T>(r: Result<T, string>): string = match r {
 3 lines
 ["a.txt"]
 path leads outside the folder
-true
+["logs"]
 14 true
 ```

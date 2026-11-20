@@ -25,64 +25,42 @@ struct $Fs {}
 
 impl Fs for $Fs {
     fun cwd(self): Dir = match $os.dir_cwd() {
-        .Ok(h) => $Dir { h: h, read_only: false },
+        .Ok(h) => $Dir { h: h },
         // Only when the working folder was deleted or made unreadable before the program ran.
         .Err(e) => panic("can't open the working folder: {e}"),
     };
     fun dir(self, path: string): Result<Dir, string> {
         let h = $os.dir_open(path)?;
-        Ok($Dir { h: h, read_only: false })
+        Ok($Dir { h: h })
     }
 }
 
 /**
  * A real folder: a directory descriptor, every path opened beneath it by
- * the kernel (`openat2`, `RESOLVE_BENEATH`); `read_only` refuses writing
- * before any system call.
+ * the kernel (`openat2`, `RESOLVE_BENEATH`).
  */
-struct $Dir { h: $Resource, read_only: bool }
+struct $Dir { h: $Resource }
 
 impl Dir for $Dir {
     fun dir(self, path: string): Result<Dir, string> {
         let h = $os.dir_sub(self.h, path)?;
-        Ok($Dir { h: h, read_only: self.read_only })
+        Ok($Dir { h: h })
     }
-    fun read_only(self): Dir = $Dir { h: self.h, read_only: true };
+    fun read_only(self): ReadDir = $ReadDir { h: self.h };
     fun read_file(self, path: string): Result<string, string> = $os.dir_read_text(self.h, path);
     fun read_bytes(self, path: string): Result<u8[], string> = $os.dir_read_bytes(self.h, path);
-    fun write_bytes(self, path: string, bytes: u8[]): Result<i64, string> {
-        self.writable()?;
-        $os.dir_write(self.h, path, bytes, 0)
-    }
-    fun append_bytes(self, path: string, bytes: u8[]): Result<i64, string> {
-        self.writable()?;
-        $os.dir_write(self.h, path, bytes, 1)
-    }
-    fun list(self, path: string): Result<string[], string> {
-        let raw = $os.dir_list(self.h, path)?;
-        let mut names: string[] = [];
-        for bytes of raw {
-            match string_from_utf8(bytes) {
-                .Ok(name) => names.push(name),
-                .Err(_) => {
-                    return Err("a name in {path} is not valid UTF-8");
-                }
-            }
-        }
-        Ok(names.sort())
-    }
+    fun write_bytes(self, path: string, bytes: u8[]): Result<i64, string> = $os.dir_write(self.h, path, bytes, 0);
+    fun append_bytes(self, path: string, bytes: u8[]): Result<i64, string> = $os.dir_write(self.h, path, bytes, 1);
+    fun list(self, path: string): Result<string[], string> = $dir_names(self.h, path);
     fun make_dir(self, path: string): Result<(), string> {
-        self.writable()?;
         $os.dir_make(self.h, path)?;
         Ok(())
     }
     fun remove_file(self, path: string): Result<(), string> {
-        self.writable()?;
         $os.dir_remove(self.h, path, 0)?;
         Ok(())
     }
     fun remove_dir(self, path: string): Result<(), string> {
-        self.writable()?;
         $os.dir_remove(self.h, path, 1)?;
         Ok(())
     }
@@ -91,12 +69,10 @@ impl Dir for $Dir {
     fun is_file(self, path: string): bool = $os.dir_kind(self.h, path) == 1;
     fun size(self, path: string): Result<i64, string> = $os.dir_size(self.h, path);
     fun rename(self, from: string, to: string): Result<(), string> {
-        self.writable()?;
         $os.dir_rename(self.h, from, to)?;
         Ok(())
     }
     fun set_mode(self, path: string, mode: i64): Result<(), string> {
-        self.writable()?;
         $os.dir_chmod(self.h, path, mode)?;
         Ok(())
     }
@@ -105,23 +81,52 @@ impl Dir for $Dir {
         Ok(())
     }
     fun open(self, path: string): Result<File, string> = $opened(self.h, path, 0);
-    fun create(self, path: string): Result<File, string> {
-        self.writable()?;
-        $opened(self.h, path, 1)
-    }
-    fun append(self, path: string): Result<File, string> {
-        self.writable()?;
-        $opened(self.h, path, 2)
-    }
-    fun path(self): Result<string, string> {
-        let bytes = $os.dir_path(self.h)?;
-        string_from_utf8(bytes)
-    }
+    fun create(self, path: string): Result<File, string> = $opened(self.h, path, 1);
+    fun append(self, path: string): Result<File, string> = $opened(self.h, path, 2);
+    fun path(self): Result<string, string> = $dir_text_path(self.h);
 }
 
-impl $Dir {
-    /** `Err` for a read-only folder, before anything is touched. */
-    fun writable(self): Result<(), string> = if self.read_only { Err("the folder is read-only") } else { Ok(()) };
+/**
+ * A real folder for reading only: the same confined descriptor as the
+ * `Dir` it came from, with no method that changes anything.
+ */
+struct $ReadDir { h: $Resource }
+
+impl ReadDir for $ReadDir {
+    fun dir(self, path: string): Result<ReadDir, string> {
+        let h = $os.dir_sub(self.h, path)?;
+        Ok($ReadDir { h: h })
+    }
+    fun read_file(self, path: string): Result<string, string> = $os.dir_read_text(self.h, path);
+    fun read_bytes(self, path: string): Result<u8[], string> = $os.dir_read_bytes(self.h, path);
+    fun list(self, path: string): Result<string[], string> = $dir_names(self.h, path);
+    fun exists(self, path: string): bool = $os.dir_kind(self.h, path) != 0;
+    fun is_dir(self, path: string): bool = $os.dir_kind(self.h, path) == 2;
+    fun is_file(self, path: string): bool = $os.dir_kind(self.h, path) == 1;
+    fun size(self, path: string): Result<i64, string> = $os.dir_size(self.h, path);
+    fun open(self, path: string): Result<File, string> = $opened(self.h, path, 0);
+    fun path(self): Result<string, string> = $dir_text_path(self.h);
+}
+
+/** The names in folder `path` beneath `h`, sorted; `Err` when one isn't UTF-8. */
+fun $dir_names(h: $Resource, path: string): Result<string[], string> {
+    let raw = $os.dir_list(h, path)?;
+    let mut names: string[] = [];
+    for bytes of raw {
+        match string_from_utf8(bytes) {
+            .Ok(name) => names.push(name),
+            .Err(_) => {
+                return Err("a name in {path} is not valid UTF-8");
+            }
+        }
+    }
+    Ok(names.sort())
+}
+
+/** Folder `h`'s absolute path as text. */
+fun $dir_text_path(h: $Resource): Result<string, string> {
+    let bytes = $os.dir_path(h)?;
+    string_from_utf8(bytes)
 }
 
 /** A file opened beneath folder `h` in `mode` 0 (reading), 1 (creating) or 2 (appending). */

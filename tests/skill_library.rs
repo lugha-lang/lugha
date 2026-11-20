@@ -84,7 +84,7 @@ fn library_pages_name_every_public_item_of_their_std_modules() {
 
 /// The prelude's methods, by file and the block they are in, and the page
 /// that documents them.
-const PRELUDE_PAGES: [(&str, &str, &str); 27] = [
+const PRELUDE_PAGES: [(&str, &str, &str); 28] = [
     ("core.la", "impl string", "library/text.md"),
     ("text.la", "impl string", "library/text.md"),
     ("text.la", "impl char", "library/text.md"),
@@ -140,6 +140,11 @@ const PRELUDE_PAGES: [(&str, &str, &str); 27] = [
         "capabilities.la",
         "interface Entropy: Sendable",
         "library/numbers-time-random.md",
+    ),
+    (
+        "capabilities.la",
+        "interface ReadDir: Sendable",
+        "library/console-and-files.md",
     ),
     ("net.la", "interface Net: Sendable", "library/net.md"),
     ("net.la", "interface Listener: Sendable", "library/net.md"),

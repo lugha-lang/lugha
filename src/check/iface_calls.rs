@@ -7,6 +7,16 @@ use super::{Checker, errors};
 use crate::ast::{Expr, Ident};
 
 impl Checker {
+    /// True if `name` is a method `Dir` has and `ReadDir`, `key`, lacks: a
+    /// write through a folder narrowed to reading.
+    fn writes_through_read_dir(&self, key: &str, name: &str) -> bool {
+        key == super::impls::READ_DIR
+            && self
+                .interfaces
+                .get(super::impls::DIR)
+                .is_some_and(|dir| dir.items.iter().any(|r| r.name == name))
+    }
+
     /// Method `name` of a value of type `interface`: the interface's item at
     /// its arguments, recorded as the callee `<key>.<name>` so codegen
     /// dispatches it. `None` after E0415 when the interface has no such method.
@@ -25,9 +35,12 @@ impl Checker {
             .collect();
         let Some(req) = items.iter().find(|r| r.name == name.name).cloned() else {
             let names: Vec<String> = items.iter().map(|r| format!("`{}`", r.name)).collect();
-            let help = match names.is_empty() {
-                true => format!("`{key}` declares no methods"),
-                false => format!("`{key}` declares {}", names.join(", ")),
+            let help = if self.writes_through_read_dir(key, &name.name) {
+                "a `ReadDir` only reads; take a `Dir` to write".to_string()
+            } else if names.is_empty() {
+                format!("`{key}` declares no methods")
+            } else {
+                format!("`{key}` declares {}", names.join(", "))
             };
             let ty = interface.ty();
             self.report(errors::no_method(&name.name, &ty, name.span, Some(help)));
@@ -63,6 +76,51 @@ mod tests {
     fn help(body: &str) -> String {
         let src = format!("{SHAPES}{body}\nfun main() {{}}");
         diagnostics(&src)[0].help.clone().expect("a help")
+    }
+
+    #[test]
+    fn a_read_only_folder_is_a_read_dir_that_cant_write() {
+        use crate::check::Type;
+        use crate::check::test_util::{errors, let_type, ok};
+        let read_dir = Type::Interface("$prelude.ReadDir".into(), Vec::new());
+        assert_eq!(
+            let_type("fun main(fs: Fs) { let r = fs.cwd().read_only(); }", "r"),
+            read_dir
+        );
+        let result = |t: Type| Type::Enum("$prelude.Result".into(), vec![t, Type::String]);
+        assert_eq!(
+            let_type(
+                "fun main(fs: Fs) { let s = fs.cwd().read_only().dir(\"a\"); }",
+                "s"
+            ),
+            result(read_dir)
+        );
+        let src = "fun main(fs: Fs) { let w = fs.cwd().read_only().write_file(\"x\", \"y\"); }";
+        assert_eq!(errors(src), [("E0415", "write_file")]);
+        let help = crate::check::test_util::diagnostics(src)[0].help.clone();
+        assert_eq!(
+            help.as_deref(),
+            Some("a `ReadDir` only reads; take a `Dir` to write")
+        );
+        // A `ReadDir` isn't a `Dir`.
+        let wants_dir = "fun save(d: Dir) {}\nfun main(fs: Fs) { save(fs.cwd().read_only()); }";
+        assert!(!errors(wants_dir).is_empty());
+        // A program's own fake implements the ten items.
+        ok("struct Empty {}\n\
+            impl ReadDir for Empty {\n\
+                fun dir(self, path: string): Result<ReadDir, string> = Err(\"none\");\n\
+                fun read_file(self, path: string): Result<string, string> = Err(\"none\");\n\
+                fun read_bytes(self, path: string): Result<u8[], string> = Ok([]);\n\
+                fun list(self, path: string): Result<string[], string> = Ok([]);\n\
+                fun exists(self, path: string): bool = false;\n\
+                fun is_dir(self, path: string): bool = false;\n\
+                fun is_file(self, path: string): bool = false;\n\
+                fun size(self, path: string): Result<i64, string> = Ok(0);\n\
+                fun open(self, path: string): Result<File, string> = Err(\"none\");\n\
+                fun path(self): Result<string, string> = Ok(\"/\");\n\
+            }\n\
+            fun count(d: ReadDir): i64 = d.list(\".\").unwrap_or([]).len;\n\
+            fun main() { let n = count(Empty {}); }");
     }
 
     #[test]
