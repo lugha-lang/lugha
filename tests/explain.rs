@@ -46,7 +46,7 @@ fn text(bytes: &[u8]) -> String {
 /// The spec's table of error codes: each code and its title, without a
 /// trailing version note.
 fn table() -> Vec<(String, String)> {
-    lugha::SPEC
+    include_str!("../docs/specs/Language v18 Specification.md")
         .lines()
         .filter_map(|line| {
             let cells: Vec<&str> = line.split(" | ").collect();

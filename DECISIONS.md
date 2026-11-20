@@ -2309,6 +2309,16 @@ Printing sites and `==` reach a type's own plain `show`/`eq` too (`show_instance
 
 **Not now:** `with` on a closure literal, and other `auto` interfaces: no use yet.
 
+### 225. The Lugha skill replaces the bundled spec — milestone 230 (PRP-262)
+
+**Decision:** asked for by the user (2026-11-20): `lughac spec` is removed, and the spec is no longer built into `lughac`. What ships for readers and AI assistants is the Lugha skill, `skill/`: an Agent Skill folder (`SKILL.md` and pages) of readable, example-first pages that never point at the spec, read with `lughac skill` and exported with `lughac skill --export`. Its concept pages follow a syllabus, each with prerequisites and exercises, so courses can be built from them. `tests/skill.rs` compiles and runs every example in it. This supersedes, on this point, core decision 3 ("the spec doubles as the LLM-ready bundle") and 18 ("rules out a condensed second copy"): the spec stays the project's rulebook and the source of the §10 acceptance tests.
+
+**Why:** a 4 000-line rulebook is the wrong shape for a model or a learner: a skill loads a short overview, then only the pages a task needs, and the same pages serve courses. Drift, the reason decision 18 ruled a second copy out, is caught by the test running every example.
+
+**Not now:** search ranking or an index; the pages beyond concepts 1–5 come in later PRPs.
+
+---
+
 ## OPEN — Requires human input before implementation
 
 None.

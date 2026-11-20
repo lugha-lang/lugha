@@ -1,5 +1,5 @@
 //! The example programs and the milestone table's test program, extracted
-//! from the spec `lughac spec` prints (`lugha::SPEC`), with the results
+//! from the spec (`SPEC`), with the results
 //! their sentences state.
 //! Editing the spec changes what the tests run.
 
@@ -26,12 +26,15 @@ pub struct SpecProgram {
     pub stdin: String,
 }
 
+/// The language specification the compiler implements.
+pub const SPEC: &str = include_str!("../../docs/specs/Language v18 Specification.md");
+
 /// The text between the heading starting `start` and the next `## ` heading.
 fn section(start: &str) -> &'static str {
-    let from = lugha::SPEC
+    let from = SPEC
         .find(start)
         .unwrap_or_else(|| panic!("the spec has a `{start}` section"));
-    let text = &lugha::SPEC[from..];
+    let text = &SPEC[from..];
     let end = text[3..].find("\n## ").map_or(text.len(), |i| i + 3);
     &text[..end]
 }

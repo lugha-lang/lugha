@@ -16,6 +16,7 @@ pub mod lexer;
 pub mod link;
 pub mod modules;
 pub mod parser;
+pub mod skill;
 pub mod span;
 pub mod template;
 
@@ -70,6 +71,7 @@ pub const PRELUDE: &str = concat!(
     include_str!("prelude/sendable.la")
 );
 
-/// The language specification this compiler implements, embedded verbatim;
-/// `lughac spec` prints it ("LLM-ready spec").
-pub const SPEC: &str = include_str!("../docs/specs/Language v18 Specification.md");
+/// The language specification, for the unit tests that check the compiler
+/// against it; it isn't shipped.
+#[cfg(test)]
+pub(crate) const SPEC: &str = include_str!("../docs/specs/Language v18 Specification.md");

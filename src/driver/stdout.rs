@@ -6,7 +6,7 @@ use std::io::{self, Write};
 
 /// A writer that passes everything to `inner` and keeps the first error that matters.
 ///
-/// A broken pipe doesn't matter: a reader that stops early (`lughac spec | head`) got what it
+/// A broken pipe doesn't matter: a reader that stops early (`lughac skill | head`) got what it
 /// wanted.
 pub(super) struct Watched<'a> {
     inner: &'a mut dyn Write,

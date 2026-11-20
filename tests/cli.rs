@@ -215,14 +215,15 @@ fn every_valid_acceptance_program_type_checks() {
 }
 
 #[test]
-fn spec_prints_the_bundled_specification() {
+fn the_spec_command_is_gone() {
     let dir = TempDir::with(&[]);
     let out = lughac(&dir.0, &["spec"]);
-    assert_eq!(out.status.code(), Some(0));
-    assert_eq!(text(&out.stdout), lugha::SPEC);
-    assert!(lugha::SPEC.starts_with("# Lugha v18 Specification"));
-    assert!(out.stderr.is_empty(), "{}", text(&out.stderr));
-    assert_eq!(lughac(&dir.0, &["spec", "extra"]).status.code(), Some(2));
+    assert_eq!(out.status.code(), Some(2));
+    assert!(
+        text(&out.stderr).contains("unrecognized subcommand"),
+        "{}",
+        text(&out.stderr)
+    );
 }
 
 #[test]
@@ -388,7 +389,7 @@ fn output_that_cant_be_written_is_exit_2() {
         &["build", "--emit=tokens", "arith.la"],
         &["explain", "E0401"],
         &["explain"],
-        &["spec"],
+        &["skill"],
     ] {
         let out = lughac_to_full_disk(&dir.0, args);
         assert_eq!(

@@ -172,10 +172,11 @@ playground.
 | `lughac test` | Run the tests (functions marked `@test`) |
 | `lughac fmt` | Lay out your code in the standard style |
 | `lughac explain E0501` | Explain an error, with an example and the fix |
-| `lughac spec` | Print the full description of the language |
+| `lughac skill [page]` | Read how to write Lugha, page by page (`--list`, `--search`, `--export`) |
 
 The [language specification](docs/specs/Language%20v17%20Specification.md) describes every rule,
-with example programs. `lughac spec` prints the copy that matches your compiler.
+with example programs. `lughac skill` is the readable guide built into the compiler, and
+`lughac skill --export DIR` writes it as a skill folder you can give an AI assistant.
 
 ## Editors
 

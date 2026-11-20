@@ -104,8 +104,8 @@ pub(super) enum Command {
         /// The code, such as E0501 [default: list every code]
         code: Option<String>,
     },
-    /// Print the LLM-ready spec bundled with this compiler version
-    Spec,
+    /// Read the Lugha skill: how to write Lugha, for people and AI assistants
+    Skill(SkillRequest),
     /// Serve the Language Server Protocol on stdin/stdout, for editors
     Lsp,
     /// Start a program (or with --lib a library) in a folder; never overwrites
@@ -121,6 +121,24 @@ pub(super) enum Command {
     },
 }
 
+/// `lughac skill`'s arguments: a page, or one of the flags, or neither
+/// (the overview).
+#[derive(Args)]
+#[group(multiple = false)]
+pub(super) struct SkillRequest {
+    /// A page, such as `functions` or `concepts/02-functions` [default: the overview]
+    pub(super) page: Option<String>,
+    /// List every page with its summary, in teaching order
+    #[arg(long)]
+    pub(super) list: bool,
+    /// Print every line containing TEXT (any case), as page:line: text
+    #[arg(long, value_name = "TEXT")]
+    pub(super) search: Option<String>,
+    /// Write the skill as DIR/lugha/, ready to upload as an Agent Skill
+    #[arg(long, value_name = "DIR")]
+    pub(super) export: Option<PathBuf>,
+}
+
 impl Command {
     pub(super) fn format(&self) -> Format {
         match self {
@@ -128,7 +146,7 @@ impl Command {
             Command::Check { diagnostics, .. } | Command::Update { diagnostics, .. } => {
                 *diagnostics
             }
-            Command::Spec
+            Command::Skill(_)
             | Command::Init { .. }
             | Command::Lsp
             | Command::Fmt { .. }
@@ -144,7 +162,7 @@ impl Command {
             | Command::Run { file, .. }
             | Command::Check { file, .. }
             | Command::Update { file, .. } => Some(file.display().to_string()),
-            Command::Spec
+            Command::Skill(_)
             | Command::Init { .. }
             | Command::Lsp
             | Command::Fmt { .. }

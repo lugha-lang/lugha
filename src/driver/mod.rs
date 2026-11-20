@@ -16,6 +16,7 @@ mod json;
 mod lsp;
 mod pipeline;
 mod render;
+mod skill;
 mod source;
 mod stdout;
 mod test;
@@ -58,7 +59,7 @@ pub fn main() -> ExitCode {
 /// standard streams; everything lughac itself prints goes to `stdout` and
 /// `stderr`. A command that succeeds but can't write its output to `stdout` exits 2, so
 /// `lughac build --emit=ir > out.ll` on a full disk isn't taken for a success; a reader that
-/// stops early (`lughac spec | head`) is not a failure.
+/// stops early (`lughac skill | head`) is not a failure.
 pub fn run<I, T>(args: I, stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8
 where
     I: IntoIterator<Item = T>,
@@ -191,7 +192,7 @@ where
             &mut out,
         )),
         Command::Explain { code } => Ok(explain::run(code.as_deref(), out.stdout, out.stderr)),
-        Command::Spec => Ok(spec(out.stdout, out.stderr)),
+        Command::Skill(request) => Ok(skill::run(request, out.stdout, out.stderr)),
         Command::Lsp => Ok(lsp::serve(out.stderr)),
         Command::Init { folder, lib, name } => Ok(init::init(
             &init::Request {
@@ -211,23 +212,6 @@ where
         }
         Err(Failure::Internal(source, report)) => {
             out.report(&source, &report);
-            2
-        }
-    }
-}
-
-/// `lughac spec`: the embedded spec, byte for byte.
-fn spec(stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
-    match stdout
-        .write_all(crate::SPEC.as_bytes())
-        .and_then(|()| stdout.flush())
-    {
-        Ok(()) => 0,
-        // A reader that stops early (`lughac spec | head`) is not a failure.
-        Err(error) if error.kind() == std::io::ErrorKind::BrokenPipe => 0,
-        Err(error) => {
-            // Nowhere better to report it; if stderr fails too, the exit code still says so.
-            let _ = writeln!(stderr, "error: cannot write the spec: {error}");
             2
         }
     }

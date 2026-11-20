@@ -2,7 +2,7 @@
 
 Nov 15, 2026 · @kithinji
 
-**Status:** in progress (milestone 164 onwards). It is built from the approved plan, `Language v18 Draft.md`, one phase at a time, so until v18 is complete some of its rules hold and the rest of the language is still v17's, as described here. This file describes exactly what `lughac` implements, and is what `lughac spec` prints. `Language v17 Specification.md` keeps v17 frozen.
+**Status:** in progress (milestone 164 onwards). It is built from the approved plan, `Language v18 Draft.md`, one phase at a time, so until v18 is complete some of its rules hold and the rest of the language is still v17's, as described here. This file describes exactly what `lughac` implements. `Language v17 Specification.md` keeps v17 frozen.
 
 **v15.** This is v14 plus package layout, operator overloading, the standard library (`std.math`, `std.random`, `std.env`, `std.fs`, `std.process`), copy-on-write arrays, loop ownership, nested `mut self` calls, numbers as `T`, user-defined `Ord`, and format widths in characters (milestones 51–66).
 
@@ -42,6 +42,7 @@ Nov 15, 2026 · @kithinji
 - Process lockdown: seccomp and Landlock limit the whole process, C code and started programs included, to the capability kinds `main` took (milestone 189; section 6).
 - A panic unwinds its task, running the pending `defer`s and letting go of what each frame holds (milestone 194; sections 5, 6, 9), through unwind tables: only calls with something to clean up get a landing pad. Programs link libgcc's unwinder, as C programs do.
 - Stacks and C calls (milestone 205; sections 7, 8, 9): a task's stack, `main`'s included, is an 8 MiB reservation from pooled regions without guard pages, so the number of tasks is bounded by memory, not the kernel's mappings; each function's entry checks the stack, and an overflow is a `stack overflow` panic that unwinds, running `defer`s; C runs on its own stack, the process's, and a C callback can't wait.
+- **Breaking:** `lughac spec` is gone (milestone 230; section 9): `lughac skill` prints the Lugha skill, readable pages on writing Lugha that an AI assistant can load (`lughac skill --export DIR` writes it as a skill folder) and courses can follow; `--list`, `--search` and a page name read it.
 - Callbacks with `data` take no lock (milestone 229; section 8): a `direct` or `realtime` call checks that its scope still runs and holds its captures through a counter of its own, never the runtime's callbacks lock, so a real-time call waits on no other thread; when the scope ends during a call, whichever finishes last lets go of the captures.
 - **Breaking:** `Console` input reports its errors (milestone 228; section 6): `read_line()` is `Result<Option<string>, string>`, as `File.read_line` is, a line that isn't UTF-8 being `Err("line N is not valid UTF-8")` and skipped; `read_bytes()` is `Result<u8[], string>`; a failed read is `Err("stdin: …")` from both, never the end of input. `match console.read_line() { .Some(l) => …, .None => … }` becomes `.Ok(.Some(l)) => …, .Ok(.None) => …, .Err(e) => …`.
 - `net.only`'s gaps closed (milestone 227; section 6): NAT64 and 6to4 addresses are judged by the IPv4 address inside, and Teredo, local-use NAT64, discard, benchmarking, ORCHID, documentation and site-local ranges are never public; `resolve` gives only what `connect` would use; connecting to one of the host's addresses works when a fresh lookup confirms it, so `tls.Options.address` works through `net.only`.
@@ -1919,7 +1920,7 @@ The C `main(argc, argv)` emitted by the compiler calls `lugha_rt_main(argc, argv
 | `lughac build prog.la [-o prog]` | Compile and link an executable |
 | `lughac run prog.la [-- args…]` | Build to a temporary file and run it, passing `args` to the program (v3) |
 | `lughac check prog.la` | Lex, parse and type-check only; no codegen or linking (type checking from milestone 3). A file without `fun main` is checked as a library (v17): in its package's `source` folder as that package's module, elsewhere as the module named after the file (`diff.la` → `diff`), so modules it imports may import it back (v17); `lughac test` loads files the same way |
-| `lughac spec` | Print the LLM-ready spec bundled with this compiler version |
+| `lughac skill [PAGE]` | Print the Lugha skill's overview or one page; `--list`, `--search TEXT`, `--export DIR`; see below (v18, milestone 230) |
 | `lughac update prog.la` | Re-resolve every git package to its newest matching tag and rewrite `lugha.lock` (v14); print `zlib now runs C code, through `sqlite`'s ffi grant` for each package the update newly lets run C code (v18) |
 | `lughac init [folder] [--lib] [--name N]` | Start a program, or with `--lib` a library, in `folder` (default: the current one); see below (v16) |
 | `lughac lsp` | Serve the Language Server Protocol on stdin and stdout, for editors; see below (v16) |
@@ -1933,7 +1934,7 @@ The C `main(argc, argv)` emitted by the compiler calls `lugha_rt_main(argc, argv
 | `--cpu=LEVEL` | On `build`, `run` and `test` (v17, milestone 130): the x86-64 level the program's code is built for, one of `x86-64` (the default: every 64-bit Intel and AMD CPU), `x86-64-v2`, `x86-64-v3`, `x86-64-v4` or `native` (this machine's own CPU and features; the executable may not run on another). Any other value is exit 2. The runtime and `[link]` C files are compiled by `cc` at its default either way. Before v17 every build used `native` |
 | `--target=TRIPLE` | On `build` only (v17, milestone 133): the platform the executable is for, `x86_64-unknown-linux-gnu` (the default) or `aarch64-unknown-linux-gnu` (Linux on ARM64, the baseline ARMv8-A; `--cpu` with it is exit 2). The C compiler is then `cc` or `aarch64-linux-gnu-gcc`, unless `$LUGHA_CC` names one (section 8). Any other value is exit 2. |
 
-Exit codes: 0 on success, 1 when the program has errors, 2 for bad command-line usage, an internal compiler error, or output lughac couldn't write (a reader that stops early, as `lughac spec | head` does, is not a failure).
+Exit codes: 0 on success, 1 when the program has errors, 2 for bad command-line usage, an internal compiler error, or output lughac couldn't write (a reader that stops early, as `lughac skill | head` does, is not a failure).
 
 **`lughac init`** (v16, milestone 69) makes `folder` if needed and writes, for a package named `N`:
 
@@ -2183,7 +2184,7 @@ Name and type errors, reported by the checker:
 
 Both formats come from the same internal diagnostic records, so they always report the same errors.
 
-**LLM-ready spec.** No model has seen Lugha in training, so the compiler ships a single Markdown file containing this spec and the section 10 programs, compact enough to paste into a prompt. `lughac spec` prints the copy matching the installed compiler, so an assistant or harness always gets the rules for the version it is targeting.
+**The Lugha skill** (v18, milestone 230; `lughac spec` before). No model has seen Lugha in training, so the compiler ships readable pages on writing Lugha, built from `skill/` into `lughac`: an Agent Skill folder, `SKILL.md` (frontmatter `name: lugha` and a `description`, then how to work, the rules that surprise newcomers, and a table linking every page) and `concepts/NN-name.md` pages in teaching order, each with frontmatter `title`, `prerequisites` (earlier concepts) and `summary`, and the sections The idea, Example, Rules, Mistakes and Exercises. The pages stand alone: they never refer to this file. `lughac skill` prints `SKILL.md`; `lughac skill PAGE` one page, named by its path without `.md` (`concepts/02-functions`) or its last part without the number (`functions`), in any case (an unknown name is exit 2, suggesting close names); `--list` each page's name and summary in order; `--search TEXT` every line containing `TEXT` in any case, as `page:line: text` (exit 1 when none does, as `grep`); `--export DIR` writes the pages as `DIR/lugha/`, ready to upload as a skill (exit 2 if `DIR/lugha` exists). The options exclude each other and a page (exit 2). Every `lugha` example block in the pages is checked by the tests: one followed by an `output` block runs and must print exactly that, and one marked `lugha error E0xxx` must fail with that code.
 
 ## 10. Example programs
 
@@ -4341,6 +4342,7 @@ The spec is implemented in five milestones, each ending in a program that runs. 
 | 227 | `net.only`'s gaps (v18) | NAT64 and 6to4 judged by their IPv4 address; more ranges never public; `resolve` filtered; an IP address of the host connects after a fresh lookup | `tests/programs/capabilities/narrowing/`, `tests/net.rs` (done) |
 | 228 | `Console` input errors (v18) | `read_line()` and `read_bytes()` give `Result`; a line that isn't UTF-8 is an error and skipped; a failed read is never the end of input | `tests/programs/text/io/`, `tests/helpers.rs` (done) |
 | 229 | Lock-free callback hold (v18) | a `direct` or `realtime` call with `data` checks and holds its captures through the record's counter, not the callbacks lock; the last of the scope's end and a running call lets go of them | `tests/foreign_threads.rs` (done) |
+| 230 | The Lugha skill (v18) | `skill/` (`SKILL.md`, concepts 1–5) built in; `lughac skill [PAGE]`, `--list`, `--search`, `--export`; `lughac spec` removed | `tests/skill.rs`, `tests/cli.rs` (done) |
 
 In milestones 1 and 2, every value can be treated as `i64`, so codegen can start before the type checker exists. Until milestone 4 provides `lugha_rt_panic`, integer `+`, `-` and `*` wrap, and `/` and `%` stop the program with a trap on a zero divisor or `MIN / -1`. Milestone 3 then replaces that assumption with real types. The process exit code is the low 8 bits of `main`'s result, so milestone tests use results below 256.
 
