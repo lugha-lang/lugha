@@ -281,3 +281,74 @@ fn a_realtime_callbacks_first_call_on_cs_thread_allocates_nothing() {
         );
     }
 }
+
+/// Four threads of C's own calling `g` `n` times each, counting the calls
+/// that ran (a dropped call gives 0).
+const HAMMER: &str = "#include <pthread.h>\n#include <stdint.h>\n\
+typedef int64_t (*cbr)(int64_t, void *);\n\
+struct job { cbr g; void *u; int64_t n; };\n\
+static struct job jobs[4]; static pthread_t threads[4]; static int64_t ran;\n\
+static void *calls(void *p) { struct job *j = p;\n\
+    for (int64_t i = 0; i < j->n; i++) if (j->g(i, j->u) != 0) __atomic_add_fetch(&ran, 1, __ATOMIC_RELAXED);\n\
+    return 0; }\n\
+void hammer(cbr g, void *u, int64_t n) {\n\
+    for (int i = 0; i < 4; i++) { jobs[i].g = g; jobs[i].u = u; jobs[i].n = n; pthread_create(&threads[i], 0, calls, &jobs[i]); } }\n\
+void join_hammer(void) { for (int i = 0; i < 4; i++) pthread_join(threads[i], 0); }\n\
+int64_t hammered(void) { return __atomic_load_n(&ran, __ATOMIC_RELAXED); }\n";
+
+/// The scope ends while four C threads keep calling: each call either runs
+/// with its captures alive or is dropped, and they are let go of once.
+fn hammered_while_the_scope_ends(word: &str) {
+    let dir = std::env::temp_dir().join(format!(
+        "lugha-foreign-hammer-{word}-{}",
+        std::process::id()
+    ));
+    // A leftover from an earlier run would change what the test sees.
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp dir is writable");
+    let main = format!(
+        "import std.task;\n\
+         extern fun hammer(g: {word} fun(i64, data): i64, u: data, n: i64);\n\
+         extern blocking fun join_hammer();\n\
+         extern fun hammered(): i64;\n\
+         fun main(console: Console) {{\n\
+             let word = \"captured {{hammered()}}\";\n\
+             let r = scope s {{\n\
+                 hammer(fun(i: i64): i64 {{ word.len + i * 0 }}, 100000);\n\
+                 task.sleep(2);\n\
+             }};\n\
+             join_hammer();\n\
+             let n = hammered();\n\
+             console.println(\"{{r.is_ok()}} {{n > 0 && n <= 400000}}\");\n\
+         }}\n"
+    );
+    std::fs::write(dir.join("main.la"), main).expect("writable");
+    std::fs::write(dir.join("side.c"), HAMMER).expect("writable");
+    std::fs::write(dir.join("lugha.toml"), "[link]\nc = [\"side.c\"]\n").expect("writable");
+    let case = Case(dir);
+    for round in 0..20 {
+        let workers = if round % 2 == 0 { "1" } else { "4" };
+        let out = case.run(workers, ("LUGHA_RC_REPORT", "1"));
+        assert_eq!(
+            (out.status.code(), text(&out.stdout).as_str()),
+            (Some(0), "true true\n"),
+            "{word}, round {round}: {}",
+            text(&out.stderr)
+        );
+        assert!(
+            text(&out.stderr).contains(" 0 live"),
+            "{word}, round {round}: {}",
+            text(&out.stderr)
+        );
+    }
+}
+
+#[test]
+fn a_direct_callback_hammered_while_its_scope_ends_is_held_once() {
+    hammered_while_the_scope_ends("direct");
+}
+
+#[test]
+fn a_realtime_callback_hammered_while_its_scope_ends_is_held_once() {
+    hammered_while_the_scope_ends("realtime");
+}

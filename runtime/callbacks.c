@@ -16,7 +16,9 @@
  *   calls `release` (`lugha_rt_cb_release`), which frees the record.
  *
  * One lock guards every record's scope and every scope's list of them; it
- * comes before the scopes lock and a scope's own lock.
+ * comes before the scopes lock and a scope's own lock. A direct call never
+ * takes it: it checks and holds the captures through the record's `uses`
+ * word (`lugha_rt_cb_hold`), so a real-time call waits on no other thread.
  *
  * A thread C made (no runtime thread, no helper) gets, on its first
  * callback, a fiber of its own and a C stack like a worker's, aligned and
@@ -40,7 +42,35 @@ typedef struct CbRecord {
     LughaScope *scope;
     struct CbRecord *prev;
     struct CbRecord *next;
+    /* Calls between their check and their hold on `env`, counted in the
+     * low bits, with `CB_STOPPED` once its scope's body ended or C let go,
+     * and `CB_DROPPED` once the record's own hold on `env` is let go of. */
+    uint64_t uses;
 } CbRecord;
+
+#define CB_STOPPED (1ULL << 62)
+#define CB_DROPPED (1ULL << 63)
+
+/* The record's own hold on `env`, let go of by whoever finds it stopped
+ * with no call between check and hold: exactly one compare-and-swap wins. */
+static void cb_drop_if_last(CbRecord *r, uint64_t seen) {
+    if (seen != CB_STOPPED) {
+        return;
+    }
+    if (__atomic_compare_exchange_n(&r->uses, &seen, CB_STOPPED | CB_DROPPED, false,
+                                    __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+        void *env = r->env;
+        r->env = NULL;
+        lugha_rt_rc_release(env);
+    }
+}
+
+/* Stops `r` (under `cb_lock`): later calls are dropped, and the captures
+ * are let go of now, or by the last call still taking hold of them. */
+static void cb_stop(CbRecord *r) {
+    uint64_t seen = __atomic_or_fetch(&r->uses, CB_STOPPED, __ATOMIC_ACQ_REL);
+    cb_drop_if_last(r, seen);
+}
 
 static uint32_t cb_lock;
 
@@ -64,6 +94,7 @@ void *lugha_rt_cb_pin(void *code, void *env) {
     CbRecord *r = lugha_rc_internal(sizeof(CbRecord));
     r->code = code;
     r->env = env;
+    r->uses = 0;
     // C may call it from any task.
     lugha_rt_rc_mark(env);
     lugha_rt_rc_retain(env);
@@ -84,7 +115,6 @@ void *lugha_rt_cb_pin(void *code, void *env) {
  * hasn't already, and the record freed. */
 void lugha_rt_cb_release(void *pinned) {
     CbRecord *r = pinned;
-    void *env = NULL;
     lock_take(&cb_lock);
     if (r->scope != NULL) {
         if (r->prev != NULL) {
@@ -96,12 +126,12 @@ void lugha_rt_cb_release(void *pinned) {
             r->next->prev = r->prev;
         }
         r->scope = NULL;
-        env = r->env;
-        r->env = NULL;
         __atomic_sub_fetch(&callbacks_live, 1, __ATOMIC_ACQ_REL);
+        // C calls no more: no call is between check and hold, so this
+        // lets go of the captures.
+        cb_stop(r);
     }
     lock_give(&cb_lock);
-    lugha_rt_rc_release(env);
     free(r);
 }
 
@@ -111,29 +141,17 @@ static void callbacks_stop(LughaScope *s) {
     CbRecord *first = s->callbacks;
     s->callbacks = NULL;
     int64_t n = 0;
-    for (CbRecord *r = first; r != NULL; r = r->next) {
-        n++;
-    }
-    // Taken out under the lock: C may free a stopped record at once.
-    void **envs = n > 0 ? malloc((size_t)n * sizeof(void *)) : NULL;
-    if (n > 0 && envs == NULL) {
-        die("panic: out of memory\n");
-    }
-    int64_t i = 0;
     for (CbRecord *r = first; r != NULL;) {
         CbRecord *next = r->next;
-        envs[i++] = r->env;
-        r->env = NULL;
         r->scope = NULL;
         r->prev = r->next = NULL;
+        // Under the lock: C may free a stopped record at once.
+        cb_stop(r);
+        n++;
         r = next;
     }
     __atomic_sub_fetch(&callbacks_live, n, __ATOMIC_ACQ_REL);
     lock_give(&cb_lock);
-    for (i = 0; i < n; i++) {
-        lugha_rt_rc_release(envs[i]);
-    }
-    free(envs);
 }
 
 static pthread_key_t foreign_key;
@@ -154,22 +172,24 @@ static pthread_mutex_t spare_lock = PTHREAD_MUTEX_INITIALIZER;
 static void foreign_exit(void *unused) {
     (void)unused;
     Worker *w = worker;
-    // Off the list of records, its counts kept for `LUGHA_RC_REPORT`; a
-    // thread that ran only real-time callbacks was never listed and
-    // counted nothing.
+    // Off the list of records, its counts kept for `LUGHA_RC_REPORT`. A
+    // thread that ran only real-time callbacks was never listed, but may
+    // still have freed captures it held last, so its counts are kept too.
+    pthread_mutex_lock(&workers_lock);
     if (w->foreign_listed) {
-        pthread_mutex_lock(&workers_lock);
         for (Worker **at = &workers; *at != NULL; at = &(*at)->next_worker) {
             if (*at == w) {
                 *at = w->next_worker;
                 break;
             }
         }
-        rc_retired_made += w->made;
-        rc_retired_freed += w->freed;
-        pthread_mutex_unlock(&workers_lock);
         w->foreign_listed = false;
     }
+    rc_retired_made += w->made;
+    rc_retired_freed += w->freed;
+    w->made = 0;
+    w->freed = 0;
+    pthread_mutex_unlock(&workers_lock);
     char *stack = (char *)w->c_stack_guard;
     if (mprotect(stack, C_STACK_GUARD, PROT_READ | PROT_WRITE) == 0) {
         // To the shared pool: a cache of this thread's ends with it.
@@ -300,16 +320,19 @@ void lugha_rt_cb_leave(void) {
 }
 
 /* Before a callback with user data runs: its captures, a new holder, in
- * `env`, and true; false once its scope's body has ended. */
+ * `env`, and true; false once its scope's body has ended. Takes no lock:
+ * while this call is counted in `uses`, the record's own hold keeps `env`
+ * alive, so retaining it is safe. */
 int32_t lugha_rt_cb_hold(void *pinned, void **env) {
     CbRecord *r = pinned;
-    lock_take(&cb_lock);
-    bool live = r->scope != NULL;
+    uint64_t seen = __atomic_add_fetch(&r->uses, 1, __ATOMIC_ACQ_REL);
+    bool live = (seen & CB_STOPPED) == 0;
     if (live) {
         lugha_rt_rc_retain(r->env);
         *env = r->env;
     }
-    lock_give(&cb_lock);
+    seen = __atomic_sub_fetch(&r->uses, 1, __ATOMIC_ACQ_REL);
+    cb_drop_if_last(r, seen);
     return live;
 }
 
