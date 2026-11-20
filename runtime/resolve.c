@@ -74,14 +74,41 @@ static bool net_ipv4_private(const unsigned char *a) {
            || (a[0] == 192 && a[1] == 0 && a[2] == 0)  /* 192.0.0/24 */
            || (a[0] == 192 && a[1] == 168)             /* 192.168/16 */
            || (a[0] == 198 && (a[1] & 0xFE) == 18)     /* 198.18/15 */
+           || (a[0] == 192 && a[1] == 0 && a[2] == 2)  /* 192.0.2/24, documentation */
+           || (a[0] == 198 && a[1] == 51 && a[2] == 100) /* 198.51.100/24, documentation */
+           || (a[0] == 203 && a[1] == 0 && a[2] == 113)  /* 203.0.113/24, documentation */
+           || (a[0] == 192 && a[1] == 88 && a[2] == 99)  /* 192.88.99/24, old 6to4 relays */
            || a[0] >= 224;                             /* multicast, reserved, broadcast */
 }
 
+/* Whether the IPv6 address `a` (sixteen bytes) is in a range that never
+ * reaches the public internet, or tunnels somewhere a relay chooses:
+ * unique local, link-local, old site-local, multicast, local-use NAT64,
+ * discard, Teredo, benchmarking, ORCHID and documentation. */
+static bool net_ipv6_private(const unsigned char *a) {
+    static const unsigned char nat64_local[6] = {0x00, 0x64, 0xFF, 0x9B, 0x00, 0x01};
+    static const unsigned char discard[8] = {0x01, 0x00, 0, 0, 0, 0, 0, 0};
+    unsigned word1 = (unsigned)a[2] << 8 | a[3];
+    bool in_2001 = a[0] == 0x20 && a[1] == 0x01;
+    return (a[0] & 0xFE) == 0xFC                       /* fc00::/7 */
+           || (a[0] == 0xFE && (a[1] & 0x80) == 0x80)   /* fe80::/10, fec0::/10 */
+           || a[0] == 0xFF                              /* ff00::/8 */
+           || memcmp(a, nat64_local, 6) == 0            /* 64:ff9b:1::/48 */
+           || memcmp(a, discard, 8) == 0                /* 100::/64 */
+           || (in_2001 && word1 == 0)                   /* 2001::/32, Teredo */
+           || (in_2001 && word1 == 2 && a[4] == 0 && a[5] == 0) /* 2001:2::/48 */
+           || (in_2001 && (word1 & 0xFFF0) == 0x10)     /* 2001:10::/28, ORCHID */
+           || (in_2001 && (word1 & 0xFFF0) == 0x20)     /* 2001:20::/28, ORCHIDv2 */
+           || (in_2001 && word1 == 0x0DB8)              /* 2001:db8::/32 */
+           || (a[0] == 0x3F && a[1] == 0xFF && (a[2] & 0xF0) == 0); /* 3fff::/20 */
+}
+
 /* `$os.net_private(ip)`: 1 when `ip` is not a public unicast address (or
- * isn't an IP address at all), 0 when it is. IPv6's `::`, `::1`, unique
- * local, link-local and multicast addresses are not public, and an IPv4
- * address in an IPv6 form (mapped `::ffff:a.b.c.d`, or compatible
- * `::a.b.c.d`) is judged as that IPv4 address. No lookup, no socket. */
+ * isn't an IP address at all), 0 when it is. An IPv4 address carried in an
+ * IPv6 one by a fixed rule is judged as that IPv4 address: mapped
+ * `::ffff:a.b.c.d`, NAT64's `64:ff9b::a.b.c.d` and 6to4's `2002:AABB:CCDD::`.
+ * Every other `::/96` address (`::`, `::1`, the old compatible form) and
+ * the ranges of `net_ipv6_private` are not public. No lookup, no socket. */
 int64_t lugha_rt_net_private(const LughaString *ip) {
     if (ip->len == 0 || ip->len > 64 || memchr(ip->bytes, 0, (size_t)ip->len) != NULL) {
         return 1;
@@ -94,6 +121,7 @@ int64_t lugha_rt_net_private(const LughaString *ip) {
         return 1;
     }
     static const unsigned char zero[16];
+    static const unsigned char nat64[12] = {0x00, 0x64, 0xFF, 0x9B};
     bool high_zero = memcmp(a, zero, 10) == 0;
     if (high_zero && a[10] == 0xFF && a[11] == 0xFF) {
         return net_ipv4_private(a + 12); /* ::ffff:a.b.c.d */
@@ -102,7 +130,11 @@ int64_t lugha_rt_net_private(const LughaString *ip) {
         /* `::`, `::1`, and the old compatible form `::a.b.c.d`. */
         return 1;
     }
-    return (a[0] & 0xFE) == 0xFC                 /* fc00::/7 */
-           || (a[0] == 0xFE && (a[1] & 0xC0) == 0x80) /* fe80::/10 */
-           || a[0] == 0xFF;                      /* ff00::/8 */
+    if (memcmp(a, nat64, 12) == 0) {
+        return net_ipv4_private(a + 12); /* 64:ff9b::a.b.c.d */
+    }
+    if (a[0] == 0x20 && a[1] == 0x02) {
+        return net_ipv4_private(a + 2); /* 2002:AABB:CCDD::/48 */
+    }
+    return net_ipv6_private(a);
 }

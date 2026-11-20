@@ -19,33 +19,74 @@ impl OnlyNet {
 
     /** The host and port it reaches, for messages. */
     fun target(self): string = "{self.host}:{self.port}";
+
+    /** The error for anything but its host and port. */
+    fun refusal(self): string = "this network reaches only {self.target()}";
+
+    /** Whether `ip` may be connected to: public, or any with `allow_private()`. */
+    fun allowed(self, ip: string): bool = self.open || $os.net_private(ip) == 0;
+
+    /** The host's addresses `connect` may use, from one lookup. */
+    fun usable(self): Result<string[], string> {
+        let mut out: string[] = [];
+        for ip of self.under.resolve(self.host)? {
+            if self.allowed(ip) {
+                out.push(ip);
+            }
+        }
+        if out.len == 0 {
+            return Err("{self.host} has no public address");
+        }
+        Ok(out)
+    }
 }
 
 impl Net for OnlyNet {
     fun connect_timeout(self, addr: string, ms: i64): Result<Conn, string> {
         let (host, port) = $split_addr(addr);
-        if $ascii_lower(host) != self.host || port != self.port {
-            return Err("this network reaches only {self.target()}");
+        if port != self.port {
+            return Err(self.refusal());
         }
-        // One lookup: the address checked is the address connected to.
-        let addresses = self.under.resolve(host)?;
-        for ip of addresses {
-            if self.open || $os.net_private(ip) == 0 {
-                let at = if ip.contains(":") { "[{ip}]:{port}" } else { "{ip}:{port}" };
-                return self.under.connect_timeout(at, ms);
+        // One lookup: the address checked is the address connected to. An
+        // IP address (`tls.Options.address`) must be one of its host's now.
+        let wanted = match $os.net_resolve(host, 1) {
+            .Ok(ip) => Some(ip),
+            .Err(_) if $ascii_lower(host) == self.host => None,
+            .Err(_) => {
+                return Err(self.refusal());
             }
-        }
-        Err("{host} has no public address")
+        };
+        let usable = self.usable()?;
+        let ip = match wanted {
+            .None => usable[0],
+            .Some(ip) => {
+                let mut found = false;
+                for each of usable {
+                    // Compared in one spelling: `::ffff:1.2.3.4` is `::ffff:102:304`.
+                    if let .Ok(same) = $os.net_resolve(each, 1) {
+                        found = found || same == ip;
+                    }
+                }
+                if !found {
+                    return Err(self.refusal());
+                }
+                ip
+            }
+        };
+        let at = if ip.contains(":") { "[{ip}]:{port}" } else { "{ip}:{port}" };
+        self.under.connect_timeout(at, ms)
     }
     fun listen(self, addr: string): Result<Listener, string> = Err("this network only connects to {self.target()}");
+    // Only what `connect` would use: a narrowed network hides the rest.
     fun resolve(self, name: string): Result<string[], string> {
         if $ascii_lower(name) != self.host {
             return Err("this network reaches only {self.target()}");
         }
-        self.under.resolve(name)
+        self.usable()
     }
     fun udp_bind(self, addr: string): Result<Udp, string> = Err("this network only connects to {self.target()}");
     fun udp_bind_shared(self, addr: string): Result<Udp, string> = Err("this network only connects to {self.target()}");
+    // A narrowed network shows no local interfaces.
     fun interfaces(self): Result<NetInterface[], string> = Ok([]);
 }
 

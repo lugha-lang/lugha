@@ -280,17 +280,22 @@ fun main(console: Console, net: Net, root: Scope) {{
     let server = net.listen_only(\"127.0.0.1:0\");
     let listener = server.listen(\"127.0.0.1:0\").unwrap();
     let port = listener.addr().split(\":\")[1];
-    root.spawn(accept_all(console, listener, 1));
+    root.spawn(accept_all(console, listener, 2));
     console.println(server.connect(\"127.0.0.1:{{port}}\").is_err());
     let local = net.only(\"localhost:{{port}}\");
     console.println(local.connect(\"localhost:{{port}}\").debug());
     let conn = local.allow_private().connect(\"localhost:{{port}}\").unwrap();
     conn.write(\"near\".to_bytes()).unwrap();
     console.println(string_from_utf8(conn.read(10).unwrap()).unwrap());
+    // By the address `localhost` resolves to, as `tls.Options.address` connects.
+    let by_ip = local.allow_private().connect(\"127.0.0.1:{{port}}\").unwrap();
+    by_ip.write(\"by ip\".to_bytes()).unwrap();
+    console.println(string_from_utf8(by_ip.read(10).unwrap()).unwrap());
+    console.println(local.allow_private().connect(\"10.9.9.9:{{port}}\").is_err());
     let out = net.connect_only();
     console.println(out.listen(\"127.0.0.1:0\").is_err());
 }}
 "
     ));
-    case.runs("true\nErr(\"localhost has no public address\")\nnear\ntrue\n");
+    case.runs("true\nErr(\"localhost has no public address\")\nnear\nby ip\ntrue\ntrue\n");
 }
