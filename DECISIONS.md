@@ -2319,6 +2319,16 @@ Printing sites and `==` reach a type's own plain `show`/`eq` too (`show_instance
 
 ---
 
+### 226. lughac's version tracks the language — milestone 237
+
+**Decision:** the user's choice (2026-11-20): `lughac`'s version is `0.N.P`, where `N` is the language version it implements (v18 → `0.18.0`) and `P` counts releases within it (fixes, milestones of the same version). `0.19.0` comes with v19; `1.0` waits for a stable language. It was `0.1.0` from the first commit until then.
+
+**Why:** `lughac --version` should say which language the compiler speaks; the spec, the skill and the error pages are all per language version.
+
+**Not now:** bumping `P` at every milestone automatically; a release process.
+
+---
+
 ## OPEN — Requires human input before implementation
 
 None.
