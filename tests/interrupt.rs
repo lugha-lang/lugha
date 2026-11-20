@@ -1,7 +1,8 @@
 //! Ctrl-C: a running program sent SIGINT. The first cancels the root
 //! scope's tasks and `main`, whose `defer`s run, and the program exits with
-//! 130; a second exits at once; a program that never started a task exits
-//! at once.
+//! 130; a second exits at once. A program that never started a task is
+//! cancelled the same way at its next pause; one that never pauses ends at
+//! the second.
 
 #[path = "common/cli.rs"]
 mod cli;
@@ -47,7 +48,22 @@ fun main(console: Console) {
 }
 "#;
 
-/// A busy `main` that never started a task: no scheduler to stop it.
+/// A `main` that never started a task, busy when Ctrl-C comes and pausing
+/// after: the pause notices it, and the `defer` runs.
+const BUSY_THEN_PAUSE: &str = r#"import std.task;
+
+fun main(console: Console, clock: Clock) {
+    defer console.println("main: stopped");
+    console.println("ready");
+    console.flush();
+    let start = clock.monotonic_ms();
+    while clock.monotonic_ms() - start < 1_000 {
+    }
+    task.sleep(60_000);
+}
+"#;
+
+/// A busy `main` that never started a task and never pauses.
 const NO_TASKS: &str = r#"fun main(console: Console) {
     console.println("ready");
     console.flush();
@@ -128,9 +144,25 @@ fn a_second_ctrl_c_exits_at_once() {
 }
 
 #[test]
-fn a_program_without_tasks_exits_at_once() {
+fn a_program_without_tasks_is_cancelled_at_its_next_pause() {
     let dir = TempDir::with(&[]);
-    let (child, out) = started(&dir, NO_TASKS);
+    let (child, out) = started(&dir, BUSY_THEN_PAUSE);
+    interrupt(&child);
+    let (code, rest) = ended(child, out);
+    assert_eq!((code, rest.as_str()), (Some(130), "main: stopped\n"));
+}
+
+#[test]
+fn a_program_that_never_pauses_ends_at_the_second_ctrl_c() {
+    let dir = TempDir::with(&[]);
+    let (mut child, out) = started(&dir, NO_TASKS);
+    interrupt(&child);
+    std::thread::sleep(Duration::from_millis(200));
+    let running = child
+        .try_wait()
+        .expect("the program can be waited for")
+        .is_none();
+    assert!(running, "one Ctrl-C is held until a pause");
     interrupt(&child);
     let (code, rest) = ended(child, out);
     assert_eq!((code, rest.as_str()), (Some(130), ""));

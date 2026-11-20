@@ -241,15 +241,19 @@ void lugha_rt_shield_end(void) {
 /* Wakes the worker waiting for events (jobs.c). */
 static void poller_kick(void);
 
-/* Ctrl-C: noted for the scheduler; the second, or one before any task
- * started (no scheduler to act on it), ends the program at once. */
+/* Ctrl-C: noted for the scheduler, which cancels the root scope and `main`
+ * (`check_times`); the second ends the program at once. Before the
+ * scheduler starts it is only counted: `main`'s next pause starts it, and
+ * it acts on it then. */
 static void on_interrupt(int sig) {
     (void)sig;
-    if (__atomic_add_fetch(&interrupts, 1, __ATOMIC_ACQ_REL) > 1 || !tasks_started) {
+    if (__atomic_add_fetch(&interrupts, 1, __ATOMIC_ACQ_REL) > 1) {
         _exit(130);
     }
     // A worker waiting for events sees it at once.
-    poller_kick();
+    if (tasks_started) {
+        poller_kick();
+    }
 }
 
 /* Installs the Ctrl-C handler, as the runtime starts. */

@@ -289,3 +289,29 @@ fn a_spawned_callback_taking_a_pinned_handle_runs_on_cs_thread() {
     )
     .runs(0, "wrong 0\n");
 }
+
+#[test]
+fn a_callback_without_data_runs_after_its_scope_too() {
+    // It captures nothing, so nothing it uses can have been let go of.
+    let side = "typedef long (*plain)(long);\n\
+        static plain kept_plain;\n\
+        void on_tick(plain f) { kept_plain = f; }\n\
+        long tick(long n) { return kept_plain ? kept_plain(n) : -1; }\n";
+    Case::new(
+        &format!(
+            "{EXTERNS}\
+             extern fun on_tick(f: direct fun(i64): i64);\n\
+             extern fun tick(n: i64): i64;\n\
+             fun twice(n: i64): i64 = n * 2;\n\
+             fun main(console: Console) {{\n\
+                 let r = scope s {{\n\
+                     on_tick(twice);\n\
+                     console.println(tick(1));\n\
+                 }};\n\
+                 console.println(tick(21));\n\
+             }}\n"
+        ),
+        side,
+    )
+    .runs(0, "2\n42\n");
+}

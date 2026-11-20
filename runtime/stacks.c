@@ -257,16 +257,26 @@ __asm__(".text\n"
  * so an overflow there faults, and the handler (stack.c) reports it. */
 #define C_STACK_GUARD C_GUARD_SIZE
 
-/* The calling thread's C stack: a pooled stack, aligned like any other,
- * with its bottom pages made a guard. */
-static void c_stack_make(void) {
+/* A C stack: a pooled stack, aligned like any other, with its bottom
+ * pages made a guard. */
+static char *c_stack_new(void) {
     char *stack = new_stack();
     if (mprotect(stack, C_STACK_GUARD, PROT_NONE) != 0) {
         die("panic: can't make a C stack\n");
     }
     budget_fill(stack);
+    return stack;
+}
+
+/* This thread's C stack is `stack`, made by `c_stack_new`. */
+static void c_stack_use(char *stack) {
     worker->c_stack_guard = (uintptr_t)stack;
     worker->c_stack_top = stack_top(stack);
+}
+
+/* The calling thread's C stack, made now. */
+static void c_stack_make(void) {
+    c_stack_use(c_stack_new());
 }
 
 /* `lugha_rt_c_call(thunk, frame)`: generated code's call of a C function,

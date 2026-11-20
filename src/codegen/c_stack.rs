@@ -32,6 +32,10 @@ pub(super) const BLOCKING: &str = "lugha-blocking";
 /// `lugha_rt_cb_run`, which moves a thread C made onto a stack of its own.
 pub(super) const CB_RUN: &str = "lugha-cb-run";
 
+/// [`CB_RUN`]'s value on a `realtime` callback's body: it goes through
+/// `lugha_rt_cb_run_realtime`, which never allocates or locks.
+pub(super) const REALTIME: &str = "realtime";
+
 /// The attribute on an extern taking or giving a pinned handle: each call
 /// first pins the task to its worker (`lugha_rt_pin_here`).
 pub(super) const PINNED: &str = "lugha-pinned";
@@ -68,9 +72,12 @@ pub(super) fn calls_on_c_stack<'ctx>(context: &'ctx Context, module: &Module<'ct
             .is_some();
         let entry_body = CallSiteValue::try_from(call)
             .ok()
-            .and_then(|site| site.get_string_attribute(AttributeLoc::Function, CB_RUN))
-            .is_some();
-        let through = match (entry_body, marked) {
+            .and_then(|site| site.get_string_attribute(AttributeLoc::Function, CB_RUN));
+        let realtime = entry_body
+            .as_ref()
+            .is_some_and(|a| a.get_string_value().to_bytes() == REALTIME.as_bytes());
+        let through = match (entry_body.is_some(), marked) {
+            (true, _) if realtime => switch(context, module, "lugha_rt_cb_run_realtime"),
             (true, _) => switch(context, module, "lugha_rt_cb_run"),
             (false, true) => switch(context, module, "lugha_rt_c_blocking"),
             (false, false) => c_call,

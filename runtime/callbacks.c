@@ -21,7 +21,10 @@
  * A thread C made (no runtime thread, no helper) gets, on its first
  * callback, a fiber of its own and a C stack like a worker's, aligned and
  * guarded, which its callbacks run on (`lugha_rt_cb_run`); a pthread key's
- * destructor gives them back when the thread exits. It is never a worker:
+ * destructor gives them back when the thread exits. Registering a
+ * real-time callback sets one such pair aside (`lugha_rt_cb_reserve`), which
+ * a first real-time call (`lugha_rt_cb_run_realtime`) takes without
+ * allocating or locking. It is never a worker:
  * nothing waits there, its allocations come from the system allocator,
  * and a task it makes ready goes to the shared queue.
  *
@@ -136,21 +139,37 @@ static void callbacks_stop(LughaScope *s) {
 static pthread_key_t foreign_key;
 static pthread_once_t foreign_key_once = PTHREAD_ONCE_INIT;
 
+/* A thread record set aside for a thread C made, so its first call of a
+ * real-time callback allocates nothing and takes no lock: a fiber and a C
+ * stack, made when a real-time callback is registered. `spare_state` is
+ * SPARE_EMPTY, SPARE_FILLING (under `spare_lock`), SPARE_READY, or
+ * SPARE_TAKING (by the one thread whose compare-and-swap won it). */
+enum { SPARE_EMPTY, SPARE_FILLING, SPARE_READY, SPARE_TAKING };
+static int spare_state;
+static Fiber *spare_fiber;
+static char *spare_stack;
+static pthread_mutex_t spare_lock = PTHREAD_MUTEX_INITIALIZER;
+
 /* A thread C made exits: its fiber and C stack go back. */
 static void foreign_exit(void *unused) {
     (void)unused;
     Worker *w = worker;
-    // Off the list of records, its counts kept for `LUGHA_RC_REPORT`.
-    pthread_mutex_lock(&workers_lock);
-    for (Worker **at = &workers; *at != NULL; at = &(*at)->next_worker) {
-        if (*at == w) {
-            *at = w->next_worker;
-            break;
+    // Off the list of records, its counts kept for `LUGHA_RC_REPORT`; a
+    // thread that ran only real-time callbacks was never listed and
+    // counted nothing.
+    if (w->foreign_listed) {
+        pthread_mutex_lock(&workers_lock);
+        for (Worker **at = &workers; *at != NULL; at = &(*at)->next_worker) {
+            if (*at == w) {
+                *at = w->next_worker;
+                break;
+            }
         }
+        rc_retired_made += w->made;
+        rc_retired_freed += w->freed;
+        pthread_mutex_unlock(&workers_lock);
+        w->foreign_listed = false;
     }
-    rc_retired_made += w->made;
-    rc_retired_freed += w->freed;
-    pthread_mutex_unlock(&workers_lock);
     char *stack = (char *)w->c_stack_guard;
     if (mprotect(stack, C_STACK_GUARD, PROT_READ | PROT_WRITE) == 0) {
         // To the shared pool: a cache of this thread's ends with it.
@@ -170,22 +189,59 @@ static void foreign_key_make(void) {
     }
 }
 
-/* This thread, made by C, calls back for the first time: its fiber and C
- * stack, kept until it exits. */
-static void foreign_attach(Worker *w) {
-    pthread_once(&foreign_key_once, foreign_key_make);
-    w->foreign = true;
-    __atomic_add_fetch(&foreign_live, 1, __ATOMIC_ACQ_REL);
-    // Listed while it lives, so `LUGHA_RC_REPORT` counts what it allocates.
+/* This thread, made by C, joins the list of `workers` while it lives, so
+ * `LUGHA_RC_REPORT` counts what it allocates. */
+static void foreign_list(Worker *w) {
     pthread_mutex_lock(&workers_lock);
     w->next_worker = workers;
     workers = w;
     pthread_mutex_unlock(&workers_lock);
-    Fiber *f = lugha_rc_internal(sizeof(Fiber));
+    w->foreign_listed = true;
+}
+
+/* `lugha_rt_cb_reserve()`, before an extern call registering a real-time
+ * callback: the pthread key made, and the spare ready if it isn't. */
+void lugha_rt_cb_reserve(void) {
+    pthread_once(&foreign_key_once, foreign_key_make);
+    if (__atomic_load_n(&spare_state, __ATOMIC_ACQUIRE) != SPARE_EMPTY) {
+        return;
+    }
+    pthread_mutex_lock(&spare_lock);
+    int empty = SPARE_EMPTY;
+    if (__atomic_compare_exchange_n(&spare_state, &empty, SPARE_FILLING, false,
+                                    __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+        spare_fiber = lugha_rc_internal(sizeof(Fiber));
+        spare_stack = c_stack_new();
+        __atomic_store_n(&spare_state, SPARE_READY, __ATOMIC_RELEASE);
+    }
+    pthread_mutex_unlock(&spare_lock);
+}
+
+/* This thread, made by C, calls back for the first time: its fiber and C
+ * stack, kept until it exits. With `realtime`, it takes the spare when one
+ * is ready, allocating nothing and taking no lock, and is listed at its
+ * first other callback; otherwise, or with no spare, they are made now. */
+static void foreign_attach(Worker *w, bool realtime) {
+    w->foreign = true;
+    __atomic_add_fetch(&foreign_live, 1, __ATOMIC_ACQ_REL);
+    Fiber *f = NULL;
+    char *stack = NULL;
+    int ready = SPARE_READY;
+    if (realtime && __atomic_compare_exchange_n(&spare_state, &ready, SPARE_TAKING, false,
+                                                __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+        f = spare_fiber;
+        stack = spare_stack;
+        __atomic_store_n(&spare_state, SPARE_EMPTY, __ATOMIC_RELEASE);
+    } else {
+        pthread_once(&foreign_key_once, foreign_key_make);
+        foreign_list(w);
+        f = lugha_rc_internal(sizeof(Fiber));
+        stack = c_stack_new();
+    }
     f->wake_at = -1;
     f->number = __atomic_add_fetch(&fibers_started, 1, __ATOMIC_RELAXED);
     w->running = f;
-    c_stack_make();
+    c_stack_use(stack);
     // Any value: the destructor runs only for a non-NULL one.
     pthread_setspecific(foreign_key, w);
 }
@@ -200,7 +256,26 @@ void lugha_rt_cb_run(void (*body)(void *), void *frame) {
         return;
     }
     if (!w->foreign) {
-        foreign_attach(w);
+        foreign_attach(w, false);
+    } else if (!w->foreign_listed) {
+        // It took the spare for a real-time callback: this one may allocate.
+        foreign_list(w);
+    }
+    w->on_c_stack = true;
+    lugha_rt_on_stack(body, frame, w->c_stack_top);
+    w->on_c_stack = false;
+}
+
+/* `lugha_rt_cb_run_realtime(body, frame)`: a real-time callback's entry,
+ * as `lugha_rt_cb_run`, but a thread C made attaches from the spare. */
+void lugha_rt_cb_run_realtime(void (*body)(void *), void *frame) {
+    Worker *w = worker;
+    if (w->runtime_thread || on_helper || w->on_c_stack) {
+        body(frame);
+        return;
+    }
+    if (!w->foreign) {
+        foreign_attach(w, true);
     }
     w->on_c_stack = true;
     lugha_rt_on_stack(body, frame, w->c_stack_top);

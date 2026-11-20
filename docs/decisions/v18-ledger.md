@@ -191,6 +191,7 @@ The draft must cite every `approved` line exactly once as a rule, and contain no
 - CAN-10 approved — Principle: cancellation is control flow for the cancelled task and information for anyone observing it.
 - CAN-11 approved — `select` simply stops when its task is cancelled.
 - CAN-12 approved — The spec notes that defers should release resources, not inspect half-built data.
+- CAN-13 approved — In a program that never started a task, the first Ctrl-C also cancels `main` with `Shutdown`, noticed at its next pause (no preemption checks are added to task-free programs); a busy loop that never pauses ends at the second Ctrl-C. (From the v18 spec review, 2026-11-20.)
 
 ## CHN — channels
 
@@ -249,6 +250,8 @@ The draft must cite every `approved` line exactly once as a rule, and contain no
 - CBK-05 approved — A panic in an inline callback is caught at the C boundary: C gets a zero value, and the registering scope gets the failure.
 - CBK-06 approved — Cancellation never interrupts an inline callback.
 - CBK-07 approved — Callbacks are registered against a scope; events after it ends are dropped, and captured values are released at C's `release` or the scope's end.
+- CBK-08 approved — The scope-end rule (calls after the registering scope are dropped) covers callbacks with `data`, which hold captures; a callback without `data` is a capture-free function and runs whenever C calls it. (From the v18 spec review, 2026-11-20.)
+- CBK-09 approved — Registering a `realtime` callback reserves one spare thread record (fiber and C stack); a C thread's first call claims it with one compare-and-swap, so no `realtime` call allocates; the next registration refills it. Several new C threads before another registration still allocate, and the spec says so. (From the v18 spec review, 2026-11-20.)
 
 ## DST — distribution and replay
 

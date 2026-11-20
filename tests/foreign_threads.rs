@@ -234,3 +234,50 @@ fn waiting_on_what_only_cs_thread_sends_isnt_a_deadlock() {
     )
     .runs(0, "41\ntrue\n", "");
 }
+
+/// C's thread counts the allocations made while it runs a callback: the
+/// system allocator and `mmap`, interposed for this program only.
+const COUNTING: &str = "#define _GNU_SOURCE\n\
+#include <pthread.h>\n#include <stddef.h>\n#include <stdint.h>\n\
+#include <unistd.h>\n#include <sys/mman.h>\n#include <sys/syscall.h>\n\
+extern void *__libc_malloc(size_t);\nextern void *__libc_calloc(size_t, size_t);\n\
+static __thread int watching;\nstatic int counted;\n\
+void *malloc(size_t n) { if (watching) counted++; return __libc_malloc(n); }\n\
+void *calloc(size_t a, size_t b) { if (watching) counted++; return __libc_calloc(a, b); }\n\
+void *mmap(void *a, size_t l, int p, int f, int fd, off_t o) {\n\
+    if (watching) counted++;\n    return (void *)syscall(SYS_mmap, a, l, p, f, fd, o); }\n\
+typedef void (*cb_t)(float *, size_t, void *);\n\
+struct job { cb_t cb; void *d; float buf[4]; };\n\
+static void *play(void *p) { struct job *j = p; watching = 1; j->cb(j->buf, 4, j->d); watching = 0; return 0; }\n\
+int64_t first_call(cb_t cb, void *d) {\n\
+    struct job j = { cb, d, { 1, 2, 3, 4 } };\n\
+    pthread_t t; pthread_create(&t, 0, play, &j); pthread_join(t, 0);\n\
+    return (int64_t)counted * 1000 + (int64_t)j.buf[3]; }\n";
+
+#[test]
+fn a_realtime_callbacks_first_call_on_cs_thread_allocates_nothing() {
+    let dir = std::env::temp_dir().join(format!("lugha-foreign-rt-{}", std::process::id()));
+    // A leftover from an earlier run would change what the test sees.
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp dir is writable");
+    let main = "import std.task;\n\
+        extern fun first_call(cb: realtime fun(MutView<f32>, data), d: data): i64;\n\
+        fun main(console: Console) {\n\
+            task.sleep(1);\n\
+            console.println(first_call(fun(out: MutView<f32>) { out[3] = out[3] * 2.0; }));\n\
+        }\n";
+    std::fs::write(dir.join("main.la"), main).expect("writable");
+    std::fs::write(dir.join("side.c"), COUNTING).expect("writable");
+    std::fs::write(dir.join("lugha.toml"), "[link]\nc = [\"side.c\"]\n").expect("writable");
+    let case = Case(dir);
+    for workers in ["1", "4"] {
+        let out = case.run(workers, ("LUGHA_UNUSED", ""));
+        // No allocation on C's thread, and the callback wrote its buffer.
+        assert_eq!(
+            (out.status.code(), text(&out.stdout).as_str()),
+            (Some(0), "8\n"),
+            "{workers}: {}",
+            text(&out.stderr)
+        );
+    }
+}

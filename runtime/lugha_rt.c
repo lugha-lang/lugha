@@ -173,6 +173,10 @@ typedef struct Worker {
      * C made that has called back (callbacks.c): never a worker. */
     bool runtime_thread;
     bool foreign;
+    /* A thread C made on the list of `workers`, for `LUGHA_RC_REPORT`: one
+     * that took the spare for a real-time callback joins it at its first
+     * other callback, since real-time ones never allocate (callbacks.c). */
+    bool foreign_listed;
     /* Its C stack's top (NULL: C runs where it is called, as in a C
      * harness), and the lowest address of the guard below it, where a
      * fault is C overflowing it (stack.c). */

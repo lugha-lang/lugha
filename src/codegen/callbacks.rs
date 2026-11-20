@@ -120,14 +120,21 @@ impl<'ctx> Lowerer<'ctx> {
                     ret,
                     data,
                     spawned,
-                    ..
+                    realtime,
                 } => {
                     let pair = written.next().expect("checked arity").into_struct_value();
+                    // A thread record set aside, so C's thread's first call
+                    // of a real-time callback allocates nothing.
+                    if *realtime {
+                        let reserve = self.runtime("lugha_rt_cb_reserve", &[], None);
+                        self.builder.build_call(reserve, &[], "").expect(POSITIONED);
+                    }
+                    let run = (*spawned, *realtime);
                     match data {
-                        None => self.static_entry(pair, params, ret).into(),
+                        None => self.static_entry(pair, params, ret, *realtime).into(),
                         Some(at) => {
                             pinned = Some(self.pin(pair));
-                            self.trampoline(params, ret, *at, *spawned).into()
+                            self.trampoline(params, ret, *at, run).into()
                         }
                     }
                 }
@@ -207,6 +214,7 @@ impl<'ctx> Lowerer<'ctx> {
         pair: StructValue<'ctx>,
         params: &[Type],
         ret: &Type,
+        realtime: bool,
     ) -> PointerValue<'ctx> {
         let n = self.c_entries;
         self.c_entries += 1;
@@ -222,7 +230,7 @@ impl<'ctx> Lowerer<'ctx> {
         let entry =
             self.module
                 .add_function(&format!("lugha_cfn_{n}"), fn_type, Some(Linkage::Internal));
-        self.c_body(entry, params, ret, (None, false), |this, _| {
+        self.c_body(entry, params, ret, (None, false, realtime), |this, _| {
             this.builder
                 .build_load(pair_type, slot, "pair")
                 .expect(POSITIONED)
@@ -239,9 +247,15 @@ impl<'ctx> Lowerer<'ctx> {
         params: &[Type],
         ret: &Type,
         data: usize,
-        spawned: bool,
+        (spawned, realtime): (bool, bool),
     ) -> PointerValue<'ctx> {
-        let kind = if spawned { "cbq" } else { "cb" };
+        // A real-time one enters through its own runtime door
+        // (`lugha_rt_cb_run_realtime`), so it has its own trampoline.
+        let kind = match (spawned, realtime) {
+            (true, _) => "cbq",
+            (false, true) => "cbr",
+            (false, false) => "cb",
+        };
         let name = format!("lugha_{kind}_{}", c_signature(params, ret, Some(data)));
         if let Some(existing) = self.module.get_function(&name) {
             return existing.as_global_value().as_pointer_value();
@@ -251,9 +265,13 @@ impl<'ctx> Lowerer<'ctx> {
             .module
             .add_function(&name, fn_type, Some(Linkage::Internal));
         // The closure comes from the pin, its captures held for the call.
-        self.c_body(entry, params, ret, (Some(data), spawned), |_, _| {
-            unreachable!("a trampoline holds its closure through its pin")
-        });
+        self.c_body(
+            entry,
+            params,
+            ret,
+            (Some(data), spawned, realtime),
+            |_, _| unreachable!("a trampoline holds its closure through its pin"),
+        );
         entry.as_global_value().as_pointer_value()
     }
 
@@ -266,7 +284,7 @@ impl<'ctx> Lowerer<'ctx> {
         entry: FunctionValue<'ctx>,
         params: &[Type],
         ret: &Type,
-        (data, spawned): (Option<usize>, bool),
+        (data, spawned, realtime): (Option<usize>, bool, bool),
         pair: impl FnOnce(&mut Self, Option<PointerValue<'ctx>>) -> StructValue<'ctx>,
     ) {
         // Counted arrays are two C parameters each.
@@ -294,9 +312,15 @@ impl<'ctx> Lowerer<'ctx> {
             .builder
             .build_call(body, &args, "body")
             .expect(POSITIONED);
+        // A real-time callback's body enters through its own door.
+        let door = if realtime {
+            super::c_stack::REALTIME
+        } else {
+            ""
+        };
         let mark = self
             .context
-            .create_string_attribute(super::c_stack::CB_RUN, "");
+            .create_string_attribute(super::c_stack::CB_RUN, door);
         call.add_attribute(AttributeLoc::Function, mark);
         match call.try_as_basic_value() {
             ValueKind::Basic(v) => self.builder.build_return(Some(&v)),
