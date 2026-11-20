@@ -68,7 +68,7 @@ fun main(console: Console, net: Net, root: Scope) {
     let notes = root.spawn(Notes { all: [] });
     let base = "http://127.0.0.1:47833";
     let r = scope s {
-        let server = s.spawn(http.serve(net, "127.0.0.1:47833", fun(req: http.Request): http.Response = handle(notes, req)));
+        let server = s.spawn(http.serve(net, "127.0.0.1:47833", fun(req) = handle(notes, req)));
         console.println(call(net, "POST", "{base}/notes", "{{\"text\": \"buy milk\"}}"));
         console.println(call(net, "POST", "{base}/notes", "{{\"text\": \"call ann\"}}"));
         console.println(call(net, "GET", "{base}/notes", ""));

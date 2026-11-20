@@ -1,0 +1,24 @@
+// A channel of tuples and structs, looped over and selected on: each loop
+// and arm gives an `Option` of the item, which must be declared.
+struct Point { x: i64, y: i64 }
+
+fun main(console: Console) {
+    let (tx, rx) = Chan<(i64, string)>.unbounded();
+    tx.send((1, "a"));
+    tx.send((2, "b"));
+    tx.close();
+    for (n, s) of rx {
+        console.println("{n} {s}");
+    }
+    let (ptx, prx) = Chan<Point>.new(1);
+    ptx.send(Point { x: 3, y: 4 });
+    ptx.close();
+    for p of prx {
+        console.println(p.x + p.y);
+    }
+    let (ttx, trx) = Chan<(bool, f64)>.new(1);
+    ttx.send((true, 1.5));
+    select {
+        v = trx.recv() => console.println(v.debug()),
+    }
+}

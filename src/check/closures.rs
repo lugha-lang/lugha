@@ -26,6 +26,11 @@ impl Checker {
             Some(Type::Fun(ps, r)) if ps.len() == c.params.len() => {
                 Some((ps.clone(), (**r).clone()))
             }
+            // An interface that is a function type (`Handler: fun(Request):
+            // Response + Sendable`) gives its signature, as the type would.
+            Some(t @ Type::Interface(..)) => self
+                .fun_signature_of(t)
+                .filter(|(ps, _)| ps.len() == c.params.len()),
             _ => None,
         };
         let mut params = Vec::new();
@@ -154,6 +159,24 @@ mod tests {
 
     fn fun(params: Vec<Type>, ret: Type) -> Type {
         Type::Fun(params, Box::new(ret))
+    }
+
+    #[test]
+    fn a_closure_takes_its_types_from_an_expected_function_interface() {
+        let src = "interface Job: fun(i64): i64 + Sendable {}\n\
+                   interface Plain: fun(i64): i64 {}\n\
+                   interface Pair<T>: fun(T, T): T {}\n\
+                   fun run(j: Job): i64 = j(20);\n\
+                   fun run2(p: Plain): i64 = p(1);\n\
+                   fun both(p: Pair<string>): string = p(\"a\", \"b\");\n\
+                   fun main() {\n\
+                       let k = 1;\n\
+                       let a = run(fun(x) = x + k);\n\
+                       let b = run2(fun(x) = x * 2);\n\
+                       let j: Job = fun(x) = x - 1;\n\
+                       let c = both(fun(x, y) = x + y);\n\
+                   }";
+        crate::check::test_util::ok(src);
     }
 
     #[test]

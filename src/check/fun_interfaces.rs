@@ -97,7 +97,7 @@ impl Checker {
             if !info.items.is_empty() {
                 problems.push(format!("a function has no `{}` items", a.ty()));
             }
-            todo.extend(info.extends.iter().cloned());
+            todo.extend(Self::parents_at(info, &a.args));
         }
         if !met && problems.is_empty() {
             problems.push(format!("`{}` isn't a function interface", interface.ty()));
@@ -223,6 +223,50 @@ impl Checker {
             .filter(|g| result.is_none_or(|r| !r.mentions_param(&g.name)))
             .map(|g| g.name.as_str())
             .collect()
+    }
+
+    /// `info`'s parents at its arguments `args`: a generic interface's
+    /// parents are written in its own parameters (`Pair<T>: fun(T, T): T`).
+    fn parents_at(
+        info: &super::interfaces::InterfaceInfo,
+        args: &[Type],
+    ) -> Vec<super::applied::Applied> {
+        let map: std::collections::HashMap<String, Type> = info
+            .generics
+            .iter()
+            .map(|g| g.name.clone())
+            .zip(args.iter().cloned())
+            .collect();
+        info.extends
+            .iter()
+            .map(|parent| super::applied::Applied {
+                key: parent.key.clone(),
+                args: parent.args.iter().map(|t| t.substitute(&map)).collect(),
+            })
+            .collect()
+    }
+
+    /// The signature of the function interface `ty` is or extends, if any,
+    /// at `ty`'s arguments: `Handler`, `fun(Request): Response + Sendable`,
+    /// gives `([Request], Response)`. A closure passed where `ty` is
+    /// expected takes its parameter types from it.
+    pub(super) fn fun_signature_of(&self, ty: &Type) -> Option<(Vec<Type>, Type)> {
+        let mut todo = vec![super::applied::Applied::of(ty)?];
+        let mut seen: Vec<String> = Vec::new();
+        while let Some(a) = todo.pop() {
+            if let Some((params, ret)) = fun_signature(&a.key, &a.args) {
+                return Some((params.to_vec(), ret.clone()));
+            }
+            if seen.contains(&a.key) {
+                continue;
+            }
+            seen.push(a.key.clone());
+            let Some(info) = self.interfaces.get(&a.key) else {
+                continue;
+            };
+            todo.extend(Self::parents_at(info, &a.args));
+        }
+        None
     }
 
     /// `key` and every interface it extends, transitively.

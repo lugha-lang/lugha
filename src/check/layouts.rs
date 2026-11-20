@@ -40,6 +40,16 @@ impl Checker {
             let all = body.iter().chain(&params).chain([&ret]);
             seeds.extend(all.map(|t| subst(t, &generics, &mono.args)));
         }
+        // A channel's receiving end gives `Option`s of its item in a loop
+        // or a `select` arm, which no expression of the program may have.
+        let received: Vec<Type> = seeds
+            .iter()
+            .filter_map(|t| match t {
+                Type::Chan(_, inner) => Some(Type::Option(inner.clone())),
+                _ => None,
+            })
+            .collect();
+        seeds.extend(received);
         let mut used: Vec<Type> = Vec::new();
         let mut unique = HashSet::new();
         seeds.retain(|t| unique.insert(t.clone()));
