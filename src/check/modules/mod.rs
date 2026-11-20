@@ -276,6 +276,7 @@ impl Checker {
         for unit in units {
             self.enter(unit);
             self.check_with(unit.program);
+            self.eq_ord_agree(unit.program);
         }
         self.settle_keys();
         // Every derive block is known: the sendable checks waiting on them.

@@ -1,0 +1,12 @@
+warning[W0108]: `Run`'s `==` and `<` can disagree
+  --> tests/programs/derive/with/w0108.la:2:8
+  |
+2 | struct Run { loss: i64, name: string } with Eq
+  |        ^^^ `==` compares every field (derived `Eq`)
+3 |
+4 | impl Ord for Run {
+  |              --- `<` compares what this `cmp` compares
+  |
+  = help: write `impl Eq for Run` comparing what `cmp` compares, so `a == b` exactly when `a.cmp(b)` is `Ordering.Equal`; or derive both, `with Ord`
+
+For more about W0108, run `lughac explain W0108`.

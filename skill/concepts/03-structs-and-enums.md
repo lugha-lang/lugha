@@ -89,6 +89,10 @@ fun main(console: Console) {
 - **Abilities with `with`:** after the type, `with Eq` gives `==` and `!=`,
   `with Ord` gives `<` and sorting (and `Eq`), `with Key` lets it be a map key
   or set item (and `Eq`). Every field must have the ability too.
+- **Ordering by hand:** `impl Ord for T { fun cmp(self, o: T): Ordering … }`
+  orders by what you choose. Then write `impl Eq` comparing the same thing,
+  so `==` and `<` agree: a derived `Eq` beside a written `Ord` is warning
+  W0108.
 - **Printing:** `impl Display for T { fun show(self): string = … }` makes
   `T` printable in `println` and `"{…}"`. Without it, `x.debug()` gives a
   readable form of any value: `Point { x: 1.0, y: 2.0 }`.

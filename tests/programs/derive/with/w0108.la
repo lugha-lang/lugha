@@ -1,0 +1,15 @@
+// A derived `Eq` beside a hand-written `Ord`: `==` and `<` can disagree.
+struct Run { loss: i64, name: string } with Eq
+
+impl Ord for Run {
+    fun cmp(self, o: Run): Ordering =
+        if self.loss < o.loss { Ordering.Less }
+        else if self.loss > o.loss { Ordering.Greater }
+        else { Ordering.Equal };
+}
+
+fun main(console: Console) {
+    let a = Run { loss: 1, name: "a" };
+    let b = Run { loss: 1, name: "b" };
+    console.println("{a == b} {a < b} {b < a}");
+}

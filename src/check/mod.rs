@@ -46,6 +46,7 @@ mod derive_with;
 mod entry;
 mod enums;
 mod env;
+mod eq_ord;
 mod errors;
 mod expr;
 mod float_bits;
