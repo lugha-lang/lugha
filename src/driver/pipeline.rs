@@ -13,7 +13,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use super::render::Report;
 use super::source::Source;
 use super::update;
-use crate::ast;
 use crate::check::{self, Checked};
 use crate::codegen::{self, CodegenError, Cpu, Instruments, OptLevel, Target};
 use crate::diagnostic::{Diagnostic, Severity};
@@ -148,21 +147,15 @@ pub(super) fn front_test_roots(paths: &[PathBuf], mode: Mode) -> Result<Front, F
     check_parsed(parse_loaded(loaded)?, Some(paths.len()))
 }
 
-/// [`front`] for `lughac check`: a file that declares
-/// no `fun main` is checked as a library, the way `lughac test` checks it;
-/// only `build` and `run` need `main`.
+/// [`front`] for `lughac check`: a file without `fun main` is checked as a
+/// library, as `lughac test` checks it; one with it is a main file, as
+/// `build` and `run` take it, even inside its package's `source` folder.
 pub(super) fn front_check(path: &Path, mode: Mode) -> Result<Front, Failure> {
-    let front = parsed_module(path, mode)?;
-    let library = front
-        .modules
-        .first()
-        .and_then(|m| m.program.as_ref())
-        .is_some_and(|p| {
-            !p.items
-                .iter()
-                .any(|i| matches!(i, ast::Item::Fun(f) if f.name.name == "main"))
-        });
-    check_parsed(front, library.then_some(1))
+    // An unreadable file is reported by the load below.
+    if std::fs::read(path).is_ok_and(|text| modules::declares_main(&text)) {
+        return front(path, mode);
+    }
+    check_parsed(parsed_module(path, mode)?, Some(1))
 }
 
 /// A program checked for the language server: what the checker found,

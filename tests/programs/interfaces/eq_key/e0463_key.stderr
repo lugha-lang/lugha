@@ -1,0 +1,12 @@
+error[E0463]: `P` derives `Eq` through `with Key`, and implements it by hand
+  --> tests/programs/interfaces/eq_key/e0463_key.la:3:34
+  |
+3 | struct P { a: i64, b: i64 } with Key
+  |                                  ^^^
+4 |
+5 | impl Eq for P {
+  |      -- implemented by hand here
+  |
+  = help: keep one: write `impl Key for P` by hand too, or drop the `impl Eq` block
+
+For more about E0463, run `lughac explain E0463`.

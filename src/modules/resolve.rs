@@ -63,17 +63,30 @@ pub(super) fn check(
     )
 }
 
-/// E0312 at the import that asked for a missing module.
+/// E0312 at the import that asked for a missing module of `package`.
 pub(super) fn not_found(
     path: &[String],
     file: &Path,
     at: Span,
     beside: Option<&[String]>,
+    package: Option<&str>,
 ) -> Diagnostic {
     let mut help = format!("there is no file `{}`", file.display());
+    // A package's modules import each other without its name: `import
+    // glow.array;` inside `glow` asks for `glow.glow.array`.
+    if let (Some(own), [first, second, rest @ ..]) = (package, path)
+        && first == own
+        && second == own
+        && !rest.is_empty()
+    {
+        help = format!(
+            "inside package `{own}`, import its modules without its name: `import {};`",
+            rest.join(".")
+        );
+    }
     // `import test.support;` in `test/uses.la` means `test/test/support.la`;
     // the neighbour is `import support;`, so the help suggests it.
-    if let Some(rest) = beside {
+    if let Some(rest) = beside.filter(|_| !help.starts_with("inside package")) {
         help.push_str(&format!(
             "; `{}.la` is beside this file: `import {};`",
             rest.join("/"),
@@ -104,4 +117,37 @@ fn clash(at: Span, message: String, earlier: &Import) -> Diagnostic {
 /// from the main file's own directory, so equal files have equal paths.
 fn same_file(a: &Path, b: &Path) -> bool {
     a == b
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::not_found;
+
+    fn path(p: &str) -> Vec<String> {
+        p.split('.').map(str::to_string).collect()
+    }
+
+    #[test]
+    fn a_packages_own_name_inside_it_gets_help() {
+        let at = crate::span::Span::new(0, 1);
+        let help = |p: &str, package| {
+            let d = not_found(&path(p), Path::new("src/glow/array.la"), at, None, package);
+            d.help.expect("a help")
+        };
+        assert_eq!(
+            help("glow.glow.array", Some("glow")),
+            "inside package `glow`, import its modules without its name: `import array;`"
+        );
+        // Anything else keeps the file it looked for.
+        assert_eq!(
+            help("glow.lens", Some("glow")),
+            "there is no file `src/glow/array.la`"
+        );
+        assert_eq!(
+            help("glow.glow.array", None),
+            "there is no file `src/glow/array.la`"
+        );
+    }
 }

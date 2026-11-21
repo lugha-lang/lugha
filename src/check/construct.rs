@@ -41,6 +41,20 @@ impl Checker {
             return Some(ty);
         }
         let name = self.enum_named(base)?;
+        // No such variant, but an associated function: its value, as a
+        // struct's (`function_field`).
+        let variant_named = self.enums[&name]
+            .variants
+            .iter()
+            .any(|(v, _)| *v == variant.name);
+        if !variant_named
+            && self
+                .methods
+                .get(&name)
+                .is_some_and(|m| m.contains_key(&variant.name))
+        {
+            return None;
+        }
         self.record(base, Type::Unit);
         // A variant with payloads, not called, is a function value.
         if let Some(ty) = self.enum_variant_function(expr, &name, &variant.name, expect) {

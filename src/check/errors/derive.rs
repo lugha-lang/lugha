@@ -231,6 +231,25 @@ pub(in crate::check) fn derived_and_written(
     ))
 }
 
+/// E0463: `ty` derives `Eq` through `with {through}` (at `span`) and
+/// implements it by hand (at `written`).
+pub(in crate::check) fn eq_derived_through(
+    ty: &str,
+    through: &str,
+    span: Span,
+    written: Span,
+) -> Diagnostic {
+    Diagnostic::error(
+        "E0463",
+        format!("`{ty}` derives `Eq` through `with {through}`, and implements it by hand"),
+        span,
+    )
+    .with_label(written, "implemented by hand here")
+    .with_help(format!(
+        "keep one: write `impl {through} for {ty}` by hand too, or drop the `impl Eq` block"
+    ))
+}
+
 /// E0463: `with Debug` on `ty`, which already has its debug form.
 pub(in crate::check) fn debug_asked(ty: &str, span: Span) -> Diagnostic {
     Diagnostic::error(

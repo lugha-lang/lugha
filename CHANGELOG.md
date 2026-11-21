@@ -97,6 +97,7 @@ Never deleted. Older entries are never modified.
 - `crypto.CryptoError` has two new variants, `NotAuthentic` and `BadKey(string)`: a `match` naming every variant must add them.
 
 ### Fixed
+- Five compiler bugs from a reader's review (PRP-276): **Breaking:** `with Key` or `with Ord` beside a hand-written `impl Eq` is E0463, since both derive `Eq` and a written `eq` broke the key or order laws silently; `sum` works on an iterator of a `T: Num` or `T: Float` parameter; an enum's associated function is a value, as a struct's is (`E.make`); E0417 prints a tuple's missing case as `(false, false)`, not `.()(false, false)`; `lughac check` takes a file with `fun main` inside its package's `source` folder as a main file, as `run` does, and E0312 inside a package that imports it by its own name says to drop the name. The spec now agrees with itself that a derive block for one built-in type gives methods (`5.show()`).
 - The spec, the skill and four errors' help no longer contradict what lughac does, from a reader's review:
   - the spec: an `independent` scope prints a panic as ``task `name` panicked: …``; `select` picks the same way on every run only on one worker thread; an actor's stack overflow unwinds and fails its scope; a `Ref` in an actor's field is E0475;
   - the skill: only `close` closes a channel; a `mut` parameter changes the caller's variable; `Clock` has `local_offset`;

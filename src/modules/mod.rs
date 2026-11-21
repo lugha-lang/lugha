@@ -237,9 +237,13 @@ pub fn load_all(roots: &[PathBuf], read: &mut Read<'_>, env: LoadEnv) -> Result<
                     let beside = (1..path.len()).map(|k| &path[k..]).find(|rest| {
                         from_main && paths::exists(read, &resolve::file_of(&root, rest))
                     });
-                    loaded
-                        .diagnostics
-                        .push(resolve::not_found(&path, &file, at, beside));
+                    loaded.diagnostics.push(resolve::not_found(
+                        &path,
+                        &file,
+                        at,
+                        beside,
+                        package.as_deref(),
+                    ));
                     continue;
                 }
                 Err(source) => return Err(LoadError::Io { path: file, source }),
@@ -349,12 +353,24 @@ pub fn load_all(roots: &[PathBuf], read: &mut Read<'_>, env: LoadEnv) -> Result<
 /// The module name of `main`, a library file (no `fun main`), when its
 /// file name can be one: `diff.la` → `diff`.
 fn library_name(module: &Module, main: &Path) -> Option<String> {
-    let program = module.program.as_ref()?;
-    let has_main = program
-        .items
-        .iter()
-        .any(|i| matches!(i, crate::ast::Item::Fun(f) if f.name.name == "main"));
+    let has_main = module.program.as_ref()?.items.iter().any(is_main);
     (!has_main).then(|| stem_name(main)).flatten()
+}
+
+fn is_main(item: &crate::ast::Item) -> bool {
+    matches!(item, crate::ast::Item::Fun(f) if f.name.name == "main")
+}
+
+/// True if the source `text` declares `fun main`. False when it doesn't
+/// lex or parse: loading it reports why.
+pub fn declares_main(text: &[u8]) -> bool {
+    let Ok(text) = std::str::from_utf8(text) else {
+        return false;
+    };
+    let Ok((tokens, _)) = crate::lexer::lex(text) else {
+        return false;
+    };
+    crate::parser::parse(&tokens).is_ok_and(|(program, _)| program.items.iter().any(is_main))
 }
 
 /// `file`'s stem when it can name a module: `diff.la` → `diff`.

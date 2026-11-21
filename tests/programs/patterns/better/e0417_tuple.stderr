@@ -1,0 +1,9 @@
+error[E0417]: non-exhaustive match: `(false, false)` not covered
+  --> tests/programs/patterns/better/e0417_tuple.la:4:5
+  |
+4 |     match t {
+  |     ^^^^^^^
+  |
+  = help: add the missing arms, or `_ => …`
+
+For more about E0417, run `lughac explain E0417`.

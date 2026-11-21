@@ -11,6 +11,9 @@ use super::{Checker, Type};
 /// Stop listing missing cases after this many, so hostile input stays cheap.
 const LIMIT: usize = 100;
 
+/// The name of a tuple's hidden constructor.
+pub(super) const TUPLE: &str = "()";
+
 type Row = Vec<Pat>;
 
 /// A constructor and its payload types.
@@ -183,6 +186,11 @@ fn default(rows: &[Row]) -> Vec<Row> {
 pub(super) fn show(pat: &Pat, top: bool) -> String {
     match pat {
         Pat::Wild => "_".into(),
+        // A tuple's constructor is hidden: its elements, in parentheses.
+        Pat::Ctor(Ctor::Variant(_, name), args) if name == TUPLE => {
+            let args: Vec<String> = args.iter().map(|a| show(a, false)).collect();
+            format!("({})", args.join(", "))
+        }
         Pat::Ctor(Ctor::Variant(_, name), args)
             if args.is_empty() || (top && args.iter().all(|a| *a == Pat::Wild)) =>
         {
@@ -253,6 +261,21 @@ mod tests {
                 "let a = match s { .Some(.Circle(_)) => 1, .None => 2, .Some(.Rect(_, _)) => 3, .Some(.Empty) => 4 }; let p = Some(1); let q = match p { .Some(1) => 1, .None => 0 };"
             )),
             [("E0417", "match p")]
+        );
+    }
+
+    #[test]
+    fn a_tuples_missing_case_prints_as_a_tuple() {
+        let message = |body: &str| diagnostics(&main(body))[0].message.clone();
+        assert_eq!(
+            message("let t = (true, 1); let a = match t { (true, _) => 1 };"),
+            "non-exhaustive match: `(false, _)` not covered"
+        );
+        assert_eq!(
+            message(
+                "let o = Some((true, false)); let a = match o { .Some((true, _)) => 1, .None => 2 };"
+            ),
+            "non-exhaustive match: `.Some((false, true))`, `.Some((false, false))` not covered"
         );
     }
 

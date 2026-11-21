@@ -1,0 +1,16 @@
+// An enum's associated function is a value, as a struct's is; a variant
+// of the same name would still win.
+enum Light { Red, Green }
+
+impl Light {
+    fun make(go: bool): Light = if go { Light.Green } else { Light.Red };
+}
+
+fun pick(f: fun(bool): Light, go: bool): Light = f(go);
+
+fun main(console: Console) {
+    let make = Light.make;
+    console.println(make(true).debug());
+    console.println(pick(Light.make, false).debug());
+    console.println(Light.Red.debug());
+}

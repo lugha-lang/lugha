@@ -102,7 +102,7 @@ impl Checker {
                 })
                 .collect();
         }
-        let ctor = Ctor::Variant(0, "()".to_string());
+        let ctor = Ctor::Variant(0, super::usefulness::TUPLE.to_string());
         rows.into_iter()
             .map(|subs| Pat::Ctor(ctor.clone(), subs))
             .collect()

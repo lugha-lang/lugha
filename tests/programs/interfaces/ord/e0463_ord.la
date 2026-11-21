@@ -1,0 +1,9 @@
+// `with Ord` derives `Eq` too: a hand-written `Eq` beside it would
+// disagree with the derived order.
+enum Size { Small(i64), Large(i64) } with Ord
+
+impl Eq for Size {
+    fun eq(self, other: Self): bool = true;
+}
+
+fun main(console: Console) {}

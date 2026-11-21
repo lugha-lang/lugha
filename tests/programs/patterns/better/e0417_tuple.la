@@ -1,0 +1,8 @@
+// A tuple's missing case prints as a tuple.
+fun main(console: Console) {
+    let t = (true, false);
+    match t {
+        (true, _) => console.println("a"),
+        (false, true) => console.println("b"),
+    }
+}

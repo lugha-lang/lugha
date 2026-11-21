@@ -258,6 +258,19 @@ impl Checker {
             self.report(d);
             return;
         }
+        // `with Key` and `with Ord` derive `Eq` too: a written `eq` beside
+        // them would disagree with the derived hash or order.
+        if key == super::derive::KEY || key == super::derive::ORD {
+            let eq = self
+                .impls
+                .get(owner)
+                .and_then(|es| es.iter().find(|e| e.key == super::derive::EQ))
+                .map(|e| e.span);
+            if let Some(written) = eq {
+                self.report(errors::eq_derived_through(&ty, &shown, span, written));
+                return;
+            }
+        }
         for (path, part) in self.parts_of(owner) {
             if has_param(&part) {
                 continue;

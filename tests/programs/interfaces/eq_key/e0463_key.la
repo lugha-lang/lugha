@@ -1,0 +1,9 @@
+// `with Key` derives `Eq` too: a hand-written `Eq` beside it would hash
+// what it doesn't compare.
+struct P { a: i64, b: i64 } with Key
+
+impl Eq for P {
+    fun eq(self, other: Self): bool = self.a == other.a;
+}
+
+fun main(console: Console) {}

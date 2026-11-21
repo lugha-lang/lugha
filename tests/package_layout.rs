@@ -311,3 +311,33 @@ fn e0312_in_a_test_file_suggests_its_neighbour() {
         );
     }
 }
+
+#[test]
+fn check_takes_a_package_file_with_main_as_run_does() {
+    let t = library();
+    std::fs::write(t.0.join("glow/src/main.la"), BASICS).expect("written");
+    for command in ["check", "run"] {
+        let out = lughac(&t.0, &t.0, &[command, "glow/src/main.la"]);
+        assert_eq!(
+            out.status.code(),
+            Some(0),
+            "{command}: {}",
+            text(&out.stderr)
+        );
+    }
+    // Inside the package, a module importing it by name hears how.
+    std::fs::write(
+        t.0.join("glow/src/zeros.la"),
+        "import glowworm.array;\npublic fun three(): f64[] = array.zeros(3);\n",
+    )
+    .expect("written");
+    let out = lughac(&t.0, &t.0, &["check", "glow/src/zeros.la"]);
+    let err = text(&out.stderr);
+    assert!(
+        err.contains("E0312")
+            && err.contains(
+                "inside package `glowworm`, import its modules without its name: `import array;`"
+            ),
+        "{err}"
+    );
+}

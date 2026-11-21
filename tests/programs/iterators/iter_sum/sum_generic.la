@@ -1,0 +1,14 @@
+// `sum` on an iterator of a parameter bounded by `Num`.
+struct Bag<T> { xs: T[] }
+
+impl<T: Num> Bag<T> {
+    fun total(self): T = self.xs.iter().sum();
+}
+
+fun total_of<T: Float>(xs: T[]): T = xs.iter().sum();
+
+fun main(console: Console) {
+    console.println(Bag { xs: [1, 2, 3] }.total());
+    console.println(Bag { xs: [1.5, 2.5] }.total());
+    console.println(total_of([0.25, 0.5]));
+}

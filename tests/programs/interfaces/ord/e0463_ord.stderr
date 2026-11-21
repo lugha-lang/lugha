@@ -1,0 +1,12 @@
+error[E0463]: `Size` derives `Eq` through `with Ord`, and implements it by hand
+  --> tests/programs/interfaces/ord/e0463_ord.la:3:43
+  |
+3 | enum Size { Small(i64), Large(i64) } with Ord
+  |                                           ^^^
+4 |
+5 | impl Eq for Size {
+  |      -- implemented by hand here
+  |
+  = help: keep one: write `impl Ord for Size` by hand too, or drop the `impl Eq` block
+
+For more about E0463, run `lughac explain E0463`.

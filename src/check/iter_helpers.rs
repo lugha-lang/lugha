@@ -57,6 +57,18 @@ pub(super) const ITER_TYPES: [&str; 15] = [
 ];
 
 impl Checker {
+    /// True for a type parameter bounded by `Num` or `Float`: `iter_sum`
+    /// is generic over `T: Num`, and each instance is concrete.
+    fn bounded_num(&self, ty: &Type) -> bool {
+        let Type::Param(name) = ty else {
+            return false;
+        };
+        self.bounds(name)
+            .interfaces
+            .iter()
+            .any(|a| a.key == "$prelude.Num" || a.key == "$prelude.Float")
+    }
+
     /// `base.name(args)` on `receiver`, an iterator without its own `name`:
     /// a call of the prelude's helper with `base`, converted to `Iter<T>`,
     /// first. `None` if `name` isn't a helper for it (E0415 follows).
@@ -74,7 +86,7 @@ impl Checker {
         let element = self.next_of(receiver)?.element;
         let function = match name.name.as_str() {
             // One generic helper for every numeric type.
-            "sum" if element.is_numeric() => "iter_sum".to_string(),
+            "sum" if element.is_numeric() || self.bounded_num(&element) => "iter_sum".to_string(),
             "sum" => return None,
             other => format!("iter_{other}"),
         };
