@@ -1,0 +1,30 @@
+// Copies of a receiver are one receiving end: they compare equal, and the
+// channel stays read until the last of them goes, in any order.
+fun sum(rx: Receiver<i64>): i64 {
+    let mut n = 0;
+    for v of rx {
+        n = n + v;
+    }
+    n
+}
+
+fun main(console: Console) {
+    let (tx, rx) = Chan<i64>.new(4);
+    let rx2 = rx;
+    let (other, orx) = Chan<i64>.new(1);
+    console.println(rx.is(rx2));
+    console.println(rx.is(orx));
+    let r = scope s {
+        let a = s.spawn(sum(rx));
+        let b = s.spawn(sum(rx2));
+        for i in 1..11 {
+            tx.send(i);
+        }
+        tx.close();
+        a.join().unwrap() + b.join().unwrap()
+    };
+    console.println(r.unwrap());
+    other.send(1);
+    console.println(other.try_send(2).debug());
+    console.println(orx.try_recv().debug());
+}

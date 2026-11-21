@@ -133,7 +133,7 @@ The draft must cite every `approved` line exactly once as a rule, and contain no
 - MEM-04 approved — Copy-on-write writes in place when the count is 1, replacing the sticky shared flag.
 - MEM-05 approved — `Weak<T>` for non-owning references: caches, observers, registries, back-links.
 - MEM-06 approved — Cycles can only form through `Ref`, channels and task or actor handles; a small per-task cycle collector looks only at those, in budgeted slices at deterministic points.
-- MEM-07 approved — A scope's end breaks the handle cycles it created.
+- MEM-07 approved — A scope's end breaks the handle cycles it created. Met differently (2026-11-21): an actor lets go of its state when it ends, and scopes stop their actors when they end, so the scope needn't track what it made; channel cycles break when a channel's last receiver goes, which then lets go of what it buffers. Left: a channel holding its own receiver.
 - MEM-08 approved — In tests, a report of every cycle the collector freed, with creation sites. The lint for cycle-prone `Ref` types without `Weak` is dropped (2026-11-21): with the collector freeing `Ref` cycles it would fire on every singly linked list and graph, and the test note already points at cycles worth a `Weak`.
 - MEM-09 approved — Large frees are deferred and done in budgeted slices.
 - MEM-10 approved — `Pinned<T>` holds a count for a value C keeps; keeping one without `Pinned` stays undefined behaviour.

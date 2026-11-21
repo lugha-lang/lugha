@@ -3,7 +3,8 @@
  * address order, takes a ready case at random (one draw among those that
  * look ready, as a shuffled run's seed expects), or else queues a waiter
  * on every case's channel and waits for the first to fire; a ring it reads
- * is told to wake it (rings.c).
+ * is told to wake it (rings.c). A send arm on an unread channel is ready,
+ * and its value dropped.
  *
  * A fragment, not compiled on its own: joined right after rings.c, after
  * chans.c, whose channels, waiters and claims it uses.
@@ -45,7 +46,7 @@ static int select_locks(const LughaCase *cases, int64_t n, uint32_t **locks) {
  * claim. */
 static bool looks_ready(const LughaCase *k) {
     const LughaChan *c = k->chan;
-    if (c->closed) {
+    if (c->closed || (k->kind == 1 && c->unread)) {
         return true;
     }
     if (c->ring != NULL) {
@@ -112,6 +113,10 @@ int64_t lugha_rt_task_select(LughaCase *cases, int64_t n, int64_t timeout_ms, in
         if (cases[i].kind == 1 && done == CLOSED) {
             chan_panic("send on a closed channel", file, line, col);
         }
+        if (done == UNREAD) {
+            drop_unsent(c, cases[i].data);
+            done = MOVED;
+        }
         cases[i].ok = done == MOVED;
         return i;
     }
@@ -151,6 +156,10 @@ int64_t lugha_rt_task_select(LughaCase *cases, int64_t n, int64_t timeout_ms, in
     woke(fired);
     if (fired >= 0 && cases[fired].kind == 1 && !cases[fired].ok) {
         chan_panic("send on a closed channel", file, line, col);
+    }
+    if (fired >= 0 && cases[fired].ok == UNREAD_OK) {
+        drop_unsent(cases[fired].chan, cases[fired].data);
+        cases[fired].ok = 1;
     }
     return fired;
 }

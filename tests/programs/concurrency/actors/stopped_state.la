@@ -1,0 +1,35 @@
+// An actor whose state holds channels and other actors' handles lets go of
+// them when it stops, while other handles to it are still held.
+actor Peer {
+    fun hello(self): string = "hi";
+}
+
+actor Hub {
+    peers: Peer[],
+    out: Sender<string>,
+    back: Receiver<string>,
+    fun add(mut self, p: Peer) { self.peers.push(p); }
+    fun shout(self) {
+        for p of self.peers {
+            self.out.send(p.hello());
+        }
+    }
+    fun count(self): i64 = self.peers.len;
+}
+
+fun main(console: Console, root: Scope) {
+    let (tx, rx) = Chan<string>.unbounded();
+    let hub = root.spawn(Hub { peers: [], out: tx, back: rx });
+    let p = root.spawn(Peer {});
+    hub.add(p);
+    hub.add(hub_peer(root));
+    hub.shout();
+    console.println(hub.count());
+    let again = hub;
+    hub.stop();
+    console.println(describe(again));
+}
+
+fun describe(h: Hub): string = "still held";
+
+fun hub_peer(root: Scope): Peer = root.spawn(Peer {});

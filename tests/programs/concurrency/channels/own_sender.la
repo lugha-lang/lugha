@@ -1,0 +1,15 @@
+// A channel whose buffered value holds its own sender: once no receiver is
+// left, it lets go of what it buffers, and so of itself.
+struct Msg {
+    reply: Sender<Msg>,
+}
+
+fun main(console: Console) {
+    for i in 0..100 {
+        let (tx, rx) = Chan<Msg>.unbounded();
+        tx.send(Msg { reply: tx });
+        let (btx, brx) = Chan<Msg>.new(2);
+        btx.send(Msg { reply: btx });
+    }
+    console.println("done");
+}

@@ -168,18 +168,40 @@ static void ring_kick(LughaChan *c) {
     poller_kick();
 }
 
-/* `ring.try_send(v)`: 0 sent, 1 full, 2 closed; unless sent, the value
+/* The ring's receiver is gone (`unread` set): once a writer under way is
+ * done, no value comes again, and what it holds is let go of. */
+static void ring_unread(LughaChan *c) {
+    Ring *r = c->ring;
+    while (__atomic_load_n(&r->writing, __ATOMIC_SEQ_CST)) {
+        sched_yield();
+    }
+    lock_take(&c->lock);
+    int64_t head = r->head;
+    int64_t tail = __atomic_load_n(&r->tail, __ATOMIC_ACQUIRE);
+    __atomic_store_n(&r->head, tail, __ATOMIC_RELEASE);
+    lock_give(&c->lock);
+    if (c->elem_visit != NULL) {
+        for (int64_t i = head; i < tail; i++) {
+            c->elem_visit(c->buf + (i % c->cap) * c->elem, RC_RELEASE);
+        }
+    }
+}
+
+/* `ring.try_send(v)`: 0 sent, 1 full, 2 closed or unread; unless sent, the value
  * stays the caller's. Never locks, allocates or waits. */
 int32_t lugha_rt_ring_try_send(LughaChan *c, const void *value) {
     Ring *r = c->ring;
     int32_t idle = 0;
-    if (!__atomic_compare_exchange_n(&r->writing, &idle, 1, false, __ATOMIC_ACQUIRE,
+    if (!__atomic_compare_exchange_n(&r->writing, &idle, 1, false, __ATOMIC_SEQ_CST,
                                      __ATOMIC_RELAXED)) {
         chan_panic("a ring has one writer at a time", c->file, c->line, c->col);
     }
     int32_t how = 0;
     int64_t tail = r->tail;
-    if (__atomic_load_n(&c->closed, __ATOMIC_ACQUIRE)) {
+    // Read after taking `writing`, both in one total order with
+    // `ring_unread`: either this sees the ring unread, or that waits.
+    if (__atomic_load_n(&c->closed, __ATOMIC_ACQUIRE) ||
+        __atomic_load_n(&c->unread, __ATOMIC_SEQ_CST)) {
         how = 2;
     } else if (tail - __atomic_load_n(&r->head, __ATOMIC_ACQUIRE) >= c->cap) {
         how = 1;

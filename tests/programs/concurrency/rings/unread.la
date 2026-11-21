@@ -1,0 +1,21 @@
+// A ring whose receiver is gone: what it buffered is let go of, its own
+// writing end included, and `try_send` gives the value back as `.Closed`.
+struct Back {
+    tx: RingSender<Back>,
+}
+
+fun unread(): RingSender<string> {
+    let (tx, rx) = Ring<string>.new(2);
+    tx.try_send("kept");
+    tx
+}
+
+fun main(console: Console) {
+    let tx = unread();
+    console.println(tx.try_send("late").debug());
+    for i in 0..50 {
+        let (btx, brx) = Ring<Back>.new(1);
+        btx.try_send(Back { tx: btx });
+    }
+    console.println("done");
+}

@@ -136,10 +136,11 @@ impl<'ctx> Lowerer<'ctx> {
     ) -> BasicValueEnum<'ctx> {
         // A channel's receiver: the next value received.
         if let Type::Chan(_, element) = ty {
-            let chan = self
+            let end = self
                 .builder
-                .build_load(llvm_type(self.context, ty), slot, "chan")
+                .build_load(llvm_type(self.context, ty), slot, "end")
                 .expect(POSITIONED);
+            let chan = self.receiving_chan(end);
             return self.chan_receive(chan, element);
         }
         let site = match ty {

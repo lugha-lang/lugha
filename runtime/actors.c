@@ -100,17 +100,18 @@ static void room(LughaActor *a) {
 
 /* The actor ended (`outcome`), under its lock: the message it was
  * handling and every one still queued are answered, and senders waiting
- * for room look again. */
-static void actor_ended_locked(LughaActor *a, int32_t outcome) {
+ * for room look again. Its state, taken out, is the caller's to let go of
+ * once the lock is given up (NULL if it had ended already). */
+static void *actor_ended_locked(LughaActor *a, int32_t outcome) {
     if (a->status != RUNNING) {
-        return;
+        return NULL;
     }
     a->status = outcome;
     a->idle = NULL;
-    // Its state was the actor's alone, and whoever drops the last handle
-    // lets go of it: what the actor stored there is marked now, on its
-    // own task.
-    rc_mark_contents(a->state);
+    // Nothing runs on the state again: it goes now, on the actor's own
+    // task, so handles holding each other in a ring don't keep it.
+    void *state = a->state;
+    a->state = NULL;
     Message *m = a->handling;
     a->handling = NULL;
     if (m != NULL) {
@@ -126,12 +127,15 @@ static void actor_ended_locked(LughaActor *a, int32_t outcome) {
     a->head = a->tail = NULL;
     a->queued = 0;
     room(a);
+    return state;
 }
 
 static void actor_ended(LughaActor *a, int32_t outcome) {
     lock_take(&a->lock);
-    actor_ended_locked(a, outcome);
+    void *state = actor_ended_locked(a, outcome);
     lock_give(&a->lock);
+    // What it holds may hold handles of actors, whose locks it may take.
+    lugha_rt_rc_release(state);
 }
 
 /* The running task's actor, if it is one, ended with its task: cancelled
@@ -181,8 +185,9 @@ void lugha_rt_actor_run(void *env) {
         answer(m, RUNNING);
         message_done(m);
     }
-    actor_ended_locked(a, STOPPED);
+    void *state = actor_ended_locked(a, STOPPED);
     lock_give(&a->lock);
+    lugha_rt_rc_release(state);
 }
 
 /* A panic nothing caught ends the program: an actor's is caught by its
@@ -193,9 +198,14 @@ static void panic_end(const char *text, size_t len) {
     program_exit(101);
 }
 
-/* The visit of an actor's handle: its state. */
+/* The visit of an actor's handle: its state, while it has one (an actor
+ * lets go of it when it ends; one still running at the report's exit
+ * keeps it). */
 static void rc_actor_visit(void *object, int64_t op) {
     LughaActor *a = object;
+    if (a->state == NULL) {
+        return;
+    }
     if (op == RC_MARK) {
         lugha_rt_rc_mark(a->state);
     } else {

@@ -1,7 +1,9 @@
-//! Channels in codegen. Each end of a channel, `Sender<T>` and
-//! `Receiver<T>`, is a pointer to the runtime's one channel; values cross
-//! it as `T` in element layout, copied here (a copy site) and moved byte
-//! for byte by the runtime. `select` is `codegen::select`.
+//! Channels in codegen. A `Sender<T>` (or `RingSender<T>`) is a pointer to
+//! the runtime's channel; a `Receiver<T>` is a pointer to its receiving
+//! end, whose one field is the channel, so receiving loads the channel
+//! first. Values cross it as `T` in element layout, copied here (a copy
+//! site) and moved byte for byte by the runtime. `select` is
+//! `codegen::select`.
 
 use inkwell::IntPredicate;
 use inkwell::types::BasicTypeEnum;
@@ -15,7 +17,7 @@ use crate::check::Type;
 
 impl<'ctx> Lowerer<'ctx> {
     /// `Chan<T>.new(n)` or `Chan<T>.unbounded()`, `call` being the whole
-    /// call: one channel, both ends of the pair pointing at it.
+    /// call: the channel, and its receiving end.
     pub(super) fn chan_new(
         &mut self,
         call: &Expr,
@@ -27,7 +29,8 @@ impl<'ctx> Lowerer<'ctx> {
             unreachable!("checked: `Chan<T>.new` makes a `(Sender<T>, Receiver<T>)`")
         };
         let ring = *writer == crate::check::End::Ring;
-        let (element, receiver) = ((**element).clone(), receiver.clone());
+        let element = (**element).clone();
+        debug_assert!(matches!(receiver, Type::Chan(crate::check::End::Recv, _)));
         let i64_type = self.context.i64_type();
         let size = i64_type.const_int(self.element_size(&element).max(1), false);
         let (function, mut values) = match args.first() {
@@ -50,8 +53,8 @@ impl<'ctx> Lowerer<'ctx> {
             None => ptr.const_null(),
         };
         self.call_runtime("lugha_rt_rc_chan_setup", &[chan, visit.into()], false);
-        // Two ends, two holders of the one channel.
-        self.rc_retain(chan, &receiver);
+        // The receiving end holds the channel too.
+        let end = self.call_runtime("lugha_rt_chan_end", &[chan], true);
         let shell = llvm_type(self.context, &pair)
             .into_struct_type()
             .get_undef();
@@ -61,7 +64,7 @@ impl<'ctx> Lowerer<'ctx> {
             .expect("a pair has 2 fields");
         let pair = self
             .builder
-            .build_insert_value(pair, chan, 1, "ends")
+            .build_insert_value(pair, end, 1, "ends")
             .expect("a pair has 2 fields");
         Ok(pair.into_struct_value().into())
     }
@@ -79,7 +82,14 @@ impl<'ctx> Lowerer<'ctx> {
         let Type::Chan(_, element) = &ty else {
             unreachable!("checked: a channel method has a channel's end as its receiver")
         };
-        let chan = self.get(base, &ty)?;
+        let end = self.get(base, &ty)?;
+        // A receive needs the channel behind the receiving end.
+        let chan = match (&ty, name) {
+            (Type::Chan(crate::check::End::Recv, _), "recv" | "next" | "try_recv") => {
+                self.receiving_chan(end)
+            }
+            _ => end,
+        };
         Ok(match name {
             "send" => {
                 let data = self.element_value(&args[0], element)?;
@@ -127,7 +137,7 @@ impl<'ctx> Lowerer<'ctx> {
                     .builder
                     .build_int_compare(
                         IntPredicate::EQ,
-                        chan.into_pointer_value(),
+                        end.into_pointer_value(),
                         other.into_pointer_value(),
                         "same",
                     )
@@ -136,6 +146,14 @@ impl<'ctx> Lowerer<'ctx> {
             }
             _ => unreachable!("checked: a channel's ends have only these methods"),
         })
+    }
+
+    /// The channel behind the receiving end `end`, its one field.
+    pub(super) fn receiving_chan(&self, end: BasicValueEnum<'ctx>) -> BasicValueEnum<'ctx> {
+        let ptr = self.context.ptr_type(Default::default());
+        self.builder
+            .build_load(ptr, end.into_pointer_value(), "chan")
+            .expect(POSITIONED)
     }
 
     /// `recv` on the channel `chan` carrying `element`: `Some` value, or
@@ -244,7 +262,7 @@ impl<'ctx> Lowerer<'ctx> {
     }
 
     /// Calls the runtime function `name` with `values`, declared from them;
-    /// its result when `returns` (a pointer for `chan_new`, else an
+    /// its result when `returns` (a pointer for a channel or its end, else an
     /// integer of the C function's width).
     pub(super) fn call_runtime(
         &mut self,
@@ -263,6 +281,7 @@ impl<'ctx> Lowerer<'ctx> {
                         "lugha_rt_chan_new"
                         | "lugha_rt_chan_unbounded"
                         | "lugha_rt_ring_new"
+                        | "lugha_rt_chan_end"
                         | "lugha_rt_rc_cell_alloc",
                     ) => self
                         .context
@@ -286,5 +305,58 @@ impl<'ctx> Lowerer<'ctx> {
             // A void call's value is never used.
             ValueKind::Instruction(_) => self.context.i32_type().const_zero().into(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::codegen::test_util::ir;
+
+    #[test]
+    fn a_new_channel_hands_out_its_receiving_end() {
+        let ir = ir("fun main() { let (tx, rx) = Chan<i64>.new(1); tx.send(1); }");
+        assert!(ir.contains("call ptr @lugha_rt_chan_end(ptr"), "{ir}");
+        let ring =
+            super::tests::ir("fun main() { let (tx, rx) = Ring<i64>.new(1); tx.try_send(1); }");
+        assert!(ring.contains("call ptr @lugha_rt_chan_end(ptr"), "{ring}");
+    }
+
+    #[test]
+    fn a_receive_loads_the_channel_from_the_end() {
+        let ir = ir("fun main() {
+                let (tx, rx) = Chan<i64>.new(1);
+                tx.send(1);
+                let v = rx.recv();
+                let w = rx.try_recv();
+                for x of rx { }
+                select { y = rx.recv() => {}, default => {} }
+            }");
+        // Each receive's channel is loaded from the end, itself loaded from
+        // the variable: two loads, not one.
+        let def = |name: &str| {
+            ir.lines()
+                .find(|l| l.trim_start().starts_with(&format!("{name} = ")))
+                .unwrap_or_else(|| panic!("{name} is defined: {ir}"))
+                .to_string()
+        };
+        let loaded_from = |line: &str| {
+            let (_, rest) = line.split_once("= load ptr, ptr ")?;
+            rest.split(',').next().map(str::to_string)
+        };
+        let receives: Vec<_> = ir
+            .lines()
+            .filter(|l| {
+                l.contains("call i32 @lugha_rt_chan_recv(")
+                    || l.contains("call i32 @lugha_rt_chan_try_recv(")
+            })
+            .collect();
+        assert_eq!(receives.len(), 3, "{ir}");
+        for call in receives {
+            let (_, args) = call.split_once("(ptr ").expect("a call with arguments");
+            let chan = args.split(',').next().expect("a first argument");
+            let end = loaded_from(&def(chan)).unwrap_or_else(|| panic!("{call}: {ir}"));
+            assert!(loaded_from(&def(&end)).is_some(), "{call}: {ir}");
+        }
+        assert!(ir.contains("@lugha_rt_task_select("), "{ir}");
     }
 }

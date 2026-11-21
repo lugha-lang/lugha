@@ -12,8 +12,9 @@
  * it ends.
  *
  * A `Task<T>` value is a `LughaTask`, a counted object holding the result; a
- * `Chan<T>` is a `LughaChan`. Values cross channels as `elem` bytes in
- * element layout, already copied by generated code.
+ * `Sender<T>` is a `LughaChan` and a `Receiver<T>` its `LughaRecv`. Values
+ * cross channels as `elem` bytes in element layout, already copied by
+ * generated code.
  *
  * A fragment, not compiled on its own: lughac's link.rs joins it after the
  * core (lugha_rt.c, which holds the `Worker` record), stack.c and random.c;

@@ -174,6 +174,12 @@ impl<'ctx> Lowerer<'ctx> {
             unreachable!("checked: E0438 unless on a channel")
         };
         let chan = self.get(chan_expr, &chan_type)?;
+        // A receive arm's `Receiver` is the receiving end: the case names
+        // the channel behind it.
+        let chan = match &chan_type {
+            Type::Chan(crate::check::End::Recv, _) => self.receiving_chan(chan),
+            _ => chan,
+        };
         let (kind, data, slot) = match &arm.kind {
             SelectKind::Send(call) => {
                 let ExprKind::Call(_, args) = &call.kind else {

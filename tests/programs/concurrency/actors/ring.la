@@ -1,0 +1,24 @@
+// A ring of actors, each holding the next one's handle: once its scope
+// stops them, each lets go of its state, and the ring is freed.
+actor Node {
+    next: Option<Node>,
+    fun link(mut self, n: Node) { self.next = Some(n); }
+    fun ping(self): i64 = 1;
+}
+
+fun main(console: Console) {
+    let mut total = 0;
+    for i in 0..50 {
+        let r = scope s {
+            let a = s.spawn(Node { next: None });
+            let b = s.spawn(Node { next: None });
+            let c = s.spawn(Node { next: None });
+            a.link(b);
+            b.link(c);
+            c.link(a);
+            a.ping() + b.ping() + c.ping()
+        };
+        total = total + r.unwrap();
+    }
+    console.println(total);
+}

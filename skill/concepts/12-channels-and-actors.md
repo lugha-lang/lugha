@@ -65,6 +65,9 @@ true
   the channel is closed and empty. `for v of rx` loops until then.
 - **Closing:** `tx.close()`, or the last `Sender` going away, closes the
   channel. Receivers get what is left, then `None`.
+- **No receiver left:** once every `Receiver` of a channel is gone, nothing
+  can read it: `send` drops its value instead of waiting, and `try_send`
+  gives `.Closed(v)`. A producer whose consumer stopped early still finishes.
 - **Both ends are handles:** copying one gives another handle on the same
   channel, so several tasks may send, or receive, on one channel.
 - **`select`** waits for the first of several operations:
@@ -83,7 +86,8 @@ true
     caller goes on at once.
   - A method with a result (`fun report(self): string`) waits for the
     answer.
-  - `a.stop()` ends it after the messages already sent.
+  - `a.stop()` ends it after the messages already sent. An actor that has
+    ended lets go of its fields, even while handles to it remain.
   - A panic in an actor fails its scope, like any task's.
   - The actor's name as a type means its handle, inside its body too;
     `Self` means its state. So `fun new(): Self = Name { … };` builds a

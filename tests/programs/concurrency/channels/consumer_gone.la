@@ -1,0 +1,32 @@
+// A consumer that stops early: once no receiver is left, the producer's
+// sends go nowhere and it finishes instead of waiting forever.
+fun take(console: Console, rx: Receiver<i64>, want: i64) {
+    let mut got = 0;
+    for v of rx {
+        got = got + 1;
+        if got == want {
+            break;
+        }
+    }
+    console.println("took {got}");
+}
+
+// Only the consumer task keeps the receiver.
+fun consumer(s: Scope, console: Console): Sender<i64> {
+    let (tx, rx) = Chan<i64>.new(1);
+    s.spawn(take(console, rx, 3));
+    tx
+}
+
+fun main(console: Console) {
+    let r = scope s {
+        let tx = consumer(s, console);
+        let mut n = 0;
+        for i in 0..100 {
+            tx.send(i);
+            n = n + 1;
+        }
+        n
+    };
+    console.println("sent {r.unwrap()}");
+}

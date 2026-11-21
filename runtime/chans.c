@@ -2,10 +2,14 @@
  * chans.c — part of lugha_rt.c: channels (`select` is select.c).
  *
  * `Chan<T>.new(n)` holds up to `n` values in a ring; with 0 a send waits
- * for a receiver. `Chan<T>.unbounded()` grows its ring as it fills. Both
- * ends of a channel, `Sender` and `Receiver`, point at the one channel. Waiting senders and receivers queue as
- * `Waiter`s on their own stacks; a `select` queues one per arm, and the
- * first arm to fire wins (`dequeue` drops the rest).
+ * for a receiver. `Chan<T>.unbounded()` grows its ring as it fills. A
+ * `Sender` is the channel itself; every `Receiver` of it is its one
+ * receiving end (`LughaRecv`), which holds the channel. When the receiving
+ * end goes, nothing can receive again: the channel is *unread*, lets go of
+ * what it buffers, and from then on drops what is sent (`try_send` gives it
+ * back as closed). Waiting senders and receivers queue as `Waiter`s on
+ * their own stacks; a `select` queues one per arm, and the first arm to
+ * fire wins (`dequeue` drops the rest).
  *
  * Each channel has its own lock over its ring, waiters and `closed`. A
  * fiber waiting on channels parks still holding their locks, let go of
@@ -28,7 +32,8 @@ struct Waiter {
     uint32_t gen;
     /* The value to send, or where a received one goes. */
     void *data;
-    /* Receivers: 1 for a value, 0 for closed. Senders: 0 when closed. */
+    /* Receivers: 1 for a value, 0 for closed. Senders: 0 when closed,
+     * UNREAD_OK when the value stays theirs to drop. */
     int32_t *ok;
     /* The `select` case, or 0. */
     int64_t index;
@@ -47,6 +52,8 @@ typedef struct {
     int64_t head;
     unsigned char *buf;
     int32_t closed;
+    /* 1 once its receiving end is gone. */
+    int32_t unread;
     Waiter *recvq;
     Waiter *sendq;
     /* What a buffered value holds, for releasing and marking it. */
@@ -57,10 +64,20 @@ typedef struct {
     struct Ring *ring;
 } LughaChan;
 
+/* A channel's receiving end (a counted object), shared by every copy of
+ * its `Receiver`. */
+typedef struct {
+    LughaChan *chan;
+} LughaRecv;
+
+/* A waiting sender's `ok` when the channel became unread: not sent. */
+#define UNREAD_OK 2
+
 static void ring_visit(LughaChan *c, int64_t op);
 static int ring_recv_locked(LughaChan *c, void *out);
 static bool ring_want(LughaChan *c);
 static void ring_deliver_locked(LughaChan *c);
+static void ring_unread(LughaChan *c);
 
 /* One `select` arm handed over by generated code. */
 typedef struct {
@@ -181,14 +198,25 @@ static void unqueue(Waiter **queue, Fiber *f) {
     }
 }
 
-/* What an attempt that doesn't wait did. */
-enum { MOVED, BLOCKED, CLOSED };
+/* What an attempt that doesn't wait did. UNREAD: nothing will receive,
+ * so the value is the sender's to drop (`drop_unsent`). */
+enum { MOVED, BLOCKED, CLOSED, UNREAD };
+
+/* Lets go of a value sent to an unread channel, outside its lock. */
+static void drop_unsent(LughaChan *c, const void *value) {
+    if (c->elem_visit != NULL) {
+        c->elem_visit((void *)value, RC_RELEASE);
+    }
+}
 
 /* Sends `value` without waiting, under `c`'s lock: to a claimed receiver,
  * else into the ring if it has room. */
 static int try_send_locked(LughaChan *c, const void *value) {
     if (c->closed) {
         return CLOSED;
+    }
+    if (c->unread) {
+        return UNREAD;
     }
     int64_t state;
     Waiter *r = claim_first(&c->recvq, &state);
@@ -267,6 +295,9 @@ void lugha_rt_chan_send(LughaChan *c, const void *value, const char *file, int64
         if (done == CLOSED) {
             chan_panic("send on a closed channel", file, line, col);
         }
+        if (done == UNREAD) {
+            drop_unsent(c, value);
+        }
         return;
     }
     int32_t ok = 1;
@@ -284,6 +315,9 @@ void lugha_rt_chan_send(LughaChan *c, const void *value, const char *file, int64
     woke(fired);
     if (!ok) {
         chan_panic("send on a closed channel", file, line, col);
+    }
+    if (ok == UNREAD_OK) {
+        drop_unsent(c, value);
     }
 }
 
@@ -331,8 +365,8 @@ int32_t lugha_rt_chan_try_recv(LughaChan *c, void *out) {
     return done == MOVED ? 1 : 2;
 }
 
-/* `tx.try_send(v)`: never waits. 0 sent, 1 full, 2 closed; unless sent,
- * the value stays the caller's. */
+/* `tx.try_send(v)`: never waits. 0 sent, 1 full, 2 closed or unread;
+ * unless sent, the value stays the caller's. */
 int32_t lugha_rt_chan_try_send(LughaChan *c, const void *value) {
     ensure_started();
     lock_take(&c->lock);
@@ -367,4 +401,60 @@ void lugha_rt_chan_close(LughaChan *c, const char *file, int64_t line, int64_t c
         claimed_ready(s->fiber, state);
     }
     lock_give(&c->lock);
+}
+
+/* The last receiver is gone: under the lock, the channel takes out what it
+ * buffers and wakes its waiting senders, which keep their values to drop;
+ * after the lock, what it took out is let go of. */
+static void chan_unread(LughaChan *c) {
+    lock_take(&c->lock);
+    __atomic_store_n(&c->unread, 1, __ATOMIC_SEQ_CST);
+    if (c->ring != NULL) {
+        lock_give(&c->lock);
+        ring_unread(c);
+        return;
+    }
+    unsigned char *buf = c->buf;
+    int64_t head = c->head;
+    int64_t len = c->len;
+    int64_t cap = c->cap;
+    c->buf = NULL;
+    c->len = 0;
+    c->head = 0;
+    int64_t state;
+    for (Waiter *w = claim_first(&c->sendq, &state); w != NULL;
+         w = claim_first(&c->sendq, &state)) {
+        *w->ok = UNREAD_OK;
+        claimed_ready(w->fiber, state);
+    }
+    lock_give(&c->lock);
+    // What it held may hold this channel's sender, or other channels.
+    if (c->elem_visit != NULL) {
+        for (int64_t i = 0; i < len; i++) {
+            c->elem_visit(buf + ((head + i) % cap) * c->elem, RC_RELEASE);
+        }
+    }
+    free(buf);
+}
+
+/* The visit of a receiving end: its channel, which goes unread when the
+ * end goes. */
+static void rc_recv_visit(void *object, int64_t op) {
+    LughaRecv *end = object;
+    if (op == RC_MARK) {
+        lugha_rt_rc_mark(end->chan);
+        return;
+    }
+    chan_unread(end->chan);
+    lugha_rt_rc_release(end->chan);
+}
+
+/* `Chan<T>.new` and the rest: the receiving end of `c`, holding it once
+ * more. */
+LughaRecv *lugha_rt_chan_end(LughaChan *c) {
+    LughaRecv *end = lugha_rt_alloc((int64_t)sizeof(LughaRecv));
+    end->chan = c;
+    lugha_rt_rc_retain(c);
+    lugha_rt_rc_set_drop(end, rc_recv_visit);
+    return end;
 }

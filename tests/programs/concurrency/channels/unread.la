@@ -1,0 +1,40 @@
+// Sends once no receiver is left: `send` drops its value, `try_send` gives
+// it back as `.Closed`, and a `select` send arm fires, waiting or not.
+import std.task;
+
+fun unread(): Sender<string> {
+    let (tx, rx) = Chan<string>.new(1);
+    tx
+}
+
+fun main(console: Console) {
+    let tx = unread();
+    console.println(tx.try_send("late").debug());
+    tx.send("dropped");
+    tx.send("dropped too");
+    console.println("sent anyway");
+    select {
+        tx.send("arm") => console.println("arm sent"),
+        after(1000) => console.println("timed out"),
+    }
+    let r = scope s {
+        let wtx = waiting(s);
+        select {
+            wtx.send("waited") => console.println("waiting arm sent"),
+            after(5000) => console.println("timed out"),
+        }
+    };
+    tx.close();
+    console.println(tx.try_send("closed").debug());
+}
+
+// The receiver's task ends after a while, while a send waits on it.
+fun waiting(s: Scope): Sender<string> {
+    let (tx, rx) = Chan<string>.new(0);
+    s.spawn(nap(rx));
+    tx
+}
+
+fun nap(rx: Receiver<string>) {
+    task.sleep(20);
+}

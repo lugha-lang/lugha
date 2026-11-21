@@ -358,18 +358,6 @@ void lugha_rt_rc_freeze_end(void) {
     worker->freezing = false;
 }
 
-/* Marks what `object` holds shared, `object` itself already marked: a
- * shared block whose owner stored new values in it (an actor's state). */
-static void rc_mark_contents(void *object) {
-    if (object == NULL) {
-        return;
-    }
-    RcVisit visit = rc_header(object)->visit;
-    if (visit != NULL) {
-        visit(object, RC_MARK);
-    }
-}
-
 /* Releases or marks each element of an array of counted pointers
  * (`string[]`, `u8[][]`, `T[][]`): the visit of every such array. */
 void lugha_rt_rc_drop_pointers(void *object, int64_t op) {
