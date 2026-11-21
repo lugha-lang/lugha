@@ -26,6 +26,7 @@ mod control;
 mod conversions;
 mod copy;
 mod cow;
+mod cycles;
 mod declare;
 mod defaults;
 mod derive;

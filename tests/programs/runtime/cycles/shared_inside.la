@@ -1,0 +1,33 @@
+// A cycle whose boxes hold a channel's sender and an actor's handle: the
+// collector lets go of them without walking into them, and the channel
+// and the actor still work.
+actor Tally {
+    total: i64,
+}
+
+impl Tally {
+    fun add(mut self, n: i64) {
+        self.total += n;
+    }
+    fun total(self): i64 = self.total;
+}
+
+struct Node { out: Sender<i64>, tally: Tally, next: Option<Ref<Node>> }
+
+fun main(console: Console, root: Scope) {
+    let tally = root.spawn(Tally { total: 0 });
+    let (tx, rx) = Chan<i64>.unbounded();
+    for i in 0..3000 {
+        let a = Ref.new(Node { out: tx, tally: tally, next: None });
+        let b = Ref.new(Node { out: tx, tally: tally, next: Some(a) });
+        a.update(fun(n) = Node { out: n.out, tally: n.tally, next: Some(b) });
+        b.get().out.send(i);
+        a.get().tally.add(1);
+    }
+    tx.close();
+    let mut sum = 0;
+    while let .Some(n) = rx.recv() {
+        sum += n;
+    }
+    console.println("{sum} {tally.total()}");
+}

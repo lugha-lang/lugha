@@ -1,0 +1,19 @@
+// A cycle left behind by a task is freed when the task ends, before its
+// result is read.
+struct Node { value: i64, next: Option<Ref<Node>> }
+
+fun work(x: i64): i64 {
+    let a = Ref.new(Node { value: x, next: None });
+    let b = Ref.new(Node { value: x * 2, next: Some(a) });
+    a.update(fun(n) = Node { value: n.value, next: Some(b) });
+    a.get().value + b.get().value
+}
+
+fun main(console: Console, root: Scope) {
+    let mut total = 0;
+    for i in 0..20 {
+        let t = root.spawn(work(i));
+        total += t.join().unwrap();
+    }
+    console.println(total);
+}

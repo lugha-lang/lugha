@@ -235,7 +235,10 @@ pub(super) fn lower<'ctx>(
         outs: Vec::new(),
         subst: HashMap::new(),
         captures: checked.captures.clone(),
-        uses_tasks: checked.uses_tasks,
+        // Collection runs at the countdown's scheduling points, so a
+        // program that may make cells counts down too.
+        uses_tasks: checked.uses_tasks
+            || super::cycles::makes_cells(&checked.types, &checked.structs, &checked.enums),
         presets: HashMap::new(),
         closure_fns: HashMap::new(),
         c_params: checked.c_params.clone(),

@@ -1,0 +1,30 @@
+// A ring of a thousand boxes, the last pointing back at the first, is
+// freed whole once nothing outside holds it.
+struct Node { value: i64, next: Option<Ref<Node>> }
+
+fun ring(n: i64): i64 {
+    let first = Ref.new(Node { value: 0, next: None });
+    let mut last = first;
+    for i in 1..n {
+        let node = Ref.new(Node { value: i, next: None });
+        last.update(fun(m) = Node { value: m.value, next: Some(node) });
+        last = node;
+    }
+    last.update(fun(m) = Node { value: m.value, next: Some(first) });
+    // Walk once round to check the links.
+    let mut sum = 0;
+    let mut at = first;
+    for i in 0..n {
+        let node = at.get();
+        sum += node.value;
+        if let .Some(next) = node.next {
+            at = next;
+        }
+    }
+    sum
+}
+
+fun main(console: Console) {
+    console.println(ring(1000));
+    console.println(ring(10));
+}

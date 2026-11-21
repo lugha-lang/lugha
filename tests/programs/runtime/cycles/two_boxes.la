@@ -1,0 +1,16 @@
+// Two boxes holding each other, made and dropped a thousand times: the
+// task's cycle collector frees every pair.
+struct Node { name: string, next: Option<Ref<Node>> }
+
+fun make() {
+    let a = Ref.new(Node { name: "a", next: None });
+    let b = Ref.new(Node { name: "b", next: Some(a) });
+    a.update(fun(n) = Node { name: n.name, next: Some(b) });
+}
+
+fun main(console: Console) {
+    for i in 0..1000 {
+        make();
+    }
+    console.println("done");
+}

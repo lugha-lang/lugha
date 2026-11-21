@@ -1,0 +1,40 @@
+// A tree whose children point back at their parent: every child and its
+// parent form a cycle, and the whole tree goes when its root is dropped.
+struct Tree { name: string, parent: Option<Ref<Tree>>, children: Ref<Tree>[] }
+
+fun child(parent: Ref<Tree>, name: string): Ref<Tree> {
+    let c = Ref.new(Tree { name: name, parent: Some(parent), children: [] });
+    parent.update(fun(p) {
+        let mut kids = p.children;
+        kids.push(c);
+        Tree { name: p.name, parent: p.parent, children: kids }
+    });
+    c
+}
+
+fun path(t: Ref<Tree>): string = match t.get().parent {
+    .Some(p) => "{path(p)}/{t.get().name}",
+    .None => t.get().name,
+};
+
+fun build(): string {
+    let root = Ref.new(Tree { name: "root", parent: None, children: [] });
+    let mut deepest = root;
+    for i in 0..3 {
+        let a = child(root, "a{i}");
+        for j in 0..3 {
+            deepest = child(a, "b{j}");
+        }
+    }
+    path(deepest)
+}
+
+fun main(console: Console) {
+    for i in 0..200 {
+        let p = build();
+        if i == 0 {
+            console.println(p);
+        }
+    }
+    console.println("built");
+}

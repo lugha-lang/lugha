@@ -1,0 +1,24 @@
+// A cycle whose boxes hold strings, arrays and maps: freeing it lets go
+// of everything inside.
+struct Page { title: string, words: string[], counts: Map<string, i64>, link: Option<Ref<Page>> }
+
+fun page(title: string): Ref<Page> =
+    Ref.new(Page { title: title, words: ["{title}-1", "{title}-2"], counts: Map { title: 1 }, link: None });
+
+fun linked(a: Ref<Page>, b: Ref<Page>) {
+    a.update(fun(p) = Page { title: p.title, words: p.words, counts: p.counts, link: Some(b) });
+}
+
+fun main(console: Console) {
+    for i in 0..300 {
+        let a = page("a{i}");
+        let b = page("b{i}");
+        let c = page("c{i}");
+        linked(a, b);
+        linked(b, c);
+        linked(c, a);
+        if i == 299 {
+            console.println("{a.get().title} {b.get().words.debug()} {c.get().counts.debug()}");
+        }
+    }
+}

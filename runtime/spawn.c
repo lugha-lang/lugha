@@ -14,6 +14,8 @@ static void wake_idle_worker(void);
 /* Where a new fiber starts: runs its call, stores the result, wakes its
  * joiners, and never comes back. */
 static void fiber_exit(Fiber *self);
+static void cc_task_done(Fiber *f);
+static void cc_maybe_collect(void);
 static void scope_task_done(Fiber *f);
 static void woke(int64_t fired);
 void lugha_rt_cancel_point(void);
@@ -51,6 +53,11 @@ void lugha_rt_rc_task_setup(LughaTask *task, RcVisit result_visit) {
  * still running on another worker would find its task freed under it. */
 void lugha_rt_rc_stop_threads(void) {
     RT_SECTION();
+    // The entry has let go of its values: its cycles are freed, so the
+    // report counts only what the program lost.
+    if (rc_reporting) {
+        cc_task_done(current != NULL ? current : &main_fiber);
+    }
     if (current == NULL || !rc_reporting) {
         return;
     }
@@ -84,6 +91,8 @@ static void fiber_exit(Fiber *self) {
     /* The call's environment was the fiber's to let go of. */
     lugha_rt_rc_release(self->env);
     self->env = NULL;
+    // Its values are all let go of: the cycles they left are freed now.
+    cc_task_done(self);
     // Done, under the record's lock: its joiners park holding it, so each
     // is parked by now. Done before the scope counts it out: cancelling
     // walks the scope's tasks under the scope's lock and skips done ones,
@@ -259,6 +268,8 @@ void lugha_rt_task_preempt(void) {
     if (worker->on_c_stack) {
         return;
     }
+    // A scheduling point: the task's cycles, if it has gathered enough.
+    cc_maybe_collect();
     lugha_rt_cancel_point();
     yield_now();
     lugha_rt_cancel_point();

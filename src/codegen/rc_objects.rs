@@ -239,6 +239,26 @@ impl<'ctx> Lowerer<'ctx> {
 
     /// A new object of `size` bytes, zeroed, held once, carrying `drop`
     /// (what releases its contents when it is freed).
+    /// A `Ref` box that may be part of a cycle, made at source offset `at`:
+    /// the runtime gives it a cell count, so its task's cycle collector
+    /// sees it (`runtime/cycles.c`).
+    pub(super) fn new_cell(
+        &mut self,
+        size: inkwell::values::IntValue<'ctx>,
+        drop: Option<FunctionValue<'ctx>>,
+        at: usize,
+    ) -> PointerValue<'ctx> {
+        let ptr = self.context.ptr_type(AddressSpace::default());
+        let drop = drop.map_or(ptr.const_null(), |d| d.as_global_value().as_pointer_value());
+        let [file, line, col] = self.location(at);
+        let made = self.call_runtime(
+            "lugha_rt_rc_cell_alloc",
+            &[size.into(), drop.into(), file, line, col],
+            true,
+        );
+        made.into_pointer_value()
+    }
+
     pub(super) fn new_object(
         &mut self,
         size: inkwell::values::IntValue<'ctx>,

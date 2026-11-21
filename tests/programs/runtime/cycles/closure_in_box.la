@@ -1,0 +1,20 @@
+// A closure stored in a box it captures: the box holds the closure, and
+// the closure holds the box. Both are freed.
+fun counter(): i64 {
+    let slot: Ref<Option<fun(): i64>> = Ref.new(None);
+    let count = Ref.new(0);
+    let f = fun(): i64 {
+        count.update(fun(c) = c + 1);
+        if slot.get().is_some() { count.get() } else { -1 }
+    };
+    slot.set(Some(f));
+    f() + f()
+}
+
+fun main(console: Console) {
+    let mut total = 0;
+    for i in 0..500 {
+        total += counter();
+    }
+    console.println(total);
+}

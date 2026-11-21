@@ -260,7 +260,10 @@ impl<'ctx> Lowerer<'ctx> {
                     (false, _) => self.context.void_type().fn_type(&params, false),
                     (
                         true,
-                        "lugha_rt_chan_new" | "lugha_rt_chan_unbounded" | "lugha_rt_ring_new",
+                        "lugha_rt_chan_new"
+                        | "lugha_rt_chan_unbounded"
+                        | "lugha_rt_ring_new"
+                        | "lugha_rt_rc_cell_alloc",
                     ) => self
                         .context
                         .ptr_type(Default::default())

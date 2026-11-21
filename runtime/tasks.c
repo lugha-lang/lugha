@@ -142,6 +142,12 @@ struct Fiber {
      * and the `Ref` boxes it is printing (print.c). */
     int64_t number;
     ShowStack show;
+    /* Its cells whose count dropped but stayed above zero, and how many
+     * make it look at them (0: the first threshold) (cycles.c). */
+    void **cc_suspects;
+    int64_t cc_len;
+    int64_t cc_cap;
+    int64_t cc_threshold;
 #if defined(__SANITIZE_THREAD__)
     /* ThreadSanitizer's record of it, told of each switch. */
     void *tsan;

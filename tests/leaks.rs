@@ -16,11 +16,6 @@ use support::runner::{
 /// Programs that end with objects still live, and why: each a known gap,
 /// not a regression.
 const KNOWN: &[(&str, &str)] = &[
-    // `Ref` cycles: nothing frees a cycle yet.
-    (
-        "types/shared_boxes/linked.la",
-        "a doubly linked list of boxes is a cycle",
-    ),
     // A panic while unwinding ends the program at once.
     (
         "control/unwinding/in_defer.la",
@@ -129,12 +124,24 @@ fn every_known_gap_is_a_program_that_exists() {
     }
 }
 
-/// `case` run poisoned, with the report at exit.
+/// `case` run poisoned, with the report at exit; a case that expects the
+/// report itself expects the rest of its stderr here.
 fn counted(mut case: Case) -> Case {
     for (key, value) in [("LUGHA_RC_POISON", "1"), ("LUGHA_RC_REPORT", "1")] {
         case.extras
             .envvars
             .push((key.to_string(), value.to_string()));
+    }
+    if let Mode::Run {
+        stderr: Some(expected),
+        ..
+    } = &mut case.mode
+    {
+        *expected = String::from_utf8_lossy(expected)
+            .split_inclusive('\n')
+            .filter(|l| !l.starts_with("rc: "))
+            .collect::<String>()
+            .into_bytes();
     }
     case
 }
@@ -172,7 +179,15 @@ fn leaks(case: &Case, report: Option<&str>) -> Vec<Mismatch> {
         return Vec::new();
     };
     match report {
-        Some(line) if line.ends_with(" 0 live") => Vec::new(),
+        // The collector's count, if any, follows a `;`.
+        Some(line)
+            if line
+                .split(';')
+                .next()
+                .is_some_and(|l| l.ends_with(" 0 live")) =>
+        {
+            Vec::new()
+        }
         Some(line) => vec![problem(format!("leaked: {line}"))],
         None => vec![problem("no report at exit".to_string())],
     }

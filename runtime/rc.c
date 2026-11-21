@@ -25,6 +25,9 @@
 
 #define RC_IMMORTAL INT64_MIN
 #define RC_FREED (INT64_MIN + 0x5EED)
+/* An object a cycle collection found dead, between finding it and freeing
+ * it: the releases among the dead do nothing (cycles.c). */
+#define RC_COLLECTING (INT64_MIN + 0x5EEF)
 
 /* With poisoning, freed objects stay as tombstones: never reused. */
 static bool rc_poison;
@@ -71,11 +74,15 @@ static void rc_totals(int64_t *made, int64_t *freed) {
     pthread_mutex_unlock(&workers_lock);
 }
 
+/* The collector's line of the report (cycles.c, joined after this fragment). */
+static void cc_report(void);
+
 static void rc_report(void) {
     int64_t made, freed;
     rc_totals(&made, &freed);
-    fprintf(stderr, "rc: %" PRId64 " allocated, %" PRId64 " freed, %" PRId64 " live\n", made,
-            freed, made - freed);
+    fprintf(stderr, "rc: %" PRId64 " allocated, %" PRId64 " freed, %" PRId64 " live", made, freed,
+            made - freed);
+    cc_report();
     for (int64_t i = 0; i < rc_listed; i++) {
         const int64_t *words = rc_objects[i];
         if (words[-1] == RC_FREED || words[-1] == RC_IMMORTAL) {
@@ -131,6 +138,53 @@ typedef struct {
  * changes atomically. A plain count is from 1 to below this. */
 #define RC_SHARED ((int64_t)1 << 62)
 
+/* A cell: a `Ref` box whose contents can reach another `Ref`, so that it
+ * may be part of a cycle (cycles.c). Its count is
+ *
+ *   bits 63 and 62 set, 61 clear  (`RC_CELL`: negative, so generated code's
+ *                                  inline count sends it here);
+ *   bit 60                        on its task's list of suspects;
+ *   bits 32–59                    its place in that list;
+ *   bits 0–31                     the number of holders.
+ *
+ * A cell never crosses to another task, so its count is never atomic. */
+#define RC_CELL ((int64_t)(UINT64_C(0xC) << 60))
+#define RC_CELL_LISTED ((int64_t)1 << 60)
+#define RC_CELL_MOST ((int64_t)1 << 28)
+#define RC_CELL_PLACES ((RC_CELL_MOST - 1) << 32)
+#define RC_CELL_HOLDERS ((int64_t)0xFFFFFFFF)
+
+static bool rc_cell(int64_t count) {
+    return (count & RC_CHECK_TAG) == RC_CELL;
+}
+
+static int64_t rc_cell_holders(int64_t count) {
+    return count & RC_CELL_HOLDERS;
+}
+
+static bool rc_cell_is_listed(int64_t count) {
+    return (count & RC_CELL_LISTED) != 0;
+}
+
+static int64_t rc_cell_place(int64_t count) {
+    return (count & RC_CELL_PLACES) >> 32;
+}
+
+static int64_t rc_cell_listed(int64_t count, int64_t place) {
+    return (count & ~RC_CELL_PLACES) | RC_CELL_LISTED | (place << 32);
+}
+
+static int64_t rc_cell_unlisted(int64_t count) {
+    return count & ~(RC_CELL_PLACES | RC_CELL_LISTED);
+}
+
+/* The rest of the collector (cycles.c). */
+struct CcGraph;
+static void cc_suspect(void *object, RcHeader *header, int64_t count);
+static void cc_unlist(void *object, int64_t place);
+static void cc_child(struct CcGraph *g, void *object);
+static void cc_site(void *object, const char *file, int64_t line, int64_t col);
+
 /* A counted object of `size` bytes, zeroed, held once, with `visit` for
  * what it holds (`NULL`: nothing counted). */
 void *lugha_rt_rc_alloc(int64_t size, RcVisit visit) {
@@ -142,6 +196,18 @@ void *lugha_rt_rc_alloc(int64_t size, RcVisit visit) {
         rc_list(block + 1, size);
     }
     return block + 1;
+}
+
+/* `Ref.new` of a box that may be part of a cycle: a cell, made by the
+ * running task at `file:line:col`, which `LUGHA_RC_REPORT=2` names. */
+void *lugha_rt_rc_cell_alloc(int64_t size, RcVisit visit, const char *file, int64_t line,
+                             int64_t col) {
+    void *object = lugha_rt_rc_alloc(size, visit);
+    ((RcHeader *)object - 1)->count = RC_CELL | 1;
+    if (rc_listing) {
+        cc_site(object, file, line, col);
+    }
+    return object;
 }
 
 /* `lugha_rt_rc_alloc` with no visit until its maker sets one
@@ -219,6 +285,11 @@ void lugha_rt_rc_free(void *object) {
  * local, before it crosses to another task. Called inside a walk (from a
  * visit), it only queues the object. */
 void lugha_rt_rc_mark(void *object) {
+    // A cycle collection's walk: a child, for the collector.
+    if (worker->cc_walk != NULL) {
+        cc_child(worker->cc_walk, object);
+        return;
+    }
     if (object == NULL) {
         return;
     }
@@ -302,6 +373,25 @@ void lugha_rt_rc_drop_pointers(void *object, int64_t op) {
     }
 }
 
+/* A cell's count changed by `delta`: freed at no holders; a drop that
+ * leaves some makes it a suspect, once (cycles.c). */
+static void rc_cell_change(void *object, RcHeader *header, int64_t count, int64_t delta) {
+    int64_t holders = rc_cell_holders(count) + delta;
+    if (holders <= 0) {
+        if (rc_cell_is_listed(count)) {
+            cc_unlist(object, rc_cell_place(count));
+        }
+        lugha_rt_rc_free(object);
+        return;
+    }
+    int64_t next = (count & ~RC_CELL_HOLDERS) | holders;
+    if (delta < 0 && !rc_cell_is_listed(next)) {
+        cc_suspect(object, header, next);
+        return;
+    }
+    header->count = next;
+}
+
 /* A count generated code doesn't handle inline, or the runtime's own: a
  * shared count changes atomically (and frees at zero), a constant is left
  * alone, a freed object panics. `delta` is +1 or -1; `check`: whether the
@@ -311,6 +401,10 @@ static void rc_change(void *object, int64_t delta, bool check) {
     int64_t count = __atomic_load_n(&header->count, __ATOMIC_RELAXED);
     if (count == RC_FREED || count == 0) {
         die("panic: use of freed memory (reference counting)\n");
+    }
+    if (rc_cell(count)) {
+        rc_cell_change(object, header, count, delta);
+        return;
     }
     if (rc_checked(count)) {
         count = rc_checked_change(count, delta, check);

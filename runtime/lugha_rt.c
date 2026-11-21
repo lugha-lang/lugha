@@ -197,6 +197,8 @@ typedef struct Worker {
     int64_t freeing_len;
     int64_t freeing_cap;
     bool releasing;
+    /* A cycle collection's walk in progress (cycles.c), or NULL. */
+    void *cc_walk;
     /* `select`'s pick: pseudo-random, the same on every run (chans.c). */
     uint64_t pick_state;
     /* How deep the running fiber is in runtime sections (`RT_SECTION`):

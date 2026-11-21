@@ -29,7 +29,11 @@ impl<'ctx> Lowerer<'ctx> {
             .i64_type()
             .const_int(self.element_size(&inner).max(1), false);
         let drop = self.rc_box_drop(&inner);
-        let box_ptr = self.new_object(size, drop, "box");
+        let box_ptr = if self.cycle_prone(&inner) {
+            self.new_cell(size, drop, call.span.start)
+        } else {
+            self.new_object(size, drop, "box")
+        };
         self.store_element(box_ptr, &inner, value);
         Ok(box_ptr.into())
     }

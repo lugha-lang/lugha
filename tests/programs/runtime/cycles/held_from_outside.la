@@ -1,0 +1,32 @@
+// A cycle still held from outside survives every collection, however many
+// dropped cycles around it are freed, and reads the same afterwards.
+struct Node { value: i64, next: Option<Ref<Node>> }
+
+fun pair(x: i64): Ref<Node> {
+    let a = Ref.new(Node { value: x, next: None });
+    let b = Ref.new(Node { value: x + 1, next: Some(a) });
+    a.update(fun(n) = Node { value: n.value, next: Some(b) });
+    a
+}
+
+fun sum(start: Ref<Node>): i64 {
+    let mut total = start.get().value;
+    if let .Some(next) = start.get().next {
+        total += next.get().value;
+        if let .Some(back) = next.get().next {
+            total += back.get().value;
+        }
+    }
+    total
+}
+
+fun main(console: Console) {
+    let kept = pair(10);
+    console.println(sum(kept));
+    for i in 0..5000 {
+        let dropped = pair(i);
+    }
+    console.println(sum(kept));
+    kept.update(fun(n) = Node { value: 100, next: n.next });
+    console.println(sum(kept));
+}

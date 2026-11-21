@@ -139,6 +139,10 @@ fun main() {
 }
 ```
 
+Boxes that hold each other, such as a closure stored in a `Ref` it
+captures, are freed by the task's cycle collector once nothing else holds
+them, so a callback slot or a doubly linked list doesn't leak.
+
 ## Exercises
 
 1. Write `fun max3(a: i64, b: i64, c: i64): i64` without `return`.
