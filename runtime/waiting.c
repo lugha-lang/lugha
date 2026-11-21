@@ -300,10 +300,26 @@ static void switch_away(bool parking, bool yielding) {
     self->rt_saved = 0;
 }
 
-/* Blocks the current fiber until something wakes it; what did. */
+static bool shielded(Fiber *f);
+
+/* Blocks the current fiber until something wakes it; what did. A cancel
+ * stored before the wait was published is seen here: the canceller,
+ * fencing between storing it and looking whether this fiber waits, either
+ * sees PARKING and wakes it, or this fence's load sees the cancel. */
 static int64_t block(void) {
     Fiber *self = current;
-    fired_set(self, wait_word(next_wait_gen(self), PARKING));
+    uint32_t gen = next_wait_gen(self);
+    fired_set(self, wait_word(gen, PARKING));
+    if (rt_locking) {
+        __atomic_thread_fence(__ATOMIC_SEQ_CST);
+    }
+    // `cancelled` is REASON_NONE, 0, until a cancel (scopes.c, joined later).
+    if (self->cancellable && __atomic_load_n(&self->cancelled, __ATOMIC_ACQUIRE) != 0 &&
+        !shielded(self)) {
+        // A waker racing this claim wins or loses it cleanly; either way
+        // the fiber is no longer waiting and runs on.
+        claim(self, gen, CANCELLED);
+    }
     switch_away(true, false);
     return wait_state(self);
 }

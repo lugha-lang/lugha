@@ -123,7 +123,12 @@ static void cancel_fiber(Fiber *f, int32_t reason, LughaString *text, void *by) 
     }
     // A wait in a shield goes on until the shield's deadline (scope_time.c).
     // Only a fiber parked in the scheduler is WAITING, the running one
-    // too when the scheduler cancels it (a deadline, Ctrl-C).
+    // too when the scheduler cancels it (a deadline, Ctrl-C). The fence
+    // pairs with `block`'s: a fiber about to park sees the cancel there if
+    // this load misses its PARKING.
+    if (rt_locking) {
+        __atomic_thread_fence(__ATOMIC_SEQ_CST);
+    }
     if (is_waiting(f) && f->cancellable && !shielded(f)) {
         wake(f, CANCELLED);
     }

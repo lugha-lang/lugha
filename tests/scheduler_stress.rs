@@ -206,6 +206,31 @@ static void joiner(void *code, void *env, void *result) {
     (void)env;
 }
 
+/* Past its cancel point, the task is cancelled, as by another worker in
+ * that instant; then it queues on a channel and parks as `recv` does. 1 if
+ * the park ended cancelled instead of waiting for nothing. */
+static void cancelled_late(void *code, void *env, void *result) {
+    LughaChan *c = lugha_rt_chan_new(0, 8, "h", 1, 1);
+    lugha_rt_cancel_point();
+    cancel_fiber(current, REASON_REQUESTED, NULL, NULL);
+    lock_take(&c->lock);
+    int64_t v = 0;
+    int32_t ok = 0;
+    Waiter w = {.fiber = current, .gen = next_wait_gen(current), .data = &v, .ok = &ok,
+                .index = 0};
+    enqueue(&c->recvq, &w);
+    current->cancellable = true;
+    uint32_t *locks[1] = {&c->lock};
+    int64_t fired = block_holding(locks, 1);
+    current->cancellable = false;
+    lock_take(&c->lock);
+    unqueue(&c->recvq, current);
+    lock_give(&c->lock);
+    *(int64_t *)result = fired == CANCELLED;
+    (void)code;
+    (void)env;
+}
+
 int main(int argc, char **argv) {
     lugha_rt_init(argc, argv);
     // As lockdown does: from here on, workers may start.
@@ -306,6 +331,12 @@ int main(int argc, char **argv) {
         __atomic_store_n(&hog_stop, 1, __ATOMIC_RELEASE);
         join(busy);
         printf("%ld received, in order %ld\n", (long)(r / 2), (long)(r % 2));
+    } else if (strcmp(c, "cancel") == 0) {
+        int64_t sum = 0;
+        for (int i = 0; i < 100; i++) {
+            sum += join(go(cancelled_late, NULL));
+        }
+        printf("%ld cancelled\n", (long)sum);
     } else if (strcmp(c, "park") == 0) {
         int64_t sum = 0, v = 0;
         for (int i = 0; i < 300; i++) {
@@ -338,6 +369,13 @@ fn pinned_tasks_woken_from_any_worker_run_only_on_their_own() {
 #[test]
 fn a_ring_written_from_cs_thread_delivers_every_value_in_order() {
     assert_eq!(run("ring"), "100000 received, in order 1\n");
+}
+
+/// A cancel landing after a task's cancel point but before it parks still
+/// ends its wait, every time.
+#[test]
+fn a_cancel_just_before_a_park_is_never_missed() {
+    assert_eq!(run("cancel"), "100 cancelled\n");
 }
 
 #[test]
