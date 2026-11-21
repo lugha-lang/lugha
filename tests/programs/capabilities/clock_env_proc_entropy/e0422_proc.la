@@ -1,0 +1,11 @@
+// A hand-written `Proc` needs every method, the bytes ones included.
+struct Canned {}
+
+impl Proc for Canned {
+    fun run(self, cmd: string, args: string[]): Result<ProcessOutput, string> =
+        Ok(ProcessOutput { code: 0, stdout: "", stderr: "" });
+    fun run_with(self, cmd: string, args: string[], input: string): Result<ProcessOutput, string> = self.run(cmd, args);
+    fun call(self, cmd: string, args: string[]): Result<i32, string> = Ok(0);
+}
+
+fun main(console: Console) {}

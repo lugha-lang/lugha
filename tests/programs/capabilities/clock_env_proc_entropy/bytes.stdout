@@ -1,0 +1,5 @@
+0 [255, 254] 0
+true
+err stdout is not valid UTF-8: use run_bytes for bytes
+err args[0] contains a NUL byte
+2 4 4

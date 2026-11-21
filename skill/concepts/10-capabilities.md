@@ -75,8 +75,8 @@ true
   `local_offset(ms)` (`Ok` with the time zone's offset, in seconds east of UTC).
 - **`Env`:** `get(name)` gives an `Option<string>`; `env.only(["HOME"])`
   narrows.
-- **`Proc`:** `run(cmd, args)`, `run_with(cmd, args, input)` and
-  `call(cmd, args)` start another program. There is never a shell, so
+- **`Proc`:** `run(cmd, args)`, `run_with(cmd, args, input)`, `call(cmd, args)`,
+  and `run_bytes`/`run_bytes_with` for output that isn't text, start another program. There is never a shell, so
   arguments are passed exactly as given.
 - **`Entropy`:** `bytes(n)` and `next_u64()`, random from the system.
 - **Narrowing:** `console.stdout_only()`, `dir.dir("data")`, `net.only(…)`

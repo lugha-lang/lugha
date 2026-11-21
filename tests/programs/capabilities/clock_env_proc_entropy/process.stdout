@@ -10,6 +10,6 @@ hi
 call 0
 err args[0] contains a NUL byte
 err command contains a NUL byte
-err stdout is not valid UTF-8
+err stdout is not valid UTF-8: use run_bytes for bytes
 1000000 1000000
 0 ["0", "1", "2", "3", ""] [""]

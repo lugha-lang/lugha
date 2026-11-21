@@ -32,7 +32,7 @@ impl Checker {
             // `Map { … }` and `Set { … }`.
             None if matches!(
                 name.name.as_str(),
-                "Map" | "Set" | "ProcessOutput" | "NetInterface"
+                "Map" | "Set" | "ProcessOutput" | "ProcessBytes" | "NetInterface"
             ) =>
             {
                 Some(format!("$prelude.{}", name.name))

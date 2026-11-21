@@ -296,28 +296,36 @@ impl Env for $Env {
 struct $Proc {}
 
 impl Proc for $Proc {
-    fun run(self, cmd: string, args: string[]): Result<ProcessOutput, string> = $started(cmd, args, "", 1);
+    fun run(self, cmd: string, args: string[]): Result<ProcessOutput, string> = $started(cmd, args, [], 1);
     fun run_with(self, cmd: string, args: string[], input: string): Result<ProcessOutput, string> =
-        $started(cmd, args, input, 2);
+        $started(cmd, args, input.to_bytes(), 2);
     fun call(self, cmd: string, args: string[]): Result<i32, string> {
-        let (code, _, _) = $os.start(cmd, args, "", 0)?;
+        let (code, _, _) = $os.start(cmd, args, [], 0)?;
         Ok(code)
+    }
+    fun run_bytes(self, cmd: string, args: string[]): Result<ProcessBytes, string> {
+        let (code, out, err) = $os.start(cmd, args, [], 1)?;
+        Ok(ProcessBytes { code: code, stdout: out, stderr: err })
+    }
+    fun run_bytes_with(self, cmd: string, args: string[], input: u8[]): Result<ProcessBytes, string> {
+        let (code, out, err) = $os.start(cmd, args, input, 2)?;
+        Ok(ProcessBytes { code: code, stdout: out, stderr: err })
     }
 }
 
 /** `$os.start` in `mode` 1 (capture, stdin empty) or 2 (capture, stdin `input`), with the output checked as UTF-8. */
-fun $started(cmd: string, args: string[], input: string, mode: i32): Result<ProcessOutput, string> {
+fun $started(cmd: string, args: string[], input: u8[], mode: i32): Result<ProcessOutput, string> {
     let (code, out, err) = $os.start(cmd, args, input, mode)?;
     let stdout = match string_from_utf8(out) {
         .Ok(text) => text,
         .Err(_) => {
-            return Err("stdout is not valid UTF-8");
+            return Err("stdout is not valid UTF-8: use run_bytes for bytes");
         }
     };
     let stderr = match string_from_utf8(err) {
         .Ok(text) => text,
         .Err(_) => {
-            return Err("stderr is not valid UTF-8");
+            return Err("stderr is not valid UTF-8: use run_bytes for bytes");
         }
     };
     Ok(ProcessOutput { code: code, stdout: stdout, stderr: stderr })

@@ -55,7 +55,7 @@ impl<'ctx> Lowerer<'ctx> {
             "start" => {
                 let cmd = self.get(&args[0], &Type::String)?;
                 let list = self.get(&args[1], &Type::Array(Box::new(Type::String)))?;
-                let input = self.get(&args[2], &Type::String)?;
+                let input = self.get(&args[2], &bytes)?;
                 let mode = self.get(&args[3], &Type::I32)?;
                 let code = self.out_slot(&Type::I64);
                 let (out, err) = (self.out_slot(&bytes), self.out_slot(&bytes));

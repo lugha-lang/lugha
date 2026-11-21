@@ -209,9 +209,9 @@ static void spawn_job(Job *job) {
 
 /* `$os.spawn(cmd, args, input, mode)`: runs `cmd` with `args` and waits.
  * `mode` 0 shares this program's stdin, stdout and stderr; 1 captures
- * stdout and stderr with an empty stdin; 2 also writes `input` to stdin.
- * 1 with `*code` and the outputs' bytes, or 0 and `*error`. */
-int32_t lugha_rt_spawn(const LughaString *cmd, const LughaArray *args, const LughaString *input,
+ * stdout and stderr with an empty stdin; 2 also writes `input`, a `u8[]`,
+ * to stdin. 1 with `*code` and the outputs' bytes, or 0 and `*error`. */
+int32_t lugha_rt_spawn(const LughaString *cmd, const LughaArray *args, const LughaArray *input,
                        int32_t mode, int64_t *code, LughaArray **out, LughaArray **err,
                        LughaString **error) {
     const LughaString **list = (const LughaString **)args->elems;
@@ -238,7 +238,7 @@ int32_t lugha_rt_spawn(const LughaString *cmd, const LughaArray *args, const Lug
     }
     job->flags = mode;
     if (mode == 2) {
-        job->in = job_copy(input->bytes, (size_t)input->len);
+        job->in = job_copy((const char *)input->elems, (size_t)input->len);
         job->in_len = (size_t)input->len;
     }
     /* What this program printed so far comes before what the child prints. */

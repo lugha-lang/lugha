@@ -31,6 +31,10 @@ impl Proc for Canned {
         Ok(ProcessOutput { code: 0, stdout: "canned {cmd}\n", stderr: "" });
     fun run_with(self, cmd: string, args: string[], input: string): Result<ProcessOutput, string> = self.run(cmd, args);
     fun call(self, cmd: string, args: string[]): Result<i32, string> = Err("no programs here");
+    fun run_bytes(self, cmd: string, args: string[]): Result<ProcessBytes, string> =
+        Ok(ProcessBytes { code: 0, stdout: "canned {cmd}\n".to_bytes(), stderr: [] });
+    fun run_bytes_with(self, cmd: string, args: string[], input: u8[]): Result<ProcessBytes, string> =
+        self.run_bytes(cmd, args);
 }
 
 fun stamp(clock: Clock): string {

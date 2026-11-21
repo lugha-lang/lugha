@@ -1,0 +1,25 @@
+// `run_bytes` and `run_bytes_with`: output, and input, as bytes, never
+// checked as UTF-8; `run` still wants text.
+fun main(console: Console, proc: Proc) {
+    match proc.run_bytes("printf", ["\\377\\376"]) {
+        .Ok(o) => console.println("{o.code} {o.stdout.debug()} {o.stderr.len}"),
+        .Err(e) => console.println("err {e}"),
+    }
+    let input: u8[] = [0, 255, 10, 128];
+    match proc.run_bytes_with("cat", [], input) {
+        .Ok(o) => console.println("{o.stdout == input}"),
+        .Err(e) => console.println("err {e}"),
+    }
+    match proc.run("printf", ["\\377"]) {
+        .Ok(o) => console.println("{o.code}"),
+        .Err(e) => console.println("err {e}"),
+    }
+    match proc.run_bytes("echo", ["a\0b"]) {
+        .Ok(o) => console.println("{o.code}"),
+        .Err(e) => console.println("err {e}"),
+    }
+    match proc.run_bytes("sh", ["-c", "echo out; echo err >&2; exit 2"]) {
+        .Ok(o) => console.println("{o.code} {o.stdout.len} {o.stderr.len}"),
+        .Err(e) => console.println("err {e}"),
+    }
+}

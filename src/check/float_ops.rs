@@ -101,7 +101,7 @@ pub fn os_signature(op: &str) -> Option<(Vec<Type>, Type)> {
             vec![
                 Type::String,
                 Type::Array(Box::new(Type::String)),
-                Type::String,
+                bytes(),
                 Type::I32,
             ],
             Type::Unit,

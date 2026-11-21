@@ -218,19 +218,27 @@ interface Env: Sendable {
  * `$( )` and globs mean nothing. A `cmd` without `/` is looked up on `PATH`,
  * one with `/` is a path. The program gets this one's environment and
  * working folder, and only stdin, stdout and stderr: every other descriptor
- * is closed on exec.
+ * is closed on exec. Captured output is kept whole in memory, with no
+ * limit: a program that may write without end needs bounding some other way.
  */
 interface Proc: Sendable {
-    /** Runs a program with its stdin empty, capturing its output: any exit code is `Ok`; `Err` when it couldn't start or its output isn't UTF-8. */
+    /** Runs a program with its stdin empty, capturing its output: any exit code is `Ok`; `Err` when it couldn't start or its output isn't UTF-8 (`run_bytes` takes any). */
     fun run(self, cmd: string, args: string[]): Result<ProcessOutput, string>;
     /** `run`, with `input` written to the program's stdin. */
     fun run_with(self, cmd: string, args: string[], input: string): Result<ProcessOutput, string>;
     /** Runs a program sharing this one's stdin, stdout and stderr: its exit code, or `Err` when it couldn't start. */
     fun call(self, cmd: string, args: string[]): Result<i32, string>;
+    /** `run`, its output as bytes, never checked: `Err` only when it couldn't start. */
+    fun run_bytes(self, cmd: string, args: string[]): Result<ProcessBytes, string>;
+    /** `run_bytes`, with the bytes `input` written to the program's stdin. */
+    fun run_bytes_with(self, cmd: string, args: string[], input: u8[]): Result<ProcessBytes, string>;
 }
 
 /** What a finished program left: its exit code (`128 + n` when signal `n` ended it), and everything it wrote to stdout and stderr. */
 public struct ProcessOutput { public code: i32, public stdout: string, public stderr: string } with Eq
+
+/** `ProcessOutput` as bytes, from `run_bytes`: the exit code, and stdout and stderr as written. */
+public struct ProcessBytes { public code: i32, public stdout: u8[], public stderr: u8[] } with Eq
 
 /**
  * The operating system's randomness, for keys, nonces and seeds. A seeded

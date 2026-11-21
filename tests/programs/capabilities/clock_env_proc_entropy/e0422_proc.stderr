@@ -1,0 +1,9 @@
+error[E0422]: `impl Proc for Canned` doesn't match `Proc`
+  --> tests/programs/capabilities/clock_env_proc_entropy/e0422_proc.la:4:6
+  |
+4 | impl Proc for Canned {
+  |      ^^^^
+  |
+  = help: no method `run_bytes`; no method `run_bytes_with`
+
+For more about E0422, run `lughac explain E0422`.
