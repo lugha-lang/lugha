@@ -6,7 +6,7 @@ What's next. Shipped work is in CHANGELOG.md (and the spec's §11 milestone tabl
 
 ## Known bugs and limits
 
-None open. The ones found writing the Lugha skill (milestones 230–237) are fixed; CLAUDE.md's "Known issues" lists the specified behaviour that looks like a bug.
+BUGS.md holds the bugs understood but not fixed, with the fixes weighed. The ones found writing the Lugha skill (milestones 230–237) are fixed; CLAUDE.md's "Known issues" lists the specified behaviour that looks like a bug.
 
 ## Language and library
 
