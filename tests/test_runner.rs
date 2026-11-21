@@ -438,3 +438,25 @@ fn an_integration_test_takes_the_real_file_system() {
         "the test wrote through the real `Fs`, where `lughac test` ran"
     );
 }
+
+#[test]
+fn compile_errors_are_json_lines_with_diagnostics_json() {
+    let t = Temp::with(&[("broken_test.la", "@test fun t() { let x: i64 = \"s\"; }\n")]);
+    let out = lughac(
+        &t.0,
+        &["test", "--json", "--diagnostics=json", "broken_test.la"],
+    );
+    let stderr = text(&out.stderr);
+    assert!(
+        stderr
+            .lines()
+            .any(|l| l.starts_with(r#"{"severity":"error","code":"E0403","#)
+                && l.contains(r#""rendered":"#)),
+        "{stderr}"
+    );
+    assert!(
+        text(&out.stdout).contains("\"uncompiled\":1"),
+        "{}",
+        text(&out.stdout)
+    );
+}

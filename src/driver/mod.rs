@@ -167,7 +167,7 @@ where
             }
             0
         }),
-        Command::Fmt { paths, check } => Ok(fmt::fmt(paths, *check, &mut out)),
+        Command::Fmt { paths, check, .. } => Ok(fmt::fmt(paths, *check, &mut out)),
         Command::Test {
             paths,
             filter,
@@ -178,6 +178,7 @@ where
             json,
             cpu,
             shuffle,
+            ..
         } => Ok(test::test(
             &test::Request {
                 paths,

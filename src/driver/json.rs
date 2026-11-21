@@ -38,14 +38,19 @@ pub(super) fn line(report: &Report, source: &Source) -> String {
             )
         })
         .collect();
+    // Its human text, as printed without `--diagnostics=json`, less the
+    // blank line that separates it from the next.
+    let rendered = super::render::human(report, source);
+    let rendered = format!("{}\n", rendered.trim_end_matches('\n'));
     format!(
-        "{{\"severity\":\"{severity}\",\"code\":{},\"message\":{},\"file\":{},\"span\":{span},\"label\":{},\"labels\":[{}],\"help\":{}}}\n",
+        "{{\"severity\":\"{severity}\",\"code\":{},\"message\":{},\"file\":{},\"span\":{span},\"label\":{},\"labels\":[{}],\"help\":{},\"rendered\":{}}}\n",
         optional(report.code),
         string(&report.message),
         string(&file.name),
         optional(report.label.as_deref()),
         labels.join(","),
         optional(report.help.as_deref()),
+        string(&rendered),
     )
 }
 
@@ -97,7 +102,8 @@ mod tests {
             r#""span":{"start":{"line":3,"col":17,"offset":49},"end":{"line":3,"col":20,"offset":52}},"#,
             r#""label":"expected i32","#,
             r#""labels":[{"span":{"start":{"line":3,"col":13,"offset":45},"end":{"line":3,"col":14,"offset":46}},"message":"this operand is i32"}],"#,
-            r#""help":null}"#,
+            r#""help":null,"#,
+            r#""rendered":"error[E0401]: float literal where i32 expected\n  --> main.la:3:17\n  |\n3 |     let y = x + 2.5;\n  |             -   ^^^ expected i32\n  |             |\n  |             this operand is i32\n"}"#,
             "\n"
         );
         assert_eq!(line(&Report::from(&d), &source), expected);
@@ -109,7 +115,7 @@ mod tests {
         let line = line(&Report::internal("cannot read `x.la`", None), &source);
         assert_eq!(
             line,
-            "{\"severity\":\"error\",\"code\":null,\"message\":\"cannot read `x.la`\",\"file\":\"x.la\",\"span\":null,\"label\":null,\"labels\":[],\"help\":null}\n"
+            "{\"severity\":\"error\",\"code\":null,\"message\":\"cannot read `x.la`\",\"file\":\"x.la\",\"span\":null,\"label\":null,\"labels\":[],\"help\":null,\"rendered\":\"error: cannot read `x.la`\\n\"}\n"
         );
     }
 

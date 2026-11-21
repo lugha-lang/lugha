@@ -69,6 +69,9 @@ pub(super) enum Command {
         /// Write nothing; list the files that would change and exit 1 if any
         #[arg(long)]
         check: bool,
+        /// Diagnostic format
+        #[arg(long, value_enum, default_value = "human")]
+        diagnostics: Format,
     },
     /// Run the `@test` functions in .la files, each in its own process
     Test {
@@ -92,6 +95,9 @@ pub(super) enum Command {
         /// One JSON object per line, for tools such as editors
         #[arg(long)]
         json: bool,
+        /// Diagnostic format, for compile errors on stderr
+        #[arg(long, value_enum, default_value = "human")]
+        diagnostics: Format,
         /// The x86-64 level the test executables are built for
         #[arg(long, value_enum, default_value = "x86-64")]
         cpu: CpuLevel,
@@ -143,15 +149,13 @@ impl Command {
     pub(super) fn format(&self) -> Format {
         match self {
             Command::Build { options, .. } | Command::Run { options, .. } => options.diagnostics,
-            Command::Check { diagnostics, .. } | Command::Update { diagnostics, .. } => {
-                *diagnostics
+            Command::Check { diagnostics, .. }
+            | Command::Update { diagnostics, .. }
+            | Command::Fmt { diagnostics, .. }
+            | Command::Test { diagnostics, .. } => *diagnostics,
+            Command::Skill(_) | Command::Init { .. } | Command::Lsp | Command::Explain { .. } => {
+                Format::Human
             }
-            Command::Skill(_)
-            | Command::Init { .. }
-            | Command::Lsp
-            | Command::Fmt { .. }
-            | Command::Test { .. }
-            | Command::Explain { .. } => Format::Human,
         }
     }
 

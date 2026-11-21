@@ -98,7 +98,19 @@ fn json_diagnostics_are_one_line_each_and_nothing_else() {
             "{line}"
         );
         assert!(line.ends_with('}'), "{line}");
+        // Each carries its human text.
+        assert!(line.contains(r#","rendered":"error[E0101]: "#), "{line}");
     }
+    // `fmt` takes the flag too.
+    let out = lughac(&dir.0, &["fmt", "--diagnostics=json", "bad.la"]);
+    assert_eq!(out.status.code(), Some(1));
+    let stderr = text(&out.stderr);
+    assert!(
+        stderr
+            .lines()
+            .all(|l| l.starts_with(r#"{"severity":"error","code":"E0101","#)),
+        "{stderr}"
+    );
 }
 
 #[test]
@@ -180,7 +192,8 @@ fn e0401_json_matches_the_spec_example() {
         r#""span":{"start":{"line":3,"col":17,"offset":49},"end":{"line":3,"col":20,"offset":52}},"#,
         r#""label":"expected i32","#,
         r#""labels":[{"span":{"start":{"line":3,"col":13,"offset":45},"end":{"line":3,"col":14,"offset":46}},"message":"this operand is i32"}],"#,
-        r#""help":null}"#,
+        r#""help":null,"#,
+        r#""rendered":"error[E0401]: float literal where i32 expected\n  --> tests/programs/basics/checker/e0401.la:3:17\n  |\n3 |     let y = x + 2.5;\n  |             -   ^^^ expected i32\n  |             |\n  |             this operand is i32\n"}"#,
         "\n"
     );
     assert_eq!(text(&out.stderr), expected);
