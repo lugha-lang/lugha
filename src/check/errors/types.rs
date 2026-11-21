@@ -60,9 +60,59 @@ pub(in crate::check) fn mismatch(
     span: Span,
     reason: Option<&Label>,
 ) -> Diagnostic {
-    let d = Diagnostic::error("E0403", format!("expected {expected}, found {found}"), span)
+    let mut d = Diagnostic::error("E0403", format!("expected {expected}, found {found}"), span)
         .with_primary_label(format!("expected {expected}"));
+    if let Some(help) = state_or_handle(&expected, &found) {
+        d = d.with_help(help);
+    }
     with_reason(d, reason)
+}
+
+/// When `expected` and `found` differ only where one is an actor's state
+/// and the other its handle, which print alike: which is which.
+fn state_or_handle(expected: &Type, found: &Type) -> Option<String> {
+    let (state, handle) = clash(expected, found)?;
+    let name = state.rsplit('.').next().unwrap_or(&state);
+    let (wanted, given) = match handle {
+        Side::Found => ("its state", "a handle to it"),
+        Side::Expected => ("a handle to it", "its state"),
+    };
+    Some(format!(
+        "two types are named `{name}` here: inside `actor {name}`'s body the name means its state, so the code expects {wanted} but has {given}; the actor's handle type can't be written inside its body"
+    ))
+}
+
+/// Which side holds the actor's handle where the other holds its state.
+enum Side {
+    Expected,
+    Found,
+}
+
+/// The actor whose state one type has where the other has its handle, at
+/// the first such place.
+fn clash(expected: &Type, found: &Type) -> Option<(String, Side)> {
+    match (expected, found) {
+        (Type::Struct(a, _), Type::Actor(b, _)) if a == b => Some((a.clone(), Side::Found)),
+        (Type::Actor(a, _), Type::Struct(b, _)) if a == b => Some((a.clone(), Side::Expected)),
+        (Type::Array(x), Type::Array(y))
+        | (Type::Option(x), Type::Option(y))
+        | (Type::Ref(x), Type::Ref(y))
+        | (Type::Weak(x), Type::Weak(y))
+        | (Type::Task(x), Type::Task(y))
+        | (Type::Chan(_, x), Type::Chan(_, y)) => clash(x, y),
+        (Type::Struct(_, xs), Type::Struct(_, ys))
+        | (Type::Enum(_, xs), Type::Enum(_, ys))
+        | (Type::Actor(_, xs), Type::Actor(_, ys))
+        | (Type::Interface(_, xs), Type::Interface(_, ys)) => {
+            xs.iter().zip(ys).find_map(|(x, y)| clash(x, y))
+        }
+        (Type::Fun(xs, x), Type::Fun(ys, y)) => xs
+            .iter()
+            .zip(ys)
+            .find_map(|(a, b)| clash(a, b))
+            .or_else(|| clash(x, y)),
+        _ => None,
+    }
 }
 
 pub(in crate::check) fn branch_mismatch(
@@ -335,4 +385,43 @@ pub(in crate::check) fn cannot_infer_return(span: Span) -> Diagnostic {
         span,
     )
     .with_help("write the return type: `fun(x: i64): i64 { … }`")
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::check::test_util::diagnostics;
+
+    #[test]
+    fn an_actors_state_and_handle_are_told_apart() {
+        let found = diagnostics(
+            "actor Holder {
+                out: Option<Sender<Holder>>,
+                fun keep(mut self, s: Sender<Holder>) { self.out = Some(s); }
+            }
+            fun main(root: Scope) {
+                let h = root.spawn(Holder { out: None });
+                let (tx, rx) = Chan<Holder>.unbounded();
+                h.keep(tx);
+            }",
+        );
+        let d = &found[0];
+        assert_eq!(d.code, "E0403");
+        assert_eq!(d.message, "expected Sender<Holder>, found Sender<Holder>");
+        let help = d.help.as_deref().unwrap_or("");
+        assert!(
+            help.contains("inside `actor Holder`'s body the name means its state, so the code expects its state but has a handle to it"),
+            "{help}"
+        );
+    }
+
+    #[test]
+    fn other_mismatches_get_no_such_help() {
+        let found = diagnostics("fun main() { let x: i64 = \"a\"; }");
+        assert!(
+            found[0]
+                .help
+                .as_deref()
+                .is_none_or(|h| !h.contains("actor"))
+        );
+    }
 }

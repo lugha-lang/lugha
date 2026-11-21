@@ -1,0 +1,12 @@
+// Inside an actor's body its name means its state, so a field typed with
+// it can't hold the actor's handle: the error says which is which.
+actor Holder {
+    out: Option<Sender<Holder>>,
+    fun keep(mut self, s: Sender<Holder>) { self.out = Some(s); }
+}
+
+fun main(root: Scope) {
+    let h = root.spawn(Holder { out: None });
+    let (tx, rx) = Chan<Holder>.unbounded();
+    h.keep(tx);
+}
