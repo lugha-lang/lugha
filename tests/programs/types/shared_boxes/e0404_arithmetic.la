@@ -1,0 +1,5 @@
+// Arithmetic works on a box's contents, not on the box.
+fun main(console: Console) {
+    let count = Ref.new(1);
+    console.println(count + 1);
+}

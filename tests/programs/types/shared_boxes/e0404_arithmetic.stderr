@@ -1,0 +1,9 @@
+error[E0404]: cannot apply `+` to Ref<i64> and i64
+  --> tests/programs/types/shared_boxes/e0404_arithmetic.la:4:21
+  |
+4 |     console.println(count + 1);
+  |                     ^^^^^^^^^
+  |
+  = help: a box's contents are `r.get()`: write `r.get() + …`, and `r.set(…)` to change them
+
+For more about E0404, run `lughac explain E0404`.

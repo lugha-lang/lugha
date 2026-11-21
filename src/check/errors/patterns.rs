@@ -18,7 +18,7 @@ pub(in crate::check) fn let_else_finishes(span: Span) -> Diagnostic {
         "the `else` of a `let … else` must not finish",
         span,
     )
-    .with_help("end it with `return`, `break`, `continue`, `panic(…)` or `exit(…)`")
+    .with_help("end it with `return`, `break`, `continue` or `panic(…)`")
 }
 
 /// E0433: a pattern in `let` without `else`, or in a `for` destructuring,

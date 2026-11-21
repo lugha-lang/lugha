@@ -1,0 +1,9 @@
+error[E0313]: `hello` is private to module `relay`
+  --> tests/programs/modules/reexports/e0313_import/main.la:2:16
+  |
+2 | import relay { hello };
+  |                ^^^^^
+  |
+  = help: module `relay` only imports `hello` for itself: write `public import` there to pass it on, or import it from the module that declares it
+
+For more about E0313, run `lughac explain E0313`.

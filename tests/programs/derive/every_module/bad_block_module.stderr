@@ -4,6 +4,6 @@ error[E0452]: a `derive` block for `Show` must be in the module that declares `S
 4 | derive Show for i64 {
   |        ^^^^
   |
-  = help: only an interface's own module says how types meet it; a type's own methods can replace an item instead
+  = help: only an interface's own module says how types meet it; elsewhere, implement it by hand: `impl Show for T { … }`
 
 For more about E0452, run `lughac explain E0452`.

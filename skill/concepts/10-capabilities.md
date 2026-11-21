@@ -71,7 +71,8 @@ true
   - Every one that can fail returns a `Result`.
 - **`Net`:** `connect("host:port")`, `listen(addr)`, `resolve(host)` and UDP.
   `net.only("api.example.com:443")` narrows it to one host.
-- **`Clock`:** `now_ms()` (the wall clock), `monotonic_ms()` (for measuring).
+- **`Clock`:** `now_ms()` (the wall clock), `monotonic_ms()` (for measuring),
+  `local_offset(ms)` (`Ok` with the time zone's offset, in seconds east of UTC).
 - **`Env`:** `get(name)` gives an `Option<string>`; `env.only(["HOME"])`
   narrows.
 - **`Proc`:** `run(cmd, args)`, `run_with(cmd, args, input)` and

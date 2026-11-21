@@ -47,7 +47,9 @@ pub(in crate::check) fn derive_elsewhere(name: &str, span: Span) -> Diagnostic {
         format!("a `derive` block for `{name}` must be in the module that declares `{name}`"),
         span,
     )
-    .with_help("only an interface's own module says how types meet it; a type's own methods can replace an item instead")
+    .with_help(format!(
+        "only an interface's own module says how types meet it; elsewhere, implement it by hand: `impl {name} for T {{ … }}`"
+    ))
 }
 
 /// E0452: two blocks of `interface` that both cover `ty`.

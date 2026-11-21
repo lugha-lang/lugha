@@ -56,8 +56,9 @@ negative
 - **The value of a block** is its last expression without a `;`. `if`,
   `match` and blocks are expressions: `let x = if c { 1 } else { 2 };`
 - **`return value;`** leaves early. In a function returning `()`, `return;`.
-- **Parameters are copies.** Changing one inside the function needs it
-  written `mut` (`fun f(mut xs: i64[])`), and still changes only the copy.
+- **Parameters are copies,** unless written `mut`: `fun f(mut xs: i64[])`
+  changes the caller's variable, and the call says so, `f(mut xs)`, with
+  `xs` a `let mut` variable.
 - **Loops:**
   - `for i in 0..n` counts from 0 to n−1 (the end is left out).
   - `for x of items` goes over an array's, a string's or an iterator's values.

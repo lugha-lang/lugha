@@ -103,16 +103,22 @@ impl Checker {
             let wanted = self
                 .missing_bound(&l, ord)
                 .filter(|_| l == r && !arithmetic);
-            // Boxes have no `==`: say which comparison was meant.
-            let help = match l {
-                Type::Ref(_) => Some(
+            // Boxes have no `==`: say which comparison was meant. Any other
+            // operator on a box wanted its contents.
+            let equality = matches!(op, BinOp::Eq | BinOp::Ne);
+            let help = match (&l, &r) {
+                (Type::Ref(_), _) if equality => Some(
                     "compare boxes with `a.is(b)` (the same box) or `a.get() == b.get()` (the same contents)"
                         .to_string(),
                 ),
-                Type::Weak(_) => Some(
+                (Type::Ref(_), _) | (_, Type::Ref(_)) => Some(format!(
+                    "a box's contents are `r.get()`: write `r.get() {} …`, and `r.set(…)` to change them",
+                    op.symbol()
+                )),
+                (Type::Weak(_), _) => Some(
                     "`a.get()` gives each box, which `is` compares".to_string(),
                 ),
-                Type::Chan(_, _) => Some("`a.is(b)` tells whether both are the same channel".to_string()),
+                (Type::Chan(_, _), _) => Some("`a.is(b)` tells whether both are the same channel".to_string()),
                 _ => None,
             };
             let types = if l == r { vec![l] } else { vec![l, r] };

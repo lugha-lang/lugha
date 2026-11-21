@@ -1,0 +1,6 @@
+// `relay` imports `hello` for itself only, so it can't pass it on.
+import relay { hello };
+
+fun main(console: Console) {
+    console.println(hello("world"));
+}

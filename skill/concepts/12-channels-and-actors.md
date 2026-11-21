@@ -63,8 +63,8 @@ true
   never waits: `.Sent`, `.Full(v)` or `.Closed(v)`.
 - **Receiving:** `rx.recv()` waits for a value: `Some(v)`, or `None` once
   the channel is closed and empty. `for v of rx` loops until then.
-- **Closing:** `tx.close()`, or the last `Sender` going away, closes the
-  channel. Receivers get what is left, then `None`.
+- **Closing:** only `tx.close()` closes a channel; nothing closes one by
+  itself. Receivers get what is left, then `None`.
 - **No receiver left:** once every `Receiver` of a channel is gone, nothing
   can read it: `send` drops its value instead of waiting, and `try_send`
   gives `.Closed(v)`. A producer whose consumer stopped early still finishes.

@@ -7,6 +7,6 @@ error[E0429]: the `else` of a `let … else` must not finish
 6 | |     };
   | \-----^
   |
-  = help: end it with `return`, `break`, `continue`, `panic(…)` or `exit(…)`
+  = help: end it with `return`, `break`, `continue` or `panic(…)`
 
 For more about E0429, run `lughac explain E0429`.

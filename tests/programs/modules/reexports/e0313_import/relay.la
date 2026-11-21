@@ -1,0 +1,4 @@
+// Imports `hello` for its own use: no `public`.
+import greeting { hello };
+
+public fun twice(who: string): string = "{hello(who)} {hello(who)}";

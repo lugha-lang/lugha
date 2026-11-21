@@ -107,7 +107,7 @@ impl Checker {
     pub(super) fn member(&mut self, path: &[String], name: &Ident) -> String {
         let key = qualify(path, &name.name);
         if self.aliases.contains_key(&key) {
-            self.item_visible(&key, name.span);
+            self.import_visible(&key, name.span);
         }
         self.follow(key)
     }
@@ -133,7 +133,7 @@ impl Checker {
             // its own, private to it: E0313, as `m.X` is (session 247).
             if self.aliases.contains_key(&alias.target) {
                 let reported = self.diagnostics.len();
-                self.item_visible(&alias.target, item.name.span);
+                self.import_visible(&alias.target, item.name.span);
                 if self.diagnostics.len() > reported {
                     continue;
                 }
@@ -168,6 +168,24 @@ impl Checker {
             if alias.public && level.is_some_and(|l| l != Level::Public) {
                 self.report(not_public(&item.name.name, item.name.span));
             }
+        }
+    }
+}
+
+impl Checker {
+    /// E0313 if `key`, a name another module imported, may not be used
+    /// here: nothing wrote `private`, so the help says how to pass it on.
+    fn import_visible(&mut self, key: &str, span: Span) {
+        let Some(owner) = self.privacy.items.get(key).cloned() else {
+            return;
+        };
+        let name = key.rsplit('.').next().unwrap_or(key);
+        let help = format!(
+            "module `{}` only imports `{name}` for itself: write `public import` there to pass it on, or import it from the module that declares it",
+            owner.module.join(".")
+        );
+        if let Some(d) = self.denied(name, &owner, owner.level, span, Some(help)) {
+            self.report(d);
         }
     }
 }
