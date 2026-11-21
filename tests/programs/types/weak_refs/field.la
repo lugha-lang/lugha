@@ -1,0 +1,7 @@
+// Nothing reaches inside a `Weak`: `get` gives the box, if it is there.
+struct Node { value: i64 }
+
+fun main() {
+    let r = Ref.new(Node { value: 1 });
+    let v = Weak.new(r).value;
+}

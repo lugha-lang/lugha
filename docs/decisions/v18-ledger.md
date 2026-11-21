@@ -134,7 +134,7 @@ The draft must cite every `approved` line exactly once as a rule, and contain no
 - MEM-05 approved — `Weak<T>` for non-owning references: caches, observers, registries, back-links.
 - MEM-06 approved — Cycles can only form through `Ref`, channels and task or actor handles; a small per-task cycle collector looks only at those, in budgeted slices at deterministic points.
 - MEM-07 approved — A scope's end breaks the handle cycles it created.
-- MEM-08 approved — In tests, a report of every cycle the collector freed, with creation sites; a lint for cycle-prone `Ref` types without `Weak`.
+- MEM-08 approved — In tests, a report of every cycle the collector freed, with creation sites. The lint for cycle-prone `Ref` types without `Weak` is dropped (2026-11-21): with the collector freeing `Ref` cycles it would fire on every singly linked list and graph, and the test note already points at cycles worth a `Weak`.
 - MEM-09 approved — Large frees are deferred and done in budgeted slices.
 - MEM-10 approved — `Pinned<T>` holds a count for a value C keeps; keeping one without `Pinned` stays undefined behaviour.
 - MEM-11 approved — Memory limits per scope: `scope s memory 64.mb() { … }`; exceeding it fails the scope with `Failure.Memory`.

@@ -1,0 +1,7 @@
+error[E0410]: no field `value` on `Weak<Node>`
+  --> tests/programs/types/weak_refs/field.la:6:25
+  |
+6 |     let v = Weak.new(r).value;
+  |                         ^^^^^
+
+For more about E0410, run `lughac explain E0410`.

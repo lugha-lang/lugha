@@ -1,0 +1,9 @@
+error[E0475]: a `Weak<i64>` can't be passed to another task: it is a `Weak<i64>`, which two tasks would share
+  --> tests/programs/types/weak_refs/sent_to_task.la:6:30
+  |
+6 |     let t = root.spawn(watch(Weak.new(r)));
+  |                              ^^^^^^^^^^^
+  |
+  = help: keep shared state in an actor, or send copies through a channel: a `Ref` belongs to one task
+
+For more about E0475, run `lughac explain E0475`.

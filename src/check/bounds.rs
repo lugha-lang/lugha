@@ -109,6 +109,7 @@ impl Checker {
             Type::Fun(..)
             | Type::Interface(..)
             | Type::Ref(_)
+            | Type::Weak(_)
             | Type::Task(_)
             | Type::Chan(_, _)
             | Type::Actor(..) => false,
@@ -155,6 +156,7 @@ impl Checker {
             Type::Fun(..)
             | Type::Interface(..)
             | Type::Ref(_)
+            | Type::Weak(_)
             | Type::Task(_)
             | Type::Chan(_, _)
             | Type::Actor(..) => return true,

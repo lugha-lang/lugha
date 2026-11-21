@@ -1,0 +1,9 @@
+error[E0404]: cannot apply `==` to Weak<i64>
+  --> tests/programs/types/weak_refs/compared.la:4:16
+  |
+4 |     let same = Weak.new(r) == Weak.new(r);
+  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = help: `a.get()` gives each box, which `is` compares
+
+For more about E0404, run `lughac explain E0404`.

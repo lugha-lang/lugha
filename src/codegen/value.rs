@@ -46,6 +46,7 @@ pub(super) fn llvm_type<'ctx>(context: &'ctx Context, ty: &Type) -> BasicTypeEnu
         Type::String
         | Type::Array(_)
         | Type::Ref(_)
+        | Type::Weak(_)
         | Type::Handle(_)
         | Type::Task(_)
         | Type::Chan(_, _)

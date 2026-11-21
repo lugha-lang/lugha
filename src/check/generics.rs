@@ -35,6 +35,7 @@ pub(super) fn has_param(ty: &Type) -> bool {
         Type::Array(inner)
         | Type::Option(inner)
         | Type::Ref(inner)
+        | Type::Weak(inner)
         | Type::Task(inner)
         | Type::Chan(_, inner) => has_param(inner),
         Type::Struct(_, args)
@@ -95,6 +96,7 @@ pub(super) fn replace(ty: &Type, map: &HashMap<&str, &Type>) -> Type {
         Type::Array(inner) => Type::Array(Box::new(replace(inner, map))),
         Type::Option(inner) => Type::Option(Box::new(replace(inner, map))),
         Type::Ref(inner) => Type::Ref(Box::new(replace(inner, map))),
+        Type::Weak(inner) => Type::Weak(Box::new(replace(inner, map))),
         Type::Task(inner) => Type::Task(Box::new(replace(inner, map))),
         Type::Chan(end, inner) => Type::Chan(*end, Box::new(replace(inner, map))),
         Type::Fun(params, ret) => Type::Fun(
@@ -221,6 +223,10 @@ impl Checker {
             && self.named_type(&self.key("Ref")).is_none()
         {
             return Type::Ref(Box::new(self.resolve(&applied.args[0])));
+        }
+        // The predeclared `Weak<T>`.
+        if applied.module.is_none() && applied.name.name == "Weak" && applied.args.len() == 1 {
+            return Type::Weak(Box::new(self.resolve(&applied.args[0])));
         }
         // The predeclared `View<T>` and `MutView<T>`.
         if applied.module.is_none()

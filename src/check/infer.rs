@@ -155,6 +155,7 @@ pub(super) fn unbound(ty: &Type, names: &[&str], bound: &Bound) -> bool {
         Type::Array(inner)
         | Type::Option(inner)
         | Type::Ref(inner)
+        | Type::Weak(inner)
         | Type::Task(inner)
         | Type::Chan(_, inner) => unbound(inner, names, bound),
         Type::Struct(_, args)
@@ -179,6 +180,7 @@ pub(super) fn unify(declared: &Type, actual: &Type, names: &[&str], bound: &mut 
         (Type::Array(d), Type::Array(a))
         | (Type::Option(d), Type::Option(a))
         | (Type::Ref(d), Type::Ref(a))
+        | (Type::Weak(d), Type::Weak(a))
         | (Type::Task(d), Type::Task(a))
         | (Type::Chan(_, d), Type::Chan(_, a)) => {
             unify(d, a, names, bound);

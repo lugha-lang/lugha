@@ -20,6 +20,9 @@ impl<'ctx> Lowerer<'ctx> {
         call: &Expr,
         args: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
+        if let Type::Weak(_) = self.ty(call) {
+            return self.weak_new(call, args);
+        }
         let Type::Ref(inner) = self.ty(call) else {
             unreachable!("checked: `Ref.new` makes a `Ref`")
         };
@@ -27,8 +30,8 @@ impl<'ctx> Lowerer<'ctx> {
         let size = self
             .context
             .i64_type()
-            .const_int(self.element_size(&inner).max(1), false);
-        let drop = self.rc_box_drop(&inner);
+            .const_int(self.box_size(&inner), false);
+        let drop = self.rc_ref_box_drop(&inner);
         let box_ptr = if self.cycle_prone(&inner) {
             self.new_cell(size, drop, call.span.start)
         } else {
@@ -46,6 +49,9 @@ impl<'ctx> Lowerer<'ctx> {
         args: &[Expr],
     ) -> Result<Value<'ctx>, CodegenError> {
         let ty = self.ty(base);
+        if let Type::Weak(inner) = &ty {
+            return self.weak_get(base, inner);
+        }
         let Type::Ref(inner) = &ty else {
             unreachable!("checked: a `Ref` method has a `Ref` receiver")
         };

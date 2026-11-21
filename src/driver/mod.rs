@@ -21,6 +21,7 @@ mod source;
 mod stdout;
 mod test;
 mod test_build;
+mod test_cycles;
 mod test_json;
 mod test_report;
 mod update;

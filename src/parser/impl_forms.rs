@@ -12,12 +12,13 @@ use crate::span::Span;
 
 /// The built-in generic types a block may name; any other name in a block's
 /// type is a program's, unless the file declares or imports one so named.
-const BUILT_IN: [&str; 13] = [
+const BUILT_IN: [&str; 14] = [
     "Option",
     "Result",
     "Map",
     "Set",
     "Ref",
+    "Weak",
     "Task",
     "Chan",
     "Ring",

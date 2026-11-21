@@ -180,7 +180,7 @@ impl<'ctx> Lowerer<'ctx> {
         if self
             .callees
             .get(&call.id)
-            .is_some_and(|k| k == crate::check::REF_NEW)
+            .is_some_and(|k| k == crate::check::REF_NEW || k == crate::check::WEAK_NEW)
         {
             return self.ref_new(call, args).map(|v| Some(Value::Val(v)));
         }
@@ -285,7 +285,7 @@ impl<'ctx> Lowerer<'ctx> {
             return self.cptr_view(base, args, name.span.start).map(Some);
         }
         // `r.get()` and the rest of a box's methods.
-        if let Type::Ref(_) = base_type {
+        if let Type::Ref(_) | Type::Weak(_) = base_type {
             return self.ref_method(base, &name.name, args).map(Some);
         }
         // `t.join()` and a channel's methods.

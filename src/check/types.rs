@@ -53,6 +53,9 @@ pub enum Type {
     Option(Box<Type>),
     /// A shared box, `Ref<T>`: copies share one box.
     Ref(Box<Type>),
+    /// A weak reference to a `Ref<T>`'s box, `Weak<T>`, which doesn't keep
+    /// it alive.
+    Weak(Box<Type>),
     /// A green thread's handle, `Task<T>`, or a plain `Task` when `T` is
     /// `()`: copies share one task.
     Task(Box<Type>),
@@ -145,6 +148,7 @@ impl Type {
             Type::Array(inner) => Type::Array(Box::new(inner.substitute(map))),
             Type::Option(inner) => Type::Option(Box::new(inner.substitute(map))),
             Type::Ref(inner) => Type::Ref(Box::new(inner.substitute(map))),
+            Type::Weak(inner) => Type::Weak(Box::new(inner.substitute(map))),
             Type::Task(inner) => Type::Task(Box::new(inner.substitute(map))),
             Type::Chan(end, inner) => Type::Chan(*end, Box::new(inner.substitute(map))),
             Type::Struct(key, args) => Type::Struct(key.clone(), all(args)),
@@ -198,6 +202,7 @@ impl Type {
             Type::Array(inner)
             | Type::Option(inner)
             | Type::Ref(inner)
+            | Type::Weak(inner)
             | Type::Task(inner)
             | Type::Chan(_, inner) => inner.mentions_interface(),
             Type::Struct(_, args) | Type::Enum(_, args) | Type::Actor(_, args) => {
@@ -217,6 +222,7 @@ impl Type {
             Type::Array(inner)
             | Type::Option(inner)
             | Type::Ref(inner)
+            | Type::Weak(inner)
             | Type::Task(inner)
             | Type::Chan(_, inner) => inner.mentions_param(name),
             Type::Struct(_, args)
@@ -325,6 +331,7 @@ impl fmt::Display for Type {
             Type::Param(name) | Type::Interface(name, _) => name,
             Type::Option(inner) => return write!(f, "Option<{inner}>"),
             Type::Ref(inner) => return write!(f, "Ref<{inner}>"),
+            Type::Weak(inner) => return write!(f, "Weak<{inner}>"),
             Type::Task(inner) if **inner == Type::Unit => "Task",
             Type::Task(inner) => return write!(f, "Task<{inner}>"),
             Type::Chan(End::Send, inner) => return write!(f, "Sender<{inner}>"),

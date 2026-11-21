@@ -1,0 +1,27 @@
+// An observer list holds its observers weakly: one dropped by its owner
+// is skipped and pruned, never kept alive by the list.
+struct Counter { name: string, seen: i64 }
+
+fun notify(observers: Weak<Counter>[]): Weak<Counter>[] {
+    let mut live: Weak<Counter>[] = [];
+    for w of observers {
+        if let .Some(c) = w.get() {
+            c.update(fun(x) = Counter { name: x.name, seen: x.seen + 1 });
+            live.push(w);
+        }
+    }
+    live
+}
+
+fun main(console: Console) {
+    let a = Ref.new(Counter { name: "a", seen: 0 });
+    let mut observers: Weak<Counter>[] = [Weak.new(a)];
+    if true {
+        let b = Ref.new(Counter { name: "b", seen: 0 });
+        observers.push(Weak.new(b));
+        observers = notify(observers);
+        console.println("{observers.len} observers, b saw {b.get().seen}");
+    }
+    observers = notify(observers);
+    console.println("{observers.len} observer, a saw {a.get().seen}");
+}

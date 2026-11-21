@@ -201,7 +201,9 @@ impl Checker {
 fn mentions(ty: &Type, name: &str) -> bool {
     match ty {
         Type::Param(n) => n == name,
-        Type::Array(inner) | Type::Option(inner) | Type::Ref(inner) => mentions(inner, name),
+        Type::Array(inner) | Type::Option(inner) | Type::Ref(inner) | Type::Weak(inner) => {
+            mentions(inner, name)
+        }
         Type::Struct(_, args) | Type::Enum(_, args) | Type::Interface(_, args) => {
             args.iter().any(|a| mentions(a, name))
         }

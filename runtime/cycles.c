@@ -275,7 +275,7 @@ static void cc_free_dead(CcGraph *g, int64_t *cells, int64_t *cycles) {
         if (g->cell[i] && rc_cell_is_listed(header->count)) {
             cc_unlist(g->objects[i], rc_cell_place(header->count));
         }
-        if (g->cell[i] && rc_listing) {
+        if (g->cell[i] && cc_sites_on) {
             cc_site_freed(g->objects[i]);
         }
         header->count = RC_COLLECTING;
@@ -396,77 +396,4 @@ static void cc_task_done(Fiber *f) {
     f->cc_suspects = NULL;
     f->cc_len = 0;
     f->cc_cap = 0;
-}
-
-/* Where each cell was made, kept only with `LUGHA_RC_REPORT=2` (which
- * keeps freed blocks as tombstones, so an address is never reused), and
- * how many cells made at each place a collection freed. */
-typedef struct {
-    const char *file;
-    int64_t line, col, freed;
-} CcSite;
-
-static CcSite *cc_sites;
-static int64_t cc_sites_len, cc_sites_cap;
-static void **cc_site_objects;
-static int64_t *cc_site_of;
-static int64_t cc_site_objects_len, cc_site_objects_cap;
-static pthread_mutex_t cc_site_lock = PTHREAD_MUTEX_INITIALIZER;
-
-/* Records that cell `object` was made at `file:line:col`. */
-static void cc_site(void *object, const char *file, int64_t line, int64_t col) {
-    pthread_mutex_lock(&cc_site_lock);
-    int64_t site = -1;
-    for (int64_t i = 0; i < cc_sites_len; i++) {
-        if (cc_sites[i].file == file && cc_sites[i].line == line && cc_sites[i].col == col) {
-            site = i;
-            break;
-        }
-    }
-    if (site < 0) {
-        if (cc_sites_len == cc_sites_cap) {
-            cc_sites_cap = cc_sites_cap == 0 ? 16 : cc_sites_cap * 2;
-            cc_sites = cc_grow(cc_sites, cc_sites_cap, sizeof(CcSite));
-        }
-        site = cc_sites_len++;
-        cc_sites[site] = (CcSite){.file = file, .line = line, .col = col, .freed = 0};
-    }
-    if (cc_site_objects_len == cc_site_objects_cap) {
-        cc_site_objects_cap = cc_site_objects_cap == 0 ? 64 : cc_site_objects_cap * 2;
-        cc_site_objects = cc_grow(cc_site_objects, cc_site_objects_cap, sizeof(void *));
-        cc_site_of = cc_grow(cc_site_of, cc_site_objects_cap, sizeof(int64_t));
-    }
-    cc_site_objects[cc_site_objects_len] = object;
-    cc_site_of[cc_site_objects_len++] = site;
-    pthread_mutex_unlock(&cc_site_lock);
-}
-
-/* A collection freed cell `object`: counted at the place it was made. */
-static void cc_site_freed(void *object) {
-    pthread_mutex_lock(&cc_site_lock);
-    for (int64_t i = cc_site_objects_len - 1; i >= 0; i--) {
-        if (cc_site_objects[i] == object) {
-            cc_sites[cc_site_of[i]].freed++;
-            break;
-        }
-    }
-    pthread_mutex_unlock(&cc_site_lock);
-}
-
-/* The end of `LUGHA_RC_REPORT`'s line: the cycles freed, if any; with
- * `LUGHA_RC_REPORT=2`, the places their cells were made. */
-static void cc_report(void) {
-    int64_t cycles = __atomic_load_n(&cc_cycles_freed, __ATOMIC_RELAXED);
-    int64_t cells = __atomic_load_n(&cc_cells_freed, __ATOMIC_RELAXED);
-    if (cycles > 0) {
-        fprintf(stderr, "; %" PRId64 " %s freed (%" PRId64 " %s)", cycles,
-                cycles == 1 ? "cycle" : "cycles", cells, cells == 1 ? "box" : "boxes");
-    }
-    fputc('\n', stderr);
-    for (int64_t i = 0; i < cc_sites_len; i++) {
-        if (cc_sites[i].freed > 0) {
-            fprintf(stderr, "  cycle boxes made at %s:%" PRId64 ":%" PRId64 ": %" PRId64 " freed\n",
-                    cc_sites[i].file, cc_sites[i].line, cc_sites[i].col, cc_sites[i].freed);
-        }
-    }
 }

@@ -73,7 +73,9 @@ fn nested_handle(ty: &Type) -> bool {
     match ty {
         Type::Task(_) => false,
         Type::Fun(params, ret) => holds_handle(ret) || params.iter().any(nested_handle),
-        Type::Array(t) | Type::Option(t) | Type::Ref(t) | Type::Chan(_, t) => holds_handle(t),
+        Type::Array(t) | Type::Option(t) | Type::Ref(t) | Type::Weak(t) | Type::Chan(_, t) => {
+            holds_handle(t)
+        }
         // Tuples are structs, their elements type arguments.
         Type::Struct(_, ts) | Type::Enum(_, ts) | Type::Interface(_, ts) => {
             ts.iter().any(holds_handle)

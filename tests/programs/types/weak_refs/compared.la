@@ -1,0 +1,5 @@
+// `Weak`s have no `==`: compare the boxes they give.
+fun main() {
+    let r = Ref.new(1);
+    let same = Weak.new(r) == Weak.new(r);
+}

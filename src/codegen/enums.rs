@@ -62,9 +62,11 @@ pub(super) fn enum_layout(ty: &Type, structs: &Structs, enums: &Enums) -> (u64, 
 /// Every enum and `Option` type in `ty`, including `ty` itself.
 fn collect(ty: &Type, out: &mut BTreeSet<String>, all: &mut Vec<Type>) {
     match ty {
-        Type::Array(inner) | Type::Ref(inner) | Type::Task(inner) | Type::Chan(_, inner) => {
-            collect(inner, out, all)
-        }
+        Type::Array(inner)
+        | Type::Ref(inner)
+        | Type::Weak(inner)
+        | Type::Task(inner)
+        | Type::Chan(_, inner) => collect(inner, out, all),
         Type::Option(inner) => {
             collect(inner, out, all);
             if out.insert(ty.to_string()) {

@@ -1,0 +1,30 @@
+// A box freed by the cycle collector empties its `Weak`s too.
+struct Node { name: string, next: Option<Ref<Node>> }
+
+fun pair(): Weak<Node> {
+    let a = Ref.new(Node { name: "a", next: None });
+    let b = Ref.new(Node { name: "b", next: Some(a) });
+    a.update(fun(n) = Node { name: n.name, next: Some(b) });
+    Weak.new(a)
+}
+
+fun main(console: Console) {
+    let mut weaks: Weak<Node>[] = [];
+    for i in 0..3000 {
+        weaks.push(pair());
+    }
+    let w = pair();
+    console.println(w.get().is_some());
+    // Enough work for the task to reach its next scheduling point.
+    let mut sum = 0;
+    for i in 0..100_000 {
+        sum += i % 7;
+    }
+    let mut live = 0;
+    for x of weaks {
+        if x.get().is_some() {
+            live += 1;
+        }
+    }
+    console.println("{sum} {live < 3000}");
+}

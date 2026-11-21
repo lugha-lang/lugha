@@ -20,6 +20,7 @@ use crate::codegen::Cpu;
 use super::Output;
 use super::fmt::{display, la_files};
 use super::pipeline::{Failure, TempDir};
+use super::test_cycles::{self, Cycles};
 use super::{test_build, test_json, test_report};
 use crate::lexer::{self, TokenKind};
 
@@ -72,12 +73,15 @@ pub(super) struct Job {
 
 /// How one test ended.
 pub(super) enum Outcome {
-    Passed,
-    /// Exited with this code (101 for a panic), with its output.
+    /// Exited with 0, with the cycles it left for the collector, if any.
+    Passed(Option<Cycles>),
+    /// Exited with this code (101 for a panic), with its output and the
+    /// cycles it left.
     Failed {
         code: Option<i32>,
         stdout: String,
         stderr: String,
+        cycles: Option<Cycles>,
     },
     TimedOut,
     /// Ended through `skip(reason)`.
@@ -196,7 +200,7 @@ pub(super) fn test(request: &Request, out: &mut Output) -> u8 {
     );
     for (job, outcome) in jobs.iter().zip(&outcomes) {
         match outcome {
-            Outcome::Passed => passed += 1,
+            Outcome::Passed(_) => passed += 1,
             Outcome::Skipped(_) => skipped += 1,
             Outcome::NotStarted(why) => {
                 out.error(&format!("cannot run test `{}`: {why}", job.name));
@@ -371,10 +375,11 @@ fn run_child(child: std::io::Result<Child>, timeout: Duration) -> Outcome {
     let stderr = reader(child.stderr.take());
     let status = wait(&mut child, timeout);
     let stdout = stdout.join().unwrap_or_default();
-    let stderr = stderr.join().unwrap_or_default();
+    let mut stderr = stderr.join().unwrap_or_default();
+    let cycles = test_cycles::take(&mut stderr);
     match status {
         None => Outcome::TimedOut,
-        Some(Ok(status)) if status.success() => Outcome::Passed,
+        Some(Ok(status)) if status.success() => Outcome::Passed(cycles),
         Some(Ok(status)) if let Some(reason) = test_json::skipped(status.code(), &stderr) => {
             Outcome::Skipped(reason)
         }
@@ -382,6 +387,7 @@ fn run_child(child: std::io::Result<Child>, timeout: Duration) -> Outcome {
             code: status.code(),
             stdout,
             stderr,
+            cycles,
         },
         Some(Err(error)) => Outcome::NotStarted(error.to_string()),
     }

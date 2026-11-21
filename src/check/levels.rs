@@ -107,6 +107,7 @@ impl Checker {
             Type::Array(inner)
             | Type::Option(inner)
             | Type::Ref(inner)
+            | Type::Weak(inner)
             | Type::Task(inner)
             | Type::Chan(_, inner) => self.hidden_inside(inner, at),
             Type::Fun(params, ret) => params

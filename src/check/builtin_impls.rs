@@ -18,9 +18,12 @@ use crate::modules::impls::item_name;
 fn params_in(ty: &Type, out: &mut Vec<String>) {
     match ty {
         Type::Param(n) if !out.contains(n) => out.push(n.clone()),
-        Type::Array(t) | Type::Option(t) | Type::Ref(t) | Type::Task(t) | Type::Chan(_, t) => {
-            params_in(t, out)
-        }
+        Type::Array(t)
+        | Type::Option(t)
+        | Type::Ref(t)
+        | Type::Weak(t)
+        | Type::Task(t)
+        | Type::Chan(_, t) => params_in(t, out),
         Type::Struct(_, args) | Type::Enum(_, args) | Type::Interface(_, args) => {
             args.iter().for_each(|a| params_in(a, out))
         }
@@ -260,6 +263,7 @@ impl Checker {
             Type::Fun(..) => "a function type",
             Type::Interface(..) => "an interface type",
             Type::Ref(_) => "a `Ref`",
+            Type::Weak(_) => "a `Weak`",
             Type::Task(_) | Type::Chan(_, _) | Type::Actor(..) => "a task, channel or actor",
             Type::Param(_) => {
                 return Some(format!(

@@ -109,6 +109,9 @@ impl Checker {
                     "compare boxes with `a.is(b)` (the same box) or `a.get() == b.get()` (the same contents)"
                         .to_string(),
                 ),
+                Type::Weak(_) => Some(
+                    "`a.get()` gives each box, which `is` compares".to_string(),
+                ),
                 Type::Chan(_, _) => Some("`a.is(b)` tells whether both are the same channel".to_string()),
                 _ => None,
             };

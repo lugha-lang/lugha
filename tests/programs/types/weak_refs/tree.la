@@ -1,0 +1,36 @@
+// A tree whose children know their parent through a `Weak`: the parent
+// link keeps nothing alive, so the tree is freed by counting alone, with
+// no cycle for the collector.
+struct TreeNode {
+    name: string,
+    kids: Ref<TreeNode>[],
+    parent: Option<Weak<TreeNode>>,
+}
+
+fun add(parent: Ref<TreeNode>, name: string): Ref<TreeNode> {
+    let kid = Ref.new(TreeNode { name: name, kids: [], parent: Some(Weak.new(parent)) });
+    parent.update(fun(p) {
+        let mut kids = p.kids;
+        kids.push(kid);
+        TreeNode { name: p.name, kids: kids, parent: p.parent }
+    });
+    kid
+}
+
+fun parent_name(node: Ref<TreeNode>): string = match node.get().parent {
+    .Some(w) => match w.get() {
+        .Some(p) => p.get().name,
+        .None => "(gone)",
+    },
+    .None => "(root)",
+};
+
+fun main(console: Console) {
+    let root = Ref.new(TreeNode { name: "root", kids: [], parent: None });
+    let leaf = add(root, "leaf");
+    let deeper = add(leaf, "deeper");
+    console.println(parent_name(leaf));
+    console.println(parent_name(deeper));
+    console.println(parent_name(root));
+    console.println(root.get().kids.len);
+}

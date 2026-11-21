@@ -96,6 +96,9 @@ pub(super) struct Lowerer<'ctx> {
     pub(super) captures: HashMap<ExprId, Vec<String>>,
     /// Whether loops and functions count down to preemption (`Checked::uses_tasks`).
     pub(super) uses_tasks: bool,
+    /// Whether the program makes weak references, so every box carries
+    /// a weak cell's word (`codegen::weak`).
+    pub(super) uses_weak: bool,
     /// A spawned call's arguments already evaluated by the spawning thread:
     /// each lowers as a load of the hidden capture named here.
     pub(super) presets: HashMap<ExprId, String>,
@@ -237,6 +240,7 @@ pub(super) fn lower<'ctx>(
         captures: checked.captures.clone(),
         // Collection runs at the countdown's scheduling points, so a
         // program that may make cells counts down too.
+        uses_weak: super::weak::uses_weak(&checked.types),
         uses_tasks: checked.uses_tasks
             || super::cycles::makes_cells(&checked.types, &checked.structs, &checked.enums),
         presets: HashMap::new(),

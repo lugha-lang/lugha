@@ -35,6 +35,7 @@ fn counted_in(ty: &Type, structs: &Structs, enums: &Enums, path: &mut Vec<String
         Type::String
         | Type::Array(_)
         | Type::Ref(_)
+        | Type::Weak(_)
         | Type::Fun(..)
         | Type::Own(_)
         | Type::Interface(..)
@@ -84,6 +85,7 @@ pub(super) fn pointer_counted(ty: &Type) -> bool {
         Type::String
             | Type::Array(_)
             | Type::Ref(_)
+            | Type::Weak(_)
             | Type::Chan(_, _)
             | Type::Task(_)
             | Type::Actor(..)

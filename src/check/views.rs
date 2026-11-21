@@ -23,9 +23,12 @@ pub(super) fn holds_view(ty: &Type) -> bool {
 fn nested_view(ty: &Type) -> bool {
     match ty {
         Type::Fun(params, ret) => holds_view(ret) || params.iter().any(nested_view),
-        Type::Array(t) | Type::Option(t) | Type::Ref(t) | Type::Chan(_, t) | Type::Task(t) => {
-            holds_view(t)
-        }
+        Type::Array(t)
+        | Type::Option(t)
+        | Type::Ref(t)
+        | Type::Weak(t)
+        | Type::Chan(_, t)
+        | Type::Task(t) => holds_view(t),
         Type::Struct(_, ts) | Type::Enum(_, ts) | Type::Interface(_, ts) | Type::Actor(_, ts) => {
             ts.iter().any(holds_view)
         }

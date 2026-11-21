@@ -1,0 +1,29 @@
+// A cache that remembers values only while someone else holds them.
+struct Page { url: string, body: string }
+
+fun fetch(cache: Ref<Map<string, Weak<Page>>>, url: string, console: Console): Ref<Page> {
+    if let .Some(w) = cache.get().get(url) {
+        if let .Some(page) = w.get() {
+            console.println("hit {url}");
+            return page;
+        }
+    }
+    console.println("miss {url}");
+    let page = Ref.new(Page { url: url, body: "<{url}>" });
+    let mut entries = cache.get();
+    entries[url] = Weak.new(page);
+    cache.set(entries);
+    page
+}
+
+fun main(console: Console) {
+    let cache: Ref<Map<string, Weak<Page>>> = Ref.new(Map {});
+    let home = fetch(cache, "/", console);
+    let again = fetch(cache, "/", console);
+    console.println(home.is(again));
+    if true {
+        let about = fetch(cache, "/about", console);
+    }
+    let about = fetch(cache, "/about", console);
+    console.println(about.get().body);
+}

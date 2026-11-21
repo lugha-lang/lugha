@@ -133,9 +133,12 @@ impl Checker {
 fn unknown(ty: &Type) -> bool {
     match ty {
         Type::Error => true,
-        Type::Array(t) | Type::Option(t) | Type::Ref(t) | Type::Task(t) | Type::Chan(_, t) => {
-            unknown(t)
-        }
+        Type::Array(t)
+        | Type::Option(t)
+        | Type::Ref(t)
+        | Type::Weak(t)
+        | Type::Task(t)
+        | Type::Chan(_, t) => unknown(t),
         Type::Struct(_, args) | Type::Enum(_, args) | Type::Interface(_, args) => {
             args.iter().any(unknown)
         }

@@ -145,7 +145,8 @@ fn bind(declared: &Type, actual: &Type, names: &[String], out: &mut HashMap<Stri
         }
         (Type::Array(d), Type::Array(a))
         | (Type::Option(d), Type::Option(a))
-        | (Type::Ref(d), Type::Ref(a)) => bind(d, a, names, out),
+        | (Type::Ref(d), Type::Ref(a))
+        | (Type::Weak(d), Type::Weak(a)) => bind(d, a, names, out),
         (Type::Struct(k, ds), Type::Struct(l, as_)) | (Type::Enum(k, ds), Type::Enum(l, as_))
             if k == l =>
         {
@@ -163,7 +164,9 @@ fn bind(declared: &Type, actual: &Type, names: &[String], out: &mut HashMap<Stri
 fn mentions_unknown(ty: &Type) -> bool {
     match ty {
         Type::Error | Type::Never => true,
-        Type::Array(inner) | Type::Option(inner) | Type::Ref(inner) => mentions_unknown(inner),
+        Type::Array(inner) | Type::Option(inner) | Type::Ref(inner) | Type::Weak(inner) => {
+            mentions_unknown(inner)
+        }
         Type::Struct(_, args) | Type::Enum(_, args) | Type::Interface(_, args) => {
             args.iter().any(mentions_unknown)
         }

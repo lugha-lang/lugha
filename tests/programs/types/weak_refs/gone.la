@@ -1,0 +1,28 @@
+// A `Weak` gives `.None` once its box is freed, and every copy of it, and
+// every other `Weak` to the same box, sees it go at once. A box is freed
+// after its last holder's last use, not at the end of the block.
+fun main(console: Console) {
+    let mut weaks: Weak<string>[] = [];
+    let kept = Ref.new("kept");
+    let keep_weak = Weak.new(kept);
+    if true {
+        let r = Ref.new("short-lived");
+        let w = Weak.new(r);
+        weaks.push(w);
+        weaks.push(Weak.new(r));
+        match w.get() {
+            .Some(b) => console.println("{b.get()} {b.is(r)}"),
+            .None => console.println("gone already"),
+        }
+    }
+    for w of weaks {
+        console.println(w.get().is_some());
+    }
+    match keep_weak.get() {
+        .Some(b) => console.println("{b.get()} {b.is(kept)}"),
+        .None => console.println("gone"),
+    }
+    console.println(keep_weak.debug());
+    // `kept`'s last use was above: its box is gone now.
+    console.println(keep_weak.get().is_some());
+}

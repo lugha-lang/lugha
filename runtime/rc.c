@@ -37,6 +37,9 @@ static void **rc_objects;
 static int64_t *rc_sizes;
 static int64_t rc_listed, rc_room;
 static bool rc_listing;
+/* Whether cells record where they were made: with `LUGHA_RC_REPORT=2`, or
+ * in a test, for `lughac test`'s note (cycle_sites.c). */
+static bool cc_sites_on;
 
 /* Whether `LUGHA_RC_REPORT` asked for the count at exit: only then does
  * the end of the entry let go of what the other threads hold. */
@@ -74,8 +77,10 @@ static void rc_totals(int64_t *made, int64_t *freed) {
     pthread_mutex_unlock(&workers_lock);
 }
 
-/* The collector's line of the report (cycles.c, joined after this fragment). */
+/* The collector's line of the report and a test's note (cycle_sites.c,
+ * joined after this fragment). */
 static void cc_report(void);
+static void cc_test_note(void);
 
 static void rc_report(void) {
     int64_t made, freed;
@@ -113,6 +118,11 @@ static void lugha_rc_start(void) {
     if (report != NULL && (strcmp(report, "1") == 0 || strcmp(report, "2") == 0)) {
         rc_reporting = true;
         atexit(rc_report);
+    }
+    cc_sites_on = rc_listing;
+    if (getenv("LUGHA_TEST") != NULL) {
+        cc_sites_on = true;
+        atexit(cc_test_note);
     }
 }
 
@@ -184,6 +194,7 @@ static void cc_suspect(void *object, RcHeader *header, int64_t count);
 static void cc_unlist(void *object, int64_t place);
 static void cc_child(struct CcGraph *g, void *object);
 static void cc_site(void *object, const char *file, int64_t line, int64_t col);
+static void cc_site_forget(void *object);
 
 /* A counted object of `size` bytes, zeroed, held once, with `visit` for
  * what it holds (`NULL`: nothing counted). */
@@ -204,7 +215,7 @@ void *lugha_rt_rc_cell_alloc(int64_t size, RcVisit visit, const char *file, int6
                              int64_t col) {
     void *object = lugha_rt_rc_alloc(size, visit);
     ((RcHeader *)object - 1)->count = RC_CELL | 1;
-    if (rc_listing) {
+    if (cc_sites_on) {
         cc_site(object, file, line, col);
     }
     return object;
@@ -380,6 +391,9 @@ static void rc_cell_change(void *object, RcHeader *header, int64_t count, int64_
     if (holders <= 0) {
         if (rc_cell_is_listed(count)) {
             cc_unlist(object, rc_cell_place(count));
+        }
+        if (cc_sites_on) {
+            cc_site_forget(object);
         }
         lugha_rt_rc_free(object);
         return;

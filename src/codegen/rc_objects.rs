@@ -17,7 +17,7 @@ impl<'ctx> Lowerer<'ctx> {
     /// A visit function `name(object, op)`: `body` lowers what it does with
     /// the object's contents for one operation, release or mark, and runs
     /// once for each.
-    fn rc_visit_function(
+    pub(super) fn rc_visit_function(
         &mut self,
         name: &str,
         body: impl Fn(&mut Self, PointerValue<'ctx>, RcOp),

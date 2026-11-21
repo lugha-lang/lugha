@@ -195,6 +195,8 @@ impl<'ctx> Lowerer<'ctx> {
         let text = match (self.item_method(ty, DEBUG, "debug"), ty) {
             (Some(m), _) => self.call_item(&m, value, ty),
             (None, Type::Ref(inner)) => self.show_box(value.into_pointer_value(), inner),
+            // Never the contents: a back-link would print its whole parent.
+            (None, Type::Weak(_)) => self.string_literal("Weak(…)").into(),
             // A handle shows its type, never its address.
             (None, Type::Handle(key)) => self.string_literal(&format!("<{}>", bare(key))).into(),
             (None, Type::Task(_)) => self.string_literal("<task>").into(),

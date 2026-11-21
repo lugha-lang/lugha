@@ -55,7 +55,7 @@ void lugha_rt_rc_stop_threads(void) {
     RT_SECTION();
     // The entry has let go of its values: its cycles are freed, so the
     // report counts only what the program lost.
-    if (rc_reporting) {
+    if (rc_reporting || cc_sites_on) {
         cc_task_done(current != NULL ? current : &main_fiber);
     }
     if (current == NULL || !rc_reporting) {

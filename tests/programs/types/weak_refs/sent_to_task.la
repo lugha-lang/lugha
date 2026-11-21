@@ -1,0 +1,7 @@
+// A `Weak` stays in the task that made it.
+fun watch(w: Weak<i64>): bool = w.get().is_some();
+
+fun main(root: Scope) {
+    let r = Ref.new(1);
+    let t = root.spawn(watch(Weak.new(r)));
+}

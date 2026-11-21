@@ -5,14 +5,14 @@
 use std::time::Duration;
 
 use super::test::{Job, Outcome};
-use super::test_json;
+use super::{test_cycles, test_json};
 
 /// The text report of a finished test that started: `ok`, `skipped`, or
 /// `FAILED` with what it printed.
 pub(super) fn line(job: &Job, outcome: &Outcome, timeout: Duration, seed: Option<u64>) -> String {
     let name = &job.name;
-    match outcome {
-        Outcome::Passed => format!("test {name} ... ok\n"),
+    let mut text = match outcome {
+        Outcome::Passed(_) => format!("test {name} ... ok\n"),
         Outcome::Skipped(reason) => format!("test {name} ... skipped ({reason})\n"),
         Outcome::TimedOut => {
             let why = format!("timed out after {} s", timeout.as_secs());
@@ -22,8 +22,21 @@ pub(super) fn line(job: &Job, outcome: &Outcome, timeout: Duration, seed: Option
             code,
             stdout,
             stderr,
+            ..
         } => failure(name, *code, (stdout, stderr), seed),
         Outcome::NotStarted(why) => format!("test {name} ... not started ({why})\n"),
+    };
+    if let Some(cycles) = cycles_of(outcome) {
+        text.push_str(&test_cycles::note(cycles));
+    }
+    text
+}
+
+/// The cycles a finished test left for the collector, if any.
+fn cycles_of(outcome: &Outcome) -> Option<&test_cycles::Cycles> {
+    match outcome {
+        Outcome::Passed(cycles) | Outcome::Failed { cycles, .. } => cycles.as_ref(),
+        _ => None,
     }
 }
 
@@ -72,7 +85,7 @@ pub(super) fn json_result(
     seed: Option<u64>,
 ) -> Option<String> {
     let (status, message, at, output) = match outcome {
-        Outcome::Passed => ("passed", None, None, ""),
+        Outcome::Passed(_) => ("passed", None, None, ""),
         Outcome::Skipped(reason) => ("skipped", Some(reason.clone()), None, ""),
         Outcome::TimedOut => {
             let message = format!("timed out after {} s", timeout.as_secs());
@@ -82,6 +95,7 @@ pub(super) fn json_result(
             code,
             stdout,
             stderr,
+            ..
         } => match test_json::panic_of(stderr) {
             Some(panic) => ("failed", Some(panic.message), panic.at, stdout.as_str()),
             None => {
@@ -101,6 +115,7 @@ pub(super) fn json_result(
         output,
         ms: took.as_millis(),
         seed,
+        cycles: cycles_of(outcome).map(test_cycles::json),
     }))
 }
 

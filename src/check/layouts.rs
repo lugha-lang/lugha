@@ -70,6 +70,7 @@ impl Checker {
             Type::Array(inner)
             | Type::Option(inner)
             | Type::Ref(inner)
+            | Type::Weak(inner)
             | Type::Task(inner)
             | Type::Chan(_, inner) => {
                 return self.visit(inner, found, seen);
@@ -166,6 +167,7 @@ fn depth(ty: &Type) -> usize {
         Type::Array(inner)
         | Type::Option(inner)
         | Type::Ref(inner)
+        | Type::Weak(inner)
         | Type::Task(inner)
         | Type::Chan(_, inner) => 1 + depth(inner),
         Type::Fun(params, ret) => 1 + params.iter().chain([&**ret]).map(depth).max().unwrap_or(0),

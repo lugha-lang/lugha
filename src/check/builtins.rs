@@ -43,6 +43,13 @@ pub(super) fn builtin(receiver: &Type, name: &str) -> Option<Method> {
             (vec![f], Type::Unit, false)
         }
         (Type::Ref(_), "is") => (vec![receiver.clone()], Type::Bool, false),
+        // A weak reference's whole API besides `Weak.new`: the box, if it
+        // is still there.
+        (Type::Weak(inner), "get") => (
+            Vec::new(),
+            Type::Option(Box::new(Type::Ref(inner.clone()))),
+            false,
+        ),
         // A task's result, and each end of a channel's API besides
         // `Chan<T>.new(n)`; plain `self`, as for boxes.
         (Type::Task(inner), "join") => (Vec::new(), super::scopes::joined(inner), false),

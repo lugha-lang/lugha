@@ -40,16 +40,11 @@ impl Checker {
                 None => self.unchecked(args),
             });
         }
-        // `Ref.new(v)`: the predeclared box, unless the module has a `Ref`.
+        // `Ref.new(v)` and `Weak.new(r)`, the predeclared box makers.
         if let ExprKind::Name(t) = &base.kind
-            && self.predeclared_ref(t)
+            && (self.predeclared_ref(t) || self.predeclared_weak(t))
         {
-            self.record(base, Type::Unit);
-            self.record(callee, Type::Unit);
-            // `Ref<f32>.new(1.5)`: the written type is the box's.
-            let written = self.written_one(base, "Ref");
-            let written = written.map(|t| Expect::of(Type::Ref(Box::new(t))));
-            return Some(self.ref_new(call, name, args, written.as_ref().or(expect)));
+            return Some(self.box_maker(call, (callee, base, t), name, args, expect));
         }
         // `Chan<T>.new(n)`, `Chan<T>.unbounded()` and `Ring<T>.new(n)`,
         // unless the module has a `Chan` or `Ring`.

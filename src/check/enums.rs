@@ -9,9 +9,9 @@ use crate::span::Span;
 
 /// The built-in names syntax depends on, which no program may declare:
 /// `?` and patterns (`Option`, `Result` and their variants), `==` and `<`,
-/// `"{x}"`, `for`, the operators, map and set literals, and `Ref`. Every
+/// `"{x}"`, `for`, the operators, map and set literals, `Ref` and `Weak`. Every
 /// other prelude name may be a module's own.
-pub(super) const BUILTIN_NAMES: [&str; 20] = [
+pub(super) const BUILTIN_NAMES: [&str; 21] = [
     "Option",
     "Some",
     "None",
@@ -32,6 +32,7 @@ pub(super) const BUILTIN_NAMES: [&str; 20] = [
     "FromEntries",
     "FromItems",
     "Ref",
+    "Weak",
 ];
 
 /// A declared enum.

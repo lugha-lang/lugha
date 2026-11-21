@@ -26,7 +26,7 @@ pub use self::inputs::{Plan, PlanError};
 
 /// The runtime's source files, in the order they are joined: the core first,
 /// since it holds every `#include`, then the fragments that rely on it.
-pub const RUNTIME_PARTS: [(&str, &str); 45] = [
+pub const RUNTIME_PARTS: [(&str, &str); 47] = [
     ("lugha_rt.c", include_str!("../../runtime/lugha_rt.c")),
     ("rt_lock.c", include_str!("../../runtime/rt_lock.c")),
     ("stack.c", include_str!("../../runtime/stack.c")),
@@ -56,6 +56,8 @@ pub const RUNTIME_PARTS: [(&str, &str); 45] = [
     ("stacks.c", include_str!("../../runtime/stacks.c")),
     ("spawn.c", include_str!("../../runtime/spawn.c")),
     ("cycles.c", include_str!("../../runtime/cycles.c")),
+    ("cycle_sites.c", include_str!("../../runtime/cycle_sites.c")),
+    ("weak.c", include_str!("../../runtime/weak.c")),
     ("scopes.c", include_str!("../../runtime/scopes.c")),
     (
         "scope_policy.c",
@@ -273,6 +275,8 @@ pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/stacks.c"),
     include_str!("../../runtime/spawn.c"),
     include_str!("../../runtime/cycles.c"),
+    include_str!("../../runtime/cycle_sites.c"),
+    include_str!("../../runtime/weak.c"),
     include_str!("../../runtime/scopes.c"),
     include_str!("../../runtime/scope_policy.c"),
     include_str!("../../runtime/callbacks.c"),

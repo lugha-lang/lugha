@@ -113,3 +113,6 @@ lughac test --integration         # the @test(integration) ones too
   the handler function directly.
 - Tests run on virtual time: `task.sleep` in a plain test takes no real
   time, so timeouts and retries can be tested quickly.
+- A test whose run left `Ref` cycles for the collector gets a `note:` line
+  under its result, naming where the boxes were made; it isn't a failure,
+  but a `Weak` for the link back usually removes the cycle.

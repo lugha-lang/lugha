@@ -141,7 +141,29 @@ fun main() {
 
 Boxes that hold each other, such as a closure stored in a `Ref` it
 captures, are freed by the task's cycle collector once nothing else holds
-them, so a callback slot or a doubly linked list doesn't leak.
+them, so a callback slot or a doubly linked list doesn't leak. A link that
+shouldn't keep its target alive (a child's parent, a cache entry, an
+observer) is a `Weak`: `Weak.new(r)` makes one, and `w.get()` gives
+`.Some(box)` while the box is there and `.None` once it is freed.
+
+```lugha
+struct Tree { name: string, parent: Option<Weak<Tree>> }
+
+fun parent_name(t: Ref<Tree>): string = match t.get().parent {
+    .Some(w) => match w.get() {
+        .Some(p) => p.get().name,
+        .None => "(gone)",
+    },
+    .None => "(root)",
+};
+
+fun main(console: Console) {
+    let root = Ref.new(Tree { name: "root", parent: None });
+    let kid = Ref.new(Tree { name: "kid", parent: Some(Weak.new(root)) });
+    console.println(parent_name(kid));
+    console.println(root.get().name);
+}
+```
 
 ## Exercises
 

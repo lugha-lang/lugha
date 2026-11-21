@@ -138,6 +138,7 @@ mod usefulness;
 mod variant_values;
 mod views;
 mod visibility;
+mod weak;
 
 use std::collections::{HashMap, HashSet};
 
@@ -176,6 +177,7 @@ pub use templates::exact as template_exact;
 pub use tuples::elements as tuple_elements;
 pub use types::{End, Enums, FunOrigin, OwnFun, Structs, Type};
 pub use views::VIEW_OF;
+pub use weak::WEAK_NEW;
 
 use crate::ast::{ExprId, Program};
 use crate::diagnostic::Diagnostic;

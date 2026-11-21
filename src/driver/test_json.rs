@@ -87,6 +87,8 @@ pub(super) struct Result<'a> {
     pub ms: u128,
     /// The `--shuffle` seed the test ran with.
     pub seed: Option<u64>,
+    /// The `cycles` field, written, when the run left cycles.
+    pub cycles: Option<String>,
 }
 
 /// One `--json` result line.
@@ -109,6 +111,9 @@ pub(super) fn result_line(r: &Result) -> String {
     }
     if let Some(seed) = r.seed {
         out.push_str(&format!(",\"seed\":{seed}"));
+    }
+    if let Some(cycles) = &r.cycles {
+        out.push_str(cycles);
     }
     out.push_str(&format!(
         ",\"output\":{},\"ms\":{}}}\n",
@@ -241,6 +246,7 @@ mod tests {
             output: "a\nb",
             ms: 3,
             seed: None,
+            cycles: None,
         };
         assert_eq!(
             result_line(&r),
