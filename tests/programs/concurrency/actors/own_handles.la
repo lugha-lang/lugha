@@ -1,0 +1,17 @@
+// Inside an actor its name means its handle, as everywhere, and `Self` its
+// state: this actor keeps a channel that carries handles of its own type.
+actor Holder {
+    out: Option<Sender<Holder>>,
+    fun keep(mut self, s: Sender<Holder>) { self.out = Some(s); }
+    fun new(): Self = Holder { out: None };
+    fun has_out(self): bool = self.out.is_some();
+}
+
+fun main(console: Console, root: Scope) {
+    let h = root.spawn(Holder.new());
+    let (tx, rx) = Chan<Holder>.unbounded();
+    console.println(h.has_out());
+    h.keep(tx);
+    console.println(h.has_out());
+    h.stop();
+}

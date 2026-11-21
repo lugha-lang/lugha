@@ -1,9 +1,0 @@
-error[E0403]: expected Sender<Holder>, found Sender<Holder>
-   --> tests/programs/concurrency/actors/state_or_handle.la:11:12
-   |
-11 |     h.keep(tx);
-   |            ^^ expected Sender<Holder>
-   |
-   = help: two types are named `Holder` here: inside `actor Holder`'s body the name means its state, so the code expects its state but has a handle to it; the actor's handle type can't be written inside its body
-
-For more about E0403, run `lughac explain E0403`.

@@ -85,6 +85,9 @@ true
     answer.
   - `a.stop()` ends it after the messages already sent.
   - A panic in an actor fails its scope, like any task's.
+  - The actor's name as a type means its handle, inside its body too;
+    `Self` means its state. So `fun new(): Self = Name { … };` builds a
+    state, and a field `peers: Name[]` holds handles of the same actor.
 - **Values only:** what goes through a channel or to an actor must be
   `Sendable`, and arrives as the receiver's own copy.
 - **A deadlock** (every task waiting on another) ends the program with an

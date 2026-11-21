@@ -2020,6 +2020,8 @@ The rest of v15 (directories, processes, env, Unicode follow-ups) is in `TODO.md
 
 **Decision (v17 draft decisions 14–23, sessions 207–214):** an `actor` keyword; value methods wait (call), void ones are queued (cast); built-in `stop()`/`join(): Option<string>`/`is`; a panic ends only its actor (callers panic in turn; `join` reports); share nothing (no `Ref`, function or interface values across the boundary); start only with `spawn`; the name is the handle type outside, the state inside; private fields; unbounded mailbox; no generic actors. Built: the parser splits an actor into a struct and an `impl` marked `actor`; `Type::Actor`; handlers `lugha_actor_<Type>.<method>`; `runtime/actors.c`; all runtime panics through `panic_with`/`panic_end`. A stack overflow in an actor still ends the program (signal handler).
 
+**Changed (milestone 242, PRP-274):** the name is the handle type inside the body too, and `Self` the state, so an actor can name handles of its own type (`Sender<Holder>` as a field); the parser records where `Self` was written, which the checker reads, since `Self` is otherwise rewritten to the name.
+
 
 ### 176. Struct update syntax — milestone 93 (PRP-124)
 

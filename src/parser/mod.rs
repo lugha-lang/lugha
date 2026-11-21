@@ -91,6 +91,7 @@ pub fn parse_partial_from(tokens: &[Token], first: u32) -> (Program, Vec<Diagnos
         scrutinee: false,
         impl_self: None,
         impl_target: None,
+        self_types: std::cell::RefCell::new(Vec::new()),
         labels: Vec::new(),
         no_label: false,
         diagnostics: Vec::new(),
@@ -101,6 +102,7 @@ pub fn parse_partial_from(tokens: &[Token], first: u32) -> (Program, Vec<Diagnos
         imports,
         items,
         expr_count: parser.next_id,
+        self_types: parser.self_types.into_inner(),
     };
     (program, parser.diagnostics)
 }
@@ -129,6 +131,9 @@ struct Parser<'t> {
     /// The type of an `impl I for f64[]` block being read: `Self` in its
     /// types is that type.
     impl_target: Option<crate::ast::Type>,
+    /// Where `Self` was read as the `impl`'s type name
+    /// (`Program::self_types`); filled while types are read through `&self`.
+    self_types: std::cell::RefCell<Vec<crate::span::Span>>,
     /// The labels of the enclosing loops: after
     /// `break`, one of these names is the label, any other a value.
     labels: Vec<String>,

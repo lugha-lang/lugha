@@ -353,8 +353,11 @@ pub(super) struct Checker {
     uses_tasks: bool,
     /// Every actor, by key.
     actors: std::collections::HashSet<String>,
-    /// The actor whose body is being read: there its name is its state.
+    /// The actor whose body is being read: its state may be made there.
     in_actor: Option<String>,
+    /// Where `Self` was written as a type (`Program::self_types`): for an
+    /// actor, these mean its state, and its name its handle.
+    self_types: std::collections::HashSet<Span>,
     /// The operand of the `spawn` being checked: an actor's state may be made there.
     spawn_operand: Option<ExprId>,
     /// See `Checked::conversions`.

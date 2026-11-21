@@ -73,12 +73,14 @@ pub(in crate::check) fn mismatch(
 fn state_or_handle(expected: &Type, found: &Type) -> Option<String> {
     let (state, handle) = clash(expected, found)?;
     let name = state.rsplit('.').next().unwrap_or(&state);
-    let (wanted, given) = match handle {
-        Side::Found => ("its state", "a handle to it"),
-        Side::Expected => ("a handle to it", "its state"),
+    let advice = match handle {
+        Side::Found => "the code expects its state but has a handle to it",
+        Side::Expected => {
+            "the code expects a handle to it but has its state; write `Self` where the state is meant"
+        }
     };
     Some(format!(
-        "two types are named `{name}` here: inside `actor {name}`'s body the name means its state, so the code expects {wanted} but has {given}; the actor's handle type can't be written inside its body"
+        "two types print as `{name}` here: inside `actor {name}`, `Self` is its state and `{name}` a handle to it, as everywhere; {advice}"
     ))
 }
 
@@ -395,21 +397,17 @@ mod tests {
     fn an_actors_state_and_handle_are_told_apart() {
         let found = diagnostics(
             "actor Holder {
-                out: Option<Sender<Holder>>,
-                fun keep(mut self, s: Sender<Holder>) { self.out = Some(s); }
+                n: i64,
+                fun new(): Holder = Holder { n: 0 };
             }
-            fun main(root: Scope) {
-                let h = root.spawn(Holder { out: None });
-                let (tx, rx) = Chan<Holder>.unbounded();
-                h.keep(tx);
-            }",
+            fun main() {}",
         );
         let d = &found[0];
         assert_eq!(d.code, "E0403");
-        assert_eq!(d.message, "expected Sender<Holder>, found Sender<Holder>");
+        assert_eq!(d.message, "expected Holder, found Holder");
         let help = d.help.as_deref().unwrap_or("");
         assert!(
-            help.contains("inside `actor Holder`'s body the name means its state, so the code expects its state but has a handle to it"),
+            help.contains("inside `actor Holder`, `Self` is its state and `Holder` a handle to it, as everywhere; the code expects a handle to it but has its state; write `Self` where the state is meant"),
             "{help}"
         );
     }

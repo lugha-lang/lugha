@@ -24,11 +24,12 @@ pub fn mailbox_size(n: &Expr) -> Option<u64> {
 }
 
 impl Checker {
-    /// `ty` as written outside actor `ty`'s own body: its handle.
-    pub(super) fn as_handle(&self, ty: Type) -> Type {
+    /// The type written at `span` that resolved to `ty`: an actor's name
+    /// means its handle, everywhere; a written `Self` (`self_types`) its state.
+    pub(super) fn as_handle(&self, ty: Type, span: Span) -> Type {
         match ty {
             Type::Struct(key, args)
-                if self.actors.contains(&key) && self.in_actor.as_deref() != Some(key.as_str()) =>
+                if self.actors.contains(&key) && !self.self_types.contains(&span) =>
             {
                 Type::Actor(key, args)
             }
@@ -273,7 +274,7 @@ mod tests {
 
     const COUNTER: &str = "actor Counter {
         count: i64,
-        fun new(start: i64): Counter = Counter { count: start };
+        fun new(start: i64): Self = Counter { count: start };
         fun add(mut self, n: i64) { self.count += n; }
         fun get(self): i64 = self.count;
         fun bump(mut self): i64 { self.add(1); self.count }
@@ -463,5 +464,31 @@ mod tests {
         }
         assert!(!names.contains(&"count".to_string()), "{names:?}");
         assert!(!names.contains(&"new".to_string()), "{names:?}");
+    }
+
+    #[test]
+    fn inside_its_body_the_name_is_the_handle_and_self_the_state() {
+        ok("actor Holder {
+                out: Option<Sender<Holder>>,
+                peers: Holder[],
+                fun keep(mut self, s: Sender<Holder>) { self.out = Some(s); }
+                fun join(mut self, p: Holder) { self.peers.push(p); }
+                fun new(): Self = Holder { out: None, peers: [] };
+                fun copy(self): Self = Self { out: self.out, peers: self.peers };
+            }
+            actor Cache<V: Sendable> {
+                next: Option<Cache<V>>,
+                fun link(mut self, c: Cache<V>) { self.next = Some(c); }
+            }
+            interface Named { fun twin(self): Self; }
+            impl Named for Holder { fun twin(self): Self = self; }
+            fun main(root: Scope) {
+                let h: Holder = root.spawn(Holder.new());
+                h.join(h);
+            }");
+        assert_eq!(
+            errors("actor A { n: i64, fun make(): A = A { n: 0 }; }\nfun main() {}")[0].0,
+            "E0403"
+        );
     }
 }

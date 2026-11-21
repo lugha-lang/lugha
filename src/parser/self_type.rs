@@ -31,6 +31,7 @@ impl Parser<'_> {
             return Some(target.kind.clone());
         }
         let (ty, params) = self.impl_self.as_ref().filter(|_| name.name == SELF)?;
+        self.self_types.borrow_mut().push(name.span);
         let at = |n: &Ident| Ident {
             name: n.name.clone(),
             span: name.span,
@@ -117,5 +118,14 @@ mod tests {
             program("struct T<A> { k: Option<Self> }"),
             "(struct T (type-params A) (k (Option (applied T A))))"
         );
+    }
+
+    #[test]
+    fn where_self_was_written_as_a_type_is_kept() {
+        let src = "actor A { n: i64, fun make(): Self = A { n: 0 }; fun same(self, a: A): A = a; }";
+        let p = crate::parser::test_util::parse_src(src).expect("parses");
+        let at: Vec<&str> = p.self_types.iter().map(|s| &src[s.start..s.end]).collect();
+        assert_eq!(at, ["Self"]);
+        assert_eq!(p.self_types[0].start, src.find("Self").expect("written"));
     }
 }

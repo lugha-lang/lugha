@@ -1,0 +1,9 @@
+error[E0403]: expected Holder, found Holder
+   --> tests/programs/concurrency/actors/self_for_handle.la:11:20
+   |
+11 |     let t = h.twin(k);
+   |                    ^ expected Holder
+   |
+   = help: two types print as `Holder` here: inside `actor Holder`, `Self` is its state and `Holder` a handle to it, as everywhere; the code expects its state but has a handle to it
+
+For more about E0403, run `lughac explain E0403`.

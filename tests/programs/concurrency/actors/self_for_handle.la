@@ -1,0 +1,12 @@
+// `Self` inside an actor is its state, so it can't stand for a handle:
+// the error says which is which.
+actor Holder {
+    n: i64,
+    fun twin(self, other: Self): i64 = other.n;
+}
+
+fun main(root: Scope) {
+    let h = root.spawn(Holder { n: 1 });
+    let k = root.spawn(Holder { n: 2 });
+    let t = h.twin(k);
+}

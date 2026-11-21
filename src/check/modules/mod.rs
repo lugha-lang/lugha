@@ -212,6 +212,10 @@ fn run_with(units: &[Unit], tests: bool) -> (Checker, Vec<Instance>, Vec<Type>, 
         .max()
         .unwrap_or(0);
     let mut checker = Checker::new(count as usize);
+    checker.self_types = units
+        .iter()
+        .flat_map(|u| u.program.self_types.iter().copied())
+        .collect();
     checker.test_mode = tests;
     checker.modules(units);
     let monos = checker.monomorphize();

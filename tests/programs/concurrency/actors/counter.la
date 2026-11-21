@@ -2,7 +2,7 @@
 // the actor and fails its scope, which reports it.
 public actor Counter {
     count: i64,
-    fun new(start: i64): Counter = Counter { count: start };
+    fun new(start: i64): Self = Counter { count: start };
     fun add(mut self, n: i64) { self.count += n; }
     fun get(self): i64 = self.count;
     fun divide(mut self, by: i64) { self.count = self.count / by; }

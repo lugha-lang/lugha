@@ -57,6 +57,7 @@ impl Checker {
             uses_tasks: false,
             actors: std::collections::HashSet::new(),
             in_actor: None,
+            self_types: Default::default(),
             spawn_operand: None,
             conversions: HashMap::new(),
             try_conversions: HashMap::new(),

@@ -1,0 +1,24 @@
+// An actor holding a handle of its own type: each node of a chain passes a
+// request on to its next peer and adds its own name to the answer.
+actor Node {
+    name: string,
+    next: Option<Node>,
+    fun link(mut self, n: Node) { self.next = Some(n); }
+    fun path(self): string = match self.next {
+        .Some(n) => "{self.name} > {n.path()}",
+        .None => self.name,
+    };
+}
+
+fun main(console: Console, root: Scope) {
+    let a = root.spawn(Node { name: "a", next: None });
+    let b = root.spawn(Node { name: "b", next: None });
+    let c = root.spawn(Node { name: "c", next: None });
+    a.link(b);
+    b.link(c);
+    console.println(a.path());
+    console.println(b.path());
+    a.stop();
+    b.stop();
+    c.stop();
+}

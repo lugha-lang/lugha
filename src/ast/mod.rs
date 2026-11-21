@@ -33,6 +33,10 @@ pub struct Program {
     pub items: Vec<Item>,
     /// Number of `Expr` nodes; every `ExprId` is below this.
     pub expr_count: u32,
+    /// Where `Self` was written as a type inside an `impl` or an actor's
+    /// body; the parser reads it as the type's name, and for an actor these
+    /// places mean its state where its name means its handle.
+    pub self_types: Vec<Span>,
 }
 
 /// A name and where it was written.
