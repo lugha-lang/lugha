@@ -460,3 +460,26 @@ fn compile_errors_are_json_lines_with_diagnostics_json() {
         text(&out.stdout)
     );
 }
+
+#[test]
+fn a_diagnostic_names_its_file_by_its_path_as_build_does() {
+    let t = Temp::with(&[
+        (
+            "lugha.toml",
+            "[package]\nname = \"geo\"\nsource = \"src\"\n",
+        ),
+        (
+            "src/main.la",
+            "fun main() {\n    let x: i64 = \"s\";\n}\n\n@test\nfun m() {}\n",
+        ),
+        (
+            "test/a_test.la",
+            "@test\nfun t() {\n    let y: i64 = \"s\";\n}\n",
+        ),
+    ]);
+    let out = lughac(&t.0, &["test", "--json", "--diagnostics=json", "."]);
+    let stderr = text(&out.stderr);
+    assert!(stderr.contains(r#""file":"src/main.la""#), "{stderr}");
+    assert!(stderr.contains(r#""file":"test/a_test.la""#), "{stderr}");
+    assert!(!stderr.contains(r#""file":"main.la""#), "{stderr}");
+}

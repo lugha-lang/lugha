@@ -36,12 +36,19 @@ impl Source {
 
     /// The files of `loaded`, modules and manifests, named for
     /// messages and ordered by base, as `index_at` needs.
-    pub(super) fn of(main: &str, root: &std::path::Path, loaded: &Loaded) -> Self {
+    pub(super) fn of(main: &str, loaded: &Loaded) -> Self {
+        // Every file by its path from the program's own package folder (`src/shapes.la`,
+        // `test/a_test.la`), wherever `lughac` runs; one outside it (a git package's) keeps
+        // its full path. Without a `lugha.toml`, that folder is the main file's.
+        let root = loaded
+            .modules
+            .iter()
+            .find(|m| m.package.is_none() && m.folder.is_some())
+            .and_then(|m| m.folder.clone())
+            .unwrap_or_default();
         let relative = |file: &std::path::Path| {
-            file.strip_prefix(root)
-                .unwrap_or(file)
-                .display()
-                .to_string()
+            let file = file.strip_prefix(&root).unwrap_or(file);
+            file.strip_prefix(".").unwrap_or(file).display().to_string()
         };
         let modules = loaded.modules.iter().map(|m| SourceFile {
             name: if m.path.is_empty() {

@@ -1,0 +1,4 @@
+Ok(2)
+Err("too small")
+Err("too small")
+Err("no file")

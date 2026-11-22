@@ -1,0 +1,10 @@
+// A closure given to a `Result`'s `and_then` takes its error type from
+// what `and_then` expects, as one given to an `Option`'s takes its result.
+fun main(console: Console) {
+    let good: Result<i64, string> = Ok(1);
+    console.println(good.and_then(fun(n) = Ok(n + 1)).debug());
+    console.println(good.and_then(fun(n) = if n > 5 { Ok(n) } else { Err("too small") }).debug());
+    console.println(good.and_then(fun(n) = if n < 5 { Err("too small") } else { Ok(n) }).debug());
+    let failed: Result<i64, string> = Err("no file");
+    console.println(failed.and_then(fun(n) = Ok(n * 2)).debug());
+}

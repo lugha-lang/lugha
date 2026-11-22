@@ -71,7 +71,17 @@ impl Checker {
         for ((name, _), ty) in c.params.iter().zip(&params) {
             self.declare(name, ty.clone(), Binding::Param);
         }
-        let body_expect = ret.clone().filter(|r| *r != Type::Unit).map(Expect::of);
+        // A result known only in part (`Result<U, string>`, with `U` still to infer) still
+        // tells the body what it knows, so `Ok(n + 1)` takes its error type from it.
+        let partial = match &expected {
+            Some((_, r)) if ret.is_none() && unknown(r) && *r != Type::Error => Some(r.clone()),
+            _ => None,
+        };
+        let body_expect = ret
+            .clone()
+            .or(partial)
+            .filter(|r| *r != Type::Unit)
+            .map(Expect::of);
         let body = self.block(&c.body, body_expect.as_ref());
         self.pop();
         let frame = self.closures.pop().expect("pushed above");
@@ -130,7 +140,8 @@ impl Checker {
 
 /// True if `ty` is, or holds, the "not known yet" `Error` a generic call's
 /// hint puts where a type parameter isn't bound.
-fn unknown(ty: &Type) -> bool {
+/// True if `ty` has a part still to infer (`Type::Error` stands for one).
+pub(super) fn unknown(ty: &Type) -> bool {
     match ty {
         Type::Error => true,
         Type::Array(t)
@@ -197,6 +208,20 @@ mod tests {
             fun(vec![Type::I64], Type::Bool)
         );
         assert_eq!(ty("let k = fun() {};", "k"), fun(Vec::new(), Type::Unit));
+    }
+
+    #[test]
+    fn a_result_closure_takes_its_error_type_from_what_is_expected() {
+        let good = "let good: Result<i64, string> = Ok(1);";
+        ok(&format!(
+            "fun main() {{ {good} let r = good.and_then(fun(n) = Ok(n + 1)); }}"
+        ));
+        ok(&format!(
+            "fun main() {{ {good} let r = good.and_then(fun(n) = if n > 5 {{ Ok(n) }} else {{ Err(\"small\") }}); }}"
+        ));
+        ok(&format!(
+            "fun main() {{ {good} let r = good.and_then(fun(n) = if n < 5 {{ Err(\"small\") }} else {{ Ok(n) }}); }}"
+        ));
     }
 
     #[test]

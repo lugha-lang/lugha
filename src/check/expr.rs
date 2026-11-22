@@ -3,6 +3,7 @@
 //! Checking is bidirectional: the context may pass an `Expect` (a type and
 //! the reason for it), which numeric literals adopt.
 
+use super::closures::unknown;
 use super::{Binding, Checker, Type, errors, liveness};
 use crate::ast::{Block, Expr, ExprKind, UnOp};
 use crate::diagnostic::Label;
@@ -299,6 +300,24 @@ impl Checker {
                 return self.join_branches(expr, then, then_ty, else_expr, else_ty);
             }
         }
+        // A type known only in part (a closure's `Result<U, string>`, `U` still to infer): a
+        // branch that can't fill in the rest alone (`Err(…)`, `None`) takes its sibling's type.
+        if let Some(e) = expect
+            && e.ty != Type::Error
+            && unknown(&e.ty)
+        {
+            let then_waits = then.tail.as_ref().is_some_and(|t| waits_for_rest(t));
+            if then_waits && !waits_for_rest(else_expr) {
+                let else_ty = self.expr(else_expr, expect);
+                let given = sibling(&else_ty).filter(|g| !unknown(&g.ty));
+                let then_ty = self.block(then, given.as_ref().or(expect));
+                return self.join_branches(expr, then, then_ty, else_expr, else_ty);
+            }
+            let then_ty = self.block(then, expect);
+            let given = sibling(&then_ty).filter(|g| !unknown(&g.ty));
+            let else_ty = self.expr(else_expr, given.as_ref().or(expect));
+            return self.join_branches(expr, then, then_ty, else_expr, else_ty);
+        }
         let then_ty = self.block(then, expect);
         let else_ty = self.expr(else_expr, expect);
         self.join_branches(expr, then, then_ty, else_expr, else_ty)
@@ -378,6 +397,17 @@ fn takes(e: &Expr, ty: &Type) -> bool {
 
 /// The expectation a sibling branch of type `ty` gives a waiting one, if
 /// `ty` is a value's type.
+/// True if branch `e` (through a block's tail) is `Err(…)` or `None`: it names an `Option`'s or
+/// a `Result`'s error side only, so the rest of its type comes from elsewhere.
+fn waits_for_rest(e: &Expr) -> bool {
+    match &e.kind {
+        ExprKind::Block(b) => b.tail.as_ref().is_some_and(|t| waits_for_rest(t)),
+        ExprKind::Name(n) => n == "None",
+        ExprKind::Call(callee, _) => matches!(&callee.kind, ExprKind::Name(n) if n == "Err"),
+        _ => false,
+    }
+}
+
 pub(super) fn sibling(ty: &Type) -> Option<Expect> {
     (!matches!(ty, Type::Never | Type::Error | Type::Unit)).then(|| Expect::of(ty.clone()))
 }

@@ -82,8 +82,7 @@ fn loaded_all(
     };
     match modules::load_all(paths, read, env) {
         Ok(loaded) => {
-            let root = path.parent().unwrap_or(Path::new(""));
-            let source = Source::of(&name, root, &loaded);
+            let source = Source::of(&name, &loaded);
             if let (Some(text), true) = (&loaded.lock, write_lock) {
                 update::write_lock(&loaded.lock_folder, text, &source)?;
             }

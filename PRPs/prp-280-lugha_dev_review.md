@@ -44,7 +44,7 @@ Also:
    - No new diagnostic.
 2. **E0424's explanation:** "`main` returns nothing or an `i32` exit code, never an `Option` or a `Result`, so `?` can't be used there". The rest stays.
 3. **E0429's explanation:** its first line writes `let .Some(n) = o else { … };`. The list of ways out is `return`, `break`, `continue` or a call that never returns, such as `panic`, with no `exit`.
-4. **`lughac test`'s diagnostics name files as `build`'s do:** `src/main.la`, `test/shapes_test.la`, relative to the package root. The human text's `-->` line follows, since it's rendered from the same name.
+4. **Every diagnostic names its file by its path from where `lughac` ran,** in `build`, `run`, `check`, `fmt` and `test` alike: `src/main.la`, `src/shapes.la`, `test/shapes_test.la`. Today only `build`'s main file keeps its path; every other module is named from its own folder (`shapes.la`), and in `lughac test` every file is (`main.la`). A file outside that folder (a git package's) keeps its full path. The human text's `-->` line follows, since it's rendered from the same name. (Scope grown mid-way, user's choice, 2026-11-22: the PRP first said "as `build` does", which isn't one rule.)
 5. **Spec, L823:** says the signature form is how an own type prints in a diagnostic, and that `.debug()` on any function value prints `<fun>`, as `printing.rs` does.
 
 ## DECISIONS MADE IN DISCOVERY (mine, for review)
@@ -65,7 +65,7 @@ Also:
 ## TESTS
 - [ ] Checker: `good.and_then(fun(n) = Ok(n + 1))` on a `Result<i64, string>` types as `Result<i64, string>`, runs and prints `Ok(2)`; the `Option` case still works; a closure with no expectation is unchanged.
 - [ ] `lughac explain E0424` and `E0429`: the pages' examples still compile as each page says (the existing explain tests), with the new wording.
-- [ ] Driver: `lughac test --diagnostics=json` on a package with an error in `src/main.la` gives `"file":"src/main.la"`, and one in `test/a_test.la` gives `"file":"test/a_test.la"`.
+- [ ] Driver: `lughac test --diagnostics=json` on a package with an error in `src/main.la` gives `"file":"src/main.la"`, and one in `test/a_test.la` gives `"file":"test/a_test.la"`; `lughac build` of `src/main.la` with an error in an imported `src/shapes.la` names `src/shapes.la`. Program cases whose expected stderr names a module change with it.
 
 ## ACCEPTANCE
 - [ ] The objective's program prints `Ok(2)`.
