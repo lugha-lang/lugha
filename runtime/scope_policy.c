@@ -12,7 +12,7 @@
  * The root scope, `main`'s, waits for its tasks when `main` returns or
  * unwinds, and a failure there ends the program.
  *
- * A fragment, not compiled on its own: joined after scopes.c.
+ * A fragment, not compiled on its own: joined after scopes.c and scope_unwind.c.
  */
 
 enum {
