@@ -132,6 +132,10 @@ struct Fiber {
     int64_t rt_saved;
     /* Which wait woke it: a `select` case, or TIMED_OUT; WAITING before. */
     int64_t fired;
+    /* A wake that came before its wait was published (`fired`'s layout):
+     * a timer or socket armed for the wait it was about to begin, found
+     * by `block` once it publishes it (waiting.c). */
+    int64_t early;
     /* The actor this fiber runs (actors.c), or NULL. */
     void *actor;
     /* For a deadlock report: the channel it waits on (chans.c) and how

@@ -47,8 +47,12 @@ static void poll_found(struct epoll_event *events, int n) {
         Fiber *f = (Fiber *)(uintptr_t)(packed & EVENT_FIBER);
         if (f != NULL) {
             uint32_t gen = word_gen(fired_of(f));
-            if ((gen & 0xffff) == (uint32_t)(packed >> 48)) {
+            uint32_t armed = (uint32_t)(packed >> 48);
+            if ((gen & 0xffff) == armed) {
                 wake_gen(f, gen, 0);
+            } else if (((gen + 1) & 0xffff) == armed) {
+                // Ready before its fiber published the wait it armed.
+                wake_gen(f, gen + 1, 0);
             }
         }
     }

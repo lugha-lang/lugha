@@ -18,7 +18,11 @@
  * The word also holds the wait's generation (its high 32 bits), bumped by
  * each `block`: a timer or socket event armed for one wait claims only
  * that one, so arriving late, after its fiber was woken otherwise and
- * began another wait, it misses instead of waking the wrong one.
+ * began another wait, it misses instead of waking the wrong one. Arriving
+ * early, before its fiber published that wait (a timer is armed, then
+ * `block` publishes the wait it was armed for), it is noted in `early`,
+ * which `block` reads once it has published: one of the two always sees
+ * the other, and the claim lets only one of them win.
  *
  * A fiber waiting on a channel, an actor or a join parks still holding
  * that object's lock (`block_holding`); the fiber landing after it lets go
@@ -123,9 +127,17 @@ static void claimed_ready(Fiber *f, int64_t state) {
     }
 }
 
-/* Wakes `f`'s wait `gen` for `why`; false if it isn't in it any more. */
+/* Wakes `f`'s wait `gen` for `why`; false if it isn't in it any more.
+ * The wait `f` is about to begin is noted for its `block` to find. */
 static bool wake_gen(Fiber *f, uint32_t gen, int64_t why) {
     int64_t state = claim(f, gen, why);
+    if (state == CLAIM_LOST && word_gen(fired_of(f)) + 1 == gen) {
+        // Noted, then looked at again: published meanwhile, it is
+        // claimed here; not yet, `block` finds the note.
+        __atomic_store_n(&f->early, wait_word(gen, why), __ATOMIC_SEQ_CST);
+        __atomic_thread_fence(__ATOMIC_SEQ_CST);
+        state = claim(f, gen, why);
+    }
     if (state == CLAIM_LOST) {
         return false;
     }
@@ -327,6 +339,18 @@ static void switch_away(bool parking, bool yielding) {
 
 static bool shielded(Fiber *f);
 
+/* A timer or socket armed for `self`'s wait `gen` that fired before the
+ * wait was published (`early`): the wait ends now, as it would have, and
+ * a deadline it had sleeps no more. True if so. */
+static bool early_wake(Fiber *self, uint32_t gen) {
+    int64_t early = __atomic_load_n(&self->early, __ATOMIC_SEQ_CST);
+    if (word_gen(early) != gen || claim(self, gen, word_state(early)) == CLAIM_LOST) {
+        return false;
+    }
+    unsleep(self);
+    return true;
+}
+
 /* Blocks the current fiber until something wakes it; what did. A cancel
  * stored before the wait was published is seen here: the canceller,
  * fencing between storing it and looking whether this fiber waits, either
@@ -338,6 +362,7 @@ static int64_t block(void) {
     if (rt_locking) {
         __atomic_thread_fence(__ATOMIC_SEQ_CST);
     }
+    early_wake(self, gen);
     // `cancelled` is REASON_NONE, 0, until a cancel (scopes.c, joined later).
     if (self->cancellable && __atomic_load_n(&self->cancelled, __ATOMIC_ACQUIRE) != 0 &&
         !shielded(self)) {

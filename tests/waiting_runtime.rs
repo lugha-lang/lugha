@@ -62,6 +62,23 @@ int main(int argc, char **argv) {
         printf("%d %ld", first, (long)wait_state(&f));
         bool second = wake_gen(&f, 2, TIMED_OUT);
         printf(" %d %ld\n", second, (long)wait_state(&f));
+    } else if (strcmp(c, "early") == 0) {
+        // Wait 1 ends; a timer armed for wait 2 fires before `block` has
+        // published it, so it can't claim it: it leaves a note instead.
+        worker->parking = &f;
+        park_finish();
+        wake_gen(&f, 1, 3);
+        worker->ring_head = worker->ring_tail;
+        bool fired = wake_gen(&f, 2, TIMED_OUT);
+        printf("%d %ld", fired, (long)wait_state(&f));
+        // `block` publishes wait 2 and finds the note: it ends at once.
+        f.fired = wait_word(2, PARKING);
+        bool ended = early_wake(&f, 2);
+        printf(" %d %ld", ended, (long)wait_state(&f));
+        // A note for wait 2 never ends wait 3.
+        f.fired = wait_word(3, PARKING);
+        bool later = early_wake(&f, 3);
+        printf(" %d %d\n", later, is_waiting(&f));
     } else if (strcmp(c, "waiting") == 0) {
         printf("%d", is_waiting(&f));
         worker->parking = &f;
@@ -135,6 +152,13 @@ fn a_parked_task_is_queued_by_its_waker() {
 #[test]
 fn only_the_first_wake_counts() {
     assert_eq!(run("woken_twice"), "not queued 1\n");
+}
+
+#[test]
+fn a_timer_firing_before_its_wait_is_published_still_ends_it() {
+    // Before, the wake-up was lost: the task parked with no timer left,
+    // and once all else was idle the program died of a false deadlock.
+    assert_eq!(run("early"), "0 3 1 -2 0 1\n");
 }
 
 #[test]
