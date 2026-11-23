@@ -322,7 +322,9 @@ void join_hammer(void) { for (int i = 0; i < 4; i++) pthread_join(threads[i], 0)
 int64_t hammered(void) { return __atomic_load_n(&ran, __ATOMIC_RELAXED); }\n";
 
 /// The scope ends while four C threads keep calling: each call either runs
-/// with its captures alive or is dropped, and they are let go of once.
+/// with its captures alive or is dropped, and they are let go of once. The
+/// scope ends once a call has run, not after a fixed pause, which a slow
+/// machine's threads can outlast before calling at all.
 fn hammered_while_the_scope_ends(word: &str) {
     let dir = std::env::temp_dir().join(format!(
         "lugha-foreign-hammer-{word}-{}",
@@ -340,7 +342,7 @@ fn hammered_while_the_scope_ends(word: &str) {
              let word = \"captured {{hammered()}}\";\n\
              let r = scope s {{\n\
                  hammer(fun(i: i64): i64 {{ word.len + i * 0 }}, 100000);\n\
-                 task.sleep(2);\n\
+                 while hammered() == 0 {{ task.sleep(1); }}\n\
              }};\n\
              join_hammer();\n\
              let n = hammered();\n\
