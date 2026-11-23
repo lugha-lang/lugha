@@ -44,6 +44,11 @@ int32_t lugha_rt_udp_group(int64_t fd, const LughaString *group, const LughaStri
         return net_error(error, "no such interface");
     }
     int family = udp_family((int)fd);
+    // One request for both families, the interface by index: the same on
+    // Linux and macOS.
+    struct group_req req;
+    memset(&req, 0, sizeof req);
+    req.gr_interface = (uint32_t)index;
     struct in_addr v4;
     struct in6_addr v6;
     int r;
@@ -54,9 +59,12 @@ int32_t lugha_rt_udp_group(int64_t fd, const LughaString *group, const LughaStri
         if (family != AF_INET) {
             return net_error(error, "an IPv4 group needs a socket bound to an IPv4 address");
         }
-        struct ip_mreqn m = {.imr_multiaddr = v4, .imr_ifindex = index};
-        r = setsockopt((int)fd, IPPROTO_IP, join ? IP_ADD_MEMBERSHIP : IP_DROP_MEMBERSHIP, &m,
-                       sizeof m);
+        struct sockaddr_in *at = (struct sockaddr_in *)&req.gr_group;
+        at->sin_family = AF_INET;
+        at->sin_addr = v4;
+        os_sockaddr_len((struct sockaddr *)at, sizeof *at);
+        r = setsockopt((int)fd, IPPROTO_IP, join ? MCAST_JOIN_GROUP : MCAST_LEAVE_GROUP, &req,
+                       sizeof req);
     } else if (inet_pton(AF_INET6, text, &v6) == 1) {
         if (!IN6_IS_ADDR_MULTICAST(&v6)) {
             return net_error(error, "not a multicast group");
@@ -64,9 +72,12 @@ int32_t lugha_rt_udp_group(int64_t fd, const LughaString *group, const LughaStri
         if (family != AF_INET6) {
             return net_error(error, "an IPv6 group needs a socket bound to an IPv6 address");
         }
-        struct ipv6_mreq m = {.ipv6mr_multiaddr = v6, .ipv6mr_interface = (unsigned)index};
-        r = setsockopt((int)fd, IPPROTO_IPV6, join ? IPV6_JOIN_GROUP : IPV6_LEAVE_GROUP, &m,
-                       sizeof m);
+        struct sockaddr_in6 *at = (struct sockaddr_in6 *)&req.gr_group;
+        at->sin6_family = AF_INET6;
+        at->sin6_addr = v6;
+        os_sockaddr_len((struct sockaddr *)at, sizeof *at);
+        r = setsockopt((int)fd, IPPROTO_IPV6, join ? MCAST_JOIN_GROUP : MCAST_LEAVE_GROUP, &req,
+                       sizeof req);
     } else {
         return net_error(error, "group must be an IP address");
     }

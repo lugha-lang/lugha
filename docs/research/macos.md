@@ -62,6 +62,6 @@ Either way: hard links inside a folder can point at files elsewhere, on macOS as
 
 ## 6. What this suggests
 
-- **A "POSIX gaps" PRP** needs no decision: UDP's two-buffer receive (both systems), `POSIX_SPAWN_CLOEXEC_DEFAULT` with `pipe` + `fcntl` (🔒 `process.c`), multicast through `group_req`, and the sleep-aware clock question.
-- **Confinement** is a choice between design 1 (simple, refuses links that stay inside) and design 2 (Linux's behaviour, more code).
-- **Lockdown** is a choice between "not applied" (honest, today) and a best-effort Seatbelt layer, labelled partial.
+- **A "POSIX gaps" PRP** (done: PRP-286, milestone 252) needs no decision: UDP's two-buffer receive (both systems), `POSIX_SPAWN_CLOEXEC_DEFAULT` with `pipe` + `fcntl` (🔒 `process.c`), multicast through `group_req`, and the sleep-aware clock question.
+- **Confinement** is a choice between design 1 (simple, refuses links that stay inside) and design 2 (Linux's behaviour, more code). The user chose design 2.
+- **Lockdown** is a choice between "not applied" (honest, today) and a best-effort Seatbelt layer, labelled partial. The user chose Seatbelt's coarse parts: no new sockets without `Net`, no exec or fork without `Proc`.

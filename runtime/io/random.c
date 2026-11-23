@@ -32,7 +32,7 @@ uint64_t lugha_rt_os_seed(void) {
  * for deadlines; never the time of day. */
 int64_t lugha_rt_now_ms(void) {
     struct timespec t;
-    clock_gettime(CLOCK_MONOTONIC, &t);
+    clock_gettime(OS_MONOTONIC, &t);
     return (int64_t)t.tv_sec * 1000 + t.tv_nsec / 1000000;
 }
 

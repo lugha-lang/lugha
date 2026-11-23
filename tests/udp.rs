@@ -122,6 +122,25 @@ fn bad_input_is_refused() {
 }
 
 #[test]
+fn a_datagram_of_exactly_max_bytes_is_taken_whole() {
+    // The edge of the overflow area behind the buffer: one byte fewer
+    // than `max` and exactly `max` arrive whole; one more is refused.
+    let out = run("fun main(console: Console, net: Net) {
+    let a = net.udp_bind(\"127.0.0.1:0\").unwrap();
+    let b = net.udp_bind(\"127.0.0.1:0\").unwrap();
+    b.set_timeout(2000);
+    for n of [99, 100, 101] {
+        a.send_to([7 as u8; n], b.addr()).unwrap();
+        match b.recv_from(100) {
+            .Ok((got, _)) => console.println(\"{got.len}\"),
+            .Err(e) => console.println(e),
+        }
+    }
+}");
+    assert_eq!(out, "99\n100\ndatagram of 101 bytes is longer than max\n");
+}
+
+#[test]
 fn shared_sockets_hear_a_multicast_group_until_they_leave() {
     let out = run("fun main(console: Console, net: Net) {
     let a = net.udp_bind_shared(\"0.0.0.0:0\").unwrap();

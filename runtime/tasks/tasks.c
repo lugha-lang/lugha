@@ -277,7 +277,7 @@ static int64_t now_ns(void) {
         return virtual_ns;
     }
     struct timespec t;
-    clock_gettime(CLOCK_MONOTONIC, &t);
+    clock_gettime(OS_MONOTONIC, &t);
     return (int64_t)t.tv_sec * 1000000000 + t.tv_nsec;
 }
 

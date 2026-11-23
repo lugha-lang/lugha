@@ -130,8 +130,8 @@ static void spawn_job(Job *job) {
     posix_spawn_file_actions_t actions;
     posix_spawn_file_actions_init(&actions);
     if (capture) {
-        if (pipe2(out_pipe, O_CLOEXEC) != 0 || pipe2(err_pipe, O_CLOEXEC) != 0 ||
-            (mode == 2 && pipe2(in_pipe, O_CLOEXEC) != 0)) {
+        if (os_pipe(out_pipe) != 0 || os_pipe(err_pipe) != 0 ||
+            (mode == 2 && os_pipe(in_pipe) != 0)) {
             job->err = errno;
             for (int k = 0; k < 2; k++) {
                 if (out_pipe[k] >= 0) close(out_pipe[k]);
@@ -156,7 +156,10 @@ static void spawn_job(Job *job) {
     sigset_t none;
     sigemptyset(&none);
     posix_spawnattr_setsigmask(&attr, &none);
-    posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETSIGMASK);
+    // And what the system needs (os/<system>/os.c): on macOS, every
+    // descriptor not named above closed in the child.
+    short flags = os_spawn_prepare(&actions, !capture);
+    posix_spawnattr_setflags(&attr, (short)(POSIX_SPAWN_SETSIGMASK | flags));
     pid_t pid;
     int spawned = posix_spawnp(&pid, job->argv[0], &actions, &attr, job->argv, environ);
     posix_spawnattr_destroy(&attr);

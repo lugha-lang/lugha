@@ -81,9 +81,21 @@ static void os_sock_close(OsSocket s);
 
 /* What a POSIX system's own file gives os/posix/: a non-blocking,
  * close-on-exec socket and accepted connection, and a socket hearing only
- * the multicast groups it joined; with the flags `OS_SEND_FLAGS` (a
- * closed peer an error, not SIGPIPE) and `OS_RECV_FLAGS` (a datagram's
- * real length) as macros. */
+ * the multicast groups it joined; with the flag `OS_SEND_FLAGS` (a closed
+ * peer an error, not SIGPIPE) as a macro. A system's file also defines
+ * `OS_MONOTONIC`, the clock deadlines and sleeps are measured on, which
+ * stops while the machine is suspended. */
 static int os_sock_raw(int family, int type, int protocol);
 static int os_accept_raw(int s);
 static bool os_udp_own_groups(int s, int family);
+
+/* Starting programs (os/posix/process.c): a pipe whose two ends are
+ * closed in any program started after (0, or -1 and `errno`); and what a
+ * system adds to a start, given whether the child shares this program's
+ * stdin, stdout and stderr, as extra `posix_spawnattr` flags. */
+static int os_pipe(int fds[2]);
+static short os_spawn_prepare(posix_spawn_file_actions_t *actions, bool share);
+
+/* Sets the length byte a system's socket addresses carry (macOS's
+ * `sa_len`), `len` the address's size; nothing where they carry none. */
+static void os_sockaddr_len(struct sockaddr *at, socklen_t len);

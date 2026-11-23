@@ -29,6 +29,11 @@ int os_sync_wait_on_address(void *addr, uint64_t value, size_t size, uint32_t fl
 int os_sync_wake_by_address_any(void *addr, size_t size, uint32_t flags);
 int os_sync_wake_by_address_all(void *addr, size_t size, uint32_t flags);
 
+/* The clock deadlines and sleeps are measured on: macOS's
+ * `CLOCK_MONOTONIC` keeps counting while the Mac sleeps, its
+ * `CLOCK_UPTIME_RAW` stops, as Linux's `CLOCK_MONOTONIC` does. */
+#define OS_MONOTONIC CLOCK_UPTIME_RAW
+
 /* The key holding each thread's worker, made before `main`. */
 static pthread_key_t os_worker_key;
 
@@ -177,7 +182,6 @@ static bool os_thread_stack(void **base, size_t *size) {
  * socket, as with Go's and libuv's macOS sockets); no SIGPIPE, through
  * `SO_NOSIGPIPE` on the socket itself. */
 #define OS_SEND_FLAGS 0
-#define OS_RECV_FLAGS 0
 
 static bool os_sock_setup(int s) {
     int one = 1;
@@ -211,4 +215,39 @@ static bool os_udp_own_groups(int s, int family) {
     (void)s;
     (void)family;
     return true;
+}
+
+/* A pipe, both ends close-on-exec: macOS before 27 has no `pipe2`, so set
+ * just after. A program started in between by our own code can't inherit
+ * them (`os_spawn_prepare`); one started by foreign C code could, as with
+ * Go's, Rust's and libuv's pipes on macOS. */
+static int os_pipe(int fds[2]) {
+    if (pipe(fds) != 0) {
+        return -1;
+    }
+    if (fcntl(fds[0], F_SETFD, FD_CLOEXEC) != 0 || fcntl(fds[1], F_SETFD, FD_CLOEXEC) != 0) {
+        int saved = errno;
+        close(fds[0]);
+        close(fds[1]);
+        errno = saved;
+        return -1;
+    }
+    return 0;
+}
+
+/* Every descriptor the file actions don't name is closed in the child,
+ * atomically (`POSIX_SPAWN_CLOEXEC_DEFAULT`); a child sharing this
+ * program's stdin, stdout and stderr gets them named. */
+static short os_spawn_prepare(posix_spawn_file_actions_t *actions, bool share) {
+    if (share) {
+        for (int fd = 0; fd < 3; fd++) {
+            posix_spawn_file_actions_addinherit_np(actions, fd);
+        }
+    }
+    return POSIX_SPAWN_CLOEXEC_DEFAULT;
+}
+
+/* macOS's socket addresses carry their length, which its kernel checks. */
+static void os_sockaddr_len(struct sockaddr *at, socklen_t len) {
+    at->sa_len = (uint8_t)len;
 }

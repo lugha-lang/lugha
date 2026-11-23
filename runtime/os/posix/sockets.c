@@ -184,14 +184,31 @@ static int64_t os_sock_send(OsSocket s, const char *buf, int64_t n, int64_t dead
     return sent;
 }
 
+/* Where a datagram longer than the caller's buffer goes on: a UDP
+ * payload is at most 65,527 bytes, so with this behind the buffer the
+ * whole datagram always lands and its real length comes back. Only ever
+ * written, never read. */
+static __thread char sock_overflow[65536];
+
 /* The datagram's length: its real one when longer than `max`, so the
- * caller can refuse it rather than cut it short. */
+ * caller can refuse it rather than cut it short. One `recvmsg` into the
+ * caller's buffer and `sock_overflow` behind it, so the length is the
+ * datagram's own, on every system, with no second call to race. */
 static int64_t os_sock_recvfrom(OsSocket s, char *buf, int64_t max, struct sockaddr_storage *from,
                                 socklen_t *len, int64_t deadline, const char **message) {
     for (;;) {
-        *len = sizeof *from;
-        ssize_t n = recvfrom((int)s, buf, (size_t)max, OS_RECV_FLAGS, (struct sockaddr *)from, len);
+        struct iovec parts[2] = {{.iov_base = buf, .iov_len = (size_t)max},
+                                 {.iov_base = sock_overflow, .iov_len = sizeof sock_overflow}};
+        struct msghdr m = {.msg_name = from, .msg_namelen = sizeof *from, .msg_iov = parts,
+                           .msg_iovlen = 2};
+        ssize_t n = recvmsg((int)s, &m, 0);
         if (n >= 0) {
+            *len = m.msg_namelen;
+            if ((m.msg_flags & MSG_TRUNC) != 0) {
+                // Longer than both: UDP can't carry one, so never cut it short.
+                *message = "datagram is longer than 65536 bytes";
+                return OS_FAILED;
+            }
             return n;
         }
         if (errno == EAGAIN || errno == EWOULDBLOCK) {

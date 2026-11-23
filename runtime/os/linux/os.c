@@ -48,6 +48,10 @@ static inline Worker *os_worker(void) {
     return (Worker *)(thread_pointer() + (uintptr_t)worker_offset);
 }
 
+/* The clock deadlines and sleeps are measured on: one that stops while
+ * the machine is suspended. */
+#define OS_MONOTONIC CLOCK_MONOTONIC
+
 /* The event set, made at the first socket wait, job or wake-up. */
 static int os_poll_fd = -1;
 
@@ -162,7 +166,6 @@ static bool os_thread_stack(void **base, size_t *size) {
 /* Sockets' Linux details for os/posix/sockets.c: flags set atomically as
  * the socket is made, so no program started meanwhile inherits it. */
 #define OS_SEND_FLAGS MSG_NOSIGNAL
-#define OS_RECV_FLAGS MSG_TRUNC
 
 static int os_sock_raw(int family, int type, int protocol) {
     return socket(family, type | SOCK_NONBLOCK | SOCK_CLOEXEC, protocol);
@@ -187,4 +190,22 @@ static bool os_udp_own_groups(int s, int family) {
     }
 #endif
     return true;
+}
+
+/* A pipe, close-on-exec as it is made. */
+static int os_pipe(int fds[2]) {
+    return pipe2(fds, O_CLOEXEC);
+}
+
+/* Linux needs nothing more: every descriptor of ours is close-on-exec. */
+static short os_spawn_prepare(posix_spawn_file_actions_t *actions, bool share) {
+    (void)actions;
+    (void)share;
+    return 0;
+}
+
+/* Linux's socket addresses carry no length. */
+static void os_sockaddr_len(struct sockaddr *at, socklen_t len) {
+    (void)at;
+    (void)len;
 }
