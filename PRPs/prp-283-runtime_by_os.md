@@ -1,74 +1,102 @@
-## FEATURE: The runtime's OS calls go behind one layer in `runtime/os/linux.c` — milestone 249
+## FEATURE: The runtime in folders by role, its OS and CPU code under `os/` — milestone 249
+
+Amended before merging (the user's review): first only the OS layer (`os/linux.c`) moved out of a flat `runtime/`; now every file goes into a folder by what it does, and everything per system or per CPU goes under `os/<system>/`, laid out for the three platforms the Draft plans, so each later port fills a folder and never edits shared code.
 
 ## OBJECTIVE
 
-Nothing a Lugha program does changes. Inside the runtime, every event, wake-up, parking and system call the shared code makes goes through a small set of `os_*` functions, implemented for Linux in one new fragment:
+Nothing a Lugha program does changes, and the joined runtime compiles to the same code. Where every file lives, now and as the ports arrive:
 
 ```
 runtime/
-  lugha_rt.c          the core: portable includes, types, declarations of the os_* layer
-  os/linux.c          NEW: Linux's includes and the os_* layer (epoll, eventfd, futex, getrandom, …)
-  workers.c, net.c, jobs.c, parking.c, rt_lock.c, …   call os_*, never epoll/eventfd/futex directly
-  lockdown.c, dir.c, dir_names.c                       Linux-only fragments, unchanged, listed as such
+├── core/                       shared by every platform
+│   ├── lugha_rt.c              portable headers, types, the worker record
+│   └── test.c                  lughac test support
+├── memory/                     rc.c  rc_alloc.c  rc_check.c  cycles.c  cycle_sites.c  weak.c  cells.c
+├── tasks/                      tasks.c  runq.c  timers.c  waiting.c  workers.c  parking.c  rt_lock.c
+│                               stacks.c  stack.c  spawn.c  scopes.c  scope_unwind.c  scope_policy.c
+│                               scope_time.c  unwind.c  callbacks.c
+├── channels/                   chans.c  rings.c  select.c  actors.c
+├── io/                         helpers.c  jobs.c  net.c  udp.c  resolve.c  fs.c  file.c  env.c  random.c
+├── text/                       print.c  format.c  input.c  bytes.c  chars.c  cstr.c
+├── openssl/                    tls.c  tls_keys.c  crypto.c  crypto_hpke.c   (only when imported)
+└── os/
+    ├── layer.c                 the interface every system implements (os_poll_*, os_signal_*,
+    │                           os_wait_on/os_wake_on, os_cpus, os_random64, os_thread_stack)
+    ├── posix/                  what Linux and macOS share
+    │   └── process.c 🔒        starting programs (posix_spawn, pipes, waitpid)
+    ├── linux/                  ← built now
+    │   ├── os.c                the layer: epoll, eventfd, futex, getrandom, sched_getaffinity,
+    │   │                       pthread_getattr_np; Linux's headers
+    │   ├── x86_64.c            task switch and boot, running on another stack, a task's first
+    │   ├── aarch64.c           frame, the thread pointer (each file wrapped in #if for its CPU)
+    │   ├── lockdown.c 🔒       seccomp + Landlock
+    │   ├── dir.c 🔒            folder confinement (openat2)
+    │   └── dir_names.c 🔒
+    ├── darwin/                 ← portability step 4 (macOS)
+    │   ├── os.c                kqueue (EVFILT_READ/WRITE, EVFILT_USER), os_sync_wait_on_address
+    │   │                       or a semaphore, getentropy, pthread_get_stackaddr_np
+    │   ├── aarch64.c           Mach-O directives, `_` symbol prefix, tpidrro_el0
+    │   ├── x86_64.c            Mach-O, %gs thread pointer
+    │   ├── dir.c, dir_names.c  confinement without openat2 (O_NOFOLLOW_ANY, a walk per component)
+    │   └── lockdown.c          what a program promises there [PRT-11]: decided in step 4
+    └── windows/                ← portability step 5
+        ├── os.c                IOCP, PostQueuedCompletionStatus, WaitOnAddress, BCryptGenRandom,
+        │                       GetCurrentThreadStackLimits
+        ├── x86_64.c            Win64 calling rules, the TEB's stack bounds, SEH
+        ├── aarch64.c
+        ├── process.c           CreateProcessW (in place of posix/process.c)
+        ├── memory.c            VirtualAlloc (in place of mmap), guard pages
+        ├── signals.c           vectored exception handler, console Ctrl-C (in place of sigaction)
+        └── dir.c, dir_names.c  confinement with NtCreateFile; lockdown [PRT-11]
 ```
 
-A new test fails if a Linux-only name (`epoll_`, `eventfd`, `futex`, `SYS_`, `getrandom`, `sched_getaffinity`, `pthread_getattr_np`, `MAP_STACK`) appears in a shared fragment. Porting to macOS (step 4) then means writing `os/darwin.c` and its own versions of the three Linux-only fragments, never editing shared code.
+Which parts are joined: the shared folders always; `os/layer.c`; `os/posix/` for Linux and macOS; `os/<system>/` for the target's system. Today the only system is Linux, so every file above that exists is joined; selecting by system arrives with the second one (step 4). Each CPU file is wrapped in `#if defined(__x86_64__)` / `__aarch64__`, so both are joined and the compiler keeps one.
 
 ## CONTEXT
 
-- Read first: `runtime/lugha_rt.c` (the core, every include), `runtime/rt_lock.c` (`futex_wait`/`futex_wake`), `runtime/jobs.c` (epoll set, helper and wake eventfds), `runtime/net.c` (`poll_found`, `poll_sockets`, `wait_fd`'s arm and disarm), `runtime/parking.c`, `runtime/workers.c` (`cpus_usable`), `runtime/helpers.c` (the helper eventfd write), `runtime/random.c`, `runtime/stack.c`, `runtime/stacks.c`, `runtime/rc_alloc.c`, `src/link/runtime_parts.rs` (the join order) and its tests in `src/link/mod.rs`.
-- Creates: `runtime/os/linux.c`.
-- Implements: v18 Draft, Part 9, 9.2 rule 1 (the split, the poller handing back finished waiters) and rule 3 (per-worker parking behind the layer) [PRT-08, PRT-10]; step 3 of 9.3, first half. Research: `docs/research/cross-platform.md` §3.
-- Decisions: v18 ledger PRT-08, PRT-09, PRT-10, PRT-14 (approved). None open.
-- Follows: **PRP-284** (not this one): sockets behind the layer at the operation level (`os_sock_*`, `net.c` and `udp.c`), and a cancelled socket call waiting for the OS's acknowledgement [PRT-08's operations line, PRT-09].
+- Read first: every `runtime/*.c` header comment (each says what it is joined after); `src/link/runtime_parts.rs` (the join order), `src/link/runtime.rs` (`TLS_SOURCE`, `CRYPTO_SOURCE`), the tests in `src/link/mod.rs`; anything else naming a runtime path (`grep -rn "runtime/" src tests docs CLAUDE.md .github`).
+- Implements: v18 Draft, Part 9, 9.2 rules 1 and 3 [PRT-08, PRT-10] and rule 4's task switch per CPU and OS [PRT-14]; step 3 of 9.3, first half. Research: `docs/research/cross-platform.md` §3.
+- Decisions: v18 ledger PRT-08, PRT-10, PRT-14 (approved); PRT-11 deferred (lockdown and confinement on other systems: step 4).
+- Follows: **PRP-284**: sockets behind the layer at the operation level (`os_sock_*`; `net.c` and `udp.c`, which use Linux's `accept4` today) and a cancelled socket call waiting for the OS's acknowledgement [PRT-08, PRT-09].
 
 ## REQUIREMENTS
 
 ### Must Do
 
-1. **The layer.** Declared in the core (`lugha_rt.c`), implemented in `os/linux.c`, each `static` (one translation unit, so inlined, no cost):
-   - Events: `os_poll_open()`; `os_poll_arm(fd, want, token)` (one-shot readiness, `want` a mask of `OS_READ`/`OS_WRITE`); `os_poll_disarm(fd)`; `os_poll_wait(OsEvent *out, int max, int timeout_ms)` → count, each event carrying back its `token` (`uint64_t`).
-   - Signals between threads (today's two eventfds): `os_signal_new(token)` registered with the poll set; `os_signal_raise(signal)`; `os_signal_take(signal)`.
-   - Parking: `os_wait_on(uint32_t *word, uint32_t expected)`, `os_wake_on(uint32_t *word, int n)` (today's `futex_wait`/`futex_wake`).
-   - System: `os_cpus()`; `os_random64()` (today's getrandom, else `/dev/urandom`); `os_thread_stack(char **low, size_t *size)` (`pthread_getattr_np`); `OS_MAP_STACK` (the `mmap` flag for task stacks, 0 where none).
-2. **Shared code uses only the layer.** `jobs.c`, `net.c`, `helpers.c`, `rings.c`, `parking.c`, `workers.c`, `rt_lock.c`, `random.c`, `stack.c` and `stacks.c` call `os_*` instead of the Linux calls; `poll_found` reads `OsEvent` tokens, deciding what each means (a fiber's wait, the helper signal, the wake signal) exactly as today.
-3. **Includes.** The core keeps the portable (POSIX and C) headers; Linux's (`sys/epoll.h`, `sys/eventfd.h`, `linux/futex.h`, `linux/openat2.h`, `linux/landlock.h`, `linux/seccomp.h`, `linux/audit.h`, `linux/filter.h`, `sys/prctl.h`, `sys/syscall.h`, `sys/random.h`) move to `os/linux.c`, joined right after the core. The fragment rule becomes "only the core and `os/` files have `#include` lines".
-4. **Join order** (`runtime_parts.rs`): core, `os/linux.c`, then the rest as today. `RUNTIME_PARTS` marks `os/linux.c`, `lockdown.c`, `dir.c` and `dir_names.c` as Linux's, the rest as shared; while Linux is the only OS, the joined source is the same list.
-5. **The boundary test** (`src/link/mod.rs`): no shared fragment names `epoll_`, `eventfd`, `futex`, `SYS_`, `syscall(`, `getrandom`, `sched_getaffinity`, `pthread_getattr_np`, `MAP_STACK`, `openat2`, `RESOLVE_`, `landlock`, `seccomp` or `prctl` outside comments.
-6. Docs: the core's header (no longer "Linux with glibc" as a whole: shared code, plus `os/` per OS), CHANGELOG (Changed, internal), TODO (step 3's first half done), the Draft's Part 9 step 3 noted as split into PRP-283 and PRP-284.
+1. **The OS layer** (done in this branch's first commit): `os/layer.c` declares it, `os/linux/os.c` implements it with Linux's headers; jobs, net, udp, helpers, workers, parking, rt_lock, random and stack call `os_*` only.
+2. **Folders.** Every file moves (`git mv`, contents unchanged except comments naming another file's place) as the tree above shows; nothing is created for darwin or windows.
+3. **CPU code out of shared files.** `lugha_rt_task_swap` and `lugha_rt_task_boot` (`tasks.c`), `lugha_rt_on_stack` (`stacks.c`), `fiber_frame` (`spawn.c`) and `thread_pointer` (`lugha_rt.c`, which keeps its declaration) move to `os/linux/x86_64.c` and `os/linux/aarch64.c`, joined right after `tasks.c` (`fiber_frame` needs `Fiber`).
+4. **Join order** (`runtime_parts.rs`): the same sequence as today with the new paths, plus `os/layer.c` and `os/linux/os.c` right after the core and the two CPU files right after `tasks/tasks.c`. `LINUX_ONLY` names `os/linux/*`; a new `POSIX_ONLY` names `os/posix/*`.
+5. **The boundary test** (`src/link/mod.rs`) extended: no shared file (outside `os/`) names a Linux call (as now), uses `__asm__`, or tests `__x86_64__`/`__aarch64__`.
+6. **References updated**: `CLAUDE.md`'s security list (`runtime/os/posix/process.c`, `runtime/os/linux/lockdown.c`), the spec, CHANGELOG, TODO, and any test or tool that reads a runtime path.
+7. Docs: CHANGELOG (Changed), the Draft's step 3 note, the spec's milestone 249 row, `CLAUDE.md`'s STACK line.
 
 ### Must NOT Do
 
-- No change in behaviour, timing or symbols: generated code calls the same `lugha_rt_*` functions.
-- No edits to `lockdown.c`, `process.c`, `dir.c` or `dir_names.c` (security-sensitive or confinement): they are only *listed* as Linux's.
-- No sockets redesign (PRP-284), no macOS or Windows code (steps 4–5), no `@cfg`.
-- No new crate.
+- No change in behaviour or in the joined code beyond the moves: diffed before and after, the code lines differ only by the CPU blocks' new place and the layer's renamed calls.
+- No content change to the 🔒 files (`process.c`, `lockdown.c`, `dir.c`, `dir_names.c`): moved only (the user's explicit approval of the move).
+- No files for darwin or windows yet; no selection by system in lughac yet (one system).
+- No sockets redesign (PRP-284).
 
 ## DESIGN
 
-**Why these functions.** They are exactly the Linux calls shared code makes today (inventory: 15 files), grouped by what macOS and Windows will need to supply: an event poll (kqueue, IOCP), a cross-thread signal (`EVFILT_USER`, `PostQueuedCompletionStatus`), waiting on a word (`os_sync_wait_on_address`/semaphore, `WaitOnAddress`), and four system facts. `os_poll_*` keeps today's readiness shape; PRP-284 adds the operation-level socket calls on top, so Windows can implement them with completions without the shared code changing again.
+**Placement rule, for every future file:** shared code goes in the folder of its role; code only one system has goes in `os/<system>/`; code Linux and macOS share but Windows doesn't goes in `os/posix/`; CPU-specific code goes in `os/<system>/<cpu>.c`, since it is CPU × system in practice (assembler directives and symbol names differ between ELF and Mach-O, calling rules and thread state between Linux and Windows).
 
-**Token instead of `epoll_event.data`.** Today `poll_found` reads `data.ptr == &helper_tag` / `&wake_tag` or a packed fiber+generation in `data.u64`. The layer carries one `uint64_t token` both ways; the helper and wake signals get fixed tokens (1 and 2, never a fiber address, which is aligned and above 4096), fibers keep their packed value.
+**What stays shared though POSIX-flavoured, for now:** pthreads (Windows gets them from MinGW's winpthreads, which zig ships), `getenv`, `clock_gettime`; `mmap`/`mprotect`/`madvise` in `stacks.c`, `rc_alloc.c`, `callbacks.c` and `sigaction`/`sigaltstack` in `stack.c`, `scope_time.c`, which step 5 moves behind the layer (`windows/memory.c`, `windows/signals.c` above).
 
-**Security.** No change to what any program may do; `lockdown.c`, `process.c`, `dir.c` untouched. The includes `lockdown.c` and `dir.c` need move from the core to `os/linux.c`, joined earlier than both, so they compile the same; the joined runtime is diffed before and after to show only the moved lines and the renamed calls differ.
+**Security.** The four 🔒 files move without a content change (shown by `git diff -M --stat` as pure renames); their compiled form is unchanged (the joined-source diff). Nothing changes what a program may do.
 
-**Performance.** All in one translation unit as `static` functions: the compiler inlines them. Checked with `bench/run.py chanping wordfreq binarytrees` before and after (no change beyond noise).
-
-**Judgement calls (for review).**
-- Two PRPs for step 3, so each stays reviewable; the Draft's step 3 is both.
-- Linux-only fragments are listed, not moved into `os/linux/`: moving security-sensitive files is a change to them in git's eyes, and gains nothing until a second OS exists.
-- `os/linux.c` holds what POSIX systems share too (the `/dev/urandom` fallback, `mmap` flags) until macOS shows what really is common; `os/posix.c` comes with step 4.
-- Fixed tokens 1 and 2 for the two signals.
+**Judgement calls (for review).** `test.c` in `core/`; `random.c` and `env.c` in `io/`; `callbacks.c` in `tasks/` (it runs Lugha on C's threads); `posix/` holding only `process.c` until step 4 moves more there; CPU files always joined and self-selecting by `#if` rather than lughac choosing.
 
 ## TESTS
 
-- [ ] `src/link/mod.rs`: the boundary test (Must Do 5), failing today on the 13 fragments that make Linux calls; the fragment rule's test updated to allow `os/` includes; the join order begins core, `os/linux.c`.
-- [ ] Unchanged behaviour: `cargo test --lib`; `--test programs`; `--test workers`, `scheduler_stress`, `spawn_stress`, `waiting_runtime` (they include `lugha_rt.c` itself and call the scheduler's functions); `--test net`, `foreign_threads`, `callbacks`, `pinned`, `rings`, `lockdown`, `dir_race`; `--test arm` and `--test musl` (zig still compiles the joined runtime).
-- [ ] `bench/run.py chanping wordfreq binarytrees --runs 5` before and after.
+- [ ] `src/link/mod.rs`: the boundary test with the new rules, failing first on `tasks.c`, `stacks.c`, `spawn.c`, `lugha_rt.c`; the join order (core, `os/layer.c`, `os/linux/os.c`, …, `tasks/tasks.c`, `os/linux/x86_64.c`, `os/linux/aarch64.c`, …); every runtime file on disk is a part (no file forgotten by a move).
+- [ ] The joined source before and after, diffed: only moved blocks and the layer's calls differ.
+- [ ] As before: `cargo test --lib`, `--test programs`, `workers`, `scheduler_stress`, `spawn_stress`, `waiting_runtime`, `net`, `foreign_threads`, `callbacks`, `pinned`, `rings`, `lockdown`, `dir_race`, `arm`, `musl`, `tls` (the OpenSSL parts' new paths), `comments`.
+- [ ] `bench/run.py chanping wordfreq binarytrees`: no slower.
 
 ## ACCEPTANCE
 
-- [ ] No Linux call outside `os/linux.c` and the three listed Linux fragments, enforced by the test.
-- [ ] The tests above pass; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean; every runtime fragment ≤ 500 lines.
-- [ ] Benchmarks unchanged within noise.
-- [ ] CHANGELOG, TODO and the Draft's step 3 note updated.
+- [ ] The tree above, for what exists today; every 🔒 file a pure rename.
+- [ ] The tests above pass; `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` clean; every file ≤ 500 lines.
+- [ ] CHANGELOG, the Draft's step 3, the spec's row 249, `CLAUDE.md` updated.
