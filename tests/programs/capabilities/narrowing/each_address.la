@@ -1,0 +1,51 @@
+// A narrowed network tries each allowed address its host resolves to, in
+// turn, as a plain connect does: `localhost` may give `::1` first to a
+// server listening on 127.0.0.1.
+struct Line {}
+
+impl Conn for Line {
+    fun read(self, max: i64): Result<u8[], string> = Ok([]);
+    fun write(self, bytes: u8[]): Result<(), string> = Ok(());
+    fun set_timeout(self, ms: i64) {}
+    fun peer(self): string = "fake:1";
+    fun addr(self): string = "fake:0";
+    fun close(self) {}
+}
+
+/** Resolves every name to `ips`, in order; only `good` answers. */
+struct Many { ips: string[], good: string }
+
+impl Net for Many {
+    fun connect_timeout(self, addr: string, ms: i64): Result<Conn, string> {
+        if addr == self.good {
+            return Ok(Line {});
+        }
+        Err("refused {addr}")
+    }
+    fun listen(self, addr: string): Result<Listener, string> = Err("no");
+    fun resolve(self, name: string): Result<string[], string> = Ok(self.ips);
+    fun udp_bind(self, addr: string): Result<Udp, string> = Err("no");
+    fun udp_bind_shared(self, addr: string): Result<Udp, string> = Err("no");
+    fun interfaces(self): Result<NetInterface[], string> = Ok([]);
+}
+
+fun main(console: Console) {
+    let local = Many { ips: ["::1", "127.0.0.1"], good: "127.0.0.1:80" };
+    // The second address answers.
+    console.println(local.only("localhost:80").allow_private().connect("localhost:80").is_ok());
+    // None answers: the last one's error.
+    let none = Many { ips: ["::1", "127.0.0.1"], good: "nowhere" };
+    match none.only("localhost:80").allow_private().connect("localhost:80") {
+        .Ok(_) => console.println("connected"),
+        .Err(e) => console.println(e),
+    }
+    // Only allowed addresses are tried: without `allow_private`, the
+    // public one, never `::1`.
+    let mixed = Many { ips: ["::1", "93.184.215.14"], good: "93.184.215.14:80" };
+    console.println(mixed.only("example.com:80").connect("example.com:80").is_ok());
+    let private_only = Many { ips: ["::1", "93.184.215.14"], good: "[::1]:80" };
+    match private_only.only("example.com:80").connect("example.com:80") {
+        .Ok(_) => console.println("connected"),
+        .Err(e) => console.println(e),
+    }
+}

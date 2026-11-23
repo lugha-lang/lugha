@@ -57,8 +57,10 @@ impl Net for OnlyNet {
             }
         };
         let usable = self.usable()?;
-        let ip = match wanted {
-            .None => usable[0],
+        // By name, each allowed address in turn, as a plain connect tries
+        // them: `localhost` can give `::1` first to a server on 127.0.0.1.
+        let tries = match wanted {
+            .None => usable,
             .Some(ip) => {
                 let mut found = false;
                 for each of usable {
@@ -70,11 +72,22 @@ impl Net for OnlyNet {
                 if !found {
                     return Err(self.refusal());
                 }
-                ip
+                [ip]
             }
         };
-        let at = if ip.contains(":") { "[{ip}]:{port}" } else { "{ip}:{port}" };
-        self.under.connect_timeout(at, ms)
+        let mut last = "";
+        for ip of tries {
+            let at = if ip.contains(":") { "[{ip}]:{port}" } else { "{ip}:{port}" };
+            match self.under.connect_timeout(at, ms) {
+                .Ok(conn) => {
+                    return Ok(conn);
+                }
+                .Err(e) => {
+                    last = e;
+                }
+            }
+        }
+        Err(last)
     }
     fun listen(self, addr: string): Result<Listener, string> = Err("this network only connects to {self.target()}");
     // Only what `connect` would use: a narrowed network hides the rest.
