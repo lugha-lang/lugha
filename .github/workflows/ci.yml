@@ -81,7 +81,11 @@ jobs:
     name: Tests ${{ matrix.part }}/4
     needs: build
     runs-on: ubuntu-latest
-    container: ubuntu:26.04
+    container:
+      image: ubuntu:26.04
+      # ThreadSanitizer turns ASLR off for its own process, through
+      # personality(), which Docker's default seccomp filter refuses.
+      options: --security-opt seccomp=unconfined
     strategy:
       # Every part runs to the end, so one failure never hides another.
       fail-fast: false
@@ -119,7 +123,10 @@ jobs:
       - name: Run part ${{ matrix.part }} of the tests
         # Extracted into the workspace, lughac lands at the path the tests
         # were compiled with (`env!("CARGO_BIN_EXE_lughac")`).
+        # No core dumps: the runner pipes each to its crash collector, which
+        # made a test that dies by SIGSEGV on purpose take over 10 seconds.
         run: |
+          ulimit -c 0
           cargo-nextest nextest run --profile ci \
             --archive-file nextest-archive.tar.zst \
             --extract-to . --extract-overwrite --workspace-remap . \
