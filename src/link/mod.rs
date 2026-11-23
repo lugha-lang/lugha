@@ -25,7 +25,7 @@ use std::path::{Path, PathBuf};
 
 pub use self::errors::{LinkError, foreign_refusals};
 pub use self::inputs::{Plan, PlanError};
-pub use self::runtime_parts::{RUNTIME_PARTS, RUNTIME_SOURCE, RUNTIME_SYMBOLS};
+pub use self::runtime_parts::{LINUX_ONLY, RUNTIME_PARTS, RUNTIME_SOURCE, RUNTIME_SYMBOLS};
 
 /// Links `objects` and the runtime into the executable `output`.
 ///
@@ -232,8 +232,86 @@ mod tests {
             assert!(!src.trim().is_empty(), "{name} is empty");
             assert!(src.lines().count() <= 500, "{name} is over 500 lines");
             let includes = src.lines().any(|l| l.starts_with("#include"));
-            assert_eq!(includes, i == 0, "{name}: only the core has #include lines");
+            let may = i == 0 || name.starts_with("os/");
+            assert!(
+                includes || i != 0,
+                "the core holds the portable #include lines"
+            );
+            assert!(
+                !includes || may,
+                "{name}: only the core and os/ have #include lines"
+            );
         }
+    }
+
+    #[test]
+    fn the_os_layer_comes_right_after_the_core() {
+        let names: Vec<&str> = RUNTIME_PARTS.iter().map(|(name, _)| *name).collect();
+        assert_eq!(names[..3], ["lugha_rt.c", "os/layer.c", "os/linux.c"]);
+        for only in super::LINUX_ONLY {
+            assert!(names.contains(&only), "{only} is a runtime part");
+        }
+    }
+
+    /// `src` without its `/* */` and `//` comments.
+    fn code_of(src: &str) -> String {
+        let mut out = String::new();
+        let mut rest = src;
+        while !rest.is_empty() {
+            if let Some(after) = rest.strip_prefix("/*") {
+                rest = after.split_once("*/").map_or("", |(_, r)| r);
+            } else if let Some(after) = rest.strip_prefix("//") {
+                rest = after.split_once('\n').map_or("", |(_, r)| r);
+                out.push('\n');
+            } else if rest.starts_with('"') {
+                // A string literal is code: kept whole, so `"//"` isn't a comment.
+                let end = rest[1..].find('"').map_or(rest.len(), |i| i + 2);
+                out.push_str(&rest[..end]);
+                rest = &rest[end..];
+            } else {
+                let c = rest.chars().next().expect("not empty");
+                out.push(c);
+                rest = &rest[c.len_utf8()..];
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn only_the_os_layer_and_linux_parts_call_linux() {
+        const LINUX: [&str; 14] = [
+            "epoll_",
+            "eventfd",
+            "futex",
+            "SYS_",
+            "syscall(",
+            "getrandom",
+            "sched_getaffinity",
+            "pthread_getattr_np",
+            "openat2",
+            "RESOLVE_",
+            "landlock",
+            "seccomp",
+            "prctl",
+            "<linux/",
+        ];
+        let mut found = Vec::new();
+        for (name, src) in RUNTIME_PARTS {
+            if super::LINUX_ONLY.contains(&name) {
+                continue;
+            }
+            let code = code_of(src);
+            for word in LINUX {
+                if code.contains(word) {
+                    found.push(format!("{name}: {word}"));
+                }
+            }
+        }
+        assert!(
+            found.is_empty(),
+            "Linux calls in shared parts:\n{}",
+            found.join("\n")
+        );
     }
 
     #[test]

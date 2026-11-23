@@ -7,16 +7,6 @@
  * opens a section.
  */
 
-/* Waits while `*word` is `value`, or until woken; wakes up to `n`
- * waiting on `word`. */
-static void futex_wait(uint32_t *word, uint32_t value) {
-    syscall(SYS_futex, word, FUTEX_WAIT_PRIVATE, value, NULL, NULL, 0);
-}
-
-static void futex_wake(uint32_t *word, int n) {
-    syscall(SYS_futex, word, FUTEX_WAKE_PRIVATE, n, NULL, NULL, 0);
-}
-
 /* A lock of atomics and a futex (0 free, 1 held, 2 held with waiters),
  * not a pthread mutex: it has no owner, so a fiber may take it on one
  * thread and let go of it after moving to another. */
@@ -29,7 +19,7 @@ static inline __attribute__((always_inline)) void lock_take(uint32_t *lock) {
         was = __atomic_exchange_n(lock, 2, __ATOMIC_ACQUIRE);
     }
     while (was != 0) {
-        futex_wait(lock, 2);
+        os_wait_on(lock, 2);
         was = __atomic_exchange_n(lock, 2, __ATOMIC_ACQUIRE);
     }
 }
@@ -37,7 +27,7 @@ static inline __attribute__((always_inline)) void lock_take(uint32_t *lock) {
 static inline __attribute__((always_inline)) void lock_give(uint32_t *lock) {
     if (__atomic_fetch_sub(lock, 1, __ATOMIC_RELEASE) != 1) {
         __atomic_store_n(lock, 0, __ATOMIC_RELEASE);
-        futex_wake(lock, 1);
+        os_wake_on(lock, 1);
     }
 }
 

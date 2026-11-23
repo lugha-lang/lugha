@@ -9,7 +9,12 @@
  * ABI notes: `bool` and `u8` arguments arrive zero-extended to 32 bits, so
  * no function depends on how a C compiler extends narrower parameters.
  *
- * Platform: Linux with glibc (pthread_getattr_np for the stack bounds).
+ * Platform: this core and the shared parts call the operating system only
+ * through the `os_*` layer (os/layer.c, joined right after this core),
+ * implemented per system in `os/<system>.c` (today `os/linux.c`, Linux
+ * with glibc or musl), joined after it. A few parts confine folders and lock the process
+ * down with Linux's own calls, and are Linux's alone (lughac's
+ * `LINUX_ONLY`).
  *
  * Source layout: this core comes first (it enables GNU extensions and holds
  * every include, type and declaration), then stack.c (the stack overflow
@@ -32,25 +37,14 @@
 #include <pthread.h>
 #include <signal.h>
 #include <spawn.h>
-#include <linux/audit.h>
-#include <linux/filter.h>
-#include <linux/landlock.h>
-#include <linux/openat2.h>
-#include <linux/seccomp.h>
 #include <sched.h>
 #if defined(__SANITIZE_THREAD__)
 #include <sanitizer/tsan_interface.h>
 #endif
 #include <stddef.h>
-#include <sys/prctl.h>
-#include <sys/epoll.h>
-#include <sys/eventfd.h>
 #include <sys/mman.h>
-#include <sys/random.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/syscall.h>
-#include <linux/futex.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <inttypes.h>

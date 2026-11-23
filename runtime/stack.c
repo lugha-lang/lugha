@@ -73,15 +73,9 @@ static void stack_overflow_handler_thread(void) {
 
 /* Each step can fail; then the program runs without the handler, as before. */
 static void install_stack_overflow_handler(void) {
-    pthread_attr_t attr;
     void *base;
     size_t size;
-    if (pthread_getattr_np(pthread_self(), &attr) != 0) {
-        return;
-    }
-    int got = pthread_attr_getstack(&attr, &base, &size);
-    pthread_attr_destroy(&attr);
-    if (got != 0) {
+    if (!os_thread_stack(&base, &size)) {
         return;
     }
     stack_t alternate;

@@ -13,11 +13,7 @@
  * system with neither gives no randomness, which is a panic. */
 uint64_t lugha_rt_os_seed(void) {
     uint64_t seed = 0;
-    ssize_t got;
-    do {
-        got = getrandom(&seed, sizeof seed, 0);
-    } while (got < 0 && errno == EINTR);
-    if (got == (ssize_t)sizeof seed) {
+    if (os_random64(&seed)) {
         return seed;
     }
     int fd = open("/dev/urandom", O_RDONLY | O_CLOEXEC);

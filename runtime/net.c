@@ -31,19 +31,19 @@ static int32_t net_error(LughaString **error, const char *message) {
 static void poller_back(void);
 
 /* What one poll found, waking tasks: under the lock, as every wake is. */
-static void poll_found(struct epoll_event *events, int n) {
+static void poll_found(OsEvent *events, int n) {
     RT_SECTION();
     for (int i = 0; i < n; i++) {
-        if (events[i].data.ptr == &helper_tag) {
+        if (events[i].token == OS_TOKEN_HELPERS) {
             jobs_collect();
             continue;
         }
-        if (events[i].data.ptr == &wake_tag) {
+        if (events[i].token == OS_TOKEN_WAKE) {
             wake_taken();
             continue;
         }
         // A fiber and the wait it was armed for: a late event misses.
-        uint64_t packed = events[i].data.u64;
+        uint64_t packed = events[i].token;
         Fiber *f = (Fiber *)(uintptr_t)(packed & EVENT_FIBER);
         if (f != NULL) {
             uint32_t gen = word_gen(fired_of(f));
@@ -64,8 +64,8 @@ static void poll_sockets(int64_t wait_ns) {
         int64_t rounded = (wait_ns + 999999) / 1000000;
         ms = rounded > INT32_MAX ? INT32_MAX : (int)rounded;
     }
-    struct epoll_event events[NET_EVENTS];
-    int n = epoll_wait(net_epoll, events, NET_EVENTS, ms);
+    OsEvent events[NET_EVENTS];
+    int n = os_poll_wait(events, NET_EVENTS, ms);
     if (ms != 0) {
         poller_back();
     }
@@ -122,9 +122,10 @@ static void net_waits_remove(void) {
     }
 }
 
-/* Parks this thread until `fd` is ready for `events`: 1, or 0 when
- * `deadline` (monotonic ns; < 0 for none) passes first, or WAIT_CANCELLED. */
-static int wait_fd(int fd, uint32_t events, int64_t deadline) {
+/* Parks this thread until `fd` is ready for `want` (OS_READ, OS_WRITE):
+ * 1, or 0 when `deadline` (monotonic ns; < 0 for none) passes first, or
+ * WAIT_CANCELLED. */
+static int wait_fd(int fd, uint32_t want, int64_t deadline) {
     RT_SECTION();
     ensure_started();
     if (current->cancelled != REASON_NONE && !current->unwinding) {
@@ -136,11 +137,7 @@ static int wait_fd(int fd, uint32_t events, int64_t deadline) {
     // bits of the wait's generation above it.
     uint64_t packed = (uint64_t)(uintptr_t)current |
                       ((uint64_t)(next_wait_gen(current) & 0xffff) << 48);
-    struct epoll_event ev = {.events = events | EPOLLONESHOT, .data = {.u64 = packed}};
-    if (epoll_ctl(net_epoll, EPOLL_CTL_MOD, fd, &ev) != 0 &&
-        epoll_ctl(net_epoll, EPOLL_CTL_ADD, fd, &ev) != 0) {
-        die("panic: epoll_ctl failed\n");
-    }
+    os_poll_arm(fd, want, packed);
     if (deadline >= 0) {
         add_sleeper(current, deadline);
     }
@@ -158,8 +155,7 @@ static int wait_fd(int fd, uint32_t events, int64_t deadline) {
     }
     if (why == TIMED_OUT || why == CANCELLED) {
         /* Disarmed, so a late event can't wake this thread again. */
-        struct epoll_event off = {.events = 0, .data = {.ptr = NULL}};
-        epoll_ctl(net_epoll, EPOLL_CTL_MOD, fd, &off);
+        os_poll_disarm(fd);
         return why == CANCELLED ? WAIT_CANCELLED : 0;
     }
     return 1;
@@ -296,7 +292,7 @@ int32_t lugha_rt_net_connect(const LughaString *addr, int64_t timeout_ms, int64_
         int err = connect(s, a->ai_addr, a->ai_addrlen) == 0 ? 0 : errno;
         if (err == EINPROGRESS) {
             socklen_t len = sizeof err;
-            int ready = wait_fd(s, EPOLLOUT, deadline);
+            int ready = wait_fd(s, OS_WRITE, deadline);
             if (ready == WAIT_CLOSED) {
                 return net_error(error, "closed");
             }
@@ -333,7 +329,7 @@ int32_t lugha_rt_net_accept(int64_t fd, int64_t timeout_ms, int64_t *conn, Lugha
             return 1;
         }
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            int ready = wait_fd((int)fd, EPOLLIN, deadline);
+            int ready = wait_fd((int)fd, OS_READ, deadline);
             if (ready == WAIT_CLOSED) {
                 return net_error(error, "closed");
             }
@@ -366,7 +362,7 @@ int32_t lugha_rt_net_read(int64_t fd, int64_t max, int64_t timeout_ms, LughaArra
             return 1;
         }
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            int ready = wait_fd((int)fd, EPOLLIN, deadline);
+            int ready = wait_fd((int)fd, OS_READ, deadline);
             if (ready == WAIT_CLOSED) {
                 rt_scratch_done(buffer);
                 return net_error(error, "closed");
@@ -398,7 +394,7 @@ int32_t lugha_rt_net_write(int64_t fd, const LughaArray *bytes, int64_t timeout_
         if (n >= 0) {
             sent += n;
         } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            int ready = wait_fd((int)fd, EPOLLOUT, deadline);
+            int ready = wait_fd((int)fd, OS_WRITE, deadline);
             if (ready == WAIT_CLOSED) {
                 return net_error(error, "closed");
             }

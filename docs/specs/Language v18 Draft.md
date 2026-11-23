@@ -1214,7 +1214,7 @@ One platform at a time, each step one or more PRPs [PRT-04]:
 | --- | --- |
 | 1 | zig for foreign targets; Linux musl (9.1) |
 | 2 | `run` and `test` for ARM builds under `qemu-aarch64`; ARM in CI |
-| 3 | The runtime split by OS, no change in behaviour (9.2 rules 1–3) |
+| 3 | The runtime split by OS, no change in behaviour (9.2 rules 1–3), in two PRPs: the OS layer (`os/layer.c`, `os/linux.c`; PRP-283), then sockets at the operation level and the cancel acknowledgement (PRP-284) |
 | 4 | macOS: `os/darwin.c` (kqueue), Mach-O through zig, Apple's ARM64 calling differences; a Mac CI runner |
 | 5 | Windows: files, processes, environment, sockets, stack overflow, Windows x64 calling rules, `.exe` through zig's MinGW; a Windows CI runner |
 | 6 | WebAssembly (WASI): one worker, no helper threads; its capabilities and std modules decided first |

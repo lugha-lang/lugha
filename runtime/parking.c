@@ -159,7 +159,7 @@ static void park(Worker *w) {
         return;
     }
     while (__atomic_load_n(&w->wake, __ATOMIC_ACQUIRE) == seen) {
-        futex_wait(&w->wake, seen);
+        os_wait_on(&w->wake, seen);
     }
 }
 

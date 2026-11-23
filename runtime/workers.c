@@ -35,17 +35,6 @@ static int spinning_workers;
 static bool poller_busy;
 static int64_t poll_until = -1;
 
-/* The number of CPUs this process may run on. */
-static int cpus_usable(void) {
-    cpu_set_t set;
-    if (sched_getaffinity(0, sizeof set, &set) == 0) {
-        int n = CPU_COUNT(&set);
-        return n > 0 ? n : 1;
-    }
-    long n = sysconf(_SC_NPROCESSORS_ONLN);
-    return n > 0 ? (int)n : 1;
-}
-
 /* Reads `LUGHA_WORKERS` as the runtime starts, after the scheduling mode. */
 static void workers_init(void) {
     main_worker = worker;
@@ -60,7 +49,7 @@ static void workers_init(void) {
         }
         workers_wanted = (int)n;
     } else {
-        int n = cpus_usable();
+        int n = os_cpus();
         workers_wanted = n > WORKERS_MOST ? WORKERS_MOST : n;
     }
     // Virtual time and seeded order need everything on one thread.
@@ -152,7 +141,7 @@ static void worker_rouse(Worker *w) {
         return;
     }
     __atomic_fetch_add(&w->wake, 1, __ATOMIC_RELEASE);
-    futex_wake(&w->wake, 1);
+    os_wake_on(&w->wake, 1);
 }
 
 /* Takes `w` off the parked list; false if someone already did. Under

@@ -18,79 +18,57 @@
 /* Jobs given to helpers and not yet taken back, at most. */
 enum { JOBS_MOST = 256 };
 
-/* The scheduler's `epoll` set, made at the first socket wait or job. */
-static int net_epoll = -1;
-/* What the helpers' event carries in the set, telling it from a fiber. */
-static char helper_tag;
 static int64_t jobs_out;
 /* Tasks waiting for room to give a job, first come first served. */
 static Fiber *room_head;
 static Fiber *room_tail;
 
 static void io_open(void) {
-    if (net_epoll < 0) {
-        net_epoll = epoll_create1(EPOLL_CLOEXEC);
-        if (net_epoll < 0) {
-            die("panic: epoll_create1 failed\n");
-        }
-    }
+    os_poll_open();
 }
 
-/* The helpers' `eventfd`, in the set, made once. */
+/* The helpers' signal, in the poll, made once. */
 static void helper_event_open(void) {
     if (helper_event >= 0) {
         return;
     }
-    io_open();
-    helper_event = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
-    struct epoll_event ev = {.events = EPOLLIN, .data = {.ptr = &helper_tag}};
-    if (helper_event < 0 || epoll_ctl(net_epoll, EPOLL_CTL_ADD, helper_event, &ev) != 0) {
+    helper_event = os_signal_new(OS_TOKEN_HELPERS);
+    if (helper_event < 0) {
         die("panic: can't make the helper threads' event\n");
     }
 }
 
-/* The workers' wake-up event, in the set: written to wake the worker
- * waiting in `epoll_wait` (workers.c), and from the Ctrl-C handler. */
-static char wake_tag;
-static int wake_fd = -1;
+/* The workers' wake-up signal, in the poll: raised to wake the worker
+ * waiting in it (workers.c), and from the Ctrl-C handler. */
+static OsSignal wake_fd = -1;
 
 static void wake_open(void) {
     if (wake_fd >= 0) {
         return;
     }
-    io_open();
-    int fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
-    struct epoll_event ev = {.events = EPOLLIN, .data = {.ptr = &wake_tag}};
-    if (fd < 0 || epoll_ctl(net_epoll, EPOLL_CTL_ADD, fd, &ev) != 0) {
+    OsSignal s = os_signal_new(OS_TOKEN_WAKE);
+    if (s < 0) {
         die("panic: can't make the workers' wake-up event\n");
     }
-    wake_fd = fd;
+    wake_fd = s;
 }
 
-/* Wakes the worker waiting in `epoll_wait`; safe in a signal handler. */
+/* Wakes the worker waiting in the poll; safe in a signal handler. */
 static void poller_kick(void) {
     if (wake_fd >= 0) {
-        uint64_t one = 1;
-        // Full already is as good: a wake-up is pending.
-        ssize_t written = write(wake_fd, &one, sizeof one);
-        (void)written;
+        os_signal_raise(wake_fd);
     }
 }
 
-/* The wake-up event was seen: emptied, so the next one is seen too. */
+/* The wake-up signal was seen: lowered, so the next one is seen too. */
 static void wake_taken(void) {
-    uint64_t count;
-    while (read(wake_fd, &count, sizeof count) < 0 && errno == EINTR) {
-    }
+    os_signal_take(wake_fd);
 }
 
 /* Takes every finished job back: wakes its task, or frees it when its task
  * stopped waiting; each one taken makes room for a task waiting to give. */
 static void jobs_collect(void) {
-    uint64_t count;
-    // Nothing to read is fine: one read takes every write since the last.
-    while (read(helper_event, &count, sizeof count) < 0 && errno == EINTR) {
-    }
+    os_signal_take(helper_event);
     Job *job = helpers_finished();
     while (job != NULL) {
         Job *next = job->next;

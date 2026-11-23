@@ -68,7 +68,7 @@ struct Job {
  * deterministic run, jobs run inline. */
 static bool helpers_allowed;
 static int helpers_limit = HELPERS_DEFAULT;
-static int helper_event = -1;
+static OsSignal helper_event = -1;
 
 /* Shared with the helpers, under `helper_lock`. */
 static pthread_mutex_t helper_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -196,11 +196,8 @@ static void *helper_main(void *unused) {
         job->next = finished;
         finished = job;
         pthread_mutex_unlock(&helper_lock);
-        uint64_t one = 1;
-        // A full counter can't happen (the worker reads it on each wake);
-        // an interrupted write is tried again.
-        while (write(helper_event, &one, sizeof one) < 0 && errno == EINTR) {
-        }
+        // Raised once per finished job; the worker lowers it on each wake.
+        os_signal_raise(helper_event);
     }
     return NULL;
 }

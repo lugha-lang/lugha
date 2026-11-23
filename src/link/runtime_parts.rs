@@ -3,10 +3,17 @@
 //! every program is linked with, and the runtime functions generated code
 //! calls.
 
+/// The parts of [`RUNTIME_PARTS`] only Linux has: its OS layer, and what
+/// confines folders and locks the process down with Linux's own calls.
+/// Every other part is shared, and calls the OS only through `os_*`.
+pub const LINUX_ONLY: [&str; 4] = ["os/linux.c", "lockdown.c", "dir.c", "dir_names.c"];
+
 /// The runtime's source files, in the order they are joined: the core first,
 /// since it holds every `#include`, then the fragments that rely on it.
-pub const RUNTIME_PARTS: [(&str, &str); 48] = [
+pub const RUNTIME_PARTS: [(&str, &str); 50] = [
     ("lugha_rt.c", include_str!("../../runtime/lugha_rt.c")),
+    ("os/layer.c", include_str!("../../runtime/os/layer.c")),
+    ("os/linux.c", include_str!("../../runtime/os/linux.c")),
     ("rt_lock.c", include_str!("../../runtime/rt_lock.c")),
     ("stack.c", include_str!("../../runtime/stack.c")),
     ("helpers.c", include_str!("../../runtime/helpers.c")),
@@ -231,6 +238,8 @@ pub const RUNTIME_SYMBOLS: [&str; 161] = [
 /// compiled as one `lugha_rt.c`.
 pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/lugha_rt.c"),
+    include_str!("../../runtime/os/layer.c"),
+    include_str!("../../runtime/os/linux.c"),
     include_str!("../../runtime/rt_lock.c"),
     include_str!("../../runtime/stack.c"),
     include_str!("../../runtime/helpers.c"),
