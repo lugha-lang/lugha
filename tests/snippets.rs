@@ -71,6 +71,15 @@ fn expand(body: &str) -> String {
                 while chars.peek().is_some_and(char::is_ascii_digit) {
                     chars.next();
                 }
+                // A choice, `${3|a,b|}`, expands to its first option, as
+                // VS Code fills it in.
+                if chars.peek() == Some(&'|') {
+                    chars.next();
+                    let choices: String = chars.by_ref().take_while(|&c| c != '|').collect();
+                    out.push_str(choices.split(',').next().unwrap_or(""));
+                    chars.next_if_eq(&'}');
+                    continue;
+                }
                 if chars.peek() == Some(&':') {
                     chars.next();
                 }
@@ -165,4 +174,5 @@ fn expansion_uses_defaults_and_drops_bare_stops() {
         "fun name() {\n    \n}"
     );
     assert_eq!(expand("${3:{\\}}, $10"), "{}, ");
+    assert_eq!(expand("x: ${3|spawned,direct|} fun"), "x: spawned fun");
 }

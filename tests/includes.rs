@@ -213,9 +213,11 @@ fn the_bytes_are_a_read_only_global_marked_shared() {
     ]);
     let out = lughac(&t.0, &["build", "main.la", "--emit=ir"]);
     let ir = ran(&out);
-    // len 3, and cap 3 with the top bit set: -9223372036854775805.
+    // The object header (no visit function; an immortal count, so it is
+    // never written or freed and any task may read it), then len 3, cap 3
+    // and the bytes.
     assert!(
-        ir.contains("private unnamed_addr constant { i64, i64, [3 x i8] } { i64 3, i64 -9223372036854775805, [3 x i8] c\"abc\" }"),
+        ir.contains("private unnamed_addr constant { ptr, i64, i64, i64, [3 x i8] } { ptr null, i64 -9223372036854775808, i64 3, i64 3, [3 x i8] c\"abc\" }"),
         "{ir}"
     );
 }

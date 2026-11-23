@@ -234,7 +234,13 @@ fn the_toml_test_suite_passes() {
     let (mut valid, mut invalid) = (0, 0);
     for case in list.lines().filter(|l| l.ends_with(".toml")) {
         let path = fixtures().join(case);
-        let out = Command::new(&decoder).arg(&path).output().unwrap();
+        // From inside the fixtures, by a relative path: a program's `Dir`
+        // refuses an absolute one.
+        let out = Command::new(&decoder)
+            .arg(case)
+            .current_dir(fixtures())
+            .output()
+            .unwrap();
         let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
         if case.starts_with("valid/") {
             valid += 1;

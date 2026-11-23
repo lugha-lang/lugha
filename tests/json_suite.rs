@@ -138,7 +138,13 @@ fn json_test_suite_cases_behave_as_decided() {
     for name in names {
         let path = fixtures().join(&name);
         let case = name.trim_end_matches(".json");
-        let out = Command::new(&decoder).arg(&path).output().unwrap();
+        // From inside the fixtures, by a relative path: a program's `Dir`
+        // refuses an absolute one.
+        let out = Command::new(&decoder)
+            .arg(&name)
+            .current_dir(fixtures())
+            .output()
+            .unwrap();
         let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
         let stderr = String::from_utf8_lossy(&out.stderr);
         let error = stdout
