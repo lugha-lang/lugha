@@ -453,3 +453,16 @@ fn collection_literals_keep_their_elements() {
         "fun f() {\n    let m = Map { \"a\": 1, k: 2 };\n    let s = Set { 1, 2 };\n    let e = Map<string, i64> {};\n    let p = P { x: 1, ..q };\n}\n",
     );
 }
+
+#[test]
+fn scope_settings_keep_their_values_where_the_parser_reads_them() {
+    check(
+        "fun f(){let r=scope s within 5 limit 2 independent(g){};}",
+        "fun f() {\n    let r = scope s within 5 limit 2 independent(g) {};\n}\n",
+    );
+    // A word the checker refuses a value for still formats as it parses.
+    check(
+        "fun f(){let q=scope t pinned(1){};}",
+        "fun f() {\n    let q = scope t pinned(1) {};\n}\n",
+    );
+}

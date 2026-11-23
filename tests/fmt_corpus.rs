@@ -47,8 +47,25 @@ fn la_files(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
+/// Runs `check` on a thread with `lughac`'s own stack, the main thread's
+/// 8 MiB on Linux: a test thread gets 2 MiB, too close to the edge for a
+/// long `+` chain (`runtime/small_frames/big_frame_overflow.la` has 200
+/// terms), which the parser and formatter walk by recursion.
+fn on_lughac_stack(check: fn()) {
+    std::thread::Builder::new()
+        .stack_size(8 << 20)
+        .spawn(check)
+        .expect("a thread starts")
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+}
+
 #[test]
 fn every_program_in_tests_programs_formats_verified_and_idempotent() {
+    on_lughac_stack(every_program_formats);
+}
+
+fn every_program_formats() {
     let mut files = Vec::new();
     la_files(
         &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/programs"),

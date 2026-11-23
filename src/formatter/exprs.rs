@@ -221,11 +221,14 @@ impl Printer<'_> {
                 let mut parts = vec![text(head)];
                 for w in &scope.words {
                     parts.push(text(w.name.name.clone()));
+                    // Only `limit`, `within` and `until` take a value
+                    // after a space; any other word's is in parentheses
+                    // (`independent(f)`), as the parser reads them.
                     match &w.arg {
-                        Some(a) if w.name.name == "independent" => {
-                            parts.extend([text("("), self.expr(a), text(")")]);
+                        Some(a) if matches!(w.name.name.as_str(), "limit" | "within" | "until") => {
+                            parts.extend([text(" "), self.expr(a)]);
                         }
-                        Some(a) => parts.extend([text(" "), self.expr(a)]),
+                        Some(a) => parts.extend([text("("), self.expr(a), text(")")]),
                         None => {}
                     }
                     parts.push(text(" "));
