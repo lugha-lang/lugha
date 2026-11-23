@@ -43,3 +43,47 @@ static void os_wake_on(uint32_t *word, int n);
 static int os_cpus(void);
 static bool os_random64(uint64_t *out);
 static bool os_thread_stack(void **base, size_t *size);
+
+/* Sockets, at the level of operations: each call opens, connects, accepts,
+ * receives or sends, waiting as a task does (parking the task, never the
+ * thread) until it is done or `deadline` (monotonic ns, < 0 for none)
+ * passes. How a system waits is its own: readiness and a retry on POSIX
+ * (os/posix/sockets.c), a completion on Windows. */
+
+/* A socket: a descriptor on POSIX; a Winsock SOCKET fits as well. */
+typedef int64_t OsSocket;
+
+/* What a socket operation gives instead of a count or a socket. A failure
+ * sets `*message` to the system's words. `OS_CANCELLED` comes back only
+ * once the system has let go of the operation's buffer, so the caller may
+ * free it and unwind. `OS_CLOSED`: another task closed the socket. */
+enum { OS_FAILED = -1, OS_TIMED_OUT = -2, OS_CANCELLED = -3, OS_CLOSED = -4 };
+
+static OsSocket os_sock_open(int family, int type, int protocol, const char **message);
+static int64_t os_sock_listen(OsSocket s, const struct sockaddr *at, socklen_t len, int backlog,
+                              const char **message);
+static int64_t os_sock_bind_udp(OsSocket s, const struct sockaddr *at, socklen_t len, bool shared,
+                                const char **message);
+static int64_t os_sock_connect(OsSocket s, const struct sockaddr *at, socklen_t len,
+                               int64_t deadline, const char **message);
+static OsSocket os_sock_accept(OsSocket s, int64_t deadline, const char **message);
+static int64_t os_sock_recv(OsSocket s, char *buf, int64_t max, int64_t deadline,
+                            const char **message);
+static int64_t os_sock_send(OsSocket s, const char *buf, int64_t n, int64_t deadline,
+                            const char **message);
+static int64_t os_sock_recvfrom(OsSocket s, char *buf, int64_t max, struct sockaddr_storage *from,
+                                socklen_t *len, int64_t deadline, const char **message);
+static int64_t os_sock_sendto(OsSocket s, const char *buf, int64_t n, const struct sockaddr *to,
+                              socklen_t len, int64_t deadline, const char **message);
+static int64_t os_sock_name(OsSocket s, bool peer, struct sockaddr_storage *at, socklen_t *len,
+                            const char **message);
+static void os_sock_close(OsSocket s);
+
+/* What a POSIX system's own file gives os/posix/: a non-blocking,
+ * close-on-exec socket and accepted connection, and a socket hearing only
+ * the multicast groups it joined; with the flags `OS_SEND_FLAGS` (a
+ * closed peer an error, not SIGPIPE) and `OS_RECV_FLAGS` (a datagram's
+ * real length) as macros. */
+static int os_sock_raw(int family, int type, int protocol);
+static int os_accept_raw(int s);
+static bool os_udp_own_groups(int s, int family);

@@ -303,6 +303,18 @@ mod tests {
         }
     }
 
+    /// Whether `code` uses `word`: for a call (`send(`), only where it
+    /// isn't the end of a longer name (`os_sock_send(`).
+    fn has_call(code: &str, word: &str) -> bool {
+        if !word.ends_with('(') {
+            return code.contains(word);
+        }
+        code.match_indices(word).any(|(at, _)| {
+            let before = code[..at].chars().next_back();
+            !before.is_some_and(|c| c.is_alphanumeric() || c == '_')
+        })
+    }
+
     /// `src` without its `/* */` and `//` comments.
     fn code_of(src: &str) -> String {
         let mut out = String::new();
@@ -329,7 +341,7 @@ mod tests {
 
     #[test]
     fn only_os_parts_call_the_os_or_the_cpu() {
-        const LINUX: [&str; 14] = [
+        const LINUX: [&str; 20] = [
             "epoll_",
             "eventfd",
             "futex",
@@ -344,6 +356,28 @@ mod tests {
             "seccomp",
             "prctl",
             "<linux/",
+            "accept4",
+            "SOCK_NONBLOCK",
+            "SOCK_CLOEXEC",
+            "MSG_NOSIGNAL",
+            "MSG_TRUNC",
+            "IP_MULTICAST_ALL",
+        ];
+        // Socket calls: the system's, behind `os_sock_*`.
+        const SOCKETS: [&str; 13] = [
+            "socket(",
+            "accept(",
+            "connect(",
+            "bind(",
+            "listen(",
+            "recv(",
+            "send(",
+            "recvfrom(",
+            "sendto(",
+            "setsockopt(",
+            "getsockopt(",
+            "getsockname(",
+            "getpeername(",
         ];
         // A CPU's own code: assembly, or code chosen by the CPU.
         const CPU: [&str; 3] = ["__asm__", "__x86_64__", "__aarch64__"];
@@ -355,7 +389,7 @@ mod tests {
                 found.extend(words.map(|w| format!("{name}: {w}")));
             }
             if !name.starts_with("os/") {
-                let words = CPU.iter().filter(|w| code.contains(**w));
+                let words = CPU.iter().chain(&SOCKETS).filter(|w| has_call(&code, w));
                 found.extend(words.map(|w| format!("{name}: {w}")));
             }
         }

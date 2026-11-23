@@ -1,9 +1,10 @@
 /*
- * net.c — part of lugha_rt.c: `std.net`'s built-ins.
- * TCP sockets, all non-blocking and close-on-exec. A call that would block
- * parks its green thread on one `epoll` set (`wait_fd`) and the others run;
- * an idle worker waits on that set when nothing is ready (workers.c).
- * Every failure comes back as 0 and the system's message, never a panic.
+ * net.c — part of lugha_rt.c: `std.net`'s built-ins. TCP sockets through
+ * the OS layer's operations (`os_sock_*`; os/posix/sockets.c on Linux and
+ * macOS), which park only the calling green thread while the others run;
+ * the poll an idle worker waits in when nothing is ready (workers.c), and
+ * the list of tasks parked on a socket, which closing it wakes. Every
+ * failure comes back as 0 and the system's message, never a panic.
  *
  * A fragment, not compiled on its own: joined after tasks.c (the scheduler
  * it extends), bytes.c (`bytes_of`) and input.c (`string_of`).
@@ -78,15 +79,6 @@ static void poll_sockets(int64_t wait_ns) {
     rings_wake();
 }
 
-/* `wait_fd`'s answer when the waiting task is cancelled: the caller lets
- * go of what it holds, then unwinds (`cancel_unwind`). */
-#define WAIT_CANCELLED (-1)
-
-/* `wait_fd`'s answer when another task closed the socket: the caller
- * gives `Err("closed")` and never touches the descriptor again, whose
- * number may already name another file. */
-#define WAIT_CLOSED (-2)
-
 /* The tasks parked on a socket, so that closing it wakes them
  * (`lugha_rt_net_close`): an `epoll` event can't, since closing the
  * descriptor takes it out of the set. Under the runtime's lock. */
@@ -120,45 +112,6 @@ static void net_waits_remove(void) {
             return;
         }
     }
-}
-
-/* Parks this thread until `fd` is ready for `want` (OS_READ, OS_WRITE):
- * 1, or 0 when `deadline` (monotonic ns; < 0 for none) passes first, or
- * WAIT_CANCELLED. */
-static int wait_fd(int fd, uint32_t want, int64_t deadline) {
-    RT_SECTION();
-    ensure_started();
-    if (current->cancelled != REASON_NONE && !current->unwinding) {
-        return WAIT_CANCELLED;
-    }
-    may_wait(NULL, 0);
-    io_open();
-    // The fiber's address in the low 48 bits (user space's), and the low 16
-    // bits of the wait's generation above it.
-    uint64_t packed = (uint64_t)(uintptr_t)current |
-                      ((uint64_t)(next_wait_gen(current) & 0xffff) << 48);
-    os_poll_arm(fd, want, packed);
-    if (deadline >= 0) {
-        add_sleeper(current, deadline);
-    }
-    net_waits_add(fd, next_wait_gen(current));
-    __atomic_add_fetch(&net_waiting, 1, __ATOMIC_ACQ_REL);
-    current->cancellable = true;
-    int64_t why = block();
-    current->cancellable = false;
-    __atomic_sub_fetch(&net_waiting, 1, __ATOMIC_ACQ_REL);
-    // The section is open again here (`switch_away`), so the list is safe.
-    net_waits_remove();
-    if (why == SOCKET_CLOSED) {
-        // Closed, so already out of the `epoll` set.
-        return WAIT_CLOSED;
-    }
-    if (why == TIMED_OUT || why == CANCELLED) {
-        /* Disarmed, so a late event can't wake this thread again. */
-        os_poll_disarm(fd);
-        return why == CANCELLED ? WAIT_CANCELLED : 0;
-    }
-    return 1;
 }
 
 static int64_t net_deadline(int64_t timeout_ms) {
@@ -242,8 +195,23 @@ static const char *net_resolve(const LughaString *addr, int flags, struct addrin
     return code == 0 ? NULL : gai_strerror(code);
 }
 
-static int net_socket(const struct addrinfo *a) {
-    return socket(a->ai_family, a->ai_socktype | SOCK_NONBLOCK | SOCK_CLOEXEC, a->ai_protocol);
+/* What a socket operation's outcome means to Lugha: 1 when it was done,
+ * else 0 and its message; cancelled, the task unwinds from here, so the
+ * caller lets go of what it holds before asking. */
+static int32_t net_outcome(int64_t got, const char *message, LughaString **error) {
+    if (got >= 0) {
+        return 1;
+    }
+    if (got == OS_CANCELLED) {
+        cancel_unwind();
+    }
+    if (got == OS_CLOSED) {
+        return net_error(error, "closed");
+    }
+    if (got == OS_TIMED_OUT) {
+        return net_error(error, "timed out");
+    }
+    return net_error(error, message);
 }
 
 /* `$os.net_listen(addr)`: 1 and a listening socket, or 0 and a message. */
@@ -253,23 +221,20 @@ int32_t lugha_rt_net_listen(const LughaString *addr, int64_t *fd, LughaString **
     if (problem != NULL) {
         return net_error(error, problem);
     }
-    int saved = 0;
+    const char *message = strerror(0);
     for (struct addrinfo *a = list; a != NULL; a = a->ai_next) {
-        int s = net_socket(a);
-        int one = 1;
-        if (s >= 0 && setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one) == 0 &&
-            bind(s, a->ai_addr, a->ai_addrlen) == 0 && listen(s, NET_BACKLOG) == 0) {
+        OsSocket s = os_sock_open(a->ai_family, a->ai_socktype, a->ai_protocol, &message);
+        if (s >= 0 && os_sock_listen(s, a->ai_addr, a->ai_addrlen, NET_BACKLOG, &message) == 0) {
             freeaddrinfo(list);
             *fd = s;
             return 1;
         }
-        saved = errno;
         if (s >= 0) {
-            close(s);
+            os_sock_close(s);
         }
     }
     freeaddrinfo(list);
-    return net_error(error, strerror(saved));
+    return net_error(error, message);
 }
 
 /* `$os.net_connect(addr, timeout_ms)`: 1 and a connected socket, or 0 and
@@ -284,36 +249,24 @@ int32_t lugha_rt_net_connect(const LughaString *addr, int64_t timeout_ms, int64_
     int64_t deadline = net_deadline(timeout_ms);
     const char *message = "no address to connect to";
     for (struct addrinfo *a = list; a != NULL; a = a->ai_next) {
-        int s = net_socket(a);
+        OsSocket s = os_sock_open(a->ai_family, a->ai_socktype, a->ai_protocol, &message);
         if (s < 0) {
-            message = strerror(errno);
             continue;
         }
-        int err = connect(s, a->ai_addr, a->ai_addrlen) == 0 ? 0 : errno;
-        if (err == EINPROGRESS) {
-            socklen_t len = sizeof err;
-            int ready = wait_fd(s, OS_WRITE, deadline);
-            if (ready == WAIT_CLOSED) {
-                return net_error(error, "closed");
-            }
-            if (ready == WAIT_CANCELLED) {
-                close(s);
-                freeaddrinfo(list);
-                cancel_unwind();
-            }
-            if (!ready) {
-                err = ETIMEDOUT;
-            } else if (getsockopt(s, SOL_SOCKET, SO_ERROR, &err, &len) != 0) {
-                err = errno;
-            }
-        }
-        if (err == 0) {
+        int64_t got = os_sock_connect(s, a->ai_addr, a->ai_addrlen, deadline, &message);
+        if (got == 0) {
             freeaddrinfo(list);
             *fd = s;
             return 1;
         }
-        message = err == ETIMEDOUT ? "timed out" : strerror(err);
-        close(s);
+        os_sock_close(s);
+        if (got == OS_CLOSED || got == OS_CANCELLED) {
+            freeaddrinfo(list);
+            return net_outcome(got, message, error);
+        }
+        if (got == OS_TIMED_OUT) {
+            message = "timed out";
+        }
     }
     freeaddrinfo(list);
     return net_error(error, message);
@@ -321,28 +274,12 @@ int32_t lugha_rt_net_connect(const LughaString *addr, int64_t timeout_ms, int64_
 
 /* `$os.net_accept(fd, timeout_ms)`: 1 and the next connection, or 0 and a message. */
 int32_t lugha_rt_net_accept(int64_t fd, int64_t timeout_ms, int64_t *conn, LughaString **error) {
-    int64_t deadline = net_deadline(timeout_ms);
-    for (;;) {
-        int c = accept4((int)fd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
-        if (c >= 0) {
-            *conn = c;
-            return 1;
-        }
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            int ready = wait_fd((int)fd, OS_READ, deadline);
-            if (ready == WAIT_CLOSED) {
-                return net_error(error, "closed");
-            }
-            if (ready == WAIT_CANCELLED) {
-                cancel_unwind();
-            }
-            if (!ready) {
-                return net_error(error, "timed out");
-            }
-        } else if (errno != EINTR && errno != ECONNABORTED) {
-            return net_error(error, strerror(errno));
-        }
+    const char *message = NULL;
+    OsSocket c = os_sock_accept(fd, net_deadline(timeout_ms), &message);
+    if (c >= 0) {
+        *conn = c;
     }
+    return net_outcome(c, message, error);
 }
 
 /* `$os.net_read(fd, max, timeout_ms)`: 1 and up to `max` bytes (none at the
@@ -352,69 +289,31 @@ int32_t lugha_rt_net_read(int64_t fd, int64_t max, int64_t timeout_ms, LughaArra
     if (max < 1 || max > NET_MAX_READ) {
         return net_error(error, "read size must be from 1 to 16777216 bytes");
     }
-    int64_t deadline = net_deadline(timeout_ms);
     char *buffer = rt_scratch(max);
-    for (;;) {
-        ssize_t n = recv((int)fd, buffer, (size_t)max, 0);
-        if (n >= 0) {
-            *out = bytes_of(buffer, (int64_t)n);
-            rt_scratch_done(buffer);
-            return 1;
-        }
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            int ready = wait_fd((int)fd, OS_READ, deadline);
-            if (ready == WAIT_CLOSED) {
-                rt_scratch_done(buffer);
-                return net_error(error, "closed");
-            }
-            if (ready == WAIT_CANCELLED) {
-                rt_scratch_done(buffer);
-                cancel_unwind();
-            }
-            if (!ready) {
-                rt_scratch_done(buffer);
-                return net_error(error, "timed out");
-            }
-        } else if (errno != EINTR) {
-            int saved = errno;
-            rt_scratch_done(buffer);
-            return net_error(error, strerror(saved));
-        }
+    const char *message = NULL;
+    int64_t n = os_sock_recv(fd, buffer, max, net_deadline(timeout_ms), &message);
+    if (n >= 0) {
+        *out = bytes_of(buffer, n);
     }
+    // Let go of before an unwind, which `net_outcome` starts when cancelled.
+    rt_scratch_done(buffer);
+    return net_outcome(n, message, error);
 }
 
 /* `$os.net_write(fd, bytes, timeout_ms)`: 1 once every byte is sent, or 0
- * and a message. `MSG_NOSIGNAL`: a closed peer is an error, not SIGPIPE. */
+ * and a message; a closed peer is an error, never SIGPIPE. */
 int32_t lugha_rt_net_write(int64_t fd, const LughaArray *bytes, int64_t timeout_ms,
                            LughaString **error) {
-    int64_t deadline = net_deadline(timeout_ms);
-    int64_t sent = 0;
-    while (sent < bytes->len) {
-        ssize_t n = send((int)fd, bytes->elems + sent, (size_t)(bytes->len - sent), MSG_NOSIGNAL);
-        if (n >= 0) {
-            sent += n;
-        } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            int ready = wait_fd((int)fd, OS_WRITE, deadline);
-            if (ready == WAIT_CLOSED) {
-                return net_error(error, "closed");
-            }
-            if (ready == WAIT_CANCELLED) {
-                cancel_unwind();
-            }
-            if (!ready) {
-                return net_error(error, "timed out");
-            }
-        } else if (errno != EINTR) {
-            return net_error(error, strerror(errno));
-        }
-    }
-    return 1;
+    const char *message = NULL;
+    int64_t sent =
+        os_sock_send(fd, (const char *)bytes->elems, bytes->len, net_deadline(timeout_ms), &message);
+    return net_outcome(sent, message, error);
 }
 
 /* `$os.net_close(fd)`: the tasks parked on it are woken with
- * `Err("closed")` first, since closing also takes it out of the `epoll` set
- * and no event would reach them; then it is closed. Under the runtime's
- * lock, so no task parks on it in between. */
+ * `Err("closed")` first, since closing also takes it out of the poll and
+ * no event would reach them; then it is closed. Under the runtime's lock,
+ * so no task parks on it in between. */
 void lugha_rt_net_close(int64_t fd) {
     RT_SECTION();
     for (int64_t i = 0; i < net_waits_len; i++) {
@@ -422,18 +321,17 @@ void lugha_rt_net_close(int64_t fd) {
             wake_gen(net_waits[i].fiber, net_waits[i].gen, SOCKET_CLOSED);
         }
     }
-    close((int)fd);
+    os_sock_close(fd);
 }
 
 /* `$os.net_name(fd, peer)`: 1 and "host:port" of this end (or the peer's),
  * "[address]:port" for IPv6; or 0 and a message. */
 int32_t lugha_rt_net_name(int64_t fd, int64_t peer, LughaString **out, LughaString **error) {
     struct sockaddr_storage at;
-    socklen_t len = sizeof at;
-    int got = peer ? getpeername((int)fd, (struct sockaddr *)&at, &len)
-                   : getsockname((int)fd, (struct sockaddr *)&at, &len);
-    if (got != 0) {
-        return net_error(error, strerror(errno));
+    socklen_t len;
+    const char *message = NULL;
+    if (os_sock_name(fd, peer != 0, &at, &len, &message) != 0) {
+        return net_error(error, message);
     }
     char host[INET6_ADDRSTRLEN];
     char text[INET6_ADDRSTRLEN + 16];

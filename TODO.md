@@ -44,8 +44,9 @@ BUGS.md holds the bugs understood but not fixed, with the fixes weighed. The one
 Done: portable x86-64 binaries (`--cpu`), `$LUGHA_CC`, Linux on ARM64 with AAPCS64 struct passing (milestones 130–134); foreign targets through `zig cc` and Linux musl (milestone 247, Draft Part 9 step 1); `run`/`test --target` under qemu, ARM and musl in CI (milestone 248, step 2). The rest is v18's Draft, Part 9.
 
 - [ ] **`[build]` in `lugha.toml`** (`cpu`, target): not in the Draft's Part 9 yet.
-- [ ] **C1, second half — sockets at the operation level** (PRP-284): `os_sock_*` for `net.c` and `udp.c`, a cancelled socket call waiting for the OS (Draft 9.2 rules 1–2). The OS layer itself is done (milestone 249).
-- [ ] **C2 — Mac runtime:** `kqueue` for `net.c`; `spawn.c`'s `MAP_STACK`, `random.c`'s `getrandom`.
+- Step 3 (C1) is done: the OS layer and the runtime's folders (milestone 249), sockets at the operation level (milestone 250).
+- [ ] **C2 — Mac runtime:** `runtime/os/darwin/` as PRP-283 maps it: `os.c` (the layer on kqueue, `os_sync_wait_on_address` or a semaphore, `getentropy`, `pthread_get_stackaddr_np`, and the socket details: `fcntl` flags, `SO_NOSIGPIPE`), `aarch64.c` and `x86_64.c` (Mach-O), `dir.c`/`dir_names.c` (confinement without `openat2`), `lockdown.c` [PRT-11]; lughac joining `os/darwin/` for a macOS target.
+  Found while splitting, for `os/darwin/` and `os/posix/`: `recvfrom` gives no real length for a too-long datagram (`MSG_TRUNC` is Linux's), so "datagram of N bytes is longer than max" needs `recvmsg`'s truncation flag and a spec decision about N; `pipe2` in `os/posix/process.c` (🔒); `struct ip_mreqn` in `os/posix/udp_options.c` (macOS has `ip_mreq`); `memrchr` in `io/net.c` (a GNU extension).
 - [ ] **C3 — Mac calling rules and linking:** Apple's AArch64 differences (variadics), Mach-O, signing; built and tested on a Mac runner.
 - [ ] **D1–D3 — Windows:** runtime (files, processes, env, stack overflow), sockets, Windows x64 calling rules, `.exe` linking with MinGW first. Large.
 - [ ] **E — WebAssembly (wasm32-wasi):** decisions first (tasks with no threads, or none; which capabilities and std modules exist). Large.

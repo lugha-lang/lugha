@@ -139,3 +139,33 @@ static bool os_thread_stack(void **base, size_t *size) {
     pthread_attr_destroy(&attr);
     return got == 0;
 }
+
+/* Sockets' Linux details for os/posix/sockets.c: flags set atomically as
+ * the socket is made, so no program started meanwhile inherits it. */
+#define OS_SEND_FLAGS MSG_NOSIGNAL
+#define OS_RECV_FLAGS MSG_TRUNC
+
+static int os_sock_raw(int family, int type, int protocol) {
+    return socket(family, type | SOCK_NONBLOCK | SOCK_CLOEXEC, protocol);
+}
+
+static int os_accept_raw(int s) {
+    return accept4(s, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
+}
+
+/* Linux hands a socket bound to a wildcard address every group any socket
+ * on the machine joined; off, it hears only the groups it joined itself,
+ * so `leave` means what it says. IPv6's switch is newer (Linux 4.20), so
+ * its absence isn't an error. */
+static bool os_udp_own_groups(int s, int family) {
+    int zero = 0;
+    if (family == AF_INET) {
+        return setsockopt(s, IPPROTO_IP, IP_MULTICAST_ALL, &zero, sizeof zero) == 0;
+    }
+#ifdef IPV6_MULTICAST_ALL
+    if (family == AF_INET6) {
+        (void)setsockopt(s, IPPROTO_IPV6, IPV6_MULTICAST_ALL, &zero, sizeof zero);
+    }
+#endif
+    return true;
+}

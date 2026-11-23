@@ -17,11 +17,15 @@ pub const LINUX_ONLY: [&str; 6] = [
 ];
 
 /// The parts Linux and macOS share but Windows doesn't (`os/posix/`).
-pub const POSIX_ONLY: [&str; 1] = ["os/posix/process.c"];
+pub const POSIX_ONLY: [&str; 3] = [
+    "os/posix/process.c",
+    "os/posix/sockets.c",
+    "os/posix/udp_options.c",
+];
 
 /// The runtime's source files, in the order they are joined: the core first,
 /// since it holds every `#include`, then the fragments that rely on it.
-pub const RUNTIME_PARTS: [(&str, &str); 52] = [
+pub const RUNTIME_PARTS: [(&str, &str); 54] = [
     (
         "core/lugha_rt.c",
         include_str!("../../runtime/core/lugha_rt.c"),
@@ -158,6 +162,14 @@ pub const RUNTIME_PARTS: [(&str, &str); 52] = [
     ),
     ("io/resolve.c", include_str!("../../runtime/io/resolve.c")),
     ("io/udp.c", include_str!("../../runtime/io/udp.c")),
+    (
+        "os/posix/sockets.c",
+        include_str!("../../runtime/os/posix/sockets.c"),
+    ),
+    (
+        "os/posix/udp_options.c",
+        include_str!("../../runtime/os/posix/udp_options.c"),
+    ),
 ];
 
 /// Every runtime function codegen may call; `lugha_rt.c` defines them all.
@@ -380,4 +392,6 @@ pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/tasks/parking.c"),
     include_str!("../../runtime/io/resolve.c"),
     include_str!("../../runtime/io/udp.c"),
+    include_str!("../../runtime/os/posix/sockets.c"),
+    include_str!("../../runtime/os/posix/udp_options.c"),
 );
