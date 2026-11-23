@@ -227,9 +227,10 @@ void *lugha_rt_task_join(LughaTask *task) {
         lock_give(&task->lock);
         return task->result;
     }
+    uint32_t *locks[1] = {&task->lock};
+    may_wait(locks, 1);
     current->wait_next = task->joiners;
     task->joiners = current;
-    uint32_t *locks[1] = {&task->lock};
     block_holding(locks, 1);
     return task->result;
 }
@@ -252,6 +253,7 @@ void lugha_rt_task_sleep(int64_t ms) {
     }
     int64_t ns = ms > INT64_MAX / 1000000 ? INT64_MAX / 2 : ms * 1000000;
     lugha_rt_cancel_point();
+    may_wait(NULL, 0);
     add_sleeper(current, now_ns() + ns);
     current->cancellable = true;
     woke(block());

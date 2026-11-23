@@ -300,12 +300,13 @@ void lugha_rt_chan_send(LughaChan *c, const void *value, const char *file, int64
         }
         return;
     }
+    uint32_t *locks[1] = {&c->lock};
+    may_wait(locks, 1);
     int32_t ok = 1;
     Waiter w = {.fiber = current, .gen = next_wait_gen(current), .data = (void *)value, .ok = &ok,
                 .index = 0};
     enqueue(&c->sendq, &w);
     current->cancellable = true;
-    uint32_t *locks[1] = {&c->lock};
     int64_t fired = waiting(c, WAIT_SEND, locks, 1);
     if (fired == CANCELLED) {
         lock_take(&c->lock);
@@ -327,6 +328,10 @@ int32_t lugha_rt_chan_recv(LughaChan *c, void *out) {
     lugha_rt_cancel_point();
     lock_take(&c->lock);
     int done = try_recv_locked(c, out);
+    uint32_t *locks[1] = {&c->lock};
+    if (done == BLOCKED) {
+        may_wait(locks, 1);
+    }
     // About to wait on a ring: its writer will wake this reader.
     if (done == BLOCKED && c->ring != NULL && ring_want(c)) {
         done = try_recv_locked(c, out);
@@ -340,7 +345,6 @@ int32_t lugha_rt_chan_recv(LughaChan *c, void *out) {
                 .index = 0};
     enqueue(&c->recvq, &w);
     current->cancellable = true;
-    uint32_t *locks[1] = {&c->lock};
     int64_t fired = waiting(c, WAIT_RECV, locks, 1);
     if (fired == CANCELLED) {
         lock_take(&c->lock);

@@ -273,6 +273,16 @@ static void check_alive(LughaActor *a, const char *file, int64_t line, int64_t c
 static void post_counted(LughaActor *a, Message *m, const char *file, int64_t line, int64_t col) {
     check_alive(a, file, line, col);
     while (a->queued >= a->capacity) {
+        if (!wait_allowed()) {
+            // Refused before it waits: the message goes, as when cancelled.
+            lock_give(&a->lock);
+            bool called = m->waiter != NULL;
+            message_done(m);
+            if (called) {
+                free(m);
+            }
+            may_wait(NULL, 0);
+        }
         current->wait_next = a->room_waiters;
         a->room_waiters = current;
         current->cancellable = true;
@@ -309,6 +319,8 @@ void *lugha_rt_actor_call(LughaActor *a, Handler handler, void *args, int64_t si
                           const char *file, int64_t line, int64_t col) {
     ensure_started();
     lugha_rt_cancel_point();
+    // A call always waits for its answer.
+    may_wait(NULL, 0);
     int32_t outcome = RUNNING;
     Message *m = new_message();
     m->handler = handler;

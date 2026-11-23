@@ -243,6 +243,34 @@ static inline void sched_tick(void) {
     sched_tick_slow(w);
 }
 
+/* The panic for a wait inside a direct callback: C is waiting for it,
+ * on C's stack or on a thread C made. */
+static void wait_refused(Worker *w) {
+    if (w->foreign) {
+        panic_with("a direct callback can't wait on a thread C made: C is waiting for it; declare it `spawned fun(…)` (with `data`, no result) so it runs as a task", 145);
+    }
+    panic_with("a direct C callback can't wait: C is waiting for it; declare it `spawned fun(…)` (with `data`, no result) so it runs as a task", 128);
+}
+
+/* Whether the current code may wait: not inside a direct callback. */
+static bool wait_allowed(void) {
+    return !worker->on_c_stack;
+}
+
+/* Asked by every wait before it registers anywhere a waker would find it
+ * (a channel's queue, a joiner list, a sleeper, the poll): refused, it lets
+ * go of the `n` object locks `locks` it holds and panics, leaving nothing
+ * pointing at a frame the panic unwinds. */
+static void may_wait(uint32_t **locks, int n) {
+    if (wait_allowed()) {
+        return;
+    }
+    for (int i = 0; i < n; i++) {
+        lock_give(locks[i]);
+    }
+    wait_refused(worker);
+}
+
 /* The current fiber stops running here: parking (`parking`, in `block`),
  * yielding (`yielding`, queued again once saved), or finished. With
  * nothing else ready the worker's idle loop runs; a yielding fiber with
@@ -253,13 +281,10 @@ static inline void sched_tick(void) {
  * sections open again. */
 static void switch_away(bool parking, bool yielding) {
     Worker *w = worker;
-    if (w->on_c_stack && w->foreign) {
-        park_unlock(w);
-        panic_with("a direct callback can't wait on a thread C made: C is waiting for it; declare it `spawned fun(…)` (with `data`, no result) so it runs as a task", 145);
-    }
+    // Each wait asked `may_wait` before registering; a yield doesn't.
     if (w->on_c_stack) {
         park_unlock(w);
-        panic_with("a direct C callback can't wait: C is waiting for it; declare it `spawned fun(…)` (with `data`, no result) so it runs as a task", 128);
+        wait_refused(w);
     }
     // Holding object locks, only timers fire here: deadlines, shields and
     // the poll take the scopes lock, which comes before them.

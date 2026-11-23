@@ -126,6 +126,7 @@ static int wait_fd(int fd, uint32_t events, int64_t deadline) {
     if (current->cancelled != REASON_NONE && !current->unwinding) {
         return WAIT_CANCELLED;
     }
+    may_wait(NULL, 0);
     io_open();
     // The fiber's address in the low 48 bits (user space's), and the low 16
     // bits of the wait's generation above it.

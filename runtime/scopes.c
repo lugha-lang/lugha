@@ -174,10 +174,11 @@ static void scope_fail(LughaScope *s, int32_t outcome, void *table, void *box,
 static void scope_wait_until(LughaScope *s, int64_t left) {
     lock_take(&s->lock);
     while (s->running > left) {
+        uint32_t *locks[1] = {&s->lock};
+        may_wait(locks, 1);
         s->owner_waiting = true;
         s->wait_left = left;
         current->cancellable = false;
-        uint32_t *locks[1] = {&s->lock};
         block_holding(locks, 1);
         lock_take(&s->lock);
     }

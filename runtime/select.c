@@ -124,6 +124,7 @@ int64_t lugha_rt_task_select(LughaCase *cases, int64_t n, int64_t timeout_ms, in
         unlock_all(locks, nlocks);
         return DEFAULT_ARM;
     }
+    may_wait(locks, nlocks);
     // A ring read here wakes this select; a value that came meanwhile wins.
     int64_t late = ring_select_ready(cases, n);
     if (late >= 0 && try_recv_locked(cases[late].chan, cases[late].data) == MOVED) {

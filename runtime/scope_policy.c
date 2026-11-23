@@ -100,9 +100,10 @@ void lugha_rt_task_panicked(LughaString *text, int32_t fails) {
  * and returns holding the scope's lock, parked holding it. */
 static void scope_room(LughaScope *s) {
     while (s->limit > 0 && s->running - s->actors >= s->limit) {
+        uint32_t *locks[1] = {&s->lock};
+        may_wait(locks, 1);
         s->limit_waiter = current;
         current->cancellable = true;
-        uint32_t *locks[1] = {&s->lock};
         int64_t fired = block_holding(locks, 1);
         lock_take(&s->lock);
         if (s->limit_waiter == current) {
@@ -127,10 +128,11 @@ int32_t lugha_rt_task_join_status(LughaTask *t, int32_t *reason, LughaString **t
     if (t->done) {
         lock_give(&t->lock);
     } else {
+        uint32_t *locks[1] = {&t->lock};
+        may_wait(locks, 1);
         current->wait_next = t->joiners;
         t->joiners = current;
         current->cancellable = true;
-        uint32_t *locks[1] = {&t->lock};
         int64_t fired = block_holding(locks, 1);
         if (fired == CANCELLED) {
             lock_take(&t->lock);

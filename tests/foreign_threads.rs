@@ -182,6 +182,31 @@ fn waiting_or_panicking_on_cs_thread_gives_c_zero_and_fails_the_scope() {
 }
 
 #[test]
+fn every_kind_of_wait_on_cs_thread_is_refused_and_leaves_nothing_behind() {
+    // Receiving, `select` and sleeping each refuse before they register,
+    // so freeing the channels afterwards finds no waiter on a dead stack.
+    Case::new(
+        "fun main(console: Console) {\n\
+             let (tx, rx) = Chan<i64>.new(1);\n\
+             let r = scope s {\n\
+                 ask_on_thread(fun(i: i64): i64 {\n\
+                     if i == 1 { if let .Some(v) = rx.recv() { return v; } }\n\
+                     if i == 2 { select { m = rx.recv() => {}, after(1000) => {}, } }\n\
+                     if i == 3 { task.sleep(5); }\n\
+                     i\n\
+                 }, 5);\n\
+                 join_threads();\n\
+                 console.println(asked_sum());\n\
+             };\n\
+             console.println(r.is_ok());\n\
+             tx.send(1);\n\
+         }\n",
+    )
+    // 0 + 0 (receive) + 0 (select) + 0 (sleep) + 4.
+    .runs(0, "4\nfalse\n", "");
+}
+
+#[test]
 fn deep_recursion_on_cs_thread_uses_its_own_stack() {
     Case::new(
         "fun depth(n: i64): i64 = if n == 0 { 0 } else { 1 + depth(n - 1) };\n\
