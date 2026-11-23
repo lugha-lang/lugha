@@ -2,6 +2,11 @@
 # safety net that merges never wait on. Runs in the same Ubuntu release as
 # development, so LLVM 21 comes from the stock archive, with no third-party
 # apt source.
+#
+# One job builds the tests once and archives them with cargo-nextest; four
+# jobs run a quarter of them each from that archive, at the same time, and
+# every test runs even after a failure. The VS Code extension's tests run
+# beside them.
 name: CI
 
 on:
@@ -18,58 +23,38 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  DEBIAN_FRONTEND: noninteractive
+  CARGO_TERM_COLOR: always
+  # tests/arm.rs and tests/musl.rs fail, not skip, when a tool is missing.
+  LUGHA_CROSS_TESTS: required
+  # The same nextest builds the archive and runs it.
+  NEXTEST: nextest@0.9.152
+
 jobs:
-  check:
+  build:
+    name: Build, lint, archive the tests
     runs-on: ubuntu-latest
     container: ubuntu:26.04
-    env:
-      DEBIAN_FRONTEND: noninteractive
-      CARGO_TERM_COLOR: always
-      # tests/arm.rs and tests/musl.rs fail, not skip, when a tool is missing.
-      LUGHA_CROSS_TESTS: required
     steps:
-      - name: Install system packages
-        # llvm-21-dev: inkwell's LLVM (DECISION-005, linked dynamically).
-        # build-essential: `cc` compiles the runtime and the bundled collector
-        # (no libgc-dev: milestone 131) and links every test program.
-        # qemu-user: runs ARM64 builds (tests/arm.rs, tests/musl.rs);
-        # libc6-arm64-cross: the ARM64 glibc qemu loads for glibc builds.
-        # xz-utils: unpacks zig. curl and ca-certificates: rustup's and zig's
-        # downloads. git: a real checkout.
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends \
-            llvm-21-dev build-essential libc6-arm64-cross qemu-user xz-utils curl ca-certificates git libssl-dev openssl
-
-      - name: Install zig
-        # Builds for other platforms go through `zig cc`. The tarball is
-        # checked against the SHA-256 ziglang.org publishes before unpacking.
-        env:
-          ZIG: zig-x86_64-linux-0.17.1
-          ZIG_SHA256: 3581863e3cbcfd0fce0efc682ce7e9e93da96668a977791d356a26d2a7e9b17a
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSfL -o /tmp/zig.tar.xz "https://ziglang.org/download/0.17.1/$ZIG.tar.xz"
-          echo "$ZIG_SHA256  /tmp/zig.tar.xz" | sha256sum -c -
-          mkdir -p /opt/zig
-          tar -xJf /tmp/zig.tar.xz -C /opt/zig
-          echo "/opt/zig/$ZIG" >> "$GITHUB_PATH"
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - uses: ./.github/actions/system
+
       - name: Install Rust
-        # The toolchain and its rustfmt/clippy come from rust-toolchain.toml.
+        # The toolchain and its rustfmt/clippy come from rust-toolchain.toml,
+        # installed now so the cache below is keyed on it.
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
             | sh -s -- -y --profile minimal --default-toolchain none
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          "$HOME/.cargo/bin/rustup" toolchain install
 
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: cargo-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          tool: ${{ env.NEXTEST }}
 
       - name: Format
         run: cargo fmt --check
@@ -77,16 +62,85 @@ jobs:
       - name: Lint
         run: cargo clippy --all-targets -- -D warnings
 
-      - name: Test
-        run: cargo test
+      - name: Doc tests
+        # nextest runs every other test; it doesn't run doc tests.
+        run: cargo test --doc
+
+      - name: Archive the tests
+        # The test binaries, lughac and their libraries, at paths under
+        # target/ that the test jobs recreate in the same workspace.
+        run: cargo nextest archive --archive-file nextest-archive.tar.zst
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: nextest-archive
+          path: nextest-archive.tar.zst
+          retention-days: 1
+
+  test:
+    name: Tests ${{ matrix.part }}/4
+    needs: build
+    runs-on: ubuntu-latest
+    container: ubuntu:26.04
+    strategy:
+      # Every part runs to the end, so one failure never hides another.
+      fail-fast: false
+      matrix:
+        part: [1, 2, 3, 4]
+    steps:
+      # The tests read the source tree (tests/programs/, docs/), at the
+      # revision the archive was built from.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/system
+
+      - name: Make room for nextest
+        # No Rust here: the archive holds everything built.
+        run: |
+          mkdir -p "$HOME/.cargo/bin"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        with:
+          tool: ${{ env.NEXTEST }}
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # zig's own cache (its C libraries and unwinder per target), kept
+        # in lughac's cache root between runs.
+        with:
+          path: ~/.cache/lugha/zig
+          key: zig-0.17.1-${{ hashFiles('runtime/**', 'src/link/zig.rs') }}-${{ matrix.part }}
+          restore-keys: zig-0.17.1-
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: nextest-archive
+
+      - name: Run part ${{ matrix.part }} of the tests
+        # Extracted into the workspace, lughac lands at the path the tests
+        # were compiled with (`env!("CARGO_BIN_EXE_lughac")`).
+        run: |
+          cargo-nextest nextest run --profile ci \
+            --archive-file nextest-archive.tar.zst \
+            --extract-to . --extract-overwrite --workspace-remap . \
+            --partition slice:${{ matrix.part }}/4
+
+  vscode:
+    name: VS Code extension
+    runs-on: ubuntu-latest
+    container: ubuntu:26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Node
-        # The VS Code extension's tests (PRP-099, PRP-100); Node from the Ubuntu archive.
-        run: apt-get install -y --no-install-recommends nodejs npm
+        # The VS Code extension's tests; Node from the Ubuntu archive.
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends nodejs npm ca-certificates
 
-      - name: VS Code extension
+      - name: Test the extension
         # Its keyword test reads the spec, so it runs on every change; the
-        # language server itself is tested by `cargo test` (tests/lsp.rs).
+        # language server itself is tested by the Rust tests (tests/lsp.rs).
         working-directory: editors/vscode
         run: |
           npm ci

@@ -1,0 +1,11 @@
+# cargo-nextest's settings. Locally `cargo test` stays the way to run the
+# tests; CI runs them with nextest's `ci` profile, split across four jobs.
+
+[profile.ci]
+# Every test runs even after a failure, so one never hides another.
+fail-fast = false
+# Tests build and run programs through cc, zig and qemu: slow on a busy
+# machine, but one still running after ten minutes is stuck.
+slow-timeout = { period = "60s", terminate-after = 10 }
+# A failure's output is printed where it happens and again in the summary.
+failure-output = "immediate-final"

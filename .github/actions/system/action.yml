@@ -1,0 +1,51 @@
+# The system every CI job builds or runs Lugha programs on: Ubuntu's
+# packages and zig, inside the ubuntu:26.04 container. Packages come from a
+# cache of their .deb files when it has them, so a slow mirror costs only the
+# package lists.
+name: System
+description: Ubuntu packages (cached .deb files) and zig, checked against its SHA-256
+
+runs:
+  using: composite
+  steps:
+    - name: Keep downloaded packages
+      # Ubuntu's container image deletes .deb files after installing; the
+      # cache below needs them kept.
+      shell: bash
+      run: rm -f /etc/apt/apt.conf.d/docker-clean
+
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: /var/cache/apt/archives/*.deb
+        key: apt-ubuntu2604-${{ hashFiles('.github/actions/system/action.yml') }}
+        restore-keys: apt-ubuntu2604-
+
+    - name: Install system packages
+      # llvm-21-dev: inkwell's LLVM (DECISION-005, linked dynamically), and
+      # libLLVM for lughac in every job that runs it.
+      # build-essential: `cc` compiles the runtime and links test programs.
+      # qemu-user: runs ARM64 builds (tests/arm.rs, tests/musl.rs);
+      # libc6-arm64-cross: the ARM64 glibc qemu loads for glibc builds.
+      # libssl-dev and openssl: std.tls and std.crypto. git: git packages
+      # and a real checkout. xz-utils: unpacks zig. zstd: nextest's archive
+      # and a faster cache. curl and ca-certificates: downloads.
+      shell: bash
+      run: |
+        apt-get update
+        apt-get install -y --no-install-recommends \
+          llvm-21-dev build-essential libc6-arm64-cross qemu-user xz-utils zstd \
+          curl ca-certificates git libssl-dev openssl
+
+    - name: Install zig
+      # Builds for other platforms go through `zig cc`. The tarball is
+      # checked against the SHA-256 ziglang.org publishes before unpacking.
+      shell: bash
+      env:
+        ZIG: zig-x86_64-linux-0.17.1
+        ZIG_SHA256: 3581863e3cbcfd0fce0efc682ce7e9e93da96668a977791d356a26d2a7e9b17a
+      run: |
+        curl --proto '=https' --tlsv1.2 -sSfL -o /tmp/zig.tar.xz "https://ziglang.org/download/0.17.1/$ZIG.tar.xz"
+        echo "$ZIG_SHA256  /tmp/zig.tar.xz" | sha256sum -c -
+        mkdir -p /opt/zig
+        tar -xJf /tmp/zig.tar.xz -C /opt/zig
+        echo "/opt/zig/$ZIG" >> "$GITHUB_PATH"
