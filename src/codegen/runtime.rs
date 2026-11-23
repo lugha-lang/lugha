@@ -1,4 +1,4 @@
-//! Calls into the C runtime (`runtime/lugha_rt.c`): intrinsics,
+//! Calls into the C runtime (`runtime/core/lugha_rt.c`): intrinsics,
 //! panics, and string literals laid out as the runtime expects.
 
 use std::collections::HashMap;

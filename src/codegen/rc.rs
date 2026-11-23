@@ -5,7 +5,7 @@
 //! Strings, arrays, `Ref` boxes, the box an enum's self-referencing payload
 //! lives in, a closure's environment and an interface value's box are
 //! counted objects. Each carries, in its header, the function that releases
-//! what it holds (`runtime/rc.c`), so releasing any of them is the same
+//! what it holds (`runtime/memory/rc.c`), so releasing any of them is the same
 //! operation: take one from the count, and free at zero. Structs, tuples,
 //! enums, function values and interface values are values holding such
 //! pointers: a per-type function retains or releases each one.

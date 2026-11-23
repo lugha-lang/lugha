@@ -22,7 +22,7 @@ use crate::check::Type;
 /// `lugha_rt_scope_exit`'s status for a scope past its deadline.
 const ENDED_LATE: u64 = 4;
 
-/// `lugha_rt_task_policy`'s answers (`runtime/scope_policy.c`).
+/// `lugha_rt_task_policy`'s answers (`runtime/tasks/scope_policy.c`).
 const POLICY_PRINT: u64 = 1;
 const POLICY_HANDLER: u64 = 2;
 const POLICY_ROOT: u64 = 3;

@@ -208,50 +208,6 @@ void lugha_rt_stack_low(void) {
  * from the new stack back to the old. */
 void lugha_rt_on_stack(void (*fn)(void *), void *arg, char *top);
 
-#if defined(__x86_64__)
-__asm__(".text\n"
-        ".globl lugha_rt_on_stack\n"
-        ".type lugha_rt_on_stack, @function\n"
-        "lugha_rt_on_stack:\n"
-        "    .cfi_startproc\n"
-        "    pushq %rbp\n"
-        "    .cfi_def_cfa_offset 16\n"
-        "    .cfi_offset rbp, -16\n"
-        "    movq %rsp, %rbp\n"
-        "    .cfi_def_cfa_register rbp\n"
-        "    movq %rdx, %rsp\n"
-        "    movq %rdi, %rax\n"
-        "    movq %rsi, %rdi\n"
-        "    call *%rax\n"
-        "    movq %rbp, %rsp\n"
-        "    popq %rbp\n"
-        "    .cfi_def_cfa rsp, 8\n"
-        "    ret\n"
-        "    .cfi_endproc\n"
-        ".size lugha_rt_on_stack, .-lugha_rt_on_stack\n");
-#elif defined(__aarch64__)
-__asm__(".text\n"
-        ".globl lugha_rt_on_stack\n"
-        ".type lugha_rt_on_stack, %function\n"
-        "lugha_rt_on_stack:\n"
-        "    .cfi_startproc\n"
-        "    stp x29, x30, [sp, #-16]!\n"
-        "    .cfi_def_cfa_offset 16\n"
-        "    .cfi_offset x29, -16\n"
-        "    .cfi_offset x30, -8\n"
-        "    mov x29, sp\n"
-        "    .cfi_def_cfa_register x29\n"
-        "    mov sp, x2\n"
-        "    mov x9, x0\n"
-        "    mov x0, x1\n"
-        "    blr x9\n"
-        "    mov sp, x29\n"
-        "    ldp x29, x30, [sp], #16\n"
-        "    .cfi_def_cfa sp, 0\n"
-        "    ret\n"
-        "    .cfi_endproc\n"
-        ".size lugha_rt_on_stack, .-lugha_rt_on_stack\n");
-#endif
 
 /* Pages kept inaccessible at a C stack's bottom: C has no entry checks,
  * so an overflow there faults, and the handler (stack.c) reports it. */

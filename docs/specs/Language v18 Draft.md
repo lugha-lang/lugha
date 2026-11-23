@@ -578,7 +578,7 @@ let held = Pinned.new(data);
 c_lib_store(held.pointer());
 ```
 
-**Replaces:** v17 §7's collector: the Boehm collector (`third_party/bdwgc`), conservative scanning, the sticky shared flag of copy-on-write, uncollectable memory for callback closures, and the GC hooks in `runtime/tasks.c`; the CLAUDE.md known issue that an integer looking like a pointer keeps garbage alive; the CLAUDE.md stack entry for Boehm.
+**Replaces:** v17 §7's collector: the Boehm collector (`third_party/bdwgc`), conservative scanning, the sticky shared flag of copy-on-write, uncollectable memory for callback closures, and the GC hooks in `runtime/tasks/tasks.c`; the CLAUDE.md known issue that an integer looking like a pointer keeps garbage alive; the CLAUDE.md stack entry for Boehm.
 
 **Why:** Lugha's value semantics mean most objects have exactly one holder and cycles can form only through a few types, which is the case where reference counting is cheap and precise: memory is freed as soon as it's garbage, nothing pauses every core, copy-on-write can write in place, and sending a large value to another task costs one walk over its not-yet-shared part, paid once. Alternative kept as plan B: a heap per task.
 

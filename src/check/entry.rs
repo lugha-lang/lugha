@@ -80,7 +80,7 @@ pub fn maker(key: &str, entry: Entry) -> Option<&'static str> {
 }
 
 /// The bits `lugha_rt_lockdown` takes for the capability kinds an entry
-/// was given (`runtime/lockdown.c`'s `LOCK_*`): the kernel limits the
+/// was given (`runtime/os/linux/lockdown.c`'s `LOCK_*`): the kernel limits the
 /// process to them. A test's `Dir` is its folder.
 pub fn lockdown_kinds(params: &[Type]) -> i64 {
     params

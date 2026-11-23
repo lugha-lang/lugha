@@ -241,7 +241,7 @@ impl<'ctx> Lowerer<'ctx> {
     /// (what releases its contents when it is freed).
     /// A `Ref` box that may be part of a cycle, made at source offset `at`:
     /// the runtime gives it a cell count, so its task's cycle collector
-    /// sees it (`runtime/cycles.c`).
+    /// sees it (`runtime/memory/cycles.c`).
     pub(super) fn new_cell(
         &mut self,
         size: inkwell::values::IntValue<'ctx>,

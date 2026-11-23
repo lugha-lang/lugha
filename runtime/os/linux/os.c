@@ -1,5 +1,5 @@
 /*
- * os/linux.c — part of lugha_rt.c: the runtime's operating-system layer
+ * os/linux/os.c — part of lugha_rt.c: the runtime's operating-system layer
  * for Linux, with Linux's own headers. Shared fragments reach the OS only
  * through these `os_*` functions, declared in the core; another system
  * supplies the same functions in a file of its own.
@@ -24,6 +24,10 @@
 #include <sys/prctl.h>
 #include <sys/random.h>
 #include <sys/syscall.h>
+
+#if !defined(__x86_64__) && !defined(__aarch64__)
+#error "green threads need a stack switch for this CPU (os/linux/ has x86_64.c and aarch64.c)"
+#endif
 
 /* The event set, made at the first socket wait, job or wake-up. */
 static int os_poll_fd = -1;

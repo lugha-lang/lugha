@@ -128,29 +128,7 @@ static void fiber_exit(Fiber *self) {
 /* `f`'s first frame on its stack, which the first switch to it pops,
  * landing in `lugha_rt_task_boot`. */
 static void fiber_frame(Fiber *f) {
-#if defined(__x86_64__)
-    /* The first switch pops these: MXCSR and x87 defaults, then r15, r14,
-     * r13, r12 (the fiber), rbx and rbp in slots 1 to 6, then returns into
-     * lugha_rt_task_boot with %rsp 16-aligned for its call. */
-    uint64_t *frame = (uint64_t *)(f->top - 16) - 8;
-    frame[0] = 0x1f80 | ((uint64_t)0x037f << 32);
-    frame[1] = 0;
-    frame[2] = 0;
-    frame[3] = 0;
-    frame[4] = (uint64_t)(uintptr_t)f;
-    frame[5] = 0;
-    frame[6] = 0;
-    frame[7] = (uint64_t)(uintptr_t)lugha_rt_task_boot;
-#else
-    /* AArch64: the switch's 176-byte frame, all zero (FPCR 0
-     * is round-to-nearest, no traps) but x19 (slot 0) = the fiber and x30
-     * (slot 11) = boot, the address its `ret` takes; `sp` ends at `top`, 16-byte aligned. */
-    uint64_t *frame = (uint64_t *)(f->top - 176);
-    memset(frame, 0, 176);
-    frame[0] = (uint64_t)(uintptr_t)f;
-    frame[11] = (uint64_t)(uintptr_t)lugha_rt_task_boot;
-#endif
-    f->sp = frame;
+    f->sp = cpu_first_frame(f);
 #if defined(__SANITIZE_THREAD__)
     f->tsan = __tsan_create_fiber(0);
 #endif

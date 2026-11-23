@@ -25,7 +25,9 @@ use std::path::{Path, PathBuf};
 
 pub use self::errors::{LinkError, foreign_refusals};
 pub use self::inputs::{Plan, PlanError};
-pub use self::runtime_parts::{LINUX_ONLY, RUNTIME_PARTS, RUNTIME_SOURCE, RUNTIME_SYMBOLS};
+pub use self::runtime_parts::{
+    LINUX_ONLY, POSIX_ONLY, RUNTIME_PARTS, RUNTIME_SOURCE, RUNTIME_SYMBOLS,
+};
 
 /// Links `objects` and the runtime into the executable `output`.
 ///
@@ -124,7 +126,7 @@ mod tests {
         let joined: String = RUNTIME_PARTS.iter().map(|(_, src)| *src).collect();
         assert_eq!(joined, RUNTIME_SOURCE);
         let (name, core) = RUNTIME_PARTS[0];
-        assert_eq!(name, "lugha_rt.c");
+        assert_eq!(name, "core/lugha_rt.c");
         let feature = core
             .find("#define _GNU_SOURCE")
             .expect("the core enables GNU extensions");
@@ -245,11 +247,59 @@ mod tests {
     }
 
     #[test]
-    fn the_os_layer_comes_right_after_the_core() {
+    fn the_os_layer_comes_right_after_the_core_and_cpus_after_tasks() {
         let names: Vec<&str> = RUNTIME_PARTS.iter().map(|(name, _)| *name).collect();
-        assert_eq!(names[..3], ["lugha_rt.c", "os/layer.c", "os/linux.c"]);
-        for only in super::LINUX_ONLY {
-            assert!(names.contains(&only), "{only} is a runtime part");
+        assert_eq!(
+            names[..3],
+            ["core/lugha_rt.c", "os/layer.c", "os/linux/os.c"]
+        );
+        let tasks = names
+            .iter()
+            .position(|n| *n == "tasks/tasks.c")
+            .expect("tasks.c");
+        assert_eq!(
+            names[tasks + 1..tasks + 3],
+            ["os/linux/x86_64.c", "os/linux/aarch64.c"]
+        );
+        for only in super::LINUX_ONLY.iter().chain(&super::POSIX_ONLY) {
+            assert!(names.contains(only), "{only} is a runtime part");
+        }
+    }
+
+    /// Every `.c` file under `dir`, as a path from `base`.
+    fn runtime_files(dir: &std::path::Path, base: &std::path::Path, out: &mut Vec<String>) {
+        for entry in std::fs::read_dir(dir)
+            .expect("runtime/ is readable")
+            .flatten()
+        {
+            let path = entry.path();
+            if path.is_dir() {
+                runtime_files(&path, base, out);
+            } else if path.extension().is_some_and(|e| e == "c") {
+                let rel = path.strip_prefix(base).expect("under runtime/");
+                out.push(rel.to_string_lossy().into_owned());
+            }
+        }
+    }
+
+    #[test]
+    fn every_runtime_file_is_joined() {
+        let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime");
+        let mut files = Vec::new();
+        runtime_files(&base, &base, &mut files);
+        assert!(files.len() > 50, "{} files", files.len());
+        for file in files {
+            if file.starts_with("openssl/") {
+                let text = std::fs::read_to_string(base.join(&file)).expect("readable");
+                let joined = super::runtime::TLS_SOURCE.contains(&text)
+                    || super::runtime::CRYPTO_SOURCE.contains(&text);
+                assert!(joined, "{file} is in neither OpenSSL part");
+            } else {
+                assert!(
+                    RUNTIME_PARTS.iter().any(|(n, _)| *n == file),
+                    "{file} isn't joined"
+                );
+            }
         }
     }
 
@@ -278,7 +328,7 @@ mod tests {
     }
 
     #[test]
-    fn only_the_os_layer_and_linux_parts_call_linux() {
+    fn only_os_parts_call_the_os_or_the_cpu() {
         const LINUX: [&str; 14] = [
             "epoll_",
             "eventfd",
@@ -295,21 +345,23 @@ mod tests {
             "prctl",
             "<linux/",
         ];
+        // A CPU's own code: assembly, or code chosen by the CPU.
+        const CPU: [&str; 3] = ["__asm__", "__x86_64__", "__aarch64__"];
         let mut found = Vec::new();
         for (name, src) in RUNTIME_PARTS {
-            if super::LINUX_ONLY.contains(&name) {
-                continue;
-            }
             let code = code_of(src);
-            for word in LINUX {
-                if code.contains(word) {
-                    found.push(format!("{name}: {word}"));
-                }
+            if !super::LINUX_ONLY.contains(&name) {
+                let words = LINUX.iter().filter(|w| code.contains(**w));
+                found.extend(words.map(|w| format!("{name}: {w}")));
+            }
+            if !name.starts_with("os/") {
+                let words = CPU.iter().filter(|w| code.contains(**w));
+                found.extend(words.map(|w| format!("{name}: {w}")));
             }
         }
         assert!(
             found.is_empty(),
-            "Linux calls in shared parts:\n{}",
+            "OS or CPU code outside os/:\n{}",
             found.join("\n")
         );
     }

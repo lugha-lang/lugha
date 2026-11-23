@@ -277,16 +277,9 @@ static __thread Worker this_worker = {.pick_state = 0x9e3779b97f4a7c15u, .next_t
 
 /* The thread pointer, read fresh: a task may move to another thread at a
  * switch, and a compiler may keep a thread-local address in a register
- * across a call, so `worker` reads it each time instead. */
-static inline uintptr_t thread_pointer(void) {
-    uintptr_t tp;
-#if defined(__x86_64__)
-    __asm__ volatile("movq %%fs:0, %0" : "=r"(tp));
-#else
-    __asm__ volatile("mrs %0, tpidr_el0" : "=r"(tp));
-#endif
-    return tp;
-}
+ * across a call, so `worker` reads it each time instead. Read by the
+ * CPU's own instruction (os/<system>/<cpu>.c). */
+static inline uintptr_t thread_pointer(void);
 
 /* Where `this_worker` lies from the thread pointer: the same in every
  * thread (the executable's own thread-local block), set before `main`. */

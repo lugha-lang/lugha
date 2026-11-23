@@ -12,11 +12,11 @@ use super::compiler::Compiler;
 use super::object_cache::Cache;
 use crate::span::Span;
 
-/// `runtime/tls.c` and `runtime/tls_keys.c` (connections by key):
+/// `runtime/openssl/tls.c` and `openssl/tls_keys.c` (connections by key):
 /// `std.tls` over OpenSSL, only for programs that use it.
 pub const TLS_SOURCE: &str = concat!(
-    include_str!("../../runtime/tls.c"),
-    include_str!("../../runtime/tls_keys.c")
+    include_str!("../../runtime/openssl/tls.c"),
+    include_str!("../../runtime/openssl/tls_keys.c")
 );
 
 /// Every function codegen calls in [`TLS_SOURCE`].
@@ -35,11 +35,11 @@ pub const TLS_SYMBOLS: [&str; 12] = [
     "lugha_rt_tls_peer_key",
 ];
 
-/// `runtime/crypto.c` and `runtime/crypto_hpke.c` (HPKE): `std.crypto`
+/// `runtime/openssl/crypto.c` and `openssl/crypto_hpke.c` (HPKE): `std.crypto`
 /// over OpenSSL, only for programs that use it.
 pub const CRYPTO_SOURCE: &str = concat!(
-    include_str!("../../runtime/crypto.c"),
-    include_str!("../../runtime/crypto_hpke.c")
+    include_str!("../../runtime/openssl/crypto.c"),
+    include_str!("../../runtime/openssl/crypto_hpke.c")
 );
 
 /// Every function codegen calls in [`CRYPTO_SOURCE`].

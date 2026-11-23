@@ -24,7 +24,7 @@ use super::lower::{Lowerer, POSITIONED};
 const STACK_CHECK: &str = "lugha-stack-check";
 
 /// What a function's entry wants left on its stack, as the runtime's
-/// `STACK_RESERVE` (`runtime/stacks.c`): below it, `stack overflow`.
+/// `STACK_RESERVE` (`runtime/tasks/stacks.c`): below it, `stack overflow`.
 const STACK_RESERVE: u64 = 256 * 1024;
 
 /// The stack check at the entry of every marked function `module` still

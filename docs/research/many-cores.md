@@ -6,7 +6,7 @@ Sources: an audit of `runtime/*.c` and `src/codegen/*.rs` (2026-11-18, file:line
 
 ## 1. What the runtime assumes today
 
-Everything runs on one OS thread; nothing locks (`runtime/tasks.c`'s header says so). Helper threads (milestone 206) are the only other threads, and they never touch Lugha values.
+Everything runs on one OS thread; nothing locks (`runtime/tasks/tasks.c`'s header says so). Helper threads (milestone 206) are the only other threads, and they never touch Lugha values.
 
 **State that must become per worker:** `current`, `zombie`, `on_c_stack`, the step budget `lugha_rt_task_budget`, the stack limit `lugha_rt_stack_limit`, the C stack (`c_stack_top`, `stack_low`, the 64 KiB `sigaltstack`, all the main thread's), `last_spawned`, the marking worklist (`rc.c`), the allocator's free lists and carve pointers (`rc_alloc.c`), the report counters, `select`'s random state (`chans.c`).
 

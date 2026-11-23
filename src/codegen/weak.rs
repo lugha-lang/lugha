@@ -1,5 +1,5 @@
 //! Weak references in codegen. A `Weak<T>` is a pointer to its box's weak
-//! cell (`runtime/weak.c`), counted like any object. In a program that
+//! cell (`runtime/memory/weak.c`), counted like any object. In a program that
 //! uses `Weak`, every `Ref` box has one more word after its contents, its
 //! cell or null, and its visit empties the cell when the box is freed.
 //! Programs without `Weak` lay boxes out as before.
