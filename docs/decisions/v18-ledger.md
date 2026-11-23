@@ -271,6 +271,23 @@ The draft must cite every `approved` line exactly once as a rule, and contain no
 - DST-12 approved — A `Remote<T>` that `lookup` finds on the same node skips encoding and the network, keeping the same `Result`-returning calls.
 - DST-10 approved — Replay: capability results are recorded with the step they arrived at; replay injects them and refuses a different binary; recordings are opt-in and treated as secret; replay never starts real processes.
 
+## PRT — portability
+
+- PRT-01 approved — lughac builds programs for platforms other than the one it runs on. This changes where a program runs, not what it means, so it stays in v18 and ships as `0.18.x` releases; only a language change (such as `@cfg`) would need v19.
+- PRT-02 approved — Building for the machine lughac runs on uses `cc`, as today; any other target uses `zig cc -target <zig triple>`, for both the runtime and the link; `$LUGHA_CC` overrides both. zig is a program found on `PATH`, never a crate.
+- PRT-03 approved — The runtime stays C source, compiled for each target by the build's compiler and cached; no precompiled runtimes are shipped.
+- PRT-04 approved — One platform at a time, in order: zig and Linux musl; running and testing ARM builds under `qemu`; the runtime split by OS; macOS; Windows; WebAssembly (WASI).
+- PRT-05 approved — `std.tls` and `std.crypto` on a foreign target are an error; the host's OpenSSL is never linked for another platform.
+- PRT-06 approved — zig 0.17.0 or newer, its version checked once per build with a clear error; zig's cache under lughac's cache root; a target's zig spelling comes from a fixed table, while codegen keeps the LLVM triple.
+- PRT-07 approved — The first new targets are `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl`, linked statically with zig's libunwind; `aarch64-unknown-linux-gnu` moves from `aarch64-linux-gnu-gcc` to zig (breaking).
+- PRT-08 approved — The runtime splits into shared code, `os/posix.c` and one file per OS, joined per target. The OS layer's line is the operation (a socket's receive, send, accept, connect, cancel, close), not registering a descriptor; the poller hands back finished waiters, and helper jobs finish the same way.
+- PRT-09 approved — A cancelled socket call resumes its task only once the OS has let go of its buffer: at once on POSIX, after the completion on Windows.
+- PRT-10 approved — Idle workers park on their own parker: a futex word where the OS has one (Linux, Windows, macOS 14.4+), a semaphore otherwise.
+- PRT-14 approved — The task switch is written per CPU and OS (on Windows it also switches the thread's recorded stack bounds); stack overflow is caught per OS (`SIGSEGV` and `SIGBUS` on POSIX, a vectored exception handler on Windows).
+- PRT-11 deferred — What a program promises on an OS whose kernel can't lock it down (seccomp, Landlock), and the `Dir` confinement each OS uses (SEC-01): decided with that OS's port, with security review.
+- PRT-12 deferred — Platform-specific Lugha code (`@cfg`), only if a port needs it; a language change, so v19 or an approved Draft rule.
+- PRT-13 deferred — Windows sockets through overlapped I/O or the AFD poll; precompiled runtimes with `lld` so foreign builds need no zig; OpenSSL for foreign targets.
+
 ## PRF — performance targets (baseline: `bench/RESULTS.md`, 2026-10-31, commit 5d5ab18)
 
 - PRF-01 approved — fannkuch, fib, mandelbrot, nbody: within 3% of today.
@@ -352,4 +369,4 @@ The draft must cite every `approved` line exactly once as a rule, and contain no
 
 ## TODO.md items this resolves
 
-Explicit type arguments (TYA); `From<T>` once per type argument (INT-05); a separate debug form (PRE-02); the warning for a `show` of the wrong shape (obsolete under INT-03); generic actors and actors as interface values (OPN-04); non-blocking I/O (SCH-07).
+Explicit type arguments (TYA); `From<T>` once per type argument (INT-05); a separate debug form (PRE-02); the warning for a `show` of the wrong shape (obsolete under INT-03); generic actors and actors as interface values (OPN-04); non-blocking I/O (SCH-07); portability stages B3–E (PRT-04).

@@ -1,6 +1,6 @@
 # Lugha v18 — Draft (delta against v17)
 
-**Status:** design approved in discussion (November 2026). Phase 1 is being built: nominal interfaces landed as milestone 164 (PRP-196); the rest is not built yet. The phases are in Part 7; each becomes one or more PRPs.
+**Status:** design approved in discussion (November 2026). Phase 1 is being built: nominal interfaces landed as milestone 164 (PRP-196); the rest is not built yet. The phases are in Part 7; each becomes one or more PRPs. Portability (Part 9) runs beside them.
 
 **Base:** `Language v17 Specification.md` at milestone 162 (commit `c8c6b30`). Everything not mentioned keeps its v17 meaning.
 
@@ -1089,6 +1089,7 @@ Derived from Parts 1–5; adds no rules. Section numbers are v17's. New error co
 - Moves to the prelude: printing (`codegen/show.rs`, `show_iface.rs`), the method-name table (`check/helpers.rs`), tuple order (`codegen/ordering.rs`), `unwrap` and assertions (`codegen/unwrap.rs`, `assertions.rs`), map literals (`codegen/maps.rs`), I/O (`codegen/io.rs`, `input.rs`) (1.6, 1.7).
 - The runtime: a multi-threaded allocator behind `lugha_rt_alloc` (3.1); workers, helper threads, timer heaps (4.6); process lockdown and the hash seed at startup (2.2, 3.2); the step countdown charges runtime work by chunk (4.6).
 - `lughac`: `test --shuffle=SEED` and `--integration`; record and replay (2.1, 4.6, 5.2).
+- Targets: `--target` gains the musl triples, foreign targets build through zig, the runtime splits by OS (Part 9).
 
 **§10 Example programs.** Every acceptance program needs rewriting in v18 form; they stay the acceptance tests.
 
@@ -1126,6 +1127,8 @@ Each phase is one or more PRPs, approved one at a time [ORD-01]. The order [ORD-
 
 Phase 1 comes first because capabilities rely on nominal interfaces (for fakes) and type arguments. The memory prototype comes before unwinding because every unwinding cleanup path differs between reference counting and plan B, so the memory model is settled by measurement before unwinding, scopes and actors are built on it [ORD-03]. Each phase breaks programs; the migration tool is planned separately [PRI-05].
 
+Portability isn't a phase: it changes no rule of the language, so its steps (Part 9) run beside the phases, one platform at a time.
+
 ## 7.2 Performance targets
 
 Baseline: `bench/RESULTS.md`, 2026-10-31, commit `5d5ab18`, Intel i5-4308U. The baseline is recorded again with `python3 bench/run.py --save`, on one fixed machine, before Phase 1 starts.
@@ -1150,7 +1153,7 @@ Baseline: `bench/RESULTS.md`, 2026-10-31, commit `5d5ab18`, Intel i5-4308U. The 
 
 ## 7.3 TODO.md items this resolves
 
-Explicit type arguments (1.5); `From<T>` once per type argument (1.1); a separate debug form (1.7); the warning for a `show` of the wrong shape, now obsolete (1.1); generic actors and actors as interface values (4.5); bounded mailboxes (4.5); green threads on several OS threads (4.6); non-blocking input and output (4.6).
+Explicit type arguments (1.5); `From<T>` once per type argument (1.1); a separate debug form (1.7); the warning for a `show` of the wrong shape, now obsolete (1.1); generic actors and actors as interface values (4.5); bounded mailboxes (4.5); green threads on several OS threads (4.6); non-blocking input and output (4.6); portability stages B3–E (Part 9).
 
 ---
 
@@ -1174,3 +1177,49 @@ Decided during building, one line each:
 - The spec's wording of the memory model for helper threads and C. [DEF-14]
 - `mut` closure parameters (today E0209). [DEF-15]
 - Recording and replaying runs that use several workers. [DEF-16]
+
+---
+
+# Part 9 — Portability
+
+lughac builds programs for platforms other than the one it runs on. This changes where a program runs, not what it means: a valid program means the same on every supported platform, so portability needs no language version and ships in `0.18.x` releases [PRT-01]. Research behind this part: `docs/research/cross-platform.md`.
+
+## 9.1 Building for another platform
+
+```bash
+lughac build app.la                                    # this machine: cc, as today
+lughac build app.la --target=x86_64-unknown-linux-musl # zig cc -target x86_64-linux-musl
+LUGHA_CC="python -m ziglang cc" lughac build app.la --target=aarch64-unknown-linux-musl
+```
+
+1. A build for the machine lughac runs on compiles the runtime and links with `cc`, as today. A build for any other target uses `zig cc -target <zig triple>` for both. `$LUGHA_CC` overrides both. zig is a program found on `PATH`, never part of lughac; a foreign build without it fails with a message naming zig and `$LUGHA_CC` [PRT-02].
+2. The runtime stays C source inside lughac, compiled for the target by the build's compiler and cached per target; no precompiled runtimes are shipped [PRT-03].
+3. zig must be 0.17.0 or newer, checked once per build. Its cache lives under lughac's cache root. `--target` takes LLVM triples, which codegen uses; zig's spelling of each comes from a fixed table, never from rewriting the string, and `--cpu` becomes zig's `-mcpu` [PRT-06].
+4. The first new targets are `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl`: static executables, linked with zig's libunwind so panics unwind. `aarch64-unknown-linux-gnu` builds through zig instead of `aarch64-linux-gnu-gcc` [PRT-07].
+5. A program importing `std.tls` or `std.crypto` can't be built for a foreign target: the host's OpenSSL is never linked into another platform's program [PRT-05].
+
+## 9.2 The runtime on each OS
+
+1. The runtime splits into shared code, `os/posix.c` (Linux and macOS) and one file per OS (`os/linux.c`, later `os/darwin.c`, `os/windows.c`); lughac joins the target's files into the one `lugha_rt.c` it compiles. The OS layer is drawn at the operations, a socket's receive, send, accept, connect, cancel and close, not at registering a descriptor: on POSIX an operation tries the call and waits for readiness on `EAGAIN`, as today; on Windows it starts the operation and waits for its completion. The poller hands back finished waiters, and helper jobs finish through it the same way [PRT-08].
+2. A cancelled socket call (a timeout, a cancelled scope) resumes its task only once the OS has let go of its buffer: at once on POSIX, after the completion arrives on Windows [PRT-09].
+3. Idle workers park on their own parker: a futex word where the OS has one (Linux `futex`, Windows `WaitOnAddress`, macOS 14.4+ `os_sync_wait_on_address`), a semaphore otherwise [PRT-10].
+4. The task switch is written per CPU and OS; on Windows it also switches the thread's recorded stack bounds. Stack overflow is caught per OS: `SIGSEGV` and `SIGBUS` on POSIX, a vectored exception handler on Windows [PRT-14].
+5. Process lockdown stays Linux-only; `lugha_rt_lockdown` remains its porting point. What a program promises on an OS whose kernel can't lock it down, and how each OS keeps a `Dir` inside its folder (SEC-01), are decided with that OS's port, with security review [PRT-11].
+
+## 9.3 Order
+
+One platform at a time, each step one or more PRPs [PRT-04]:
+
+| Step | Work |
+| --- | --- |
+| 1 | zig for foreign targets; Linux musl (9.1) |
+| 2 | `run` and `test` for ARM builds under `qemu-aarch64`; ARM in CI |
+| 3 | The runtime split by OS, no change in behaviour (9.2 rules 1–3) |
+| 4 | macOS: `os/darwin.c` (kqueue), Mach-O through zig, Apple's ARM64 calling differences; a Mac CI runner |
+| 5 | Windows: files, processes, environment, sockets, stack overflow, Windows x64 calling rules, `.exe` through zig's MinGW; a Windows CI runner |
+| 6 | WebAssembly (WASI): one worker, no helper threads; its capabilities and std modules decided first |
+
+## 9.4 Deferred
+
+- Platform-specific Lugha code (`@cfg`), only if a port needs it; it is a language change [PRT-12].
+- Windows sockets through overlapped I/O or the AFD poll; precompiled runtimes with `lld`, so foreign builds need no zig; OpenSSL for foreign targets [PRT-13].
