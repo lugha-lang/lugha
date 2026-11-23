@@ -41,9 +41,9 @@ BUGS.md holds the bugs understood but not fixed, with the fixes weighed. The one
 
 ## Portability — one platform at a time
 
-Done: portable x86-64 binaries (`--cpu`), `$LUGHA_CC`, Linux on ARM64 with AAPCS64 struct passing (milestones 130–134); foreign targets through `zig cc` and Linux musl (milestone 247, Draft Part 9 step 1). The rest is v18's Draft, Part 9.
+Done: portable x86-64 binaries (`--cpu`), `$LUGHA_CC`, Linux on ARM64 with AAPCS64 struct passing (milestones 130–134); foreign targets through `zig cc` and Linux musl (milestone 247, Draft Part 9 step 1); `run`/`test --target` under qemu, ARM and musl in CI (milestone 248, step 2). The rest is v18's Draft, Part 9.
 
-- [ ] **B3 — Building and testing for Linux ARM:** `run`/`test` under `qemu-aarch64`, ARM CI; `[build]` in `lugha.toml` (`cpu`, target).
+- [ ] **`[build]` in `lugha.toml`** (`cpu`, target): not in the Draft's Part 9 yet.
 - [ ] **C1 — Runtime split by OS:** shared, POSIX and per-OS files (event waiting behind `lugha_rt_poll_*`).
 - [ ] **C2 — Mac runtime:** `kqueue` for `net.c`; `spawn.c`'s `MAP_STACK`, `random.c`'s `getrandom`.
 - [ ] **C3 — Mac calling rules and linking:** Apple's AArch64 differences (variadics), Mach-O, signing; built and tested on a Mac runner.

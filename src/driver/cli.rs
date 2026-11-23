@@ -37,6 +37,9 @@ pub(super) enum Command {
     Run {
         /// Source file
         file: PathBuf,
+        /// The platform to build for, run under qemu for another CPU [default: this machine]
+        #[arg(long, value_enum)]
+        target: Option<TargetArg>,
         #[command(flatten)]
         options: Options,
         /// Arguments for the program, after `--` (read with `args()`)
@@ -98,9 +101,12 @@ pub(super) enum Command {
         /// Diagnostic format, for compile errors on stderr
         #[arg(long, value_enum, default_value = "human")]
         diagnostics: Format,
-        /// The x86-64 level the test executables are built for
-        #[arg(long, value_enum, default_value = "x86-64")]
-        cpu: CpuLevel,
+        /// The x86-64 level the test executables are built for [default: x86-64]
+        #[arg(long, value_enum)]
+        cpu: Option<CpuLevel>,
+        /// The platform to build for, run under qemu for another CPU [default: this machine]
+        #[arg(long, value_enum)]
+        target: Option<TargetArg>,
         /// Run plain tests with ready tasks picked at random from SEED (drawn if not given)
         #[arg(long, value_name = "SEED", num_args = 0..=1, require_equals = true)]
         shuffle: Option<Option<u64>>,
@@ -243,6 +249,25 @@ pub(super) fn instruments_from_env() -> Instruments {
     Instruments {
         call_costs: set("LUGHA_CALL_COSTS"),
         rc_check: set("LUGHA_RC_CHECK"),
+    }
+}
+
+impl Command {
+    /// Whether this command names an ARM64 target and an x86-64 `--cpu`
+    /// level: a usage error.
+    pub(super) fn arm_with_cpu(&self) -> bool {
+        let arm =
+            |t: &Option<TargetArg>| matches!(t, Some(TargetArg::Aarch64 | TargetArg::Aarch64Musl));
+        match self {
+            Command::Build {
+                target, options, ..
+            }
+            | Command::Run {
+                target, options, ..
+            } => arm(target) && options.cpu.is_some(),
+            Command::Test { target, cpu, .. } => arm(target) && cpu.is_some(),
+            _ => false,
+        }
     }
 }
 

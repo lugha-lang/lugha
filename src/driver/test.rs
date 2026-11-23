@@ -9,15 +9,16 @@
 
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::codegen::Cpu;
+use crate::codegen::{Cpu, Target};
 
 use super::Output;
+use super::emulate::{self, Runner};
 use super::fmt::{display, la_files};
 use super::pipeline::{Failure, TempDir};
 use super::test_cycles::{self, Cycles};
@@ -40,6 +41,8 @@ pub(super) struct Request<'a> {
     pub json: bool,
     /// `--cpu`: the level the test executables are built for.
     pub cpu: Cpu,
+    /// `--target`: the platform they are built for, run under qemu for another CPU.
+    pub target: Target,
     /// `--shuffle`: plain tests pick ready tasks at random from this seed.
     pub shuffle: Option<u64>,
 }
@@ -69,6 +72,8 @@ pub(super) struct Job {
     pub line: usize,
     integration: bool,
     folder: PathBuf,
+    /// How its executable starts: itself, or under qemu.
+    runner: Runner,
 }
 
 /// How one test ended.
@@ -113,6 +118,14 @@ pub(super) fn test(request: &Request, out: &mut Output) -> u8 {
     if request.list {
         return code.max(list(request, &files, out));
     }
+    // Before building: a missing emulator is found in a moment.
+    let runner = match emulate::runner(request.target) {
+        Ok(runner) => runner,
+        Err(message) => {
+            out.error(&message);
+            return 2;
+        }
+    };
     let temp = match TempDir::new() {
         Ok(temp) => temp,
         Err(error) => {
@@ -140,7 +153,8 @@ pub(super) fn test(request: &Request, out: &mut Output) -> u8 {
     let mut uncompiled = 0;
     for (g, members) in test_build::groups(&selected).iter().enumerate() {
         let exe = temp.path.join(format!("test{g}"));
-        let result = test_build::build_group(&selected, members, &exe, request.cpu);
+        let result =
+            test_build::build_group(&selected, members, &exe, (request.cpu, request.target));
         for (failure, files) in result.failures {
             uncompiled += files;
             match failure {
@@ -166,6 +180,7 @@ pub(super) fn test(request: &Request, out: &mut Output) -> u8 {
                     line,
                     integration,
                     folder: PathBuf::new(),
+                    runner: runner.clone(),
                 };
                 (i, job)
             }));
@@ -344,7 +359,7 @@ fn run_one(job: &Job, timeout: Duration, shuffle: Option<u64>) -> Outcome {
     if let Err(error) = std::fs::create_dir(&job.folder) {
         return Outcome::NotStarted(format!("cannot make the test's folder: {error}"));
     }
-    let mut command = Command::new(&job.exe);
+    let mut command = job.runner.command(&job.exe);
     command
         .env("LUGHA_TEST", &job.test)
         .env("LUGHA_TEST_DIR", &job.folder)

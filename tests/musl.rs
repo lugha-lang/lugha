@@ -3,12 +3,16 @@
 //! executables, run natively (x86-64) and under `qemu-aarch64` (ARM64) and
 //! match their expectation files, panics and their unwinding included; what
 //! a foreign build refuses (E0334, E0335); and the messages for a missing or
-//! old zig. Without `zig` (and `qemu-aarch64` for ARM) the building tests
-//! print a note and pass, as on a machine that can't build for musl.
+//! old zig; `run` and `test` with `--target`. Without `zig` (and
+//! `qemu-aarch64` for ARM) the building tests print a note and pass, as on
+//! a machine that can't build for musl, unless `LUGHA_CROSS_TESTS=required`.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicUsize, Ordering};
+
+#[path = "common/cross.rs"]
+mod cross;
 
 /// A cross-section of the language: each a `tests/programs/` case stem.
 const CASES: [&str; 8] = [
@@ -51,26 +55,6 @@ fn root() -> &'static Path {
 
 fn text(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()
-}
-
-/// Whether every program in `tools` runs; prints why not.
-fn has(test: &str, tools: &[&str]) -> bool {
-    let runs = |program: &&str| {
-        let arg = if *program == "zig" {
-            "version"
-        } else {
-            "--version"
-        };
-        Command::new(program)
-            .arg(arg)
-            .output()
-            .is_ok_and(|o| o.status.success())
-    };
-    let ok = tools.iter().all(runs);
-    if !ok {
-        eprintln!("{test}: skipped, needs {}", tools.join(" and "));
-    }
-    ok
 }
 
 /// `lughac` with `args` in `cwd`, `$LUGHA_CC` unset, `PATH` as given.
@@ -142,7 +126,7 @@ fn cases_match(target: &str, machine: u16, run: impl Fn(&Path) -> Output) {
 
 #[test]
 fn programs_built_for_x86_64_musl_are_static_and_run_as_on_glibc() {
-    if !cfg!(target_arch = "x86_64") || !has("x86_64_musl", &["zig"]) {
+    if !cfg!(target_arch = "x86_64") || !cross::ready("x86_64_musl", &["zig"]) {
         return;
     }
     // 62 is x86-64.
@@ -156,7 +140,7 @@ fn programs_built_for_x86_64_musl_are_static_and_run_as_on_glibc() {
 
 #[test]
 fn programs_built_for_arm64_musl_run_under_qemu() {
-    if !has("arm64_musl", &["zig", "qemu-aarch64"]) {
+    if !cross::ready("arm64_musl", &["zig", "qemu-aarch64"]) {
         return;
     }
     // 183 is AArch64; a static executable needs no ARM sysroot.
@@ -282,4 +266,82 @@ fn lugha_cc_is_used_for_a_foreign_target_without_asking_zig() {
     assert_eq!(out.status.code(), Some(2), "{stderr}");
     assert!(stderr.contains("no-such-cc-for-lugha"), "{stderr}");
     assert!(!stderr.contains("zig"), "{stderr}");
+}
+
+/// A folder whose only program is a link to the real `zig`: a `PATH` with
+/// zig and without qemu.
+fn zig_only(t: &Temp) -> String {
+    let bin = t.0.join("zig-only");
+    std::fs::create_dir(&bin).unwrap();
+    let zig = std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
+        .map(|d| d.join("zig"))
+        .find(|z| z.is_file())
+        .expect("zig is on PATH");
+    std::os::unix::fs::symlink(zig, bin.join("zig")).unwrap();
+    bin.to_str().unwrap().to_string()
+}
+
+const HELLO: &str = "fun main(console: Console) {\n    console.println(\"hi\");\n}\n";
+
+#[test]
+fn run_for_this_machine_s_cpu_needs_no_qemu() {
+    if !cfg!(target_arch = "x86_64") || !cross::ready("run_x86_64_musl", &["zig"]) {
+        return;
+    }
+    let t = project(HELLO, "");
+    let path = zig_only(&t);
+    let out = lughac(&t.0, &["run", "main.la", "--target", X86], Some(&path));
+    assert_eq!(
+        (out.status.code(), text(&out.stdout)),
+        (Some(0), "hi\n".to_string()),
+        "{}",
+        text(&out.stderr)
+    );
+}
+
+#[test]
+fn run_and_test_for_arm64_musl_go_through_qemu() {
+    if !cross::ready("run_arm64_musl", &["zig", "qemu-aarch64"]) {
+        return;
+    }
+    let t = project(HELLO, "");
+    let out = lughac(&t.0, &["run", "main.la", "--target", ARM], None);
+    assert_eq!(
+        (out.status.code(), text(&out.stdout)),
+        (Some(0), "hi\n".to_string()),
+        "{}",
+        text(&out.stderr)
+    );
+    let tests = "@test\nfun adds() {\n    assert_eq(1 + 1, 2);\n}\n";
+    std::fs::write(t.0.join("math.la"), tests).unwrap();
+    let out = lughac(&t.0, &["test", "math.la", "--target", ARM], None);
+    let stdout = text(&out.stdout);
+    assert_eq!(out.status.code(), Some(0), "{stdout}{}", text(&out.stderr));
+    assert!(stdout.contains("test math.adds ... ok"), "{stdout}");
+}
+
+#[test]
+fn cpu_levels_are_refused_for_arm_on_run_and_test() {
+    let t = project(HELLO, "");
+    for command in ["run", "test"] {
+        let out = lughac(
+            &t.0,
+            &[command, "main.la", "--target", ARM, "--cpu=x86-64-v3"],
+            None,
+        );
+        let stderr = text(&out.stderr);
+        assert_eq!(out.status.code(), Some(2), "{command}: {stderr}");
+        assert!(
+            stderr.contains("`--cpu` takes x86-64 levels"),
+            "{command}: {stderr}"
+        );
+    }
+}
+
+#[test]
+fn a_missing_tool_skips_here_and_fails_when_required() {
+    assert!(cross::decide("t", &[], true));
+    assert!(!cross::decide("t", &["zig"], false));
+    let failed = std::panic::catch_unwind(|| cross::decide("t", &["zig"], true));
+    assert!(failed.is_err(), "required: a missing tool fails the test");
 }

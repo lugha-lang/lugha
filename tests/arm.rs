@@ -5,7 +5,9 @@
 //! C by value as AAPCS64 passes them, against C compiled by zig for ARM.
 //! Without `zig`, `qemu-aarch64` and an ARM64 glibc for qemu to load
 //! (`/usr/aarch64-linux-gnu`, Ubuntu's `libc6-arm64-cross`) each test
-//! prints a note and passes, as on a machine that can't build for ARM.
+//! prints a note and passes, as on a machine that can't build for ARM,
+//! unless `LUGHA_CROSS_TESTS=required`. `lughac run` and `lughac test`
+//! with `--target` start the programs under qemu themselves.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -13,6 +15,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[path = "common/c_shapes.rs"]
 mod c_shapes;
+#[path = "common/cross.rs"]
+mod cross;
 use c_shapes::{DECLS, PROGRAMS, SIDE};
 
 const TARGET: &str = "aarch64-unknown-linux-gnu";
@@ -67,21 +71,9 @@ impl Drop for Temp {
     }
 }
 
-/// Whether this machine has zig, qemu and an ARM64 glibc; prints why not.
+/// Whether this machine has zig, qemu and an ARM64 glibc for qemu to load.
 fn can_build_for_arm(test: &str) -> bool {
-    let runs = |program: &str, arg: &str| {
-        Command::new(program)
-            .arg(arg)
-            .output()
-            .is_ok_and(|o| o.status.success())
-    };
-    let ok = runs("zig", "version")
-        && runs("qemu-aarch64", "--version")
-        && Path::new("/usr/aarch64-linux-gnu/lib").is_dir();
-    if !ok {
-        eprintln!("{test}: skipped, needs zig, qemu-aarch64 and /usr/aarch64-linux-gnu");
-    }
-    ok
+    cross::ready(test, &["zig", "qemu-aarch64", "/usr/aarch64-linux-gnu/lib"])
 }
 
 fn root() -> &'static Path {
@@ -200,4 +192,67 @@ fn extern_structs_cross_to_c_by_value_on_arm() {
     for (name, main, prints) in PROGRAMS {
         runs_on_arm(name, main, prints);
     }
+}
+
+/// A fresh folder holding `main.la` with `program`.
+fn project(program: &str) -> Temp {
+    let t = Temp::new();
+    std::fs::write(t.0.join("main.la"), program).unwrap();
+    t
+}
+
+#[test]
+fn run_starts_an_arm_program_under_qemu_with_its_exit_code() {
+    if !can_build_for_arm("run_on_arm") {
+        return;
+    }
+    let t = project("fun main(console: Console) {\n    console.println(\"hi\");\n}\n");
+    let out = lughac(&t.0, &["run", "main.la", "--target", TARGET]);
+    assert_eq!(
+        (out.status.code(), text(&out.stdout)),
+        (Some(0), "hi\n".to_string()),
+        "{}",
+        text(&out.stderr)
+    );
+    let source = "tests/programs/basics/expressions/div_zero.la";
+    let out = lughac(root(), &["run", source, "--target", TARGET]);
+    assert_eq!(out.status.code(), Some(101), "{}", text(&out.stderr));
+    assert_eq!(
+        Some(text(&out.stderr)),
+        expected("basics/expressions/div_zero", "stderr")
+    );
+}
+
+#[test]
+fn test_runs_arm_tests_under_qemu() {
+    if !can_build_for_arm("test_on_arm") {
+        return;
+    }
+    let tests = "@test\nfun adds() {\n    assert_eq(1 + 1, 2);\n}\n\n@test\nfun wrong() {\n    assert_eq(1 + 1, 3);\n}\n";
+    let t = project(tests);
+    let out = lughac(&t.0, &["test", "main.la", "--target", TARGET]);
+    let stdout = text(&out.stdout);
+    assert_eq!(out.status.code(), Some(1), "{stdout}{}", text(&out.stderr));
+    assert!(stdout.contains("test main.adds ... ok"), "{stdout}");
+    assert!(stdout.contains("test main.wrong ... FAILED"), "{stdout}");
+    assert!(stdout.contains("1 passed, 1 failed"), "{stdout}");
+}
+
+#[test]
+fn run_without_qemu_says_what_to_install() {
+    let t = project("fun main(console: Console) {\n    console.println(\"hi\");\n}\n");
+    let out = Command::new(env!("CARGO_BIN_EXE_lughac"))
+        .args(["run", "main.la", "--target", TARGET])
+        .current_dir(&t.0)
+        .env("PATH", "")
+        .output()
+        .expect("lughac runs");
+    let stderr = text(&out.stderr);
+    assert_eq!(out.status.code(), Some(2), "{stderr}");
+    assert!(
+        stderr.contains(&format!(
+            "running a program built for {TARGET} needs qemu-aarch64"
+        )),
+        "{stderr}"
+    );
 }

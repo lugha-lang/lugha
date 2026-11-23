@@ -8,6 +8,7 @@
 
 mod build;
 mod cli;
+mod emulate;
 mod explain;
 mod fmt;
 mod guard;
@@ -32,11 +33,11 @@ use std::process::ExitCode;
 
 use clap::Parser;
 
-use self::cli::{Cli, Command, Emit, Format, TargetArg, offline_mode};
+use self::cli::{Cli, Command, Emit, Format, offline_mode};
 use self::pipeline::Failure;
 use self::render::Report;
 use self::source::Source;
-use crate::codegen::Target;
+use crate::codegen::{Cpu, Target};
 use crate::diagnostic::Diagnostic;
 
 /// Runs `lughac` with the process's arguments and standard streams.
@@ -95,13 +96,7 @@ where
         }
     };
     // `--cpu` names x86-64 levels only: a usage error, as clap's are.
-    if let Command::Build {
-        target: Some(TargetArg::Aarch64 | TargetArg::Aarch64Musl),
-        options,
-        ..
-    } = &cli.command
-        && options.cpu.is_some()
-    {
+    if cli.command.arm_with_cpu() {
         let message = "`--cpu` takes x86-64 levels; aarch64 builds for the baseline ARMv8-A";
         let error = <Cli as clap::CommandFactory>::command()
             .error(clap::error::ErrorKind::ArgumentConflict, message);
@@ -140,21 +135,29 @@ where
         }
         Command::Run {
             file,
+            target,
             options,
             args,
-        } => pipeline::front(file, options.mode()).and_then(|front| {
-            out.diagnostics(&front.source, &front.warnings);
-            pipeline::run(
-                &front,
-                (
-                    options.opt,
-                    options.cpu(),
-                    Target::native(),
-                    cli::instruments_from_env(),
-                ),
-                args,
-            )
-        }),
+        } => {
+            let target = target.map_or(Target::native(), Into::into);
+            // Before building: a missing emulator is found in a moment.
+            match emulate::runner(target) {
+                Err(message) => {
+                    out.error(&message);
+                    Ok(2)
+                }
+                Ok(runner) => pipeline::front(file, options.mode()).and_then(|front| {
+                    out.diagnostics(&front.source, &front.warnings);
+                    let code = (
+                        options.opt,
+                        options.cpu(),
+                        target,
+                        cli::instruments_from_env(),
+                    );
+                    pipeline::run(&front, code, &runner, args)
+                }),
+            }
+        }
         Command::Check { file, offline, .. } => pipeline::front_check(file, offline_mode(*offline))
             .map(|front| {
                 out.diagnostics(&front.source, &front.warnings);
@@ -177,6 +180,7 @@ where
             list,
             json,
             cpu,
+            target,
             shuffle,
             ..
         } => Ok(test::test(
@@ -188,7 +192,8 @@ where
                 timeout: std::time::Duration::from_secs(*timeout),
                 list: *list,
                 json: *json,
-                cpu: (*cpu).into(),
+                cpu: cpu.map_or(Cpu::default(), Into::into),
+                target: target.map_or(Target::native(), Into::into),
                 shuffle: shuffle.map(|seed| seed.unwrap_or_else(test::draw_seed)),
             },
             &mut out,

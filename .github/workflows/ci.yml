@@ -25,19 +25,34 @@ jobs:
     env:
       DEBIAN_FRONTEND: noninteractive
       CARGO_TERM_COLOR: always
+      # tests/arm.rs and tests/musl.rs fail, not skip, when a tool is missing.
+      LUGHA_CROSS_TESTS: required
     steps:
       - name: Install system packages
         # llvm-21-dev: inkwell's LLVM (DECISION-005, linked dynamically).
         # build-essential: `cc` compiles the runtime and the bundled collector
         # (no libgc-dev: milestone 131) and links every test program.
-        # gcc-aarch64-linux-gnu, its C library headers and qemu-user: tests/arm.rs.
-        # The headers are only a recommendation of the compiler, which
-        # --no-install-recommends skips; without them it reads x86's.
-        # curl and ca-certificates: rustup's installer. git: a real checkout.
+        # qemu-user: runs ARM64 builds (tests/arm.rs, tests/musl.rs);
+        # libc6-arm64-cross: the ARM64 glibc qemu loads for glibc builds.
+        # xz-utils: unpacks zig. curl and ca-certificates: rustup's and zig's
+        # downloads. git: a real checkout.
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            llvm-21-dev build-essential gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user curl ca-certificates git libssl-dev openssl
+            llvm-21-dev build-essential libc6-arm64-cross qemu-user xz-utils curl ca-certificates git libssl-dev openssl
+
+      - name: Install zig
+        # Builds for other platforms go through `zig cc`. The tarball is
+        # checked against the SHA-256 ziglang.org publishes before unpacking.
+        env:
+          ZIG: zig-x86_64-linux-0.17.1
+          ZIG_SHA256: 3581863e3cbcfd0fce0efc682ce7e9e93da96668a977791d356a26d2a7e9b17a
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSfL -o /tmp/zig.tar.xz "https://ziglang.org/download/0.17.1/$ZIG.tar.xz"
+          echo "$ZIG_SHA256  /tmp/zig.tar.xz" | sha256sum -c -
+          mkdir -p /opt/zig
+          tar -xJf /tmp/zig.tar.xz -C /opt/zig
+          echo "/opt/zig/$ZIG" >> "$GITHUB_PATH"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

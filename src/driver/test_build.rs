@@ -52,19 +52,19 @@ pub(super) fn groups(files: &[PathBuf]) -> Vec<Vec<usize>> {
 }
 
 /// Checks and builds the files `members` of `files` into the executable
-/// `exe` for `cpu`, reporting a broken file alone.
+/// `exe` for `machine` (a CPU level and a target), reporting a broken file alone.
 pub(super) fn build_group(
     files: &[PathBuf],
     members: &[usize],
     exe: &Path,
-    cpu: Cpu,
+    machine: (Cpu, Target),
 ) -> GroupResult {
     let mut result = GroupResult {
         built: Vec::new(),
         failures: Vec::new(),
     };
     if let [only] = members {
-        match build(&files[*only], exe, cpu) {
+        match build(&files[*only], exe, machine) {
             Ok(tests) => result.built.push((*only, tests)),
             Err(failure) => result.failures.push(counted(failure, 1)),
         }
@@ -74,7 +74,7 @@ pub(super) fn build_group(
     let front = match pipeline::front_test_roots(&paths, MODE) {
         Ok(front) => front,
         Err(Failure::Program(source, diagnostics)) => {
-            return apart(files, members, (exe, cpu), (source, diagnostics));
+            return apart(files, members, (exe, machine), (source, diagnostics));
         }
         Err(failure) => {
             result.failures.push((failure, 0));
@@ -96,8 +96,8 @@ pub(super) fn build_group(
             &front,
             (
                 OptLevel::O0,
-                cpu,
-                Target::native(),
+                machine.0,
+                machine.1,
                 super::cli::instruments_from_env(),
             ),
             exe,
@@ -129,7 +129,7 @@ pub(super) fn build_group(
 fn apart(
     files: &[PathBuf],
     members: &[usize],
-    (exe, cpu): (&Path, Cpu),
+    (exe, machine): (&Path, (Cpu, Target)),
     (source, diagnostics): (Source, Vec<crate::diagnostic::Diagnostic>),
 ) -> GroupResult {
     let mut failures = Vec::new();
@@ -157,7 +157,7 @@ fn apart(
             built: Vec::new(),
             failures: Vec::new(),
         },
-        false => build_group(files, &good, exe, cpu),
+        false => build_group(files, &good, exe, machine),
     };
     failures.append(&mut result.failures);
     result.failures = failures;
@@ -174,7 +174,7 @@ fn counted(failure: Failure, files: usize) -> (Failure, usize) {
 
 /// Checks `file` for tests and builds its test executable at `exe`; returns
 /// its tests in declaration order, each with its name's line and column.
-fn build(file: &Path, exe: &Path, cpu: Cpu) -> Result<Vec<Listed>, Failure> {
+fn build(file: &Path, exe: &Path, machine: (Cpu, Target)) -> Result<Vec<Listed>, Failure> {
     let front = pipeline::front_tests(file, MODE)?;
     let tests = front
         .checked
@@ -191,8 +191,8 @@ fn build(file: &Path, exe: &Path, cpu: Cpu) -> Result<Vec<Listed>, Failure> {
             &front,
             (
                 OptLevel::O0,
-                cpu,
-                Target::native(),
+                machine.0,
+                machine.1,
                 super::cli::instruments_from_env(),
             ),
             exe,

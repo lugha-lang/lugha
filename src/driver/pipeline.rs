@@ -7,7 +7,6 @@
 use std::io;
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::render::Report;
@@ -363,18 +362,19 @@ fn std_import(modules: &[Module], module: &str, via: &[&str]) -> Option<crate::s
 }
 
 /// Builds `front` into a temp dir and runs it with inherited standard
-/// streams, passing `args` to the program.
+/// streams through `runner`, passing `args` to the program.
 ///
 /// Returns the program's exit code, or 128 + N if signal N killed it, as a shell reports it.
 pub(super) fn run(
     front: &Front,
     code: (OptLevel, Cpu, Target, Instruments),
+    runner: &super::emulate::Runner,
     args: &[String],
 ) -> Result<u8, Failure> {
     let temp = TempDir::new().map_err(|e| internal(&front.source, temp_error(e)))?;
     let exe = temp.path.join("prog");
     build(front, code, &exe)?;
-    let status = Command::new(&exe).args(args).status().map_err(|e| {
+    let status = runner.command(&exe).args(args).status().map_err(|e| {
         internal(
             &front.source,
             format!("cannot run the compiled program: {e}"),
