@@ -256,8 +256,12 @@ impl Command {
     /// Whether this command names an ARM64 target and an x86-64 `--cpu`
     /// level: a usage error.
     pub(super) fn arm_with_cpu(&self) -> bool {
-        let arm =
-            |t: &Option<TargetArg>| matches!(t, Some(TargetArg::Aarch64 | TargetArg::Aarch64Musl));
+        let arm = |t: &Option<TargetArg>| {
+            matches!(
+                t,
+                Some(TargetArg::Aarch64 | TargetArg::Aarch64Musl | TargetArg::Aarch64MacOs)
+            )
+        };
         match self {
             Command::Build {
                 target, options, ..
@@ -282,6 +286,8 @@ pub(super) enum TargetArg {
     X86_64Musl,
     #[value(name = "aarch64-unknown-linux-musl")]
     Aarch64Musl,
+    #[value(name = "aarch64-apple-darwin")]
+    Aarch64MacOs,
 }
 
 impl From<TargetArg> for Target {
@@ -291,6 +297,7 @@ impl From<TargetArg> for Target {
             TargetArg::Aarch64 => Target::Aarch64Linux,
             TargetArg::X86_64Musl => Target::X86_64LinuxMusl,
             TargetArg::Aarch64Musl => Target::Aarch64LinuxMusl,
+            TargetArg::Aarch64MacOs => Target::Aarch64MacOs,
         }
     }
 }

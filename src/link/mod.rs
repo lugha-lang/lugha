@@ -26,7 +26,8 @@ use std::path::{Path, PathBuf};
 pub use self::errors::{LinkError, foreign_refusals};
 pub use self::inputs::{Plan, PlanError};
 pub use self::runtime_parts::{
-    LINUX_ONLY, POSIX_ONLY, RUNTIME_PARTS, RUNTIME_SOURCE, RUNTIME_SYMBOLS,
+    DARWIN_ONLY, LINUX_ONLY, POSIX_ONLY, RUNTIME_PARTS, RUNTIME_SOURCE, RUNTIME_SYMBOLS, System,
+    runtime_source,
 };
 
 /// Links `objects` and the runtime into the executable `output`.
@@ -38,11 +39,18 @@ pub use self::runtime_parts::{
 /// [`LinkError::Failed`] with `cc`'s stderr if it fails.
 pub fn link(objects: &[&Path], output: &Path) -> Result<(), LinkError> {
     let cc = compiler::Compiler::from_env()?;
-    link_with(objects, &Plan::default(), (Path::new(""), cc), output)
+    // lughac itself runs on Linux: a native link is for it.
+    link_with(
+        objects,
+        &Plan::default(),
+        (Path::new(""), cc, System::Linux),
+        output,
+    )
 }
 
 /// Links `objects`, the C files of `plan` compiled into `temp`, and the
-/// runtime into `output` with the compiler `cc` (the target's), with `plan`'s folders and libraries.
+/// runtime for `system` into `output` with the compiler `cc` (the
+/// target's), with `plan`'s folders and libraries.
 ///
 /// # Errors
 ///
@@ -52,14 +60,14 @@ pub fn link(objects: &[&Path], output: &Path) -> Result<(), LinkError> {
 pub fn link_with(
     objects: &[&Path],
     plan: &Plan,
-    (temp, cc): (&Path, compiler::Compiler),
+    (temp, cc, system): (&Path, compiler::Compiler, System),
     output: &Path,
 ) -> Result<(), LinkError> {
     // Compiled C objects are kept between builds.
     let cache = object_cache::Cache::open(cc);
     let shims = c_files::compile(&plan.c_files, temp, &cache)?;
     let variant = (plan.tls.is_some(), plan.crypto.is_some());
-    let runtime = runtime::compile(variant, &cache, plan.tls.or(plan.crypto))?;
+    let runtime = runtime::compile(variant, &cache, plan.tls.or(plan.crypto), system)?;
     let linked: Vec<&Path> = vec![runtime.path.as_path()];
     let result = cache
         .cc()
@@ -123,8 +131,38 @@ mod tests {
 
     #[test]
     fn runtime_parts_join_in_order_core_first() {
-        let joined: String = RUNTIME_PARTS.iter().map(|(_, src)| *src).collect();
-        assert_eq!(joined, RUNTIME_SOURCE);
+        // Each system's runtime: every part but the other system's own.
+        let joined = |other: &str| -> String {
+            let parts = RUNTIME_PARTS
+                .iter()
+                .filter(|(name, _)| !name.starts_with(other));
+            parts.map(|(_, src)| *src).collect()
+        };
+        assert_eq!(joined("os/darwin/"), RUNTIME_SOURCE);
+        assert_eq!(super::runtime_source(super::System::Linux), RUNTIME_SOURCE);
+        assert_eq!(
+            super::runtime_source(super::System::MacOs),
+            joined("os/linux/")
+        );
+        for only in super::DARWIN_ONLY {
+            assert!(
+                !RUNTIME_SOURCE.contains(
+                    super::RUNTIME_PARTS
+                        .iter()
+                        .find(|(n, _)| *n == only)
+                        .expect("a part")
+                        .1
+                )
+            );
+        }
+        assert_eq!(
+            super::System::of("aarch64-apple-darwin"),
+            super::System::MacOs
+        );
+        assert_eq!(
+            super::System::of("x86_64-unknown-linux-musl"),
+            super::System::Linux
+        );
         let (name, core) = RUNTIME_PARTS[0];
         assert_eq!(name, "core/lugha_rt.c");
         let feature = core

@@ -64,6 +64,12 @@ struct Machine<'a> {
 
 /// [`runner`] on `machine`.
 fn choose(target: Target, machine: &Machine) -> Result<Runner, String> {
+    if target == Target::Aarch64MacOs {
+        return Err(format!(
+            "a program built for {} runs only on a Mac: build it with `lughac build`",
+            target.triple()
+        ));
+    }
     let arch = target.arch();
     if arch == machine.arch {
         return Ok(Runner::default());

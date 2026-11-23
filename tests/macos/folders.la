@@ -1,0 +1,8 @@
+// Run on a Mac by CI: every folder operation is refused there for now, as
+// an error, never by reaching a folder unconfined.
+fun main(console: Console, fs: Fs) {
+    match fs.dir(".") {
+        .Ok(_) => console.println("opened"),
+        .Err(e) => console.println(e),
+    }
+}

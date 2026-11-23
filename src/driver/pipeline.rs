@@ -329,9 +329,12 @@ pub(super) fn build(
         &object,
     )
     .map_err(|e| codegen_failure(&front.source, e))?;
-    link::link_with(&[&object], &plan, (&temp.path, cc), exe).map_err(|e| match e.diagnostic() {
-        Some(d) => Failure::Program(front.source.clone(), vec![d]),
-        None => internal(&front.source, e.to_string()),
+    let system = link::System::of(target.triple());
+    link::link_with(&[&object], &plan, (&temp.path, cc, system), exe).map_err(|e| {
+        match e.diagnostic() {
+            Some(d) => Failure::Program(front.source.clone(), vec![d]),
+            None => internal(&front.source, e.to_string()),
+        }
     })
 }
 

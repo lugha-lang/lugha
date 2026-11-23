@@ -77,6 +77,22 @@ jobs:
           path: nextest-archive.tar.zst
           retention-days: 1
 
+      - name: Build the macOS cases
+        # Built here, on Linux, through zig; the macos job runs them on a Mac.
+        run: |
+          mkdir -p macos
+          for f in tests/macos/*.la; do
+            name=$(basename "$f" .la)
+            target/debug/lughac build "$f" --target aarch64-apple-darwin -o "macos/$name"
+            cp "tests/macos/$name.stdout" "macos/$name.stdout"
+          done
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: macos-programs
+          path: macos/
+          retention-days: 1
+
   test:
     name: Tests ${{ matrix.part }}/4
     needs: build
@@ -131,6 +147,41 @@ jobs:
             --archive-file nextest-archive.tar.zst \
             --extract-to . --extract-overwrite --workspace-remap . \
             --partition slice:${{ matrix.part }}/4
+
+  macos:
+    name: macOS (Apple Silicon)
+    needs: build
+    # Apple Silicon, macOS 15: the programs need 14.4 or newer.
+    runs-on: macos-15
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: macos-programs
+          path: macos
+
+      - name: Run the programs built on Linux
+        # Each prints exactly its .stdout; lockdown reports it isn't applied.
+        working-directory: macos
+        run: |
+          status=0
+          for expected in *.stdout; do
+            exe="${expected%.stdout}"
+            chmod +x "$exe"
+            if ./"$exe" > "$exe.out" && diff -u "$expected" "$exe.out"; then
+              echo "ok $exe"
+            else
+              echo "FAILED $exe"
+              status=1
+            fi
+          done
+          LUGHA_LOCKDOWN=report ./hello > /dev/null 2> lockdown.txt
+          if grep -q "lockdown: not applied on macOS" lockdown.txt; then
+            echo "ok lockdown report"
+          else
+            cat lockdown.txt
+            status=1
+          fi
+          exit $status
 
   vscode:
     name: VS Code extension

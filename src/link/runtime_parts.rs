@@ -16,6 +16,57 @@ pub const LINUX_ONLY: [&str; 6] = [
     "os/linux/dir_names.c",
 ];
 
+/// The parts of [`RUNTIME_PARTS`] only macOS has (`os/darwin/`), each
+/// joined where its Linux counterpart is.
+pub const DARWIN_ONLY: [&str; 5] = [
+    "os/darwin/os.c",
+    "os/darwin/aarch64.c",
+    "os/darwin/lockdown.c",
+    "os/darwin/dir.c",
+    "os/darwin/dir_names.c",
+];
+
+/// The system a runtime is joined for: which `os/<system>/` parts it takes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum System {
+    /// Linux, glibc or musl: `os/linux/`.
+    Linux,
+    /// macOS: `os/darwin/`.
+    MacOs,
+}
+
+impl System {
+    /// The system of the LLVM triple `triple`.
+    pub fn of(triple: &str) -> System {
+        if triple.contains("-apple-") {
+            System::MacOs
+        } else {
+            System::Linux
+        }
+    }
+
+    /// The folder of the parts only this system has.
+    fn folder(self) -> &'static str {
+        match self {
+            System::Linux => "os/linux/",
+            System::MacOs => "os/darwin/",
+        }
+    }
+}
+
+/// The runtime joined for `system`: every shared part, `os/posix/`, and
+/// that system's own; [`RUNTIME_SOURCE`] for Linux.
+pub fn runtime_source(system: System) -> std::borrow::Cow<'static, str> {
+    if system == System::Linux {
+        return std::borrow::Cow::Borrowed(RUNTIME_SOURCE);
+    }
+    let others = [System::Linux, System::MacOs].map(System::folder);
+    let parts = RUNTIME_PARTS.iter().filter(|(name, _)| {
+        !others.iter().any(|f| name.starts_with(f)) || name.starts_with(system.folder())
+    });
+    std::borrow::Cow::Owned(parts.map(|(_, src)| *src).collect())
+}
+
 /// The parts Linux and macOS share but Windows doesn't (`os/posix/`).
 pub const POSIX_ONLY: [&str; 3] = [
     "os/posix/process.c",
@@ -25,13 +76,17 @@ pub const POSIX_ONLY: [&str; 3] = [
 
 /// The runtime's source files, in the order they are joined: the core first,
 /// since it holds every `#include`, then the fragments that rely on it.
-pub const RUNTIME_PARTS: [(&str, &str); 54] = [
+pub const RUNTIME_PARTS: [(&str, &str); 59] = [
     (
         "core/lugha_rt.c",
         include_str!("../../runtime/core/lugha_rt.c"),
     ),
     ("os/layer.c", include_str!("../../runtime/os/layer.c")),
     ("os/linux/os.c", include_str!("../../runtime/os/linux/os.c")),
+    (
+        "os/darwin/os.c",
+        include_str!("../../runtime/os/darwin/os.c"),
+    ),
     (
         "tasks/rt_lock.c",
         include_str!("../../runtime/tasks/rt_lock.c"),
@@ -52,12 +107,24 @@ pub const RUNTIME_PARTS: [(&str, &str); 54] = [
         include_str!("../../runtime/os/linux/dir.c"),
     ),
     (
+        "os/darwin/dir.c",
+        include_str!("../../runtime/os/darwin/dir.c"),
+    ),
+    (
         "os/linux/dir_names.c",
         include_str!("../../runtime/os/linux/dir_names.c"),
     ),
     (
+        "os/darwin/dir_names.c",
+        include_str!("../../runtime/os/darwin/dir_names.c"),
+    ),
+    (
         "os/linux/lockdown.c",
         include_str!("../../runtime/os/linux/lockdown.c"),
+    ),
+    (
+        "os/darwin/lockdown.c",
+        include_str!("../../runtime/os/darwin/lockdown.c"),
     ),
     (
         "memory/rc_alloc.c",
@@ -82,6 +149,10 @@ pub const RUNTIME_PARTS: [(&str, &str); 54] = [
     (
         "os/linux/aarch64.c",
         include_str!("../../runtime/os/linux/aarch64.c"),
+    ),
+    (
+        "os/darwin/aarch64.c",
+        include_str!("../../runtime/os/darwin/aarch64.c"),
     ),
     ("tasks/runq.c", include_str!("../../runtime/tasks/runq.c")),
     (
@@ -337,7 +408,7 @@ pub const RUNTIME_SYMBOLS: [&str; 161] = [
     "lugha_rt_shield_end",
 ];
 
-/// The C runtime linked into every program: [`RUNTIME_PARTS`] joined in order,
+/// The C runtime for Linux: [`RUNTIME_PARTS`] but macOS's joined in order,
 /// compiled as one `lugha_rt.c`.
 pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/core/lugha_rt.c"),

@@ -113,8 +113,9 @@ static void spawn_pump(int in_fd, int out_fd, int err_fd, const char *input, siz
     sigset_t pending;
     sigpending(&pending);
     if (sigismember(&pending, SIGPIPE)) {
-        struct timespec now = {0, 0};
-        sigtimedwait(&pipe_signal, NULL, &now);
+        // Pending, so taken at once: `sigwait` doesn't block here.
+        int taken;
+        sigwait(&pipe_signal, &taken);
     }
     pthread_sigmask(SIG_SETMASK, &before, NULL);
 }

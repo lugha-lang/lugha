@@ -74,8 +74,9 @@ pub fn missing_openssl(stderr: &str) -> bool {
 pub(super) struct RuntimeFile(pub PathBuf);
 
 impl RuntimeFile {
-    /// Writes the runtime, with TLS's part when `tls` and crypto's when `crypto`.
-    pub(super) fn write(tls: bool, crypto: bool) -> io::Result<Self> {
+    /// Writes the runtime for `system`, with TLS's part when `tls` and
+    /// crypto's when `crypto`.
+    pub(super) fn write(tls: bool, crypto: bool, system: super::System) -> io::Result<Self> {
         static NEXT: AtomicUsize = AtomicUsize::new(0);
         let n = NEXT.fetch_add(1, Ordering::Relaxed);
         let path = std::env::temp_dir().join(format!("lughac-rt-{}-{n}.c", std::process::id()));
@@ -84,7 +85,7 @@ impl RuntimeFile {
             .write(true)
             .create_new(true)
             .open(&path)?;
-        io::Write::write_all(&mut file, super::RUNTIME_SOURCE.as_bytes())?;
+        io::Write::write_all(&mut file, super::runtime_source(system).as_bytes())?;
         if tls {
             io::Write::write_all(&mut file, TLS_SOURCE.as_bytes())?;
         }
@@ -126,11 +127,12 @@ pub(super) fn compile(
     (tls, crypto): (bool, bool),
     cache: &Cache,
     openssl: Option<Span>,
+    system: super::System,
 ) -> Result<RuntimeObject, LinkError> {
-    let source = RuntimeFile::write(tls, crypto).map_err(LinkError::Io)?;
+    let source = RuntimeFile::write(tls, crypto, system).map_err(LinkError::Io)?;
     let object = source.0.with_extension("o");
     let temp = [object.clone(), object.with_extension("d")];
-    let mut text = super::RUNTIME_SOURCE.as_bytes().to_vec();
+    let mut text = super::runtime_source(system).as_bytes().to_vec();
     if tls {
         text.extend_from_slice(TLS_SOURCE.as_bytes());
     }
@@ -218,7 +220,7 @@ mod tests {
             );
         }
         let read = |tls, crypto| {
-            let file = RuntimeFile::write(tls, crypto).unwrap();
+            let file = RuntimeFile::write(tls, crypto, super::super::System::Linux).unwrap();
             std::fs::read_to_string(&file.0).unwrap()
         };
         assert!(!read(false, false).contains("openssl"));

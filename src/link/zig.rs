@@ -29,14 +29,21 @@ pub fn zig_triple(triple: &str) -> Option<&'static str> {
         "aarch64-unknown-linux-gnu" => Some("aarch64-linux-gnu.2.28"),
         "x86_64-unknown-linux-musl" => Some("x86_64-linux-musl"),
         "aarch64-unknown-linux-musl" => Some("aarch64-linux-musl"),
+        // macOS 14.4, Sonoma's: `os_sync_wait_on_address` came with it.
+        "aarch64-apple-darwin" => Some("aarch64-macos.14.4-none"),
         _ => None,
     }
 }
 
 /// The arguments zig's link takes beyond `cc`'s for `triple`: its
-/// unwinder, since zig links none for C programs and panics unwind, and
-/// `-static` for musl, whose executables need nothing installed.
+/// unwinder, since zig links none for C programs on Linux and panics
+/// unwind, and `-static` for musl, whose executables need nothing
+/// installed. macOS needs neither: libSystem has the unwinder, and macOS
+/// has no static executables.
 pub fn link_args(triple: &str) -> Vec<OsString> {
+    if triple.contains("-apple-") {
+        return Vec::new();
+    }
     let mut args = vec![OsString::from("-lunwind")];
     if triple.ends_with("-musl") {
         args.push(OsString::from("-static"));
@@ -98,6 +105,7 @@ mod tests {
             ("aarch64-unknown-linux-gnu", "aarch64-linux-gnu.2.28"),
             ("x86_64-unknown-linux-musl", "x86_64-linux-musl"),
             ("aarch64-unknown-linux-musl", "aarch64-linux-musl"),
+            ("aarch64-apple-darwin", "aarch64-macos.14.4-none"),
         ];
         for (llvm, zig) in table {
             assert_eq!(zig_triple(llvm), Some(zig), "{llvm}");
@@ -118,6 +126,10 @@ mod tests {
             ["-lunwind", "-static"]
         );
         assert_eq!(strings("aarch64-unknown-linux-gnu"), ["-lunwind"]);
+        assert!(
+            strings("aarch64-apple-darwin").is_empty(),
+            "libSystem unwinds"
+        );
     }
 
     #[test]

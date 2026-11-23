@@ -275,25 +275,13 @@ typedef struct Worker {
  * keep Lugha values. */
 static __thread Worker this_worker = {.pick_state = 0x9e3779b97f4a7c15u, .next_timer = -1};
 
-/* The thread pointer, read fresh: a task may move to another thread at a
- * switch, and a compiler may keep a thread-local address in a register
- * across a call, so `worker` reads it each time instead. Read by the
- * CPU's own instruction (os/<system>/<cpu>.c). */
-static inline uintptr_t thread_pointer(void);
+/* The running thread's worker (the OS layer's `os_worker`, os/<system>/):
+ * read fresh each time, since a task may move to another thread at a
+ * switch and a compiler may keep a thread-local's address in a register
+ * across a call. */
+static inline Worker *os_worker(void);
 
-/* Where `this_worker` lies from the thread pointer: the same in every
- * thread (the executable's own thread-local block), set before `main`. */
-static intptr_t worker_offset;
-
-__attribute__((constructor)) static void worker_offset_init(void) {
-    worker_offset = (intptr_t)((uintptr_t)&this_worker - thread_pointer());
-}
-
-static inline Worker *worker_now(void) {
-    return (Worker *)(thread_pointer() + (uintptr_t)worker_offset);
-}
-
-#define worker (worker_now())
+#define worker (os_worker())
 /* Every thread that entered as a worker, for the report's sums. */
 static Worker *workers;
 static pthread_mutex_t workers_lock = PTHREAD_MUTEX_INITIALIZER;

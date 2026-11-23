@@ -15,6 +15,9 @@ pub enum Target {
     X86_64LinuxMusl,
     /// ARM64 Linux with musl, `aarch64-unknown-linux-musl`: static executables.
     Aarch64LinuxMusl,
+    /// macOS on Apple Silicon, `aarch64-apple-darwin`: Mach-O executables,
+    /// built on Linux and run on a Mac.
+    Aarch64MacOs,
 }
 
 /// A target's processor family: what codegen's instructions, registers and
@@ -35,6 +38,7 @@ impl Target {
             Target::Aarch64Linux => "aarch64-unknown-linux-gnu",
             Target::X86_64LinuxMusl => "x86_64-unknown-linux-musl",
             Target::Aarch64LinuxMusl => "aarch64-unknown-linux-musl",
+            Target::Aarch64MacOs => "aarch64-apple-darwin",
         }
     }
 
@@ -42,7 +46,7 @@ impl Target {
     pub fn arch(self) -> Arch {
         match self {
             Target::X86_64Linux | Target::X86_64LinuxMusl => Arch::X86_64,
-            Target::Aarch64Linux | Target::Aarch64LinuxMusl => Arch::Aarch64,
+            Target::Aarch64Linux | Target::Aarch64LinuxMusl | Target::Aarch64MacOs => Arch::Aarch64,
         }
     }
 
@@ -92,6 +96,7 @@ mod tests {
                 "aarch64-unknown-linux-musl",
                 Arch::Aarch64,
             ),
+            (Target::Aarch64MacOs, "aarch64-apple-darwin", Arch::Aarch64),
         ];
         for (target, triple, arch) in all {
             assert_eq!((target.triple(), target.arch()), (triple, arch));
@@ -105,6 +110,7 @@ mod tests {
             Target::Aarch64Linux,
             Target::X86_64LinuxMusl,
             Target::Aarch64LinuxMusl,
+            Target::Aarch64MacOs,
         ]
         .into_iter()
         .filter(|t| t.is_native())

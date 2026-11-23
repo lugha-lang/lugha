@@ -169,7 +169,13 @@ static const char *net_resolve(const LughaString *addr, int flags, struct addrin
     if (memchr(addr->bytes, 0, (size_t)addr->len) != NULL) {
         return "address contains a NUL byte";
     }
-    const char *colon = memrchr(addr->bytes, ':', (size_t)addr->len);
+    // The last colon: an IPv6 address has more before it.
+    const char *colon = NULL;
+    for (int64_t i = addr->len; i > 0 && colon == NULL; i--) {
+        if (addr->bytes[i - 1] == ':') {
+            colon = addr->bytes + i - 1;
+        }
+    }
     if (colon == NULL || colon == addr->bytes || colon[1] == 0) {
         return "address must be host:port";
     }

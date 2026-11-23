@@ -29,6 +29,25 @@
 #error "green threads need a stack switch for this CPU (os/linux/ has x86_64.c and aarch64.c)"
 #endif
 
+/* The thread pointer, read by the CPU's own instruction
+ * (os/linux/<cpu>.c). */
+static inline uintptr_t thread_pointer(void);
+
+/* Where `this_worker` lies from the thread pointer: the same in every
+ * thread (the executable's own thread-local block, at a fixed place in
+ * each thread's under ELF), set before `main`. */
+static intptr_t worker_offset;
+
+__attribute__((constructor)) static void worker_offset_init(void) {
+    worker_offset = (intptr_t)((uintptr_t)&this_worker - thread_pointer());
+}
+
+/* The running thread's worker: one access relative to the thread
+ * pointer, read fresh. */
+static inline Worker *os_worker(void) {
+    return (Worker *)(thread_pointer() + (uintptr_t)worker_offset);
+}
+
 /* The event set, made at the first socket wait, job or wake-up. */
 static int os_poll_fd = -1;
 
