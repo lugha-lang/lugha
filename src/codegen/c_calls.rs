@@ -103,7 +103,7 @@ impl<'ctx> Lowerer<'ctx> {
 
     /// The lowered signature of a C function taking `kinds` and returning `ret`.
     pub(super) fn c_sig(&self, kinds: &[CKind], ret: &Type) -> CSig<'ctx> {
-        if self.target == super::Target::Aarch64Linux {
+        if self.target.arch() == super::Arch::Aarch64 {
             return self.c_sig_arm(kinds, ret);
         }
         let classified = |ty: &Type| classify(ty, &self.structs, &self.enums);

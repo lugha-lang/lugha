@@ -16,12 +16,13 @@ pub mod inputs;
 mod object_cache;
 pub mod pkg_config;
 pub mod runtime;
+pub mod zig;
 
 use std::ffi::OsString;
 use std::io;
 use std::path::{Path, PathBuf};
 
-pub use self::errors::LinkError;
+pub use self::errors::{LinkError, foreign_refusals};
 pub use self::inputs::{Plan, PlanError};
 
 /// The runtime's source files, in the order they are joined: the core first,
@@ -330,7 +331,7 @@ pub fn link_with(
     let linked: Vec<&Path> = vec![runtime.path.as_path()];
     let result = cache
         .cc()
-        .command()
+        .link_command()
         .args(args(objects, &shims, &linked, plan, output))
         .output();
     let out = match result {

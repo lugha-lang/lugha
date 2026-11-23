@@ -96,7 +96,7 @@ where
     };
     // `--cpu` names x86-64 levels only: a usage error, as clap's are.
     if let Command::Build {
-        target: Some(TargetArg::Aarch64),
+        target: Some(TargetArg::Aarch64 | TargetArg::Aarch64Musl),
         options,
         ..
     } = &cli.command
@@ -123,7 +123,7 @@ where
             target,
             options,
         } => {
-            let target = target.map_or(Target::default(), Into::into);
+            let target = target.map_or(Target::native(), Into::into);
             let code = (
                 options.opt,
                 options.cpu(),
@@ -149,7 +149,7 @@ where
                 (
                     options.opt,
                     options.cpu(),
-                    Target::default(),
+                    Target::native(),
                     cli::instruments_from_env(),
                 ),
                 args,

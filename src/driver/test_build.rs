@@ -97,7 +97,7 @@ pub(super) fn build_group(
             (
                 OptLevel::O0,
                 cpu,
-                Target::default(),
+                Target::native(),
                 super::cli::instruments_from_env(),
             ),
             exe,
@@ -192,7 +192,7 @@ fn build(file: &Path, exe: &Path, cpu: Cpu) -> Result<Vec<Listed>, Failure> {
             (
                 OptLevel::O0,
                 cpu,
-                Target::default(),
+                Target::native(),
                 super::cli::instruments_from_env(),
             ),
             exe,

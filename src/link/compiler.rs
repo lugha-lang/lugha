@@ -1,13 +1,15 @@
-//! The C compiler lughac runs: `cc`, or the
-//! words of `$LUGHA_CC` — a program and its first arguments, split on
-//! spaces and run from an argument list, never through a shell, as
-//! `$PKG_CONFIG` is. One per build, so every compile, the link and the
-//! object cache's key agree.
+//! The C compiler lughac runs: `cc` for the
+//! machine it runs on, `zig cc -target …` for any other (`zig`), or the
+//! words of `$LUGHA_CC` for every target — a program and its first
+//! arguments, split on spaces and run from an argument list, never through
+//! a shell, as `$PKG_CONFIG` is. One per build, so every compile, the link
+//! and the object cache's key agree.
 
 use std::ffi::OsString;
+use std::path::PathBuf;
 use std::process::Command;
 
-use super::LinkError;
+use super::{LinkError, zig};
 
 /// A C compiler: a program and the arguments that go before lughac's own.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,6 +18,12 @@ pub struct Compiler {
     args: Vec<OsString>,
     /// Set when the words came from `$LUGHA_CC`, for messages.
     from_env: bool,
+    /// Arguments only the link takes, after `args`: zig's unwinder.
+    link_args: Vec<OsString>,
+    /// Environment variables every run gets: where zig keeps its cache.
+    envs: Vec<(OsString, OsString)>,
+    /// What `zig version` said, for the object cache's key; empty for `cc`.
+    version: String,
 }
 
 impl Default for Compiler {
@@ -25,6 +33,9 @@ impl Default for Compiler {
             program: OsString::from("cc"),
             args: Vec::new(),
             from_env: false,
+            link_args: Vec::new(),
+            envs: Vec::new(),
+            version: String::new(),
         }
     }
 }
@@ -37,18 +48,47 @@ impl Compiler {
     /// [`LinkError::BadCompiler`] when `$LUGHA_CC` isn't UTF-8, since its
     /// words couldn't be split reliably.
     pub fn from_env() -> Result<Compiler, LinkError> {
-        Compiler::from_env_or("cc")
+        choose(std::env::var_os("LUGHA_CC").as_deref(), "cc")
     }
 
-    /// The compiler `$LUGHA_CC` names, or the program `fallback` when it is
-    /// unset or blank: a target's own compiler, such as
-    /// `aarch64-linux-gnu-gcc`.
+    /// The compiler for the LLVM triple `target`: `$LUGHA_CC`'s when it is
+    /// set; else `cc` when `native` (the machine lughac runs on); else zig,
+    /// once `zig version` says it is new enough.
     ///
     /// # Errors
     ///
-    /// As [`Compiler::from_env`].
-    pub fn from_env_or(fallback: &str) -> Result<Compiler, LinkError> {
-        choose(std::env::var_os("LUGHA_CC").as_deref(), fallback)
+    /// As [`Compiler::from_env`], and [`zig::check`]'s for a foreign target.
+    pub fn for_target(target: &str, native: bool) -> Result<Compiler, LinkError> {
+        let chosen = Compiler::from_env()?;
+        if chosen.from_env || native {
+            return Ok(chosen);
+        }
+        let version = zig::check(target)?;
+        let cache = crate::modules::cache::root(|n| std::env::var_os(n)).map(|r| r.join("zig"));
+        Ok(Compiler::zig(target, version, cache))
+    }
+
+    /// `zig cc` for `target`, whose `zig version` said `version`, keeping
+    /// its cache in `cache` when there is one.
+    fn zig(target: &str, version: String, cache: Option<PathBuf>) -> Compiler {
+        // The driver offers only targets the table has.
+        let triple = zig::zig_triple(target).expect("every --target has a zig spelling");
+        // The runtime is built for the baseline CPU, as `cc` builds it.
+        let args = ["cc", "-target", triple, "-mcpu=baseline"];
+        // zig's cache goes in lughac's, so a read-only HOME still works.
+        let envs = cache.map_or_else(Vec::new, |dir| {
+            ["ZIG_GLOBAL_CACHE_DIR", "ZIG_LOCAL_CACHE_DIR"]
+                .map(|name| (OsString::from(name), dir.clone().into_os_string()))
+                .to_vec()
+        });
+        Compiler {
+            program: OsString::from("zig"),
+            args: args.map(OsString::from).to_vec(),
+            from_env: false,
+            link_args: zig::link_args(target),
+            envs,
+            version,
+        }
     }
 
     /// The compiler `text` names: its first space-separated word is the
@@ -65,6 +105,7 @@ impl Compiler {
                 program,
                 args: words.collect(),
                 from_env: true,
+                ..Compiler::default()
             },
         }
     }
@@ -73,7 +114,22 @@ impl Compiler {
     pub fn command(&self) -> Command {
         let mut command = Command::new(&self.program);
         command.args(&self.args);
+        command.envs(self.envs.iter().map(|(k, v)| (k, v)));
         command
+    }
+
+    /// A command running the compiler as the linker: [`Compiler::command`]
+    /// with the arguments only a link takes.
+    pub fn link_command(&self) -> Command {
+        let mut command = self.command();
+        command.args(&self.link_args);
+        command
+    }
+
+    /// The words and zig's version, for the object cache's key: zig's
+    /// `cc --version` names its clang, which two zig releases can share.
+    pub fn key_words(&self) -> String {
+        format!("{}\n{}", self.words(), self.version)
     }
 
     /// The words, for the object cache's key: two commands printing the
@@ -115,14 +171,75 @@ mod tests {
     use std::ffi::OsStr;
 
     #[test]
-    fn a_target_s_compiler_is_the_fallback_and_lugha_cc_wins() {
-        let arm = "aarch64-linux-gnu-gcc";
-        assert_eq!(choose(None, arm).unwrap().words(), arm);
-        assert_eq!(choose(Some(OsStr::new("  ")), arm).unwrap().words(), arm);
-        assert_eq!(choose(None, arm).unwrap().name(), "`aarch64-linux-gnu-gcc`");
-        let zig = choose(Some(OsStr::new("zig cc -target aarch64-linux-gnu")), arm).unwrap();
-        assert_eq!(zig.words(), "zig cc -target aarch64-linux-gnu");
+    fn the_fallback_is_used_unless_lugha_cc_names_one() {
         assert_eq!(choose(None, "cc").unwrap(), Compiler::default());
+        assert_eq!(
+            choose(Some(OsStr::new("  ")), "cc").unwrap(),
+            Compiler::default()
+        );
+        let zig = choose(Some(OsStr::new("zig cc -target aarch64-linux-gnu")), "cc").unwrap();
+        assert_eq!(zig.words(), "zig cc -target aarch64-linux-gnu");
+        assert!(
+            zig.link_args.is_empty(),
+            "$LUGHA_CC's words are all it gets"
+        );
+    }
+
+    fn strings<'a>(items: impl Iterator<Item = &'a std::ffi::OsStr>) -> Vec<String> {
+        items.map(|a| a.to_string_lossy().into_owned()).collect()
+    }
+
+    #[test]
+    fn a_foreign_target_compiles_with_zig_for_its_triple() {
+        let cache = std::path::PathBuf::from("/c/lugha/zig");
+        let zig = Compiler::zig("x86_64-unknown-linux-musl", "0.17.1".into(), Some(cache));
+        assert_eq!(
+            zig.name(),
+            "`zig cc -target x86_64-linux-musl -mcpu=baseline`"
+        );
+        let compile = zig.command();
+        assert_eq!(compile.get_program(), "zig");
+        assert_eq!(
+            strings(compile.get_args()),
+            ["cc", "-target", "x86_64-linux-musl", "-mcpu=baseline"]
+        );
+        let envs: Vec<_> = compile
+            .get_envs()
+            .map(|(k, v)| (k.to_owned(), v.map(|v| v.to_owned())))
+            .collect();
+        assert_eq!(envs.len(), 2);
+        assert!(
+            envs.iter()
+                .all(|(_, v)| v.as_deref() == Some(std::ffi::OsStr::new("/c/lugha/zig")))
+        );
+        assert_eq!(
+            strings(zig.link_command().get_args()),
+            [
+                "cc",
+                "-target",
+                "x86_64-linux-musl",
+                "-mcpu=baseline",
+                "-lunwind",
+                "-static"
+            ]
+        );
+        assert_eq!(
+            zig.key_words(),
+            "zig cc -target x86_64-linux-musl -mcpu=baseline\n0.17.1"
+        );
+        let arm = Compiler::zig("aarch64-unknown-linux-gnu", "0.17.1".into(), None);
+        assert_eq!(arm.command().get_envs().count(), 0);
+        assert_eq!(
+            strings(arm.link_command().get_args()).last().unwrap(),
+            "-lunwind"
+        );
+    }
+
+    #[test]
+    fn cc_links_with_nothing_added() {
+        let cc = Compiler::default();
+        assert_eq!(cc.link_command().get_args().count(), 0);
+        assert_eq!(cc.command().get_envs().count(), 0);
     }
 
     #[test]

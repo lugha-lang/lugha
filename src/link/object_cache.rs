@@ -62,7 +62,7 @@ impl Cache {
             .output()
             .ok()
             .filter(|o| o.status.success())
-            .map(|o| format!("{}\n{}", cc.words(), String::from_utf8_lossy(&o.stdout)));
+            .map(|o| format!("{}\n{}", cc.key_words(), String::from_utf8_lossy(&o.stdout)));
         match compiler {
             Some(compiler) => Cache {
                 objects,

@@ -13,6 +13,18 @@ pub enum LinkError {
     /// The C compiler isn't there: `cc`, or what `$LUGHA_CC` names, as messages name it.
     #[error("C compiler {0} not found; install gcc or clang, or set $LUGHA_CC")]
     CcNotFound(String),
+    /// A build for the foreign target named found no `zig` on `PATH`.
+    #[error(
+        "building for {0} needs zig 0.17.0 or newer ({download}), or set $LUGHA_CC",
+        download = super::zig::DOWNLOAD
+    )]
+    ZigNotFound(String),
+    /// The `zig` on `PATH` is older than 0.17.0, or `zig version` printed `found`, which isn't a version.
+    #[error(
+        "building for {target} needs zig 0.17.0 or newer, but `zig version` says {found:?}; update it ({download}), or set $LUGHA_CC",
+        download = super::zig::DOWNLOAD
+    )]
+    ZigTooOld { found: String, target: String },
     /// `$LUGHA_CC` isn't UTF-8, so its words can't be split.
     #[error("$LUGHA_CC isn't UTF-8")]
     BadCompiler,
@@ -78,11 +90,62 @@ impl LinkError {
                 ),
             ),
             LinkError::CcNotFound(_)
+            | LinkError::ZigNotFound(_)
+            | LinkError::ZigTooOld { .. }
             | LinkError::BadCompiler
             | LinkError::Io(_)
             | LinkError::Failed { .. } => None,
         }
     }
+}
+
+/// E0334 and E0335 for a build for `target` (its triple, and whether it
+/// is the machine lughac runs on) with these `links` and the imports
+/// bringing in `std.tls` and `std.crypto`: what a foreign build can't
+/// link, this machine's OpenSSL and `pkg-config`'s libraries. Empty for a
+/// native build.
+pub fn foreign_refusals(
+    (target, native): (&str, bool),
+    links: &[crate::modules::link_table::PackageLink],
+    (tls, crypto): (Option<Span>, Option<Span>),
+) -> Vec<Diagnostic> {
+    if native {
+        return Vec::new();
+    }
+    let ssl = [("std.tls", tls), ("std.crypto", crypto)];
+    let pkg_config = super::Plan::pkg_config_line(links);
+    ssl.into_iter()
+        .filter_map(|(module, at)| at.map(|span| foreign_openssl(module, span, target)))
+        .chain(pkg_config.map(|span| foreign_pkg_config(span, target)))
+        .collect()
+}
+
+/// E0334: a program importing `module` (`std.tls` or `std.crypto`, at
+/// `span`) built for the foreign `target`, whose OpenSSL isn't at hand.
+fn foreign_openssl(module: &str, span: Span, target: &str) -> Diagnostic {
+    Diagnostic::error(
+        "E0334",
+        format!("`{module}` can't be built for {target}"),
+        span,
+    )
+    .with_help(
+        "the C library it needs, OpenSSL, is linked from this machine, which only fits \
+         builds for this machine; build without `--target`, or on the target platform",
+    )
+}
+
+/// E0335: a `[link]` table's `pkg-config` line (at `span`) in a build for
+/// the foreign `target`.
+fn foreign_pkg_config(span: Span, target: &str) -> Diagnostic {
+    Diagnostic::error(
+        "E0335",
+        format!("`pkg-config` can't be used for {target}"),
+        span,
+    )
+    .with_help(
+        "its answers describe this machine's libraries; name the target's libraries \
+         with `libs` and `paths`, or build without `--target`",
+    )
 }
 
 impl PlanError {

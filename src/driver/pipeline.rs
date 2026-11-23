@@ -304,17 +304,21 @@ pub(super) fn build(
             return Err(Failure::Program(front.source.clone(), found));
         }
     }
-    // The target's own compiler unless `$LUGHA_CC` names one.
-    let fallback = match target {
-        Target::X86_64Linux => "cc",
-        Target::Aarch64Linux => "aarch64-linux-gnu-gcc",
-    };
-    let cc = link::compiler::Compiler::from_env_or(fallback)
+    let tls = std_import(&front.modules, "tls", &["tls", "http"]);
+    let crypto = std_import(&front.modules, "crypto", &["crypto"]);
+    let refused = link::foreign_refusals(
+        (target.triple(), target.is_native()),
+        &front.links,
+        (tls, crypto),
+    );
+    if !refused.is_empty() {
+        return Err(Failure::Program(front.source.clone(), refused));
+    }
+    let cc = link::compiler::Compiler::for_target(target.triple(), target.is_native())
         .map_err(|e| internal(&front.source, e.to_string()))?;
     let mut plan = link::Plan::new(&front.links, &mut link::pkg_config::run)
         .map_err(|e| Failure::Program(front.source.clone(), vec![e.diagnostic()]))?;
-    plan.tls = std_import(&front.modules, "tls", &["tls", "http"]);
-    plan.crypto = std_import(&front.modules, "crypto", &["crypto"]);
+    (plan.tls, plan.crypto) = (tls, crypto);
     let temp = TempDir::new().map_err(|e| internal(&front.source, temp_error(e)))?;
     let object = temp.path.join("prog.o");
     codegen::emit_object_modules(

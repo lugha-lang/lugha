@@ -2,8 +2,9 @@
 //! `tests/programs/` built with `--target aarch64-unknown-linux-gnu` and run
 //! under `qemu-aarch64` match their expectation files, green threads,
 //! actors, panics and counting included; and `extern struct`s cross to
-//! C by value as AAPCS64 passes them, against C compiled by
-//! `aarch64-linux-gnu-gcc`. Without `aarch64-linux-gnu-gcc` and `qemu-aarch64` each test
+//! C by value as AAPCS64 passes them, against C compiled by zig for ARM.
+//! Without `zig`, `qemu-aarch64` and an ARM64 glibc for qemu to load
+//! (`/usr/aarch64-linux-gnu`, Ubuntu's `libc6-arm64-cross`) each test
 //! prints a note and passes, as on a machine that can't build for ARM.
 
 use std::path::{Path, PathBuf};
@@ -66,17 +67,19 @@ impl Drop for Temp {
     }
 }
 
-/// Whether this machine has the ARM cross compiler and qemu; prints why not.
+/// Whether this machine has zig, qemu and an ARM64 glibc; prints why not.
 fn can_build_for_arm(test: &str) -> bool {
-    let runs = |program: &str| {
+    let runs = |program: &str, arg: &str| {
         Command::new(program)
-            .arg("--version")
+            .arg(arg)
             .output()
             .is_ok_and(|o| o.status.success())
     };
-    let ok = runs("aarch64-linux-gnu-gcc") && runs("qemu-aarch64");
+    let ok = runs("zig", "version")
+        && runs("qemu-aarch64", "--version")
+        && Path::new("/usr/aarch64-linux-gnu/lib").is_dir();
     if !ok {
-        eprintln!("{test}: skipped, needs aarch64-linux-gnu-gcc and qemu-aarch64");
+        eprintln!("{test}: skipped, needs zig, qemu-aarch64 and /usr/aarch64-linux-gnu");
     }
     ok
 }
@@ -158,7 +161,7 @@ fn programs_run_on_arm_as_they_do_on_x86_64() {
 }
 
 /// Builds `main` (after `DECLS`) with the shapes' C side in `side.c` for
-/// ARM — the C compiled by `aarch64-linux-gnu-gcc` — and runs it at -O0 and
+/// ARM — the C compiled by zig — and runs it at -O0 and
 /// -O2 under qemu, checking it prints `prints`.
 fn runs_on_arm(name: &str, main: &str, prints: &str) {
     let t = Temp::new();

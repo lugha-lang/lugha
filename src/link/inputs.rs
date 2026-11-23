@@ -125,6 +125,17 @@ impl Plan {
         Ok(plan)
     }
 
+    /// The first `pkg-config` line naming a package in `links`: refused in
+    /// a build for another platform, whose libraries `pkg-config` doesn't
+    /// describe (E0335).
+    pub fn pkg_config_line(links: &[PackageLink]) -> Option<Span> {
+        links
+            .iter()
+            .filter(|l| !l.table.values(LinkKey::PkgConfig).is_empty())
+            .find_map(|l| l.table.line_of(LinkKey::PkgConfig))
+            .map(|line| line.span)
+    }
+
     /// True when no table lists anything: the link is lughac's own.
     pub fn is_empty(&self) -> bool {
         self.at.is_none()

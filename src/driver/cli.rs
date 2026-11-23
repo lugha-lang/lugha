@@ -27,7 +27,7 @@ pub(super) enum Command {
         /// Print one intermediate stage to stdout and stop
         #[arg(long, value_enum)]
         emit: Option<Emit>,
-        /// The platform to build for [default: x86_64-unknown-linux-gnu]
+        /// The platform to build for [default: this machine]
         #[arg(long, value_enum)]
         target: Option<TargetArg>,
         #[command(flatten)]
@@ -253,6 +253,10 @@ pub(super) enum TargetArg {
     X86_64,
     #[value(name = "aarch64-unknown-linux-gnu")]
     Aarch64,
+    #[value(name = "x86_64-unknown-linux-musl")]
+    X86_64Musl,
+    #[value(name = "aarch64-unknown-linux-musl")]
+    Aarch64Musl,
 }
 
 impl From<TargetArg> for Target {
@@ -260,6 +264,8 @@ impl From<TargetArg> for Target {
         match target {
             TargetArg::X86_64 => Target::X86_64Linux,
             TargetArg::Aarch64 => Target::Aarch64Linux,
+            TargetArg::X86_64Musl => Target::X86_64LinuxMusl,
+            TargetArg::Aarch64Musl => Target::Aarch64LinuxMusl,
         }
     }
 }

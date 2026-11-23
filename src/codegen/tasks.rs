@@ -355,9 +355,9 @@ impl<'ctx> Lowerer<'ctx> {
     /// neither makes a frame nor counts as a side effect.
     fn stack_pointer(&mut self) -> inkwell::values::IntValue<'ctx> {
         let i64_type = self.context.i64_type();
-        let name = match self.target {
-            super::Target::X86_64Linux => "rsp",
-            super::Target::Aarch64Linux => "sp",
+        let name = match self.target.arch() {
+            super::Arch::X86_64 => "rsp",
+            super::Arch::Aarch64 => "sp",
         };
         let read = inkwell::intrinsics::Intrinsic::find("llvm.read_register")
             .and_then(|i| i.get_declaration(&self.module, &[i64_type.into()]))

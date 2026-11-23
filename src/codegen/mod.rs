@@ -114,7 +114,7 @@ pub use self::emit::{
     Cpu, Instruments, OptLevel, emit_ir, emit_ir_for, emit_ir_modules, emit_ir_with, emit_object,
     emit_object_modules,
 };
-pub use self::targets::Target;
+pub use self::targets::{Arch, Target};
 
 /// The source file being compiled, for panic locations.
 #[derive(Debug, Clone, Copy)]

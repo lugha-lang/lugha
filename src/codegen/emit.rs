@@ -12,7 +12,7 @@ use inkwell::targets::{
     TargetTriple,
 };
 
-use super::{CodegenError, ModuleSource, SourceInfo, Target, frames, lower};
+use super::{Arch, CodegenError, ModuleSource, SourceInfo, Target, frames, lower};
 use crate::ast::Program;
 use crate::check::{Checked, Unit};
 
@@ -217,9 +217,9 @@ pub fn emit_object_modules(
 /// Ubuntu's `cc` links PIE executables by default.
 fn target_machine(opt: OptLevel, cpu: Cpu, target: Target) -> Result<TargetMachine, CodegenError> {
     let config = InitializationConfig::default();
-    match target {
-        Target::X86_64Linux => LlvmTarget::initialize_x86(&config),
-        Target::Aarch64Linux => LlvmTarget::initialize_aarch64(&config),
+    match target.arch() {
+        Arch::X86_64 => LlvmTarget::initialize_x86(&config),
+        Arch::Aarch64 => LlvmTarget::initialize_aarch64(&config),
     }
     let triple = TargetTriple::create(target.triple());
     let llvm = LlvmTarget::from_triple(&triple).map_err(|e| CodegenError::Emit(e.to_string()))?;
@@ -231,7 +231,7 @@ fn target_machine(opt: OptLevel, cpu: Cpu, target: Target) -> Result<TargetMachi
     // the host's own.
     let (cpu, features) = match (target, cpu) {
         // The driver refuses `--cpu` for ARM, so only the default reaches here.
-        (Target::Aarch64Linux, _) => ("generic".to_string(), String::new()),
+        (t, _) if t.arch() == Arch::Aarch64 => ("generic".to_string(), String::new()),
         (_, Cpu::X86_64) => ("x86-64".to_string(), String::new()),
         (_, Cpu::V2) => ("x86-64-v2".to_string(), String::new()),
         (_, Cpu::V3) => ("x86-64-v3".to_string(), String::new()),
@@ -296,14 +296,22 @@ mod tests {
     #[test]
     fn each_target_has_its_triple_and_arm_builds_for_generic() {
         assert_eq!(Target::default(), Target::X86_64Linux);
-        for target in [Target::X86_64Linux, Target::Aarch64Linux] {
+        let all = [
+            Target::X86_64Linux,
+            Target::Aarch64Linux,
+            Target::X86_64LinuxMusl,
+            Target::Aarch64LinuxMusl,
+        ];
+        for target in all {
             let machine = target_machine(OptLevel::O2, Cpu::default(), target).expect("a target");
             assert_eq!(
                 machine.get_triple().as_str().to_string_lossy(),
                 target.triple()
             );
         }
-        let arm = target_machine(OptLevel::O0, Cpu::default(), Target::Aarch64Linux).unwrap();
-        assert_eq!(arm.get_cpu().to_string(), "generic");
+        for arm in [Target::Aarch64Linux, Target::Aarch64LinuxMusl] {
+            let arm = target_machine(OptLevel::O0, Cpu::default(), arm).unwrap();
+            assert_eq!(arm.get_cpu().to_string(), "generic");
+        }
     }
 }
