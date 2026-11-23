@@ -50,6 +50,10 @@ Done: portable x86-64 binaries (`--cpu`), `$LUGHA_CC`, Linux on ARM64 with AAPCS
 - [ ] **D1–D3 — Windows:** runtime (files, processes, env, stack overflow), sockets, Windows x64 calling rules, `.exe` linking with MinGW first. Large.
 - [ ] **E — WebAssembly (wasm32-wasi):** decisions first (tasks with no threads, or none; which capabilities and std modules exist). Large.
 
+## Compiler internals
+
+- [ ] **MIR playground** (`docs/research/mir.md` §5): an experimental stage beside codegen, `--emit=mir` and an interpreter checked against compiled programs; not needed for performance yet (§4). Integers and control flow first.
+
 ## Editor support and tools
 
 - [ ] **Expression error nodes** — keep a broken statement with a hole, so `foo(p).` on the broken line completes too.
