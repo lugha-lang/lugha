@@ -172,3 +172,31 @@ Each step one small PRP, the stage marked experimental and deletable:
 Tasks, channels and actors last, if ever (the interpreter could run them on one thread).
 
 **Costs:** compile and test time (small); drift, since each new language feature needs a lowering or stays `unsupported`, which is fine while nothing depends on it.
+
+## 6. Compile speed
+
+Where `lughac`'s own time goes (2026-11-23; release build, mean of 3 runs, the runtime's object cached as in any rebuild):
+
+| program | `check` | `--emit=ir` | `build -O0` | `build -O2` |
+|---|---|---|---|---|
+| hello world | 19 ms | 56 ms | 105 ms | 224 ms |
+| `bench/programs/wordfreq` | 24 ms | 92 ms | 182 ms | 795 ms |
+| `big_frame_overflow.la` (346 lines) | 22 ms | 139 ms | 201 ms | 933 ms |
+
+For wordfreq: the front end (parsing and checking, prelude included) ≈ 25 ms; our codegen to LLVM IR ≈ 70 ms; LLVM's code generation and linking with `cc` at `-O0` ≈ 90 ms; LLVM's optimiser at `-O2` ≈ 600 ms, three quarters of an optimised build.
+
+**What a MIR would speed up:**
+
+1. **Debug builds through Cranelift.** With a MIR, a second backend is "MIR → Cranelift" beside "MIR → LLVM"; without one, it is a second codegen. Cranelift compiles several times faster than LLVM: the `-O0` path's ≈ 90 ms might become 20–30 ms. That matters most where hundreds of small programs are built at `-O0`: the test suite, `lughac run`, `lughac test`.
+2. **Caching compiled functions.** A MIR function is a natural unit to fingerprint: unchanged, with unchanged callees, its machine code is reused. Today every build compiles again all the prelude code a program uses, probably much of hello world's 224 ms at `-O2`.
+3. **Less for LLVM to do.** Inlining tiny prelude helpers and dropping dead code before LLVM sees them. Rust's MIR inliner measured −1.4% compile instructions on average (best −10%): small.
+4. **An interpreter** could run tests with no codegen or link at all, but it would have to reproduce the C runtime (tasks, channels, actors, panics and their exact messages): a project of its own.
+
+**What it wouldn't:** LLVM's `-O2` optimiser, the largest single cost; a MIR feeds it the same work.
+
+**Without a MIR,** the biggest wins for optimised builds are available now:
+
+- **Codegen units:** split the program into several LLVM modules and compile them on every core at once, as `rustc` does; on four cores `-O2` might go from ≈ 800 ms toward 250–300 ms.
+- **Caching the prelude's compiled code** per type it is used with, at the LLVM module level.
+
+So a MIR speeds compilation mainly through Cranelift for debug and test builds, and makes per-function caching clean; for optimised builds, parallel LLVM and caching are the larger and cheaper levers, and need no MIR.
