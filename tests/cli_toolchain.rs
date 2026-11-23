@@ -94,13 +94,21 @@ fn a_missing_lugha_cc_is_exit_2_and_never_reaches_a_shell() {
 }
 
 #[test]
-fn target_takes_two_triples_and_only_build_takes_it() {
+fn target_takes_four_triples_on_build_run_and_test() {
     let dir = TempDir::with(&[("arith.la", ARITH.as_bytes())]);
-    let unknown = lughac(&dir.0, &["build", "arith.la", "--target=sparc-sun-solaris"]);
-    assert_eq!(unknown.status.code(), Some(2));
-    let stderr = text(&unknown.stderr);
-    for name in ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"] {
-        assert!(stderr.contains(name), "{stderr}");
+    let triples = [
+        "x86_64-unknown-linux-gnu",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-musl",
+        "aarch64-unknown-linux-musl",
+    ];
+    for command in ["build", "run", "test"] {
+        let unknown = lughac(&dir.0, &[command, "arith.la", "--target=sparc-sun-solaris"]);
+        assert_eq!(unknown.status.code(), Some(2), "{command}");
+        let stderr = text(&unknown.stderr);
+        for name in triples {
+            assert!(stderr.contains(name), "{command}: {stderr}");
+        }
     }
     let host = lughac(
         &dir.0,
@@ -119,9 +127,19 @@ fn target_takes_two_triples_and_only_build_takes_it() {
     );
     assert_eq!(cpu.status.code(), Some(2));
     assert!(text(&cpu.stderr).contains("--cpu"), "{}", text(&cpu.stderr));
-    let run = lughac(
-        &dir.0,
-        &["run", "arith.la", "--target", "aarch64-unknown-linux-gnu"],
+    // This machine's own triple runs as a plain `run` does.
+    let native = if cfg!(target_arch = "aarch64") {
+        "aarch64-unknown-linux-gnu"
+    } else {
+        "x86_64-unknown-linux-gnu"
+    };
+    let plain = lughac(&dir.0, &["run", "arith.la"]);
+    let run = lughac(&dir.0, &["run", "arith.la", "--target", native]);
+    assert_eq!(
+        run.status.code(),
+        plain.status.code(),
+        "{}",
+        text(&run.stderr)
     );
-    assert_eq!(run.status.code(), Some(2), "run takes no --target yet");
+    assert_eq!(text(&run.stdout), text(&plain.stdout));
 }
