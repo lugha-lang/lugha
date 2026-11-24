@@ -163,7 +163,7 @@ jobs:
         # Each prints exactly its .stdout within a minute (macOS has no
         # `timeout`: perl's alarm ends a hung one), in an empty folder of
         # its own, since some make files; `start` again with stdin closed;
-        # lockdown reports it isn't applied.
+        # lockdown reports what it applied.
         working-directory: macos
         run: |
           status=0
@@ -186,7 +186,9 @@ jobs:
             status=1
           fi
           LUGHA_LOCKDOWN=report ./hello > /dev/null 2> lockdown.txt
-          if grep -q "lockdown: not applied on macOS" lockdown.txt; then
+          LUGHA_LOCKDOWN=report ./lockdown_held > /dev/null 2>> lockdown.txt
+          if grep -q "lockdown: seatbelt applied, files not limited; net refused, proc refused, fs refused" lockdown.txt &&
+             grep -q "lockdown: seatbelt not needed, files not limited; net held, proc held, fs refused" lockdown.txt; then
             echo "ok lockdown report"
           else
             cat lockdown.txt

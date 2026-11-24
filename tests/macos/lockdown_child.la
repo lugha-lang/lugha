@@ -1,0 +1,23 @@
+// Run on a Mac by CI: holding `Proc` but not `Net`, a started program is
+// refused an internet socket and a named UNIX socket's connection, and
+// still makes an unnamed pair and passes a byte through it.
+fun perl(proc: Proc, script: string): string = match proc.run("perl", ["-MSocket", "-e", script]) {
+    .Ok(o) => "{o.code} {o.stdout}",
+    .Err(e) => "err {e}",
+};
+
+fun main(console: Console, proc: Proc) {
+    console.println(perl(proc, "socket(my $s, PF_INET, SOCK_STREAM, 0) ? exit 0 : exit 3"));
+    console.println(
+        perl(
+            proc,
+            "socket(my $s, PF_UNIX, SOCK_DGRAM, 0) && connect($s, pack_sockaddr_un('/var/run/syslog')) ? exit 0 : exit 3",
+        ),
+    );
+    console.println(
+        perl(
+            proc,
+            "socketpair(my $a, my $b, AF_UNIX, SOCK_STREAM, 0) or exit 4; syswrite($a, 'x'); sysread($b, my $c, 1); print $c",
+        ),
+    );
+}

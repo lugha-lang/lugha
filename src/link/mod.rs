@@ -404,6 +404,8 @@ mod tests {
             "fchmodat2",
             "memrchr",
         ];
+        // macOS's own: Seatbelt, kqueue, a descriptor's path.
+        const DARWIN: [&str; 4] = ["sandbox_", "kqueue", "kevent", "F_GETPATH"];
         // Socket calls: the system's, behind `os_sock_*`.
         const SOCKETS: [&str; 13] = [
             "socket(",
@@ -427,6 +429,10 @@ mod tests {
             let code = code_of(src);
             if !super::LINUX_ONLY.contains(&name) {
                 let words = LINUX.iter().filter(|w| code.contains(**w));
+                found.extend(words.map(|w| format!("{name}: {w}")));
+            }
+            if !super::DARWIN_ONLY.contains(&name) {
+                let words = DARWIN.iter().filter(|w| code.contains(**w));
                 found.extend(words.map(|w| format!("{name}: {w}")));
             }
             if !name.starts_with("os/") {
