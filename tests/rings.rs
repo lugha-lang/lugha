@@ -67,20 +67,22 @@ fn text(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()
 }
 
-/// Threads of C's own: one calling a callback `n` times (after a pause),
-/// or `n` threads each calling once; the results a callback with a result
-/// gave, summed.
 /// C threads of its own, each calling a callback `n` times (after a
-/// pause) and summing what it gave back.
+/// pause) and summing what it gave back. The threads of one `on_threads`
+/// wait for each other before the first call, so several really do run
+/// at once even on a busy machine.
 const SIDE: &str = "#include <pthread.h>\n\
     #include <stdlib.h>\n\
     #include <unistd.h>\n\
     typedef long (*cbr)(long, void *);\n\
-    typedef struct { cbr g; void *u; long n; long pause_ms; } job;\n\
+    #include <sched.h>\n\
+    typedef struct { cbr g; void *u; long n; long pause_ms; long together; } job;\n\
     static pthread_t threads[64]; static int started;\n\
-    static long sum;\n\
+    static long sum, arrived;\n\
     static void *calls(void *p) {\n\
         job *j = p; long s = 0;\n\
+        __atomic_add_fetch(&arrived, 1, __ATOMIC_SEQ_CST);\n\
+        while (__atomic_load_n(&arrived, __ATOMIC_SEQ_CST) < j->together) sched_yield();\n\
         if (j->pause_ms) usleep(j->pause_ms * 1000);\n\
         for (long i = 0; i < j->n; i++) s += j->g(i, j->u);\n\
         __atomic_add_fetch(&sum, s, __ATOMIC_SEQ_CST);\n\
@@ -88,8 +90,9 @@ const SIDE: &str = "#include <pthread.h>\n\
         return 0;\n\
     }\n\
     void on_threads(cbr g, void *u, long threads_n, long n, long pause_ms) {\n\
+        __atomic_store_n(&arrived, 0, __ATOMIC_SEQ_CST);\n\
         for (long t = 0; t < threads_n; t++) {\n\
-            job *j = malloc(sizeof *j); j->g = g; j->u = u; j->n = n; j->pause_ms = pause_ms;\n\
+            job *j = malloc(sizeof *j); j->g = g; j->u = u; j->n = n; j->pause_ms = pause_ms; j->together = threads_n;\n\
             pthread_create(&threads[started++], 0, calls, j);\n\
         }\n\
     }\n\
