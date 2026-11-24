@@ -1,16 +1,16 @@
 /*
- * dir_names.c — part of lugha_rt.c: a `Dir`'s operations on what a path
- * names. Making, removing and renaming act on a path's last part: the
- * folder holding it is opened beneath the `Dir` first, then the one name is
- * acted on there, never `.` or `..`, and a link is removed itself, never
- * followed. Kind, size, mode and syncing act on the file the kernel
+ * os/posix/dir_names.c — part of lugha_rt.c: a `Dir`'s operations on what
+ * a path names. Making, removing and renaming act on a path's last part:
+ * the folder holding it is opened beneath the `Dir` first, then the one
+ * name is acted on there, never `.` or `..`, and a link is removed itself,
+ * never followed. Kind, size, mode and syncing act on the file the system
  * resolved beneath the `Dir`, never a link's target outside it.
  *
  * Each runs on a helper thread, as dir.c's operations do.
  *
  * A fragment, not compiled on its own: joined right after dir.c
- * (`LughaDir`, `dir_resolve`, `dir_path_ok`, the `dir_job` family,
- * `DIR_OUTSIDE`).
+ * (`LughaDir`, `dir_path_ok`, the `dir_job` family, `DIR_OUTSIDE`) and the
+ * system's dir_resolve.c (`os_dir_*`, `OS_DIR_FLAGS`).
  */
 
 /* `path` split into the folder holding its last part and that part, two
@@ -24,7 +24,14 @@ static bool dir_split(const LughaString *path, char **parts, LughaString **error
     while (n > 1 && path->bytes[n - 1] == '/') {
         n--;
     }
-    const char *slash = memrchr(path->bytes, '/', (size_t)n);
+    // The last `/` before `n`, or NULL: `memrchr` is GNU's only.
+    const char *slash = NULL;
+    for (int64_t i = n; i > 0; i--) {
+        if (path->bytes[i - 1] == '/') {
+            slash = path->bytes + i - 1;
+            break;
+        }
+    }
     if (slash == path->bytes) {
         fs_fail(error, DIR_OUTSIDE);
         return false;
@@ -65,7 +72,7 @@ static Job *dir_names_job(void (*run)(Job *), void *dir, const LughaString **pat
 /* On a helper: the folder holding the `i`th name, or -1 with the failure
  * kept. */
 static int dir_names_parent(Job *job, int i) {
-    int fd = dir_resolve(job->fd, job->argv[2 * i], O_PATH | O_DIRECTORY, 0);
+    int fd = os_dir_resolve(job->fd, job->argv[2 * i], OS_DIR_FLAGS, 0);
     if (fd < 0) {
         job->err = errno;
         job->lookup = true;
@@ -150,20 +157,16 @@ int32_t lugha_rt_dir_rename(void *dir, const LughaString *from, const LughaStrin
 }
 
 /* On a helper: what the job's path names, its mode in `flags` and size in
- * `value`; the lookup followed (`O_PATH`, links inside followed). */
+ * `value`; links inside followed. */
 static void dir_stat_job(Job *job) {
-    int fd = dir_job_open(job, O_PATH, 0);
-    if (fd < 0) {
-        return;
-    }
     struct stat info;
-    if (fstat(fd, &info) != 0) {
+    if (os_dir_stat(job->fd, job->path, &info) != 0) {
         job->err = errno;
+        job->lookup = true;
     } else {
         job->flags = (int)info.st_mode;
         job->value = (int64_t)info.st_size;
     }
-    close(fd);
 }
 
 /* `$os.dir_kind(dir, path)`: 0 when nothing is there (or it can't be
@@ -209,33 +212,16 @@ int32_t lugha_rt_dir_size(void *dir, const LughaString *path, int64_t *out,
     return 1;
 }
 
-/* `fchmodat2`, new in Linux 6.6 (number 452 on every architecture). */
-#ifndef SYS_fchmodat2
-#define SYS_fchmodat2 452
-#endif
-
-/* On a helper: the permission bits `n` set through the resolved file's
- * descriptor: `fchmodat2` with `AT_EMPTY_PATH`, else the descriptor's
- * `/proc/self/fd` entry on an older kernel. */
+/* On a helper: the permission bits `n` set on what the job's path names. */
 static void dir_chmod_job(Job *job) {
-    int fd = dir_job_open(job, O_PATH, 0);
-    if (fd < 0) {
-        return;
-    }
-    int ok = syscall(SYS_fchmodat2, fd, "", (mode_t)job->n, AT_EMPTY_PATH) == 0;
-    if (!ok && errno == ENOSYS) {
-        char self[64];
-        snprintf(self, sizeof self, "/proc/self/fd/%d", fd);
-        ok = chmod(self, (mode_t)job->n) == 0;
-    }
-    if (!ok) {
+    if (os_dir_chmod(job->fd, job->path, (mode_t)job->n) != 0) {
         job->err = errno;
+        job->lookup = true;
     }
-    close(fd);
 }
 
 /* `$os.dir_chmod(dir, path, mode)`: the permission bits of the file the
- * kernel resolved beneath `dir`, never a link's target outside it. */
+ * system resolved beneath `dir`, never a link's target outside it. */
 int32_t lugha_rt_dir_chmod(void *dir, const LughaString *path, int64_t mode, int64_t *done,
                            LughaString **error) {
     if (mode < 0 || mode > 07777) {

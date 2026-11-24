@@ -379,7 +379,7 @@ mod tests {
 
     #[test]
     fn only_os_parts_call_the_os_or_the_cpu() {
-        const LINUX: [&str; 19] = [
+        const LINUX: [&str; 23] = [
             "epoll_",
             "eventfd",
             "futex",
@@ -399,6 +399,10 @@ mod tests {
             "SOCK_CLOEXEC",
             "MSG_NOSIGNAL",
             "IP_MULTICAST_ALL",
+            "O_PATH",
+            "/proc/",
+            "fchmodat2",
+            "memrchr",
         ];
         // Socket calls: the system's, behind `os_sock_*`.
         const SOCKETS: [&str; 13] = [

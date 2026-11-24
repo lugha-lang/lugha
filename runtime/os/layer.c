@@ -109,3 +109,22 @@ static void os_start(void);
 /* Sets the length byte a system's socket addresses carry (macOS's
  * `sa_len`), `len` the address's size; nothing where they carry none. */
 static void os_sockaddr_len(struct sockaddr *at, socklen_t len);
+
+/* Folders (os/<system>/dir_resolve.c, before os/posix/dir.c): every path
+ * a `Dir` is given is looked up beneath its folder's descriptor, never
+ * leaving it, whatever runs at the same time. Each gives -1 with `errno`
+ * on failure; `EXDEV` means the path leads outside the folder. A system's
+ * file also defines `OS_DIR_FLAGS`, how a `Dir`'s own folder is opened:
+ * search permission is all it needs.
+ *
+ * `os_dir_resolve`: `path` opened with `flags` (and `mode` when it
+ * creates), close-on-exec. `os_dir_stat`: what `path` names, links inside
+ * followed. `os_dir_chmod`: the same lookup, its mode set; never a link's
+ * target outside. `os_dir_where`: where the folder `fd` is now, its length
+ * (no NUL). `os_dir_message`: a system's own words for a lookup's `errno`,
+ * or NULL for the usual ones. */
+static int os_dir_resolve(int dirfd, const char *path, int flags, mode_t mode);
+static int os_dir_stat(int dirfd, const char *path, struct stat *st);
+static int os_dir_chmod(int dirfd, const char *path, mode_t mode);
+static ssize_t os_dir_where(int fd, char *buf, size_t len);
+static const char *os_dir_message(int code);

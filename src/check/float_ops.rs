@@ -53,7 +53,7 @@ pub fn os_signature(op: &str) -> Option<(Vec<Type>, Type)> {
         "local_offset" => (vec![Type::I64], result(Type::I64)),
         "env" => (vec![Type::String], Type::Option(Box::new(bytes()))),
         // A `Dir`: its folder as an opaque handle, every path opened beneath
-        // it (`runtime/os/linux/dir.c`).
+        // it (`runtime/os/posix/dir.c`).
         "dir_cwd" => (Vec::new(), result(cptr())),
         // A handle's shared state, the runtime's (`runtime/memory/cells.c`).
         "cell_new" => (vec![Type::I64; 4], cptr()),

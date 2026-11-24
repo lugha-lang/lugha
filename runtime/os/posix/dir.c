@@ -1,12 +1,9 @@
 /*
- * dir.c — part of lugha_rt.c: a `Dir`'s built-ins. A `Dir` is a directory
- * descriptor (`O_PATH | O_DIRECTORY`), and every path given to one is
- * opened beneath it with `openat2` and `RESOLVE_BENEATH |
- * RESOLVE_NO_MAGICLINKS`: the kernel refuses an absolute path, a `..` above
- * the folder, and a symbolic link leading out, checking each step, so a
- * folder swapped for a link mid-open is caught too. Without `openat2`
- * (Linux before 5.6, or a sandbox blocking it) every operation fails: there
- * is no unconfined fallback.
+ * os/posix/dir.c — part of lugha_rt.c: a `Dir`'s built-ins. A `Dir` is a
+ * folder's descriptor (`OS_DIR_FLAGS`), and every path given to one is
+ * looked up beneath it by the system's `os_dir_resolve`, which refuses an
+ * absolute path, a `..` above the folder and a symbolic link leading out,
+ * whatever runs at the same time. There is no unconfined fallback.
  *
  * Making, removing, renaming, and what a path names (its kind, size, mode,
  * syncing) are in dir_names.c, joined right after.
@@ -20,10 +17,9 @@
  * last `Dir` holding it is gone. The working folder's `Dir` is opened once
  * and kept until exit.
  *
- * A fragment, not compiled on its own: joined after the core (lugha_rt.c),
- * whose includes (`<linux/openat2.h>`, `<sys/syscall.h>`) it relies on, and
- * after fs.c (`fs_fail`, `fs_has_nul`), bytes.c (`bytes_of`) and input.c
- * (`string_of`).
+ * A fragment, not compiled on its own: joined after the system's
+ * dir_resolve.c (`os_dir_*`, `OS_DIR_FLAGS`), fs.c (`fs_fail`,
+ * `fs_has_nul`), bytes.c (`bytes_of`) and input.c (`string_of`).
  */
 /* A `Dir`'s folder: its descriptor, -1 once closed. */
 typedef struct {
@@ -31,9 +27,6 @@ typedef struct {
 } LughaDir;
 
 static const char DIR_OUTSIDE[] = "path leads outside the folder";
-
-/* How often a lookup that raced a rename (`EAGAIN`) is tried again. */
-enum { DIR_RETRIES = 8 };
 
 /* A `Dir` object's visit: freeing it closes its descriptor. */
 static void dir_visit(void *object, int64_t op) {
@@ -51,33 +44,14 @@ static LughaDir *dir_wrap(int fd) {
     return d;
 }
 
-/* `path` opened beneath `dirfd` with `flags` (and `mode` when it creates):
- * the descriptor, or -1 with `errno` set. */
-static int dir_resolve(int dirfd, const char *path, int flags, mode_t mode) {
-    struct open_how how;
-    memset(&how, 0, sizeof how);
-    how.flags = (uint64_t)(flags | O_CLOEXEC);
-    how.mode = (flags & O_CREAT) ? (uint64_t)mode : 0;
-    how.resolve = RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS;
-    for (int tries = 0;; tries++) {
-        long fd = syscall(SYS_openat2, dirfd, path, &how, sizeof how);
-        if (fd >= 0) {
-            return (int)fd;
-        }
-        if (errno == EINTR || (errno == EAGAIN && tries < DIR_RETRIES)) {
-            continue;
-        }
-        return -1;
-    }
-}
-
 /* Fails with the message for `code`, a failed lookup's `errno`. */
 static int32_t dir_fail(LughaString **error, int code) {
     if (code == EXDEV) {
         return fs_fail(error, DIR_OUTSIDE);
     }
-    if (code == ENOSYS) {
-        return fs_fail(error, "this system can't confine a folder: openat2 needs Linux 5.6");
+    const char *own = os_dir_message(code);
+    if (own != NULL) {
+        return fs_fail(error, own);
     }
     return fs_fail(error, strerror(code));
 }
@@ -112,7 +86,7 @@ static Job *dir_job(void (*run)(Job *), const void *dir, const LughaString *path
 /* On a helper: the job's path opened beneath its folder, or -1 with the
  * failure kept. */
 static int dir_job_open(Job *job, int flags, mode_t mode) {
-    int fd = dir_resolve(job->fd, job->path, flags, mode);
+    int fd = os_dir_resolve(job->fd, job->path, flags, mode);
     if (fd < 0) {
         job->err = errno;
         job->lookup = true;
@@ -134,11 +108,11 @@ static void dir_job_drop(Job *job) {
     }
 }
 
-/* `path` opened as a folder handle (`O_PATH | O_DIRECTORY`) from the
- * working folder with ordinary resolution: -1 with `errno` set. */
+/* `path` opened as a folder handle (`OS_DIR_FLAGS`) from the working
+ * folder with ordinary resolution: -1 with `errno` set. */
 static int dir_open_plain(const char *path) {
     for (;;) {
-        int fd = open(path, O_PATH | O_DIRECTORY | O_CLOEXEC);
+        int fd = open(path, OS_DIR_FLAGS | O_CLOEXEC);
         if (fd >= 0 || errno != EINTR) {
             return fd;
         }
@@ -240,7 +214,7 @@ static int32_t dir_open_fd(void *dir, const LughaString *path, int flags, int *f
 /* `$os.dir_sub(dir, path)`: a folder beneath `dir`, a narrower `Dir`. */
 int32_t lugha_rt_dir_sub(void *dir, const LughaString *path, void **out, LughaString **error) {
     int fd;
-    if (!dir_open_fd(dir, path, O_PATH | O_DIRECTORY, &fd, error)) {
+    if (!dir_open_fd(dir, path, OS_DIR_FLAGS, &fd, error)) {
         return 0;
     }
     *out = dir_wrap(fd);
@@ -437,17 +411,13 @@ int32_t lugha_rt_dir_file(void *dir, const LughaString *path, int64_t mode, int6
 
 /* On a helper: where the job's folder is now, in `out`. */
 static void dir_path_job(Job *job) {
-    char self[64];
-    snprintf(self, sizeof self, "/proc/self/fd/%d", job->fd);
     job->out = malloc(4096);
     if (job->out == NULL) {
         die("panic: out of memory\n");
     }
-    ssize_t n = readlink(self, job->out, 4096);
+    ssize_t n = os_dir_where(job->fd, job->out, 4096);
     if (n < 0) {
         job->err = errno;
-    } else if (n == 4096) {
-        job->err = ENAMETOOLONG;
     } else {
         job->out_len = (size_t)n;
     }

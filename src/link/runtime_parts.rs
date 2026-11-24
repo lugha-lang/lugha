@@ -7,23 +7,21 @@
 /// layer, its CPU code, and what confines folders and locks the process
 /// down with Linux's own calls. Every part outside `os/` is shared, and
 /// calls the OS only through `os/layer.c`'s functions.
-pub const LINUX_ONLY: [&str; 6] = [
+pub const LINUX_ONLY: [&str; 5] = [
     "os/linux/os.c",
     "os/linux/x86_64.c",
     "os/linux/aarch64.c",
+    "os/linux/dir_resolve.c",
     "os/linux/lockdown.c",
-    "os/linux/dir.c",
-    "os/linux/dir_names.c",
 ];
 
 /// The parts of [`RUNTIME_PARTS`] only macOS has (`os/darwin/`), each
 /// joined where its Linux counterpart is.
-pub const DARWIN_ONLY: [&str; 5] = [
+pub const DARWIN_ONLY: [&str; 4] = [
     "os/darwin/os.c",
     "os/darwin/aarch64.c",
+    "os/darwin/dir_resolve.c",
     "os/darwin/lockdown.c",
-    "os/darwin/dir.c",
-    "os/darwin/dir_names.c",
 ];
 
 /// The system a runtime is joined for: which `os/<system>/` parts it takes.
@@ -68,7 +66,9 @@ pub fn runtime_source(system: System) -> std::borrow::Cow<'static, str> {
 }
 
 /// The parts Linux and macOS share but Windows doesn't (`os/posix/`).
-pub const POSIX_ONLY: [&str; 3] = [
+pub const POSIX_ONLY: [&str; 5] = [
+    "os/posix/dir.c",
+    "os/posix/dir_names.c",
     "os/posix/process.c",
     "os/posix/sockets.c",
     "os/posix/udp_options.c",
@@ -103,20 +103,20 @@ pub const RUNTIME_PARTS: [(&str, &str); 59] = [
     ("io/fs.c", include_str!("../../runtime/io/fs.c")),
     ("io/file.c", include_str!("../../runtime/io/file.c")),
     (
-        "os/linux/dir.c",
-        include_str!("../../runtime/os/linux/dir.c"),
+        "os/linux/dir_resolve.c",
+        include_str!("../../runtime/os/linux/dir_resolve.c"),
     ),
     (
-        "os/darwin/dir.c",
-        include_str!("../../runtime/os/darwin/dir.c"),
+        "os/darwin/dir_resolve.c",
+        include_str!("../../runtime/os/darwin/dir_resolve.c"),
     ),
     (
-        "os/linux/dir_names.c",
-        include_str!("../../runtime/os/linux/dir_names.c"),
+        "os/posix/dir.c",
+        include_str!("../../runtime/os/posix/dir.c"),
     ),
     (
-        "os/darwin/dir_names.c",
-        include_str!("../../runtime/os/darwin/dir_names.c"),
+        "os/posix/dir_names.c",
+        include_str!("../../runtime/os/posix/dir_names.c"),
     ),
     (
         "os/linux/lockdown.c",
@@ -426,8 +426,9 @@ pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/io/env.c"),
     include_str!("../../runtime/io/fs.c"),
     include_str!("../../runtime/io/file.c"),
-    include_str!("../../runtime/os/linux/dir.c"),
-    include_str!("../../runtime/os/linux/dir_names.c"),
+    include_str!("../../runtime/os/linux/dir_resolve.c"),
+    include_str!("../../runtime/os/posix/dir.c"),
+    include_str!("../../runtime/os/posix/dir_names.c"),
     include_str!("../../runtime/os/linux/lockdown.c"),
     include_str!("../../runtime/memory/rc_alloc.c"),
     include_str!("../../runtime/memory/rc_check.c"),

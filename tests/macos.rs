@@ -122,6 +122,7 @@ fn the_macos_runtime_compiles_with_zig() {
             "aarch64-macos.14.4-none",
             "-O2",
             "-funwind-tables",
+            "-Wall",
             "-c",
         ])
         .arg(&source)
@@ -131,6 +132,12 @@ fn the_macos_runtime_compiles_with_zig() {
         .output()
         .expect("zig runs");
     assert!(out.status.success(), "{}", text(&out.stderr));
+    // A warning here is a mistake no Linux build would show.
+    assert!(
+        !text(&out.stderr).contains("warning:"),
+        "{}",
+        text(&out.stderr)
+    );
     // macOS's own parts are in it, Linux's aren't.
     assert!(runtime.contains("kqueue()") && !runtime.contains("epoll_create1"));
 }

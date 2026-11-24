@@ -161,8 +161,9 @@ jobs:
 
       - name: Run the programs built on Linux
         # Each prints exactly its .stdout within a minute (macOS has no
-        # `timeout`: perl's alarm ends a hung one); `start` again with stdin
-        # closed; lockdown reports it isn't applied.
+        # `timeout`: perl's alarm ends a hung one), in an empty folder of
+        # its own, since some make files; `start` again with stdin closed;
+        # lockdown reports it isn't applied.
         working-directory: macos
         run: |
           status=0
@@ -170,7 +171,8 @@ jobs:
           for expected in *.stdout; do
             exe="${expected%.stdout}"
             chmod +x "$exe"
-            if limit ./"$exe" > "$exe.out" && diff -u "$expected" "$exe.out"; then
+            mkdir "$exe.d"
+            if (cd "$exe.d" && limit ../"$exe" > ../"$exe.out") && diff -u "$expected" "$exe.out"; then
               echo "ok $exe"
             else
               echo "FAILED $exe"
