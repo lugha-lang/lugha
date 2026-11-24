@@ -130,6 +130,7 @@ Never deleted. Older entries are never modified.
 - Writing inside a map entry (`m["a"].x = 5`, `n["a"][0] = 3`, `n["a"].push(4)`, `swap(n["a"], …)`, `for x of mut n["a"]`) crashed lughac in codegen; it is now E0502, as for an element a type's `index` returned, with help that copies the entry out and writes it back. `for x of mut g[i]` through `index` is E0502 too. The E0404 help for `m[k] += v` and `a[i] += v` quotes the program's own element and value.
 
 ### Changed
+- `lughac`'s version is `0.18.9`: the runtime on a real Mac (milestone 253).
 - `lughac`'s version is `0.18.8`: macOS's POSIX gaps (milestone 252, PRP-286).
 - `lughac`'s version is `0.18.7`: hello world on macOS (milestone 251, PRP-285).
 - `lughac`'s version is `0.18.6`: sockets behind the OS layer at the operation level (milestone 250, PRP-284), completing portability step 3.
