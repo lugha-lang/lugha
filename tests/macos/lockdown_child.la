@@ -11,7 +11,7 @@ fun main(console: Console, proc: Proc) {
     console.println(
         perl(
             proc,
-            "socket(my $s, PF_UNIX, SOCK_DGRAM, 0) && connect($s, pack_sockaddr_un('/var/run/syslog')) ? exit 0 : exit 3",
+            "my $s; socket($s, PF_UNIX, SOCK_DGRAM, 0) && connect($s, pack_sockaddr_un('/var/run/syslog')) ? exit 0 : exit 3",
         ),
     );
     console.println(
