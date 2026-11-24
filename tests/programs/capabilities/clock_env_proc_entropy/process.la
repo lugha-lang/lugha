@@ -34,5 +34,8 @@ fun main(console: Console, fs: Fs, proc: Proc, entropy: Entropy) {
     let w = fs.cwd().write_file("note.txt", "x");
     let a = fs.cwd().append_file("note.txt", "y");
     let r = fs.cwd().read_file("note.txt");
-    console.println(show(proc.run("ls", ["/dev/fd/"])));
+    // perl opens the folder once, as 3, on every system (`ls` may open
+    // more of its own).
+    let list = "opendir(my $d, '/dev/fd') or die $!; print map(qq($_\n), sort grep(!/^[.]/, readdir $d))";
+    console.println(show(proc.run("perl", ["-e", list])));
 }
