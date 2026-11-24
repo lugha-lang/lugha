@@ -45,7 +45,7 @@ Done: portable x86-64 binaries (`--cpu`), `$LUGHA_CC`, Linux on ARM64 with AAPCS
 
 - [ ] **`[build]` in `lugha.toml`** (`cpu`, target): not in the Draft's Part 9 yet.
 - Step 3 (C1) is done: the OS layer and the runtime's folders (milestone 249), sockets at the operation level (milestone 250).
-- [ ] **C2 — Mac runtime, the rest** (hello world runs: milestone 251; helper threads, pipes, signals and limits checked against XNU: milestone 253; folders confined: milestone 254; lockdown, sockets and processes: milestone 255): `run`/`test` for a Mac target (a Mac runner), the full program suite on CI's Mac, Intel Macs (`os/darwin/x86_64.c`).
+- [ ] **C2 — Mac runtime, the rest** (hello world runs: milestone 251; helper threads, pipes, signals and limits checked against XNU: milestone 253; folders confined: milestone 254; lockdown, sockets and processes: milestone 255; the program suite on CI's Mac: milestone 256): `run`/`test` for a Mac target (lughac itself on a Mac), TLS and crypto for a Mac build (E0334), Intel Macs (`os/darwin/x86_64.c`).
 - [ ] **C3 — Mac calling rules and linking:** Apple's AArch64 differences (variadics), Mach-O, signing; built and tested on a Mac runner.
 - [ ] **D1–D3 — Windows:** runtime (files, processes, env, stack overflow), sockets, Windows x64 calling rules, `.exe` linking with MinGW first. Large.
 - [ ] **E — WebAssembly (wasm32-wasi):** decisions first (tasks with no threads, or none; which capabilities and std modules exist). Large.

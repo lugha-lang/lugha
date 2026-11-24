@@ -87,6 +87,11 @@ jobs:
             cp "tests/macos/$name.stdout" "macos/$name.stdout"
           done
 
+      - name: Build the program suite for a Mac
+        # Every run case in tests/programs/, a folder each, for
+        # tests/macos/suite.sh on the macos job.
+        run: LUGHA_MACOS_SUITE="$PWD/macos/suite" cargo test --test macos_suite -- --ignored
+
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: macos-programs
@@ -154,6 +159,9 @@ jobs:
     # Apple Silicon, macOS 15: the programs need 14.4 or newer.
     runs-on: macos-15
     steps:
+      # The suite's cases run from the repository's root, as on Linux.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: macos-programs
@@ -195,6 +203,14 @@ jobs:
             status=1
           fi
           exit $status
+
+      - name: Run the program suite
+        # Every run case built on Linux; tests/macos/known.txt lists the
+        # ones expected to fail here, each with why.
+        if: always()
+        run: |
+          chmod +x macos/suite/*/exe
+          sh tests/macos/suite.sh macos/suite
 
   vscode:
     name: VS Code extension

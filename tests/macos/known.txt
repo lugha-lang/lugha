@@ -1,0 +1,4 @@
+# Run cases expected to fail on a Mac, one per line: `<case> — <reason>`.
+# A reason is a real platform difference, or a bug written up in BUGS.md.
+# tests/macos/suite.sh fails on any other failure, and on a case here that
+# passes; tests/macos_suite.rs checks each name is a run case.
