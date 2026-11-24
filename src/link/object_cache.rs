@@ -56,10 +56,21 @@ impl Cache {
             crate::modules::cache::root(|n| std::env::var_os(n)).map(|r| r.join("objects"));
         // The words count too: `zig cc` for two targets prints one version.
         // A compiler that can't say its version can't key the cache, so nothing is cached.
-        let compiler = cc
-            .command()
-            .arg("--version")
-            .output()
+        // Asked in an empty folder of its own: `zig cc --version` for a
+        // macOS target writes an empty `a.o` where it runs.
+        // One per call: builds on several threads each remove their own.
+        static PROBES: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let n = PROBES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let probe = std::env::temp_dir().join(format!("lughac-cc-{}-{n}", std::process::id()));
+        let mut version = cc.command();
+        version.arg("--version");
+        if std::fs::create_dir_all(&probe).is_ok() {
+            version.current_dir(&probe);
+        }
+        let output = version.output();
+        // Best effort: a leftover empty folder in the temp dir is harmless.
+        let _ = std::fs::remove_dir_all(&probe);
+        let compiler = output
             .ok()
             .filter(|o| o.status.success())
             .map(|o| format!("{}\n{}", cc.key_words(), String::from_utf8_lossy(&o.stdout)));

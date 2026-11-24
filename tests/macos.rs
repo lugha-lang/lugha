@@ -134,3 +134,28 @@ fn the_macos_runtime_compiles_with_zig() {
     // macOS's own parts are in it, Linux's aren't.
     assert!(runtime.contains("kqueue()") && !runtime.contains("epoll_create1"));
 }
+
+#[test]
+fn a_build_leaves_nothing_where_it_runs() {
+    // `zig cc --version` for a macOS target writes an empty `a.o` into the
+    // folder it runs in; asking the compiler's version must not.
+    if !cross::ready("macos_build", &["zig"]) {
+        return;
+    }
+    let t = Temp::new();
+    std::fs::copy(root().join("tests/macos/hello.la"), t.0.join("hello.la")).unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_lughac"))
+        .args(["build", "hello.la", "--target", MAC, "-o", "hello"])
+        .current_dir(&t.0)
+        .env_remove("LUGHA_CC")
+        .output()
+        .expect("lughac runs");
+    assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
+    let mut left: Vec<String> = std::fs::read_dir(&t.0)
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    left.sort();
+    assert_eq!(left, ["hello", "hello.la"]);
+}
