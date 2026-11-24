@@ -34,5 +34,5 @@ fun main(console: Console, fs: Fs, proc: Proc, entropy: Entropy) {
     let w = fs.cwd().write_file("note.txt", "x");
     let a = fs.cwd().append_file("note.txt", "y");
     let r = fs.cwd().read_file("note.txt");
-    console.println(show(proc.run("ls", ["/proc/self/fd"])));
+    console.println(show(proc.run("ls", ["/dev/fd/"])));
 }

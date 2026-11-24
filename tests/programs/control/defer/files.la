@@ -20,7 +20,7 @@ fun open_count(fds: Dir): i64 {
 fun main(console: Console, files: Fs) {
     // The process's descriptors, through one `Dir` of that folder; both
     // folders opened before counting.
-    let fds = files.dir("/proc/self/fd").unwrap();
+    let fds = files.dir("/dev/fd").unwrap();
     let here = files.cwd();
     let before = open_count(fds);
     let mut failed = 0;

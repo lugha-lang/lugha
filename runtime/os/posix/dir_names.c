@@ -116,6 +116,15 @@ static void dir_remove_job(Job *job) {
     if (parent >= 0) {
         if (unlinkat(parent, job->argv[1], job->flags) != 0) {
             job->err = errno;
+            // A folder named for a file is `EISDIR` on Linux and `EPERM` on
+            // macOS, as POSIX allows: the same error on both, so a folder
+            // isn't taken for a permission problem.
+            struct stat st;
+            if (job->err == EPERM && job->flags == 0 &&
+                fstatat(parent, job->argv[1], &st, AT_SYMLINK_NOFOLLOW) == 0 &&
+                S_ISDIR(st.st_mode)) {
+                job->err = EISDIR;
+            }
         }
         close(parent);
     }
