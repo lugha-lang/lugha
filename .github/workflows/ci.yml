@@ -196,33 +196,6 @@ jobs:
           fi
           exit $status
 
-      - name: What Seatbelt refuses
-        # Which socket rules macOS enforces: each profile run under
-        # `sandbox-exec`, perl printing each call's result (`ok`, or its
-        # errno: 1 refused, 61 nothing listening). Shown, never failing.
-        if: always()
-        run: |
-          probe='my ($i, $c, $b, $u, $x, $y, @r);
-          push @r, "inet ".(socket($i, PF_INET, SOCK_STREAM, 0) ? "ok" : $!+0);
-          push @r, "connect ".(socket($c, PF_INET, SOCK_STREAM, 0) && connect($c, pack_sockaddr_in(9, inet_aton("127.0.0.1"))) ? "ok" : $!+0);
-          push @r, "bind ".(socket($b, PF_INET, SOCK_STREAM, 0) && bind($b, pack_sockaddr_in(0, inet_aton("127.0.0.1"))) ? "ok" : $!+0);
-          push @r, "unix ".(socket($u, PF_UNIX, SOCK_DGRAM, 0) && connect($u, pack_sockaddr_un("/var/run/syslog")) ? "ok" : $!+0);
-          push @r, "pair ".(socketpair($x, $y, AF_UNIX, SOCK_STREAM, 0) ? "ok" : $!+0);
-          print "@r\n";'
-          while IFS='|' read -r name rules; do
-            printf '%-22s ' "$name"
-            sandbox-exec -p "(version 1)(allow default)$rules" perl -MSocket -e "$probe" 2>&1 || echo "exit $?"
-          done <<'PROFILES'
-          none|
-          lughas|(deny network*)(deny system-socket (require-not (socket-domain AF_UNIX)))
-          socket all|(deny system-socket)
-          socket inet|(deny system-socket (socket-domain AF_INET))
-          socket not 1|(deny system-socket (require-not (socket-domain 1)))
-          network*|(deny network*)
-          outbound bind|(deny network-outbound)(deny network-bind)
-          outbound ip|(deny network-outbound (remote ip))(deny network-bind (local ip))
-          PROFILES
-
   vscode:
     name: VS Code extension
     runs-on: ubuntu-latest

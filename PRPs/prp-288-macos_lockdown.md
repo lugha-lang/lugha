@@ -113,3 +113,7 @@ Files stay unlimited by the kernel on macOS (the user's choice: coarse parts onl
 3. **Named UNIX sockets refused without `Net`** (by `network*`), matching Linux, where `socket(AF_UNIX)` itself is refused.
 4. **The report's wording** says `files not limited` every time, so nobody reads `fs refused` as a kernel promise on macOS.
 5. **Allow-by-default profile** with denies, not Chromium's deny-by-default. Only allow-by-default is safe without file rules.
+
+## FOUND ON A REAL MAC
+
+CI's Mac, through `sandbox-exec`, showed that macOS doesn't enforce `system-socket` rules: even `(deny system-socket)` lets every socket be made. `(deny network*)` does refuse connecting, binding and sending to an address (`EPERM`), an internet socket's and a named UNIX socket's, and lets an unnamed pair work. So the profile without `Net` is `(deny network*)` alone: a socket can be made but reaches nothing. `lockdown_bare` checks only `fork`; `lockdown_child` checks connect, bind, a datagram sent and a named UNIX socket through a started `perl`.

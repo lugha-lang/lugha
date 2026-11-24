@@ -1204,7 +1204,7 @@ LUGHA_CC="python -m ziglang cc" lughac build app.la --target=aarch64-unknown-lin
 2. A cancelled socket call (a timeout, a cancelled scope) resumes its task only once the OS has let go of its buffer: at once on POSIX, after the completion arrives on Windows [PRT-09].
 3. Idle workers park on their own parker: a futex word where the OS has one (Linux `futex`, Windows `WaitOnAddress`, macOS 14.4+ `os_sync_wait_on_address`), a semaphore otherwise [PRT-10].
 4. The task switch is written per CPU and OS; on Windows it also switches the thread's recorded stack bounds. Stack overflow is caught per OS: `SIGSEGV` and `SIGBUS` on POSIX, a vectored exception handler on Windows [PRT-14].
-5. Process lockdown is applied where the kernel allows: seccomp and Landlock on Linux; on macOS, Seatbelt refuses sockets without `Net` and new processes without `Proc`, but not files. `lugha_rt_lockdown` remains its porting point. What a program promises on an OS whose kernel can't lock it down, and how each OS keeps a `Dir` inside its folder (SEC-01), are decided with that OS's port, with security review [PRT-11].
+5. Process lockdown is applied where the kernel allows: seccomp and Landlock on Linux; on macOS, Seatbelt refuses sockets reaching any address without `Net` and new processes without `Proc`, but not files. `lugha_rt_lockdown` remains its porting point. What a program promises on an OS whose kernel can't lock it down, and how each OS keeps a `Dir` inside its folder (SEC-01), are decided with that OS's port, with security review [PRT-11].
 
 ## 9.3 Order
 

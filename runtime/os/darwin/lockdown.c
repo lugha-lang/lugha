@@ -2,7 +2,7 @@
  * os/darwin/lockdown.c — part of lugha_rt.c: process lockdown on macOS.
  * Once the runtime has made what `main` asked for, Seatbelt limits the
  * whole process, C code and started programs included, for the two kinds
- * it refuses reliably: no sockets reaching anything without `Net`, no new
+ * it refuses reliably: no socket reaching anything without `Net`, no new
  * processes without `Proc`. Files aren't limited by the kernel on macOS:
  * a profile for them would have to allow name lookups, trusted
  * certificates, time zones and lazily loaded libraries, which change
@@ -28,11 +28,11 @@ enum {
     LOCK_PROC = 1 << 2,
 };
 
-/* Without `Net`: no socket but a UNIX one is made (`socket` and
- * `socketpair` alike), and none connects, binds or sends to an address,
- * a named UNIX socket's included. An unnamed pair has none, so it works. */
-static const char LOCK_NO_NET[] = "(deny network*)\n"
-                                  "(deny system-socket (require-not (socket-domain AF_UNIX)))\n";
+/* Without `Net`: no socket connects, binds or sends to an address, a
+ * named UNIX socket's included. Making one isn't refused (macOS doesn't
+ * enforce `system-socket` rules), but it reaches nothing. An unnamed pair
+ * has no address, so it works. */
+static const char LOCK_NO_NET[] = "(deny network*)\n";
 
 /* Without `Proc`: no fork, vfork, posix_spawn or exec. */
 static const char LOCK_NO_PROC[] = "(deny process-fork)\n"

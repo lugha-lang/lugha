@@ -1,10 +1,7 @@
-// Run on a Mac by CI: without `Net` and `Proc` the kernel refuses C code
-// a socket and a new process.
-extern fun socket(domain: i32, kind: i32, protocol: i32): i32;
+// Run on a Mac by CI: without `Proc` the kernel refuses C code a new
+// process.
 extern fun fork(): i32;
 
 fun main(console: Console) {
-    console.println(socket(2, 1, 0));
-    console.println(socket(30, 2, 0));
     console.println(fork());
 }

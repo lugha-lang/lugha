@@ -1,13 +1,31 @@
-// Run on a Mac by CI: holding `Proc` but not `Net`, a started program is
-// refused an internet socket and a named UNIX socket's connection, and
-// still makes an unnamed pair and passes a byte through it.
+// Run on a Mac by CI: holding `Proc` but not `Net`, a started program
+// can't connect, bind or send to an address (an internet socket's or a
+// named UNIX socket's) and still passes a byte through an unnamed pair.
 fun perl(proc: Proc, script: string): string = match proc.run("perl", ["-MSocket", "-e", script]) {
     .Ok(o) => "{o.code} {o.stdout}",
     .Err(e) => "err {e}",
 };
 
 fun main(console: Console, proc: Proc) {
-    console.println(perl(proc, "socket(my $s, PF_INET, SOCK_STREAM, 0) ? exit 0 : exit 3"));
+    let at = "pack_sockaddr_in(9, inet_aton('127.0.0.1'))";
+    console.println(
+        perl(
+            proc,
+            "my $s; socket($s, PF_INET, SOCK_STREAM, 0) && connect($s, {at}) ? exit 0 : exit 3",
+        ),
+    );
+    console.println(
+        perl(
+            proc,
+            "my $s; socket($s, PF_INET, SOCK_STREAM, 0) && bind($s, {at}) ? exit 0 : exit 3",
+        ),
+    );
+    console.println(
+        perl(
+            proc,
+            "my $s; socket($s, PF_INET, SOCK_DGRAM, 0) && send($s, 'x', 0, {at}) ? exit 0 : exit 3",
+        ),
+    );
     console.println(
         perl(
             proc,
