@@ -22,7 +22,7 @@ static char alternate_stack[64 * 1024];
  * stacks check at each function's entry), or next to the process stack's
  * end, is a stack overflow: reported, without unwinding. Anything else
  * keeps the default action, so a real memory error in C code still kills
- * the process with SIGSEGV. */
+ * the process with its own signal. */
 static void on_segv(int signal, siginfo_t *info, void *context) {
     (void)context;
     uintptr_t at = (uintptr_t)info->si_addr;
@@ -91,7 +91,10 @@ static void install_stack_overflow_handler(void) {
     action.sa_sigaction = on_segv;
     action.sa_flags = SA_SIGINFO | SA_ONSTACK;
     sigemptyset(&action.sa_mask);
-    if (sigaction(SIGSEGV, &action, NULL) != 0) {
+    // macOS reports a fault on a guard page (`PROT_NONE`) as SIGBUS, except
+    // in the main thread's stack: both are handled, and any fault outside a
+    // guard keeps its own signal's default action.
+    if (sigaction(SIGSEGV, &action, NULL) != 0 || sigaction(SIGBUS, &action, NULL) != 0) {
         stack_low = 0;
     }
 }

@@ -16,6 +16,7 @@
  */
 
 #include <sys/event.h>
+#include <sys/resource.h>
 #include <sys/random.h>
 #include <sys/sysctl.h>
 
@@ -107,7 +108,10 @@ static int os_poll_wait(OsEvent *out, int max, int timeout_ms) {
     int n = kevent(os_poll_fd, NULL, 0, events, max < 64 ? max : 64,
                    timeout_ms < 0 ? NULL : &wait);
     for (int i = 0; i < n; i++) {
-        out[i].token = (uint64_t)(uintptr_t)events[i].udata;
+        // A signal's ident is its token; its udata is whatever the last
+        // change to it carried, as kevent replaces udata on every change.
+        out[i].token = events[i].filter == EVFILT_USER ? (uint64_t)events[i].ident
+                                                       : (uint64_t)(uintptr_t)events[i].udata;
     }
     return n < 0 ? 0 : n;
 }
@@ -124,7 +128,8 @@ static OsSignal os_signal_new(uint64_t token) {
 /* Raises `s`; safe in a signal handler. Raised already is as good. */
 static void os_signal_raise(OsSignal s) {
     struct kevent ev;
-    EV_SET(&ev, (uintptr_t)s, EVFILT_USER, 0, NOTE_TRIGGER, 0, NULL);
+    // The token again: kevent replaces udata on every change to an event.
+    EV_SET(&ev, (uintptr_t)s, EVFILT_USER, 0, NOTE_TRIGGER, 0, (void *)(uintptr_t)s);
     // Fails only if the queue is gone, when nothing waits on it.
     (void)kevent(os_poll_fd, &ev, 1, NULL, 0, NULL);
 }
@@ -233,6 +238,26 @@ static int os_pipe(int fds[2]) {
         return -1;
     }
     return 0;
+}
+
+/* A write through `fd` to a pipe whose reader is gone is `EPIPE`, never
+ * SIGPIPE: the flag is the open file's, shared by its copies. */
+static void os_no_sigpipe(int fd) {
+    // Fails only for a bad descriptor, whose write fails too.
+    (void)fcntl(fd, F_SETNOSIGPIPE, 1);
+}
+
+/* The open-file limit: macOS's soft one is 256 by default, which a server
+ * outgrows; raised to Linux's usual 1024 (never past the hard limit), a
+ * number a started program using `select` can still live with, as it
+ * inherits it. */
+static void os_start(void) {
+    struct rlimit files;
+    if (getrlimit(RLIMIT_NOFILE, &files) == 0 && files.rlim_cur < 1024) {
+        files.rlim_cur = files.rlim_max < 1024 ? files.rlim_max : 1024;
+        // Refused, the program keeps the limit it was given.
+        (void)setrlimit(RLIMIT_NOFILE, &files);
+    }
 }
 
 /* Every descriptor the file actions don't name is closed in the child,

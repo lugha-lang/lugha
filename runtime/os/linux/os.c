@@ -192,6 +192,15 @@ static bool os_udp_own_groups(int s, int family) {
     return true;
 }
 
+/* SIGPIPE goes to the writing thread here, which a helper blocks. */
+static void os_no_sigpipe(int fd) {
+    (void)fd;
+}
+
+/* Nothing to set up on Linux. */
+static void os_start(void) {
+}
+
 /* A pipe, close-on-exec as it is made. */
 static int os_pipe(int fds[2]) {
     return pipe2(fds, O_CLOEXEC);

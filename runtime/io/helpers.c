@@ -13,7 +13,9 @@
  * Helpers start one at a time, when a job is queued and none is idle, up
  * to `LUGHA_HELPERS` (16 unless set), and never before lockdown: Landlock
  * limits a thread and those it starts later, not threads already running.
- * Each blocks every signal, so Ctrl-C and `SIGPIPE` reach only the worker.
+ * Each blocks every signal, so Ctrl-C reaches only the workers; a helper's
+ * write to a pipe whose reader is gone is `EPIPE`, never SIGPIPE
+ * (`os_no_sigpipe`).
  *
  * A fragment, not compiled on its own: joined after the core (lugha_rt.c),
  * whose includes (`<pthread.h>`, `<sys/eventfd.h>`, `<signal.h>`) it relies

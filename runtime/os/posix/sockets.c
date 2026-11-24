@@ -186,9 +186,11 @@ static int64_t os_sock_send(OsSocket s, const char *buf, int64_t n, int64_t dead
 
 /* Where a datagram longer than the caller's buffer goes on: a UDP
  * payload is at most 65,527 bytes, so with this behind the buffer the
- * whole datagram always lands and its real length comes back. Only ever
- * written, never read. */
-static __thread char sock_overflow[65536];
+ * whole datagram always lands and its real length comes back. One for
+ * the process, not per thread: only the kernel writes it and nothing ever
+ * reads it, so threads sharing it lose nothing, and no thread pays 64 KiB
+ * of thread-local space for it. */
+static char sock_overflow[65536];
 
 /* The datagram's length: its real one when longer than `max`, so the
  * caller can refuse it rather than cut it short. One `recvmsg` into the

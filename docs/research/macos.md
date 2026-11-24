@@ -65,3 +65,24 @@ Either way: hard links inside a folder can point at files elsewhere, on macOS as
 - **A "POSIX gaps" PRP** (done: PRP-286, milestone 252) needs no decision: UDP's two-buffer receive (both systems), `POSIX_SPAWN_CLOEXEC_DEFAULT` with `pipe` + `fcntl` (🔒 `process.c`), multicast through `group_req`, and the sleep-aware clock question.
 - **Confinement** is a choice between design 1 (simple, refuses links that stay inside) and design 2 (Linux's behaviour, more code). The user chose design 2.
 - **Lockdown** is a choice between "not applied" (honest, today) and a best-effort Seatbelt layer, labelled partial. The user chose Seatbelt's coarse parts: no new sockets without `Net`, no exec or fork without `Proc`.
+
+## 7. The runtime on a real Mac (2026-11-24)
+
+The first program to use a helper thread (`proc.run`) hung on CI's Mac. Checking the macOS layer against XNU (`bsd/kern/kern_event.c`, `sys_generic.c`, `kern_exec.c`, `kern_descrip.c`, `uxkern/ux_exception.c`, `sys_ulock.c`), dyld (`libdyld/ThreadLocalVariables.cpp`), Apple's arm64 ABI page and libplatform's `os_sync_wait_on_address.h`, and against Go, libuv, mio, Rust std, libc++ and Zig, turned up the cause and five more traps.
+
+**Bugs, most urgent first:**
+
+| # | What | Why (source) | Fix |
+|---|---|---|---|
+| 1 | A finished helper job is never collected: the task waits forever | `kevent_register` overwrites a knote's `udata` on every change; our `NOTE_TRIGGER` passes `NULL`, so the event comes back as token 0 and is dropped | Trigger with the token as `udata`; read an `EVFILT_USER` event's token from its `ident` (Go, libuv) |
+| 2 | A broken pipe kills the program | for a file or pipe, `dofilewrite` sends `SIGPIPE` to the **process**, which delivers it to any thread not blocking it (Linux sends it to the writing thread); nothing ignores it | `F_SETNOSIGPIPE` on our pipes and files, or ignore `SIGPIPE` at startup and give children the default back (`POSIX_SPAWN_SETSIGDEF`, Rust) |
+| 3 | A C stack overflow dies by signal 10, no "stack overflow" panic | a `PROT_NONE` guard page faults as `SIGBUS`; only the main thread's stack range is turned into `SIGSEGV` | the same handler on `SIGBUS` (Rust) |
+| 4 | Starting a program fails, or its output is lost, when this program started with fd 0, 1 or 2 closed | `addinherit_np` on a closed fd is `EBADF`; a pipe landing on fd 0–2 is closed at exec though named | `/dev/null` onto any closed fd 0–2 at startup (Rust's `sanitize_standard_fds`) |
+| 5 | About 250 open sockets or files, then `EMFILE` | the soft limit defaults to 256 | raise it at startup up to `kern.maxfilesperproc`, as Go does; restore it for children |
+| 6 | 64 KiB more memory per thread; its address can outlive a migration | dyld allocates every `__thread` of an image as one block per thread at first touch; clang may keep a TLV address across a switch | keep the UDP overflow area in `Worker` |
+
+Smaller: the fault handler can reach `os_worker_first`, whose first thread-local access may `calloc` inside a signal handler; the Ctrl-C handler's raise should save and restore `errno` (Linux's too).
+
+**Checked and fine:** the context switch (x18 untouched, x29 frame records, x19–x30, d8–d15 and FPCR saved, red zone respected; zig builds plain arm64, no pointer authentication); one-shot re-arming, deleting fired or closed knotes, several threads on one kqueue, kevent's timeouts (mach time, which stops in sleep, like `CLOCK_UPTIME_RAW`); `os_sync_wait_on_address` (flags 0 is process-private; early returns are re-checked; libc++ uses it from 14.4); `POSIX_SPAWN_CLOEXEC_DEFAULT` keeps dup2 and open targets; `waitpid` on a helper; the 64 KiB signal stack (≥ `MINSIGSTKSZ`); sockets' `SO_NOSIGPIPE`; `getentropy`.
+
+**Worth knowing later:** arm64 Macs run only signed code: the linker signs ad hoc, but a binary edited after linking needs `codesign -s -`, and one overwritten in place after running can be killed (write a new file and rename); `poll` on `/dev/tty` and other devices is broken (stdin stays on helpers); whether Apple's unwinder stops cleanly at a fiber's first frame is unchecked.

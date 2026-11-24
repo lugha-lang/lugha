@@ -10,8 +10,9 @@
  *   runtime opens elsewhere (`fopen` mode "e", `O_CLOEXEC`).
  * - stdin, stdout and stderr are served together by `poll`, so a child that
  *   fills one pipe while this side waits on another can't deadlock.
- *   `SIGPIPE` is blocked while writing; a child that closes its stdin early
- *   just ends the input.
+ *   `SIGPIPE` is blocked while writing, and the stdin pipe is quiet
+ *   (`os_no_sigpipe`); a child that closes its stdin early just ends the
+ *   input.
  * - Death by signal n is code 128 + n. There is no timeout and no output
  *   limit.
  * - Everything from starting the child to waiting for it runs on a helper
@@ -142,6 +143,9 @@ static void spawn_job(Job *job) {
             return;
         }
         if (mode == 2) {
+            // A child that stops reading early is EPIPE to the pump, on
+            // every system (os/<system>/os.c).
+            os_no_sigpipe(in_pipe[1]);
             posix_spawn_file_actions_adddup2(&actions, in_pipe[0], 0);
         } else {
             posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0);

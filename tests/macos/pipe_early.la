@@ -1,0 +1,15 @@
+// Run on a Mac by CI: a program that exits without reading its input. The
+// pipe's reader is gone while a helper still writes, which is EPIPE there,
+// never SIGPIPE ending this program (macOS sends it to the whole process).
+fun main(console: Console, proc: Proc) {
+    // 1 MiB, far more than a pipe holds: 64 bytes doubled 14 times.
+    let mut input = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcde\n";
+    for i in 0..14 {
+        input = "{input}{input}";
+    }
+    match proc.run_with("true", [], input) {
+        .Ok(o) => console.println("ok {o.code}"),
+        .Err(e) => console.println("err {e}"),
+    }
+    console.println("still running");
+}

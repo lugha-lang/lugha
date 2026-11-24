@@ -37,6 +37,7 @@ static void file_read_job(Job *job) {
 /* On a helper: every byte of `in` written, short and interrupted writes
  * going on where they stopped, or `err` set; the descriptor closed. */
 static void file_write_job(Job *job) {
+    os_no_sigpipe(job->fd);
     size_t done = 0;
     while (done < job->in_len) {
         ssize_t n = write(job->fd, job->in + done, job->in_len - done);

@@ -160,20 +160,29 @@ jobs:
           path: macos
 
       - name: Run the programs built on Linux
-        # Each prints exactly its .stdout; lockdown reports it isn't applied.
+        # Each prints exactly its .stdout within a minute (macOS has no
+        # `timeout`: perl's alarm ends a hung one); `start` again with stdin
+        # closed; lockdown reports it isn't applied.
         working-directory: macos
         run: |
           status=0
+          limit() { perl -e 'alarm shift; exec @ARGV or die' 60 "$@"; }
           for expected in *.stdout; do
             exe="${expected%.stdout}"
             chmod +x "$exe"
-            if ./"$exe" > "$exe.out" && diff -u "$expected" "$exe.out"; then
+            if limit ./"$exe" > "$exe.out" && diff -u "$expected" "$exe.out"; then
               echo "ok $exe"
             else
               echo "FAILED $exe"
               status=1
             fi
           done
+          if limit ./start <&- > start.closed && diff -u start.stdout start.closed; then
+            echo "ok start with stdin closed"
+          else
+            echo "FAILED start with stdin closed"
+            status=1
+          fi
           LUGHA_LOCKDOWN=report ./hello > /dev/null 2> lockdown.txt
           if grep -q "lockdown: not applied on macOS" lockdown.txt; then
             echo "ok lockdown report"

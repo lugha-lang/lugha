@@ -96,6 +96,16 @@ static bool os_udp_own_groups(int s, int family);
 static int os_pipe(int fds[2]);
 static short os_spawn_prepare(posix_spawn_file_actions_t *actions, bool share);
 
+/* A descriptor a helper writes to: a write to a pipe whose reader is gone
+ * is `EPIPE` through it, never SIGPIPE ending the program. Linux sends
+ * SIGPIPE to the writing thread, and a helper blocks it, so nothing is
+ * needed there; macOS sends it to the process, which delivers it to a
+ * thread that doesn't block it. */
+static void os_no_sigpipe(int fd);
+
+/* What a system sets up once, as the program starts. */
+static void os_start(void);
+
 /* Sets the length byte a system's socket addresses carry (macOS's
  * `sa_len`), `len` the address's size; nothing where they carry none. */
 static void os_sockaddr_len(struct sockaddr *at, socklen_t len);

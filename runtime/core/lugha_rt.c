@@ -302,8 +302,29 @@ static int32_t program_argc;
 static char **program_argv;
 
 static void workers_init(void);
+/* The system's own setup (os/<system>/os.c, joined later). */
+static void os_start(void);
+
+/* Opens `/dev/null` onto any of stdin, stdout and stderr this program was
+ * started without: otherwise the next descriptor opened takes its number,
+ * so a file or pipe would receive what was meant for the closed stream, and
+ * a program started with a pipe there would lose it. */
+static void std_streams_open(void) {
+    for (int fd = 0; fd < 3; fd++) {
+        if (fcntl(fd, F_GETFD) < 0 && errno == EBADF) {
+            int null = open("/dev/null", fd == 0 ? O_RDONLY : O_WRONLY);
+            // Taking the lowest free number, it lands on `fd`; failing, the
+            // program runs as it was started.
+            if (null >= 0 && null != fd) {
+                close(null);
+            }
+        }
+    }
+}
 
 void lugha_rt_init(int32_t argc, char **argv) {
+    std_streams_open();
+    os_start();
     lugha_rt_worker_enter();
     program_argc = argc;
     program_argv = argv;
