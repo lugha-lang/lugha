@@ -137,6 +137,7 @@ Never deleted. Older entries are never modified.
 - Writing inside a map entry (`m["a"].x = 5`, `n["a"][0] = 3`, `n["a"].push(4)`, `swap(n["a"], …)`, `for x of mut n["a"]`) crashed lughac in codegen; it is now E0502, as for an element a type's `index` returned, with help that copies the entry out and writes it back. `for x of mut g[i]` through `index` is E0502 too. The E0404 help for `m[k] += v` and `a[i] += v` quotes the program's own element and value.
 
 ### Changed
+- `lughac`'s version is `0.18.17`: programs built for Windows on x86-64, `--target=x86_64-pc-windows-gnu` (milestone 259, PRP-292).
 - `lughac`'s version is `0.18.16`: TLS on a Mac works with the system's verifier (two fixes to milestone 258: the handshake now pauses for it, and the Mac's test certificates say `serverAuth`).
 - `lughac`'s version is `0.18.15`: a Mac program checks certificates with the Mac's own verifier, which reads the keychain (milestone 258, PRP-291).
 - `lughac`'s version is `0.18.14`: TLS and crypto programs built for another platform, with an OpenSSL built for it (milestone 257, PRP-290).
