@@ -1,6 +1,6 @@
 [package]
 name = "lugha"
-version = "0.18.13"
+version = "0.18.14"
 edition = "2024"
 rust-version = "1.99"
 description = "Compiler for Lugha, a small statically typed language compiled through LLVM"
