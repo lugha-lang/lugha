@@ -104,7 +104,9 @@ static int tls_trust_error(int answer, X509 *leaf, const char *host, int is_ip) 
 }
 
 /* OpenSSL's whole-chain check, replaced: 1 trusted, 0 refused (the reason
- * set on `x`), -1 paused for `tls_trust_ask`. */
+ * set on `x`). Pausing for `tls_trust_ask` is also 1, after
+ * `SSL_set_retry_verify`: OpenSSL treats any other answer as a refusal, and
+ * the pause, not this answer, then decides what happens next. */
 static int tls_trust_verify(X509_STORE_CTX *x, void *arg) {
     (void)arg;
     SSL *ssl = X509_STORE_CTX_get_ex_data(x, SSL_get_ex_data_X509_STORE_CTX_idx());
@@ -128,7 +130,7 @@ static int tls_trust_verify(X509_STORE_CTX *x, void *arg) {
             X509_STORE_CTX_set_error(x, X509_V_ERR_UNSPECIFIED);
             return 0;
         }
-        return -1;
+        return 1;
     }
     unsigned char ip[16];
     int is_ip = inet_pton(AF_INET, c->host, ip) == 1 || inet_pton(AF_INET6, c->host, ip) == 1;
