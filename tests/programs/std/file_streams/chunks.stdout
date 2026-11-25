@@ -1,5 +1,5 @@
-200000 lines, last line 199999
-2288890 bytes of 2288890
+20000 lines, last line 19999
+208890 bytes of 208890
 Ok(Some("line 0"))
 Ok("line 1\n")
 Ok(Some("line 2"))

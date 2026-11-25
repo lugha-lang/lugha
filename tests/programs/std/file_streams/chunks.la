@@ -1,11 +1,11 @@
-// File streams over many reads: 200 000 lines written
-// piece by piece and read back by line and in chunks, `read` after
+// File streams over many reads: 20 000 lines, four times the read-ahead,
+// written piece by piece and read back by line and in chunks, `read` after
 // `read_line` giving the read-ahead first, an empty file, a long line.
 
 fun run(files: Fs, console: Console): Result<(), string> {
     let out = files.cwd().create("big.txt")?;
     let mut total = 0;
-    for i in 0..200000 {
+    for i in 0..20000 {
         let line = "line {i}\n";
         total += line.len;
         out.write_text(line)?;
