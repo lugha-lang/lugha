@@ -30,6 +30,9 @@ static Worker *parked_workers[WORKERS_MOST];
 static int parked_count;
 static int idle_workers;
 static int spinning_workers;
+/* How many times a parked worker was taken off the list: a worker that
+ * saw everyone idle knows, by this, whether any woke while it looked. */
+static uint64_t unparks;
 
 /* Whether a worker waits in `epoll_wait`, and until when (-1: no timer). */
 static bool poller_busy;
@@ -157,6 +160,9 @@ static bool unpark_locked(Worker *w) {
         }
     }
     w->parked = false;
+    // Counted before the worker can act: anything it then makes ready or
+    // takes off a timer heap comes after this in every thread's view.
+    __atomic_fetch_add(&unparks, 1, __ATOMIC_SEQ_CST);
     __atomic_fetch_sub(&idle_workers, 1, __ATOMIC_ACQ_REL);
     return true;
 }

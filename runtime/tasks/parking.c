@@ -93,6 +93,13 @@ static bool work_left(Worker *w) {
     return false;
 }
 
+/* True if no parked worker was woken since `unparks` was `seen`: read
+ * after every other look, in one total order with the wakings. */
+static bool nobody_woke(uint64_t seen) {
+    __atomic_thread_fence(__ATOMIC_SEQ_CST);
+    return __atomic_load_n(&unparks, __ATOMIC_SEQ_CST) == seen;
+}
+
 /* Parks this worker until roused, or until the poll it waits in returns.
  * Called with nothing found anywhere. */
 static void park(Worker *w) {
@@ -111,6 +118,7 @@ static void park(Worker *w) {
     bool was_spinning = w->spinning;
     w->spinning = false;
     int idle = __atomic_add_fetch(&idle_workers, 1, __ATOMIC_ACQ_REL);
+    uint64_t unparks_seen = __atomic_load_n(&unparks, __ATOMIC_SEQ_CST);
     uint32_t seen = __atomic_load_n(&w->wake, __ATOMIC_ACQUIRE);
     lock_give(&sched_lock);
     if (was_spinning) {
@@ -122,10 +130,15 @@ static void park(Worker *w) {
             return;
         }
     }
+    // The looks below are one after another, not one snapshot: a worker
+    // woken between them (the poller, firing a timer into an inbox already
+    // looked at) would leave each true and the program not deadlocked. So
+    // the last look is that no worker woke since this one parked; one that
+    // did looks again itself when it parks.
     if (idle == __atomic_load_n(&workers_running, __ATOMIC_ACQUIRE) &&
         __atomic_load_n(&idle_workers, __ATOMIC_ACQUIRE) == idle &&
         __atomic_load_n(&shared_len, __ATOMIC_ACQUIRE) == 0 && !any_queued() &&
-        !events_pending() && !c_may_call()) {
+        !events_pending() && !c_may_call() && nobody_woke(unparks_seen)) {
         RT_SECTION();
         deadlock();
     }
