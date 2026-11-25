@@ -179,6 +179,33 @@ fn openssl_is_refused_for_a_foreign_target_at_its_import() {
         "{stderr}"
     );
     assert!(stderr.contains("main.la:1:"), "{stderr}");
+    assert!(
+        stderr.contains("LUGHA_OPENSSL_AARCH64_UNKNOWN_LINUX_MUSL"),
+        "{stderr}"
+    );
+    assert!(!t.0.join("prog").exists());
+}
+
+#[test]
+fn an_openssl_folder_missing_a_library_is_refused_at_the_import() {
+    let program = "import std.crypto;\n\nfun main(console: Console) {\n    console.println(crypto.sha256([]).len);\n}\n";
+    let t = project(program, "");
+    let openssl = t.0.join("openssl");
+    std::fs::create_dir_all(openssl.join("include/openssl")).unwrap();
+    std::fs::create_dir_all(openssl.join("lib")).unwrap();
+    std::fs::write(openssl.join("include/openssl/ssl.h"), "").unwrap();
+    std::fs::write(openssl.join("lib/libcrypto.a"), "").unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_lughac"))
+        .args(["build", "main.la", "--target", ARM, "-o", "prog"])
+        .current_dir(&t.0)
+        .env("LUGHA_OPENSSL_AARCH64_UNKNOWN_LINUX_MUSL", &openssl)
+        .output()
+        .expect("lughac runs");
+    let stderr = text(&out.stderr);
+    assert_eq!(out.status.code(), Some(1), "{stderr}");
+    assert!(stderr.contains("error[E0336]"), "{stderr}");
+    assert!(stderr.contains("has no `lib/libssl.a`"), "{stderr}");
+    assert!(stderr.contains("main.la:1:"), "{stderr}");
     assert!(!t.0.join("prog").exists());
 }
 

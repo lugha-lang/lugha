@@ -305,19 +305,18 @@ pub(super) fn build(
     }
     let tls = std_import(&front.modules, "tls", &["tls", "http"]);
     let crypto = std_import(&front.modules, "crypto", &["crypto"]);
-    let refused = link::foreign_refusals(
+    let openssl = link::foreign_refusals(
         (target.triple(), target.is_native()),
         &front.links,
         (tls, crypto),
-    );
-    if !refused.is_empty() {
-        return Err(Failure::Program(front.source.clone(), refused));
-    }
+        &|name| std::env::var_os(name),
+    )
+    .map_err(|refused| Failure::Program(front.source.clone(), refused))?;
     let cc = link::compiler::Compiler::for_target(target.triple(), target.is_native())
         .map_err(|e| internal(&front.source, e.to_string()))?;
     let mut plan = link::Plan::new(&front.links, &mut link::pkg_config::run)
         .map_err(|e| Failure::Program(front.source.clone(), vec![e.diagnostic()]))?;
-    (plan.tls, plan.crypto) = (tls, crypto);
+    (plan.tls, plan.crypto, plan.openssl) = (tls, crypto, openssl);
     let temp = TempDir::new().map_err(|e| internal(&front.source, temp_error(e)))?;
     let object = temp.path.join("prog.o");
     codegen::emit_object_modules(

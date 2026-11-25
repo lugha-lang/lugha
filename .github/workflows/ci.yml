@@ -77,14 +77,33 @@ jobs:
           path: nextest-archive.tar.zst
           retention-days: 1
 
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # OpenSSL for Mac builds of TLS and crypto programs: the release
+        # tests/macos/openssl.sh pins, built with zig, kept until the script
+        # (its version and checksum) or zig changes.
+        id: openssl-mac
+        with:
+          path: openssl-mac
+          key: openssl-mac-zig-0.17.1-${{ hashFiles('tests/macos/openssl.sh') }}
+
+      - name: Build OpenSSL for a Mac
+        if: steps.openssl-mac.outputs.cache-hit != 'true'
+        run: sh tests/macos/openssl.sh aarch64-apple-darwin "$PWD/openssl-mac"
+
+      - name: Name the Mac's OpenSSL
+        # For the Mac builds below: the suite's TLS, HTTP and crypto cases
+        # and tests/macos/openssl/.
+        run: echo "LUGHA_OPENSSL_AARCH64_APPLE_DARWIN=$PWD/openssl-mac" >> "$GITHUB_ENV"
+
       - name: Build the macOS cases
         # Built here, on Linux, through zig; the macos job runs them on a Mac.
+        # Those in tests/macos/openssl/ need the OpenSSL above.
         run: |
           mkdir -p macos
-          for f in tests/macos/*.la; do
+          for f in tests/macos/*.la tests/macos/openssl/*.la; do
             name=$(basename "$f" .la)
             target/debug/lughac build "$f" --target aarch64-apple-darwin -o "macos/$name"
-            cp "tests/macos/$name.stdout" "macos/$name.stdout"
+            cp "${f%.la}.stdout" "macos/$name.stdout"
           done
 
       - name: Build the program suite for a Mac

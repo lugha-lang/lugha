@@ -166,6 +166,10 @@ static int os_cpus(void) {
     return online > 0 ? (int)online : 1;
 }
 
+/* The roots macOS ships for OpenSSL-based tools (curl, git): an
+ * OpenSSL built elsewhere doesn't read the keychain. */
+#define OS_TLS_ROOTS_FILE "/etc/ssl/cert.pem"
+
 /* 64 random bits from the kernel into `out`; false if it has none to give. */
 static bool os_random64(uint64_t *out) {
     return getentropy(out, sizeof *out) == 0;

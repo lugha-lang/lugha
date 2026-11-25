@@ -1196,7 +1196,7 @@ LUGHA_CC="python -m ziglang cc" lughac build app.la --target=aarch64-unknown-lin
 2. The runtime stays C source inside lughac, compiled for the target by the build's compiler and cached per target; no precompiled runtimes are shipped [PRT-03].
 3. zig must be 0.17.0 or newer, checked once per build. Its cache lives under lughac's cache root. `--target` takes LLVM triples, which codegen uses; zig's spelling of each comes from a fixed table, never from rewriting the string, and `--cpu` becomes zig's `-mcpu` [PRT-06].
 4. The first new targets are `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl`: static executables, linked with zig's libunwind so panics unwind. `aarch64-unknown-linux-gnu` builds through zig instead of `aarch64-linux-gnu-gcc` [PRT-07].
-5. A program importing `std.tls` or `std.crypto` can't be built for a foreign target: the host's OpenSSL is never linked into another platform's program [PRT-05].
+5. The host's OpenSSL is never linked into another platform's program: a program importing `std.tls` or `std.crypto` builds for a foreign target only with an OpenSSL built for that target, named by `LUGHA_OPENSSL_<TARGET>` and linked statically [PRT-05].
 
 ## 9.2 The runtime on each OS
 
@@ -1222,4 +1222,4 @@ One platform at a time, each step one or more PRPs [PRT-04]:
 ## 9.4 Deferred
 
 - Platform-specific Lugha code (`@cfg`), only if a port needs it; it is a language change [PRT-12].
-- Windows sockets through overlapped I/O or the AFD poll; precompiled runtimes with `lld`, so foreign builds need no zig; OpenSSL for foreign targets [PRT-13].
+- Windows sockets through overlapped I/O or the AFD poll; precompiled runtimes with `lld`, so foreign builds need no zig [PRT-13].

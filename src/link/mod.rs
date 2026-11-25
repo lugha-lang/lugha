@@ -14,6 +14,7 @@ pub mod compiler;
 mod errors;
 pub mod inputs;
 mod object_cache;
+pub mod openssl;
 pub mod pkg_config;
 pub mod runtime;
 mod runtime_parts;
@@ -67,7 +68,11 @@ pub fn link_with(
     let cache = object_cache::Cache::open(cc);
     let shims = c_files::compile(&plan.c_files, temp, &cache)?;
     let variant = (plan.tls.is_some(), plan.crypto.is_some());
-    let runtime = runtime::compile(variant, &cache, plan.tls.or(plan.crypto), system)?;
+    let openssl = plan
+        .tls
+        .or(plan.crypto)
+        .map(|at| (at, plan.openssl.as_ref()));
+    let runtime = runtime::compile(variant, &cache, openssl, system)?;
     let linked: Vec<&Path> = vec![runtime.path.as_path()];
     let result = cache
         .cc()
@@ -89,7 +94,8 @@ pub fn link_with(
     if let Some(span) = plan.tls.or(plan.crypto)
         && runtime::missing_openssl(&stderr)
     {
-        return Err(LinkError::Tls { span });
+        let folder = plan.openssl.as_ref().map(|f| f.path().to_path_buf());
+        return Err(LinkError::Tls { span, folder });
     }
     match plan.at {
         Some(span) => Err(LinkError::Libraries { span, stderr }),
@@ -114,11 +120,8 @@ fn args(
     args.extend(shims.iter().map(|o| o.as_os_str().to_owned()));
     args.extend(runtime.iter().map(|o| o.as_os_str().to_owned()));
     args.push(OsString::from("-lm"));
-    if plan.tls.is_some() {
-        args.extend(["-lssl", "-lcrypto"].map(OsString::from));
-    } else if plan.crypto.is_some() {
-        args.push(OsString::from("-lcrypto"));
-    }
+    let (tls, crypto) = (plan.tls.is_some(), plan.crypto.is_some());
+    args.extend(openssl::link_args(plan.openssl.as_ref(), tls, crypto));
     args.extend(plan.link_args());
     args.push(OsString::from("-o"));
     args.push(output.as_os_str().to_owned());

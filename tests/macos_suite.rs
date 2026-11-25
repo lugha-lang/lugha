@@ -89,7 +89,7 @@ fn lines(items: impl Iterator<Item = String>) -> Vec<u8> {
 /// built for this machine that a foreign build can't link.
 fn refused(stderr: &str) -> Option<&'static str> {
     if stderr.contains("E0334") {
-        Some("E0334: std.tls, std.http and std.crypto need this machine's OpenSSL")
+        Some("E0334: std.tls, std.http and std.crypto need an OpenSSL built for the target")
     } else if stderr.contains("E0335") {
         Some("E0335: a [link] pkg-config line names this machine's libraries")
     } else {
@@ -184,6 +184,12 @@ fn build_the_suite_for_a_mac() {
     });
     let mut skipped = skipped.into_inner().unwrap();
     skipped.sort();
+    // With an OpenSSL named for the target, TLS and crypto cases build.
+    let openssl = format!("LUGHA_OPENSSL_{}", target.to_uppercase().replace('-', "_"));
+    if std::env::var_os(&openssl).is_some_and(|v| !v.is_empty()) {
+        let refused: Vec<&String> = skipped.iter().filter(|s| s.contains("E0334")).collect();
+        assert!(refused.is_empty(), "{openssl} is set, yet:\n{refused:?}");
+    }
     std::fs::write(out.join("skipped.txt"), lines(skipped.into_iter()))
         .expect("the suite folder is writable");
     let failed = failed.into_inner().unwrap();

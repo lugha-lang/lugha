@@ -10,6 +10,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use super::LinkError;
 use super::compiler::Compiler;
 use super::object_cache::Cache;
+use super::openssl::Folder;
 use crate::span::Span;
 
 /// `runtime/openssl/tls.c` and `openssl/tls_keys.c` (connections by key):
@@ -116,7 +117,8 @@ impl Drop for RuntimeObject {
 /// The runtime's object, with TLS's part when `tls` and crypto's when
 /// `crypto`: from `cache` when it has a fresh one, else `cc -c` of the
 /// runtime alone. `openssl` is where a TLS or crypto program asked for
-/// OpenSSL, for E0332.
+/// OpenSSL, for E0332, and the folder of a foreign target's OpenSSL, whose
+/// headers are compiled with.
 ///
 /// # Errors
 ///
@@ -126,7 +128,7 @@ impl Drop for RuntimeObject {
 pub(super) fn compile(
     (tls, crypto): (bool, bool),
     cache: &Cache,
-    openssl: Option<Span>,
+    openssl: Option<(Span, Option<&Folder>)>,
     system: super::System,
 ) -> Result<RuntimeObject, LinkError> {
     let source = RuntimeFile::write(tls, crypto, system).map_err(LinkError::Io)?;
@@ -142,10 +144,14 @@ pub(super) fn compile(
     // Optimized: every program's allocation, strings, maps and channels
     // run through this code.
     // Unwind tables: a panic unwinds through the runtime's own frames.
-    let flags = vec![std::ffi::OsString::from("-O2"), "-funwind-tables".into()];
+    let mut flags = vec![std::ffi::OsString::from("-O2"), "-funwind-tables".into()];
+    // The folder is part of the flags, so of the cached object's key.
+    let folder = openssl.and_then(|(_, folder)| folder);
+    flags.extend(folder.map(Folder::include));
+    let openssl = openssl.map(|(at, _)| (at, folder.map(|f| f.path().to_path_buf())));
     let compile = |extra: &[std::ffi::OsString]| {
         let all: Vec<std::ffi::OsString> = flags.iter().chain(extra).cloned().collect();
-        run(cache.cc(), &source.0, &all, &object, openssl)
+        run(cache.cc(), &source.0, &all, &object, openssl.clone())
     };
     let path = cache.object("runtime", &text, &flags, &object, compile)?;
     Ok(RuntimeObject {
@@ -161,7 +167,7 @@ fn run(
     source: &Path,
     extra: &[std::ffi::OsString],
     object: &Path,
-    openssl: Option<Span>,
+    openssl: Option<(Span, Option<PathBuf>)>,
 ) -> Result<(), LinkError> {
     let result = cc
         .command()
@@ -183,7 +189,7 @@ fn run(
     }
     let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
     match openssl {
-        Some(span) if missing_openssl(&stderr) => Err(LinkError::Tls { span }),
+        Some((span, folder)) if missing_openssl(&stderr) => Err(LinkError::Tls { span, folder }),
         _ => Err(LinkError::Failed {
             status: out.status.code(),
             stderr,
@@ -261,8 +267,18 @@ mod tests {
         assert!(has_ssl(&plan));
         let d = super::super::LinkError::Tls {
             span: crate::span::Span::new(0, 1),
+            folder: None,
         }
         .diagnostic();
         assert_eq!(d.map(|d| d.code), Some("E0332"));
+        // A foreign target's OpenSSL: the help names its folder.
+        let d = super::super::LinkError::Tls {
+            span: crate::span::Span::new(0, 1),
+            folder: Some(std::path::PathBuf::from("/o")),
+        }
+        .diagnostic()
+        .unwrap();
+        assert_eq!(d.code, "E0332");
+        assert!(format!("{d:?}").contains("`/o` is older than 3.2"), "{d:?}");
     }
 }

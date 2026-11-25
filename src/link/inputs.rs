@@ -55,6 +55,9 @@ pub struct Plan {
     /// The import that brings in `std.crypto`, for
     /// E0332; `Some` adds the crypto runtime and `-lcrypto`.
     pub crypto: Option<Span>,
+    /// The OpenSSL built for a foreign target, linked instead of this
+    /// machine's `-lssl -lcrypto`.
+    pub openssl: Option<super::openssl::Folder>,
 }
 
 /// Runs `pkg-config` for some names: [`super::pkg_config::run`], or a fake in tests.

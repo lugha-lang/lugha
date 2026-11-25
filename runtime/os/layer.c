@@ -44,6 +44,10 @@ static int os_cpus(void);
 static bool os_random64(uint64_t *out);
 static bool os_thread_stack(void **base, size_t *size);
 
+/* `OS_TLS_ROOTS_FILE`: a file of trusted roots a TLS client loads besides
+ * OpenSSL's defaults, or NULL. Each system defines it: an OpenSSL built
+ * for a system needn't know where that system keeps its roots. */
+
 /* Sockets, at the level of operations: each call opens, connects, accepts,
  * receives or sends, waiting as a task does (parking the task, never the
  * thread) until it is done or `deadline` (monotonic ns, < 0 for none)

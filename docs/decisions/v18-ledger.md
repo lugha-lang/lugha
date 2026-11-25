@@ -277,7 +277,7 @@ The draft must cite every `approved` line exactly once as a rule, and contain no
 - PRT-02 approved — Building for the machine lughac runs on uses `cc`, as today; any other target uses `zig cc -target <zig triple>`, for both the runtime and the link; `$LUGHA_CC` overrides both. zig is a program found on `PATH`, never a crate.
 - PRT-03 approved — The runtime stays C source, compiled for each target by the build's compiler and cached; no precompiled runtimes are shipped.
 - PRT-04 approved — One platform at a time, in order: zig and Linux musl; running and testing ARM builds under `qemu`; the runtime split by OS; macOS; Windows; WebAssembly (WASI).
-- PRT-05 approved — `std.tls` and `std.crypto` on a foreign target are an error; the host's OpenSSL is never linked for another platform.
+- PRT-05 approved, amended — `std.tls` and `std.crypto` on a foreign target are an error unless `LUGHA_OPENSSL_<TARGET>` names an OpenSSL built for that target, linked statically by path (milestone 257); the host's OpenSSL is never linked for another platform.
 - PRT-06 approved — zig 0.17.0 or newer, its version checked once per build with a clear error; zig's cache under lughac's cache root; a target's zig spelling comes from a fixed table, while codegen keeps the LLVM triple.
 - PRT-07 approved — The first new targets are `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl`, linked statically with zig's libunwind; `aarch64-unknown-linux-gnu` moves from `aarch64-linux-gnu-gcc` to zig (breaking).
 - PRT-08 approved — The runtime splits into shared code, `os/posix.c` and one file per OS, joined per target. The OS layer's line is the operation (a socket's receive, send, accept, connect, cancel, close), not registering a descriptor; the poller hands back finished waiters, and helper jobs finish the same way.
@@ -286,7 +286,7 @@ The draft must cite every `approved` line exactly once as a rule, and contain no
 - PRT-14 approved — The task switch is written per CPU and OS (on Windows it also switches the thread's recorded stack bounds); stack overflow is caught per OS (`SIGSEGV` and `SIGBUS` on POSIX, a vectored exception handler on Windows).
 - PRT-11 deferred — What a program promises on an OS whose kernel can't lock it down (seccomp, Landlock), and the `Dir` confinement each OS uses (SEC-01): decided with that OS's port, with security review. macOS approved: a `Dir` confined by walking each path one name at a time, as Go's `os.Root` does (milestone 254); lockdown through Seatbelt's coarse parts, no socket reaching an address without `Net` and no new processes without `Proc`, files not limited by the kernel (milestone 255). Windows and WASI still to decide.
 - PRT-12 deferred — Platform-specific Lugha code (`@cfg`), only if a port needs it; a language change, so v19 or an approved Draft rule.
-- PRT-13 deferred — Windows sockets through overlapped I/O or the AFD poll; precompiled runtimes with `lld` so foreign builds need no zig; OpenSSL for foreign targets.
+- PRT-13 deferred — Windows sockets through overlapped I/O or the AFD poll; precompiled runtimes with `lld` so foreign builds need no zig. (OpenSSL for foreign targets: resolved by PRT-05's amendment, milestone 257.)
 
 ## PRF — performance targets (baseline: `bench/RESULTS.md`, 2026-10-31, commit 5d5ab18)
 

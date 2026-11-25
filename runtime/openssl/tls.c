@@ -132,7 +132,9 @@ int32_t lugha_rt_tls_client_context(const LughaString *ca_pem, int64_t *handle,
     SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
     /* A peer closing without close_notify reads as the end of the stream. */
     SSL_CTX_set_options(ctx, SSL_OP_IGNORE_UNEXPECTED_EOF);
-    if (SSL_CTX_set_default_verify_paths(ctx) != 1) {
+    const char *roots = OS_TLS_ROOTS_FILE;
+    if (SSL_CTX_set_default_verify_paths(ctx) != 1 ||
+        (roots != NULL && SSL_CTX_load_verify_file(ctx, roots) != 1)) {
         SSL_CTX_free(ctx);
         return tls_error(error, "can't load trusted certificates");
     }
