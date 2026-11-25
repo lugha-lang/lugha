@@ -135,12 +135,18 @@ int main(int argc, char **argv) {
         int64_t after = __atomic_load_n(&stacks_given_back, __ATOMIC_ACQUIRE);
         printf("same stack: %d, given back between: %ld\n", stacks_seen[0] == stacks_seen[1],
                (long)(after - before));
-        // Nothing to run for a while: the worker parks.
-        lugha_rt_task_sleep(5);
+        // Nothing to run for a while: the worker parks, trimming its cache.
+        // A sleep can end before a slow worker (ThreadSanitizer, a crowded
+        // machine) gets to park, so it sleeps again until it has, for up to
+        // two seconds: a cache never trimmed still fails.
         Worker *w = worker;
-        int holding = 0;
-        for (int i = 0; i < w->stack_cached; i++) {
-            holding += w->stack_dirty[i];
+        int holding = 1;
+        for (int tries = 0; tries < 100 && holding > 0; tries++) {
+            lugha_rt_task_sleep(20);
+            holding = 0;
+            for (int i = 0; i < w->stack_cached; i++) {
+                holding += w->stack_dirty[i];
+            }
         }
         printf("cached %d, holding pages after parking: %d\n", w->stack_cached, holding);
     }

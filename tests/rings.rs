@@ -166,11 +166,17 @@ fn a_task_waiting_on_an_empty_ring_wakes_when_c_writes() {
 
 #[test]
 fn two_writers_at_once_panic() {
+    // Two writers meet only when one is inside `try_send`'s few
+    // instructions as another starts: where the threads take turns on a
+    // crowded CPU, that can take more calls than a small budget gives.
+    // The first meeting panics and ends the program (within a quarter of
+    // a second on one CPU), so this budget costs nothing unless the check
+    // is broken, when "done" fails the test.
     Case::new(
         "fun main(console: Console) {\n\
              let (tx, rx) = Ring<i64>.new(1);\n\
              let r = scope s independent {\n\
-                 on_threads(fun(i: i64): i64 = match tx.try_send(i) { .Sent => 1, _ => 0 }, 4, 200000, 0);\n\
+                 on_threads(fun(i: i64): i64 = match tx.try_send(i) { .Sent => 1, _ => 0 }, 4, 50000000, 0);\n\
                  join_threads();\n\
              };\n\
              console.println(\"done\");\n\
