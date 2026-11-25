@@ -78,6 +78,15 @@ static void limited(void *code, void *env, void *result) {
     for (int i = 0; i < 3; i++) {
         lugha_rt_task_yield();
     }
+    // On a crowded machine each task can end before the next is spawned,
+    // so none would overlap: until one has finished or two have run at
+    // once, a task waits for a second, for a bounded number of turns. A
+    // scope that let only one run at a time still shows "at most 1".
+    for (int i = 0; i < 100000 && __atomic_load_n(&limited_done, __ATOMIC_ACQUIRE) == 0 &&
+                    __atomic_load_n(&running_most, __ATOMIC_ACQUIRE) < 2;
+         i++) {
+        lugha_rt_task_yield();
+    }
     __atomic_sub_fetch(&running_now, 1, __ATOMIC_ACQ_REL);
     __atomic_fetch_add(&limited_done, 1, __ATOMIC_RELAXED);
     *(int64_t *)result = 0;
