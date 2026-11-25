@@ -166,9 +166,10 @@ static int os_cpus(void) {
     return online > 0 ? (int)online : 1;
 }
 
-/* 64 random bits from the kernel into `out`; false if it has none to give. */
+/* 64 random bits from the kernel into `out`: getentropy, else
+ * /dev/urandom; false if it has none to give. */
 static bool os_random64(uint64_t *out) {
-    return getentropy(out, sizeof *out) == 0;
+    return getentropy(out, sizeof *out) == 0 || posix_urandom64(out);
 }
 
 /* The running thread's stack: its lowest address and size (macOS gives

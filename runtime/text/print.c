@@ -138,7 +138,7 @@ void lugha_rt_print_bool(int32_t value) {
 
 void lugha_rt_print_str(const LughaString *value) {
     // Exactly `len` bytes: embedded NULs and `%` print as themselves.
-    fwrite(value->bytes, 1, (size_t)value->len, stdout);
+    os_write(stdout, value->bytes, (size_t)value->len);
 }
 
 void lugha_rt_print_newline(void) {
@@ -148,11 +148,11 @@ void lugha_rt_print_newline(void) {
 /* Around `println`'s text and newline: the line is printed whole, though
  * tasks on other threads print too (stdout's lock, which nests). */
 void lugha_rt_print_begin(void) {
-    flockfile(stdout);
+    os_stream_lock(stdout);
 }
 
 void lugha_rt_print_end(void) {
-    funlockfile(stdout);
+    os_stream_unlock(stdout);
 }
 
 LughaString *lugha_rt_to_string_i32(int32_t value) {

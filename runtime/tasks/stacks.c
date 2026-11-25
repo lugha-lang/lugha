@@ -62,8 +62,7 @@ static char *new_stack_locked(void);
 static int64_t stacks_given_back;
 
 static void give_pages_back(char *stack) {
-    // Advice the kernel may refuse: the pages then stay, still reusable.
-    madvise(stack, stack_size, MADV_DONTNEED);
+    os_stack_trim(stack, stack_size);
     __atomic_add_fetch(&stacks_given_back, 1, __ATOMIC_RELAXED);
 }
 
@@ -86,9 +85,8 @@ static char *new_stack_locked(void) {
     }
     while (region_left == 0) {
         // One stack more than it holds, so its stacks can start aligned.
-        char *region = mmap(NULL, stack_size * (REGION_STACKS + 1), PROT_READ | PROT_WRITE,
-                            MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
-        if (region != MAP_FAILED) {
+        char *region = os_reserve(stack_size * (REGION_STACKS + 1));
+        if (region != NULL) {
             region_next = (char *)(((uintptr_t)region + stack_size - 1) & ~(stack_size - 1));
             region_left = REGION_STACKS;
             // Set once, with the first region, before any other worker
@@ -108,6 +106,7 @@ static char *new_stack_locked(void) {
     char *stack = region_next;
     region_next += stack_size;
     region_left--;
+    os_stack_ready(stack, stack_size);
     return stack;
 }
 
@@ -209,15 +208,11 @@ void lugha_rt_stack_low(void) {
 void lugha_rt_on_stack(void (*fn)(void *), void *arg, char *top);
 
 
-/* Pages kept inaccessible at a C stack's bottom: C has no entry checks,
- * so an overflow there faults, and the handler (stack.c) reports it. */
-#define C_STACK_GUARD C_GUARD_SIZE
-
 /* A C stack: a pooled stack, aligned like any other, with its bottom
  * pages made a guard. */
 static char *c_stack_new(void) {
     char *stack = new_stack();
-    if (mprotect(stack, C_STACK_GUARD, PROT_NONE) != 0) {
+    if (!os_stack_guard(stack, C_STACK_GUARD)) {
         die("panic: can't make a C stack\n");
     }
     budget_fill(stack);

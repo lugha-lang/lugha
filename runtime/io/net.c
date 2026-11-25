@@ -92,7 +92,8 @@ static int64_t net_waits_len;
 static int64_t net_waits_cap;
 
 /* Lists the running task as parked on `fd` for wait `gen`. */
-static void net_waits_add(int fd, uint32_t gen) {
+/* Unused on Windows, whose parts that call it aren't built yet. */
+__attribute__((unused)) static void net_waits_add(int fd, uint32_t gen) {
     if (net_waits_len == net_waits_cap) {
         net_waits_cap = net_waits_cap == 0 ? 16 : net_waits_cap * 2;
         NetWait *bigger = realloc(net_waits, (size_t)net_waits_cap * sizeof *net_waits);
@@ -105,7 +106,8 @@ static void net_waits_add(int fd, uint32_t gen) {
 }
 
 /* Takes the running task off the list, however its wait ended. */
-static void net_waits_remove(void) {
+/* Unused on Windows, whose parts that call it aren't built yet. */
+__attribute__((unused)) static void net_waits_remove(void) {
     for (int64_t i = 0; i < net_waits_len; i++) {
         if (net_waits[i].fiber == current) {
             net_waits[i] = net_waits[--net_waits_len];

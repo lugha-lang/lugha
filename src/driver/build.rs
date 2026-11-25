@@ -38,7 +38,8 @@ pub(super) fn build(
         Some(Emit::Ir) => out.print(&pipeline::ir(&front, (code.2, code.3))?),
         Some(Emit::Tokens) => unreachable!("handled above"),
         None => {
-            let exe = output.map_or_else(|| pipeline::default_output(file), Path::to_path_buf);
+            let exe =
+                output.map_or_else(|| pipeline::default_output(file, code.2), Path::to_path_buf);
             pipeline::build(&front, code, &exe)?;
         }
     }

@@ -11,42 +11,50 @@
  *
  * Platform: this core and the shared parts call the operating system only
  * through the `os_*` layer (os/layer.c, joined right after this core),
- * implemented per system in `os/<system>.c` (today `os/linux.c`, Linux
- * with glibc or musl), joined after it. A few parts confine folders and lock the process
- * down with Linux's own calls, and are Linux's alone (lughac's
- * `LINUX_ONLY`).
+ * implemented per system in `os/<system>/` (Linux, macOS, Windows), and
+ * in `os/posix/` for what Linux and macOS share; lughac joins the target's
+ * parts. Only the includes below differ by system.
  *
  * Source layout: this core comes first (it enables GNU extensions and holds
- * every include, type and declaration), then stack.c (the stack overflow
- * handler), then print.c (formatting and printing), then input.c (arguments
- * and parsing). lughac joins the four, in that order, into the single
- * lugha_rt.c it compiles with each program.
+ * every include, type and declaration), then the OS layer, then the shared
+ * parts, in the order lughac's `RUNTIME_PARTS` lists them.
  */
 
 #define _GNU_SOURCE
 
+/* The system's own headers: POSIX's, or Windows' (whose sockets come
+ * from Winsock, before `windows.h`, which would include an older one). */
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <windows.h>
+#include <io.h>
+#else
 #include <dirent.h>
-#include <errno.h>
-#include <fcntl.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <net/if.h>
 #include <ifaddrs.h>
 #include <poll.h>
-#include <pthread.h>
-#include <signal.h>
 #include <spawn.h>
 #include <sched.h>
+#include <sys/mman.h>
+#include <sys/socket.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
+#include <errno.h>
+#include <fcntl.h>
+#include <pthread.h>
+#include <signal.h>
 #if defined(__SANITIZE_THREAD__)
 #include <sanitizer/tsan_interface.h>
 #endif
 #include <stddef.h>
-#include <sys/mman.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
-#include <unistd.h>
+#include <sys/types.h>
 #include <inttypes.h>
 #include <math.h>
 #include <stdarg.h>
@@ -104,7 +112,7 @@ LughaString *lugha_rt_to_string_bool(int32_t value);
 enum { FORMAT_CAP = 64 };
 
 /* Called by the C `main` before the program starts. */
-static void install_stack_overflow_handler(void);
+static void os_faults_install(void);
 
 /* A scalar value's UTF-8 (`chars.c`), also used by `format.c`'s padding,
  * which comes earlier in the joined file. */
@@ -141,6 +149,11 @@ void *lugha_rc_internal(size_t size);
 /* Small blocks (rc_alloc.c): 16-byte classes up to `RC_SMALL` bytes, header
  * included, carved from `RC_CHUNK`-byte chunks. */
 #define RC_CHUNK ((uintptr_t)1 << 16)
+
+/* How much of a C stack's bottom is kept inaccessible: C has no entry
+ * checks, so an overflow there faults, and the system's handler reports
+ * it (os/<system>/faults.c). */
+#define C_STACK_GUARD (64 * 1024)
 #define RC_SMALL 272
 #define RC_CLASSES (RC_SMALL / 16 + 1)
 
@@ -173,7 +186,8 @@ typedef struct Worker {
     bool foreign_listed;
     /* Its C stack's top (NULL: C runs where it is called, as in a C
      * harness), and the lowest address of the guard below it, where a
-     * fault is C overflowing it (stack.c). */
+     * fault is C overflowing it (os/posix/faults.c; on Windows the
+     * system's own guard, os/windows/os.c). */
     char *c_stack_top;
     uintptr_t c_stack_guard;
     /* Objects marked shared whose contents are still to be marked (rc.c):
@@ -305,30 +319,17 @@ static void workers_init(void);
 /* The system's own setup (os/<system>/os.c, joined later). */
 static void os_start(void);
 
-/* Opens `/dev/null` onto any of stdin, stdout and stderr this program was
- * started without: otherwise the next descriptor opened takes its number,
- * so a file or pipe would receive what was meant for the closed stream, and
- * a program started with a pipe there would lose it. */
-static void std_streams_open(void) {
-    for (int fd = 0; fd < 3; fd++) {
-        if (fcntl(fd, F_GETFD) < 0 && errno == EBADF) {
-            int null = open("/dev/null", fd == 0 ? O_RDONLY : O_WRONLY);
-            // Taking the lowest free number, it lands on `fd`; failing, the
-            // program runs as it was started.
-            if (null >= 0 && null != fd) {
-                close(null);
-            }
-        }
-    }
-}
+static void os_std_streams_open(void);
+static void os_args(int32_t *argc, char ***argv);
 
 void lugha_rt_init(int32_t argc, char **argv) {
-    std_streams_open();
+    os_std_streams_open();
     os_start();
     lugha_rt_worker_enter();
     program_argc = argc;
     program_argv = argv;
-    install_stack_overflow_handler();
+    os_args(&program_argc, &program_argv);
+    os_faults_install();
     install_interrupt_handler();
     sched_init();
     workers_init();
@@ -347,9 +348,13 @@ __attribute__((noreturn)) static void program_exit(int code) {
     exit(code);
 }
 
+static void os_write(FILE *f, const char *text, size_t len);
+static void os_stream_lock(FILE *f);
+static void os_stream_unlock(FILE *f);
+
 static void die(const char *message) {
     fflush(stdout);
-    fputs(message, stderr);
+    os_write(stderr, message, strlen(message));
     program_exit(101);
 }
 
@@ -359,9 +364,11 @@ static void panic_with(const char *text, size_t len) {
     // A scope that catches it makes it a value instead.
     if (!panic_caught()) {
         fflush(stdout);
-        fputs("panic: ", stderr);
-        fwrite(text, 1, len, stderr);
-        fputc('\n', stderr);
+        os_stream_lock(stderr);
+        os_write(stderr, "panic: ", 7);
+        os_write(stderr, text, len);
+        os_write(stderr, "\n", 1);
+        os_stream_unlock(stderr);
     }
     panic_unwind(text, len);
 }
@@ -392,7 +399,8 @@ static void rt_scratch_done(void *memory) {
 
 /* Lets go of `object`, a counted object the runtime made and won't hand
  * to the program (an error message no one asked for). */
-static void rt_let_go(void *object) {
+/* Unused on Windows, whose parts that call it aren't built yet. */
+__attribute__((unused)) static void rt_let_go(void *object) {
     lugha_rt_rc_release(object);
 }
 

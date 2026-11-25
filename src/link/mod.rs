@@ -18,6 +18,7 @@ pub mod openssl;
 pub mod pkg_config;
 pub mod runtime;
 mod runtime_parts;
+mod runtime_symbols;
 pub mod zig;
 
 use std::ffi::OsString;
@@ -27,9 +28,10 @@ use std::path::{Path, PathBuf};
 pub use self::errors::{LinkError, foreign_refusals};
 pub use self::inputs::{Plan, PlanError};
 pub use self::runtime_parts::{
-    DARWIN_ONLY, LINUX_ONLY, POSIX_ONLY, RUNTIME_PARTS, RUNTIME_SOURCE, RUNTIME_SYMBOLS, System,
+    DARWIN_ONLY, LINUX_ONLY, POSIX_ONLY, RUNTIME_PARTS, RUNTIME_SOURCE, System, WINDOWS_ONLY,
     runtime_source,
 };
+pub use self::runtime_symbols::RUNTIME_SYMBOLS;
 
 /// Links `objects` and the runtime into the executable `output`.
 ///
@@ -134,19 +136,30 @@ mod tests {
 
     #[test]
     fn runtime_parts_join_in_order_core_first() {
-        // Each system's runtime: every part but the other system's own.
-        let joined = |other: &str| -> String {
+        // Each system's runtime: every part but the other systems' own
+        // (and, for Windows, POSIX's).
+        let joined = |others: &[&str]| -> String {
             let parts = RUNTIME_PARTS
                 .iter()
-                .filter(|(name, _)| !name.starts_with(other));
+                .filter(|(name, _)| !others.iter().any(|o| name.starts_with(o)));
             parts.map(|(_, src)| *src).collect()
         };
-        assert_eq!(joined("os/darwin/"), RUNTIME_SOURCE);
+        assert_eq!(joined(&["os/darwin/", "os/windows/"]), RUNTIME_SOURCE);
         assert_eq!(super::runtime_source(super::System::Linux), RUNTIME_SOURCE);
         assert_eq!(
             super::runtime_source(super::System::MacOs),
-            joined("os/linux/")
+            joined(&["os/linux/", "os/windows/"])
         );
+        assert_eq!(
+            super::runtime_source(super::System::Windows),
+            joined(&["os/linux/", "os/darwin/", "os/posix/"])
+        );
+        for only in super::WINDOWS_ONLY {
+            assert!(
+                RUNTIME_PARTS.iter().any(|(n, _)| *n == only),
+                "{only} is a runtime part"
+            );
+        }
         for only in super::DARWIN_ONLY {
             assert!(
                 !RUNTIME_SOURCE.contains(
@@ -165,6 +178,10 @@ mod tests {
         assert_eq!(
             super::System::of("x86_64-unknown-linux-musl"),
             super::System::Linux
+        );
+        assert_eq!(
+            super::System::of("x86_64-pc-windows-gnu"),
+            super::System::Windows
         );
         let (name, core) = RUNTIME_PARTS[0];
         assert_eq!(name, "core/lugha_rt.c");

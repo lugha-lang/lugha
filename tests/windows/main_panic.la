@@ -1,0 +1,8 @@
+// A panic in `main` unwinds its `defer`s, prints its message and ends the
+// program with 101.
+fun main(console: Console) {
+    defer console.println("main unwound");
+    console.println("before");
+    let xs = [1, 2, 3];
+    console.println(xs[5]);
+}

@@ -142,7 +142,8 @@ static void job_free(Job *job) {
 }
 
 /* Grows `*buffer` (`*cap` bytes, `*len` used) to hold `more` bytes more. */
-static void job_grow(char **buffer, size_t *cap, size_t len, size_t more) {
+/* Unused on Windows, whose parts that call it aren't built yet. */
+__attribute__((unused)) static void job_grow(char **buffer, size_t *cap, size_t len, size_t more) {
     if (len + more <= *cap) {
         return;
     }
@@ -211,13 +212,8 @@ static bool helper_start(void) {
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
     pthread_attr_setstacksize(&attr, HELPER_STACK);
-    // A new thread takes its creator's signal mask: everything blocked.
-    sigset_t all, before;
-    sigfillset(&all);
-    pthread_sigmask(SIG_SETMASK, &all, &before);
     pthread_t thread;
-    int failed = pthread_create(&thread, &attr, helper_main, NULL);
-    pthread_sigmask(SIG_SETMASK, &before, NULL);
+    int failed = os_thread_start(&thread, &attr, helper_main, NULL);
     pthread_attr_destroy(&attr);
     if (failed != 0) {
         return false;

@@ -85,12 +85,9 @@ static void idle_make(void) {
 /* A worker thread: its signals, C stack and idle loop, then it looks for
  * work forever. Only the main thread takes Ctrl-C. */
 static void *worker_thread(void *arg) {
-    sigset_t interrupt;
-    sigemptyset(&interrupt);
-    sigaddset(&interrupt, SIGINT);
-    pthread_sigmask(SIG_BLOCK, &interrupt, NULL);
+    os_worker_signals();
     lugha_rt_worker_enter();
-    stack_overflow_handler_thread();
+    os_thread_faults();
     worker->index = (int)(intptr_t)arg;
     worker->steal_seed = (uint32_t)(intptr_t)arg * 2654435761u + 1;
     // Where this thread's native stack is saved as it goes to its loop.

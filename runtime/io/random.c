@@ -9,20 +9,12 @@
  * `die` it relies on.
  */
 
-/* 64 random bits from the kernel: getrandom(2), else /dev/urandom. A
- * system with neither gives no randomness, which is a panic. */
+/* 64 random bits from the system (`os_random64`). A system with none to
+ * give gives no randomness, which is a panic. */
 uint64_t lugha_rt_os_seed(void) {
     uint64_t seed = 0;
     if (os_random64(&seed)) {
         return seed;
-    }
-    int fd = open("/dev/urandom", O_RDONLY | O_CLOEXEC);
-    if (fd >= 0) {
-        ssize_t read_bytes = read(fd, &seed, sizeof seed);
-        close(fd);
-        if (read_bytes == (ssize_t)sizeof seed) {
-            return seed;
-        }
     }
     die("panic: no randomness available from the operating system\n");
     return 0;
@@ -45,17 +37,14 @@ int64_t lugha_rt_wall_ms(void) {
 }
 
 /* `$os.local_offset(seconds)`: the system zone's
- * offset from UTC, in seconds east, at that moment (`TZ`, else
- * `/etc/localtime`, through `localtime_r`), daylight saving included.
- * A moment `time_t` or the C library can't represent is an error. */
+ * offset from UTC, in seconds east, at that moment, daylight saving
+ * included (`os_local_offset`). A moment the system can't represent is an
+ * error. */
 int32_t lugha_rt_local_offset(int64_t seconds, int64_t *out, LughaString **error) {
-    time_t t = (time_t)seconds;
-    struct tm parts;
-    if ((int64_t)t != seconds || localtime_r(&t, &parts) == NULL) {
+    if (!os_local_offset(seconds, out)) {
         const char *message = "the system can't give a local time for that moment";
         *error = string_of(message, (int64_t)strlen(message));
         return 0;
     }
-    *out = (int64_t)parts.tm_gmtoff;
     return 1;
 }

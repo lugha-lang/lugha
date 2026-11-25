@@ -70,6 +70,12 @@ fn choose(target: Target, machine: &Machine) -> Result<Runner, String> {
             target.triple()
         ));
     }
+    if target.is_windows() {
+        return Err(format!(
+            "a program built for {} runs only on Windows: build it with `lughac build`",
+            target.triple()
+        ));
+    }
     let arch = target.arch();
     if arch == machine.arch {
         return Ok(Runner::default());
@@ -177,6 +183,12 @@ mod tests {
         }
         let arm = on(Arch::Aarch64, Target::Aarch64LinuxMusl, false).unwrap();
         assert_eq!(args(&arm), ["/t/prog"]);
+    }
+
+    #[test]
+    fn a_windows_program_is_never_run_here() {
+        let refused = on(Arch::X86_64, Target::X86_64Windows, true).unwrap_err();
+        assert!(refused.contains("runs only on Windows"), "{refused}");
     }
 
     #[test]

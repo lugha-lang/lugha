@@ -1,9 +1,9 @@
 //! The platforms lughac builds for.
 
-/// A platform an executable is built for: `--target`'s values. All are
-/// Linux with the same scalar sizes (`split_leaves::byte_size`); they differ
-/// in instructions, in the runtime's stack switch and in how C passes structs
-/// (by CPU), and in the C library the runtime is linked with (glibc or musl).
+/// A platform an executable is built for: `--target`'s values. All have
+/// the same scalar sizes (`split_leaves::byte_size`); they differ in
+/// instructions, in the runtime's stack switch and in how C passes structs
+/// (by CPU and system), and in the C library the runtime is linked with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Target {
     /// x86-64 Linux with glibc, `x86_64-unknown-linux-gnu`.
@@ -18,6 +18,9 @@ pub enum Target {
     /// macOS on Apple Silicon, `aarch64-apple-darwin`: Mach-O executables,
     /// built on Linux and run on a Mac.
     Aarch64MacOs,
+    /// Windows on x86-64, `x86_64-pc-windows-gnu`: PE executables linked
+    /// against Windows' own C runtime, built on Linux and run on Windows.
+    X86_64Windows,
 }
 
 /// A target's processor family: what codegen's instructions, registers and
@@ -39,13 +42,14 @@ impl Target {
             Target::X86_64LinuxMusl => "x86_64-unknown-linux-musl",
             Target::Aarch64LinuxMusl => "aarch64-unknown-linux-musl",
             Target::Aarch64MacOs => "aarch64-apple-darwin",
+            Target::X86_64Windows => "x86_64-pc-windows-gnu",
         }
     }
 
     /// The target's processor family.
     pub fn arch(self) -> Arch {
         match self {
-            Target::X86_64Linux | Target::X86_64LinuxMusl => Arch::X86_64,
+            Target::X86_64Linux | Target::X86_64LinuxMusl | Target::X86_64Windows => Arch::X86_64,
             Target::Aarch64Linux | Target::Aarch64LinuxMusl | Target::Aarch64MacOs => Arch::Aarch64,
         }
     }
@@ -60,6 +64,12 @@ impl Target {
             (false, true) => Target::X86_64LinuxMusl,
             (true, true) => Target::Aarch64LinuxMusl,
         }
+    }
+
+    /// Whether this is a Windows target: `.exe` names, SEH unwinding, and
+    /// Windows' own rules for passing structs to C.
+    pub fn is_windows(self) -> bool {
+        self == Target::X86_64Windows
     }
 
     /// Whether this is the machine lughac runs on, built for with `cc`;
@@ -97,6 +107,7 @@ mod tests {
                 Arch::Aarch64,
             ),
             (Target::Aarch64MacOs, "aarch64-apple-darwin", Arch::Aarch64),
+            (Target::X86_64Windows, "x86_64-pc-windows-gnu", Arch::X86_64),
         ];
         for (target, triple, arch) in all {
             assert_eq!((target.triple(), target.arch()), (triple, arch));

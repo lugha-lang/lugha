@@ -1,0 +1,19 @@
+// Lines from stdin, UTF-8, until its end (the runner gives `stdin.stdin`).
+fun main(console: Console) {
+    let mut n = 0;
+    loop {
+        match console.read_line() {
+            .Ok(.Some(line)) => {
+                n += 1;
+                console.println("{n}: {line}");
+            }
+            .Ok(.None) => {
+                break;
+            }
+            .Err(e) => {
+                console.println("error: {e}");
+                break;
+            }
+        }
+    }
+}

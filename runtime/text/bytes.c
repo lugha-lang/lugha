@@ -64,15 +64,15 @@ static int64_t stdin_lines;
  * at the end or on an error, `err` set for an error), `n` its number. */
 static void read_line_job(Job *job) {
     size_t cap = 0;
-    flockfile(stdin);
+    os_stream_lock(stdin);
     errno = 0;
-    job->value = (int64_t)getline(&job->out, &cap, stdin);
+    job->value = os_read_line(stdin, &job->out, &cap);
     if (job->value >= 0) {
         job->n = ++stdin_lines;
     } else if (ferror(stdin)) {
         job->err = errno != 0 ? errno : EIO;
     }
-    funlockfile(stdin);
+    os_stream_unlock(stdin);
 }
 
 /* `read_line()`: 1 with the next stdin line's number and bytes, without its

@@ -23,7 +23,8 @@ static int64_t jobs_out;
 static Fiber *room_head;
 static Fiber *room_tail;
 
-static void io_open(void) {
+/* Unused on Windows, whose parts that call it aren't built yet. */
+__attribute__((unused)) static void io_open(void) {
     os_poll_open();
 }
 

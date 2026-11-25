@@ -145,13 +145,14 @@ static int os_cpus(void) {
 /* A TLS client trusts OpenSSL's roots, which are where Linux keeps them. */
 #define OS_TLS_TRUST 0
 
-/* 64 random bits from the kernel into `out`; false if it has none to give. */
+/* 64 random bits from the kernel into `out`: getrandom(2), else
+ * /dev/urandom; false if it has none to give. */
 static bool os_random64(uint64_t *out) {
     ssize_t got;
     do {
         got = getrandom(out, sizeof *out, 0);
     } while (got < 0 && errno == EINTR);
-    return got == (ssize_t)sizeof *out;
+    return got == (ssize_t)sizeof *out || posix_urandom64(out);
 }
 
 /* The running thread's stack: its lowest address and size; false if the

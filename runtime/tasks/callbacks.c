@@ -191,7 +191,7 @@ static void foreign_exit(void *unused) {
     w->freed = 0;
     pthread_mutex_unlock(&workers_lock);
     char *stack = (char *)w->c_stack_guard;
-    if (mprotect(stack, C_STACK_GUARD, PROT_READ | PROT_WRITE) == 0) {
+    if (os_stack_unguard(stack, C_STACK_GUARD)) {
         // To the shared pool: a cache of this thread's ends with it.
         w->stack_cached = STACK_CACHE;
         give_stack(stack);

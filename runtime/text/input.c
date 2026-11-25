@@ -79,12 +79,12 @@ static LughaString *string_of(const char *bytes, int64_t len) {
 void lugha_rt_eprint(const LughaString *text, int32_t newline) {
     fflush(stdout);
     // One line whole, though tasks on other threads print too.
-    flockfile(stderr);
-    fwrite(text->bytes, 1, (size_t)text->len, stderr);
+    os_stream_lock(stderr);
+    os_write(stderr, text->bytes, (size_t)text->len);
     if (newline) {
-        fputc('\n', stderr);
+        os_write(stderr, "\n", 1);
     }
-    funlockfile(stderr);
+    os_stream_unlock(stderr);
 }
 
 /* `exit(code)`: stdout flushed, then the process ends with `code`. */

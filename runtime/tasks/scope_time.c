@@ -245,8 +245,7 @@ static void poller_kick(void);
  * (`check_times`); the second ends the program at once. Before the
  * scheduler starts it is only counted: `main`'s next pause starts it, and
  * it acts on it then. */
-static void on_interrupt(int sig) {
-    (void)sig;
+static void on_interrupt(void) {
     if (__atomic_add_fetch(&interrupts, 1, __ATOMIC_ACQ_REL) > 1) {
         _exit(130);
     }
@@ -258,10 +257,5 @@ static void on_interrupt(int sig) {
 
 /* Installs the Ctrl-C handler, as the runtime starts. */
 static void install_interrupt_handler(void) {
-    struct sigaction action;
-    memset(&action, 0, sizeof action);
-    action.sa_handler = on_interrupt;
-    sigemptyset(&action.sa_mask);
-    action.sa_flags = SA_RESTART;
-    sigaction(SIGINT, &action, NULL);
+    os_interrupts_install(on_interrupt);
 }

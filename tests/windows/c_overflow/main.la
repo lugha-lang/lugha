@@ -1,0 +1,7 @@
+// C recursing past its stack's end: reported as Linux reports it.
+extern fun deep(n: i64): i64;
+
+fun main(console: Console) {
+    console.println("before");
+    console.println(deep(100_000_000));
+}

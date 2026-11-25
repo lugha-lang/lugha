@@ -288,6 +288,8 @@ pub(super) enum TargetArg {
     Aarch64Musl,
     #[value(name = "aarch64-apple-darwin")]
     Aarch64MacOs,
+    #[value(name = "x86_64-pc-windows-gnu")]
+    X86_64Windows,
 }
 
 impl From<TargetArg> for Target {
@@ -298,6 +300,7 @@ impl From<TargetArg> for Target {
             TargetArg::X86_64Musl => Target::X86_64LinuxMusl,
             TargetArg::Aarch64Musl => Target::Aarch64LinuxMusl,
             TargetArg::Aarch64MacOs => Target::Aarch64MacOs,
+            TargetArg::X86_64Windows => Target::X86_64Windows,
         }
     }
 }

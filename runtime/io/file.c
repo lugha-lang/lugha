@@ -55,7 +55,7 @@ static void file_write_job(Job *job) {
  * task cancelled) can't hand the number to another file mid-read. -1 with
  * the message set. */
 static int file_dup(int64_t fd, LughaString **error) {
-    int copy = fcntl((int)fd, F_DUPFD_CLOEXEC, 0);
+    int copy = os_dup((int)fd);
     if (copy < 0) {
         fs_fail(error, strerror(errno));
     }

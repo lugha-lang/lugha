@@ -1,9 +1,11 @@
 /*
- * stack.c — part of lugha_rt.c: the stack overflow handler.
+ * os/posix/faults.c — part of lugha_rt.c: a C stack's overflow reported on
+ * a POSIX system, through SIGSEGV and SIGBUS on an alternate stack
+ * (`os_faults_install`, `os_thread_faults`).
  *
- * A fragment, not compiled on its own: lughac's link.rs joins it after the
- * core (lugha_rt.c), whose includes, types and forward declaration of
- * `install_stack_overflow_handler` it relies on.
+ * A fragment, not compiled on its own: joined after the core, whose
+ * includes, types and the C stack guard's size (`C_STACK_GUARD`) it
+ * relies on.
  */
 
 /* The lowest address of the main thread's stack; 0 if unknown. */
@@ -15,9 +17,6 @@ static char alternate_stack[64 * 1024];
 /* How close to the stack's lowest address a fault counts as an overflow. */
 #define GUARD_WINDOW (64 * 1024)
 
-/* How much of a worker's C stack is its guard (stacks.c). */
-#define C_GUARD_SIZE (64 * 1024)
-
 /* A fault in the faulting thread's C stack guard (C runs there; Lugha
  * stacks check at each function's entry), or next to the process stack's
  * end, is a stack overflow: reported, without unwinding. Anything else
@@ -27,7 +26,7 @@ static void on_segv(int signal, siginfo_t *info, void *context) {
     (void)context;
     uintptr_t at = (uintptr_t)info->si_addr;
     uintptr_t guard = worker->c_stack_guard;
-    bool c_overflow = guard != 0 && at >= guard && at < guard + C_GUARD_SIZE;
+    bool c_overflow = guard != 0 && at >= guard && at < guard + C_STACK_GUARD;
     bool main_overflow =
         stack_low != 0 && at + GUARD_WINDOW >= stack_low && at < stack_low + GUARD_WINDOW;
     if (c_overflow || main_overflow) {
@@ -61,7 +60,7 @@ static void on_segv(int signal, siginfo_t *info, void *context) {
 /* A worker thread's own alternate stack: the handler runs on the faulting
  * thread, so each needs one. Without it, a fault there kills the process
  * with SIGSEGV, as before. */
-static void stack_overflow_handler_thread(void) {
+static void os_thread_faults(void) {
     stack_t alternate;
     memset(&alternate, 0, sizeof alternate);
     alternate.ss_sp = malloc(sizeof alternate_stack);
@@ -72,7 +71,7 @@ static void stack_overflow_handler_thread(void) {
 }
 
 /* Each step can fail; then the program runs without the handler, as before. */
-static void install_stack_overflow_handler(void) {
+static void os_faults_install(void) {
     void *base;
     size_t size;
     if (!os_thread_stack(&base, &size)) {

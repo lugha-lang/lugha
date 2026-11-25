@@ -303,6 +303,17 @@ pub(super) fn build(
             return Err(Failure::Program(front.source.clone(), found));
         }
     }
+    if target.is_windows() {
+        let items = front
+            .modules
+            .iter()
+            .flat_map(|m| m.program.iter())
+            .flat_map(|p| &p.items);
+        let refused = codegen::struct_refusals(items, checked(front));
+        if !refused.is_empty() {
+            return Err(Failure::Program(front.source.clone(), refused));
+        }
+    }
     let tls = std_import(&front.modules, "tls", &["tls", "http"]);
     let crypto = std_import(&front.modules, "crypto", &["crypto"]);
     let openssl = link::foreign_refusals(
@@ -390,12 +401,17 @@ pub(super) fn run(
     })
 }
 
-/// Where `build` writes when there is no `-o`: the file name without its extension.
+/// Where `build` writes for `target` when there is no `-o`: the file name
+/// without its extension, with `.exe` for Windows, which runs only names
+/// ending in it.
 ///
-/// A file with no extension gets `.out`, so the source is never overwritten.
-pub(super) fn default_output(file: &Path) -> PathBuf {
+/// A file with no extension gets `.out` elsewhere, so the source is never
+/// overwritten.
+pub(super) fn default_output(file: &Path, target: Target) -> PathBuf {
     let stem = PathBuf::from(file.file_stem().unwrap_or(file.as_os_str()));
-    if file.extension().is_none() {
+    if target.is_windows() {
+        stem.with_extension("exe")
+    } else if file.extension().is_none() {
         stem.with_extension("out")
     } else {
         stem
@@ -485,14 +501,31 @@ mod tests {
 
     #[test]
     fn default_output_never_overwrites_the_source() {
+        let linux = Target::X86_64Linux;
         assert_eq!(
-            default_output(Path::new("arith.la")),
+            default_output(Path::new("arith.la"), linux),
             PathBuf::from("arith")
         );
         assert_eq!(
-            default_output(Path::new("dir/prog.la")),
+            default_output(Path::new("dir/prog.la"), linux),
             PathBuf::from("prog")
         );
-        assert_eq!(default_output(Path::new("prog")), PathBuf::from("prog.out"));
+        assert_eq!(
+            default_output(Path::new("prog"), linux),
+            PathBuf::from("prog.out")
+        );
+    }
+
+    #[test]
+    fn a_windows_build_is_named_exe() {
+        let windows = Target::X86_64Windows;
+        assert_eq!(
+            default_output(Path::new("dir/app.la"), windows),
+            PathBuf::from("app.exe")
+        );
+        assert_eq!(
+            default_output(Path::new("app"), windows),
+            PathBuf::from("app.exe")
+        );
     }
 }

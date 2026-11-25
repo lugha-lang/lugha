@@ -1,0 +1,12 @@
+// UTF-8 text goes out byte for byte, `\n` as `\n`; the arguments and an
+// environment variable come in as UTF-8 (the runner passes `a b`, `ñandú`
+// and LUGHA_TEST_WIN=héllo).
+fun main(args: string[], console: Console, env: Env) {
+    console.println("héllo, wörld: ñ 🌍");
+    console.eprintln("to stderr: ü");
+    for i in 1..args.len {
+        console.println("arg {i}: {args[i]}");
+    }
+    console.println(env.get("LUGHA_TEST_WIN").debug());
+    console.println(env.get("LUGHA_SURELY_UNSET").debug());
+}

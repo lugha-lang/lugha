@@ -108,6 +108,24 @@ jobs:
           # trust.la's certificates, made fresh here: no key is committed.
           sh tests/macos/certs.sh macos/trust.certs
 
+      - name: Build the Windows cases
+        # Built here, on Linux, through zig; the windows job runs them on
+        # Windows. A case is a .la file or a folder with main.la, beside
+        # what it must print (.stdout), exit with (.exit), show on stderr
+        # (.stderr) and read (.stdin).
+        run: |
+          mkdir -p windows
+          for f in tests/windows/*.la tests/windows/*/main.la; do
+            case $f in
+              */main.la) name=$(basename "$(dirname "$f")") ;;
+              *) name=$(basename "$f" .la) ;;
+            esac
+            target/debug/lughac build "$f" --target x86_64-pc-windows-gnu -o "windows/$name.exe"
+            for ext in stdout exit stderr stdin; do
+              if [ -f "tests/windows/$name.$ext" ]; then cp "tests/windows/$name.$ext" "windows/$name.$ext"; fi
+            done
+          done
+
       - name: Build the program suite for a Mac
         # Every run case in tests/programs/, a folder each, for
         # tests/macos/suite.sh on the macos job.
@@ -117,6 +135,12 @@ jobs:
         with:
           name: macos-programs
           path: macos/
+          retention-days: 1
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-programs
+          path: windows/
           retention-days: 1
 
   test:
@@ -234,6 +258,59 @@ jobs:
         run: |
           chmod +x macos/suite/*/exe
           sh tests/macos/suite.sh macos/suite
+
+  windows:
+    name: Windows (x64)
+    needs: build
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: windows-programs
+          path: windows
+
+      - name: Run the programs built on Linux
+        # Each with the arguments `a b` and `ñandú`, LUGHA_TEST_WIN=héllo
+        # and its .stdin (else nothing), within a minute, in an empty folder
+        # of its own: exactly its .stdout, its .exit (else 0), and its
+        # .stderr somewhere in stderr. Lockdown reports it isn't applied.
+        working-directory: windows
+        env:
+          LC_ALL: C.UTF-8
+          LUGHA_TEST_WIN: héllo
+        run: |
+          # Some cases exit non-zero on purpose: their code is compared.
+          set +e
+          status=0
+          for expected in *.stdout; do
+            name="${expected%.stdout}"
+            want=0
+            if [ -f "$name.exit" ]; then want=$(cat "$name.exit"); fi
+            input=/dev/null
+            if [ -f "$name.stdin" ]; then input="$PWD/$name.stdin"; fi
+            mkdir "$name.d"
+            (cd "$name.d" && timeout 60 ../"$name.exe" "a b" "ñandú" < "$input" > ../"$name.out" 2> ../"$name.err")
+            got=$?
+            if [ "$got" = "$want" ] && cmp -s "$expected" "$name.out" &&
+               { [ ! -f "$name.stderr" ] || grep -qF -f "$name.stderr" "$name.err"; }; then
+              echo "ok $name"
+            else
+              echo "FAILED $name: exit $got (want $want)"
+              diff -u "$expected" "$name.out" || true
+              cat "$name.err"
+              status=1
+            fi
+          done
+          if LUGHA_LOCKDOWN=report ./hello.exe 2>&1 >/dev/null | grep -q "lockdown: not applied on Windows"; then
+            echo "ok lockdown report"
+          else
+            echo "FAILED lockdown report"
+            status=1
+          fi
+          exit $status
 
   vscode:
     name: VS Code extension

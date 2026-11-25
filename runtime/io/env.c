@@ -15,10 +15,11 @@ int32_t lugha_rt_env(const LughaString *name, LughaArray **out) {
     if (memchr(name->bytes, 0, (size_t)name->len) != NULL) {
         return 0;
     }
-    const char *value = getenv(name->bytes);
+    char *value = os_env(name->bytes);
     if (value == NULL) {
         return 0;
     }
     *out = bytes_of(value, (int64_t)strlen(value));
+    free(value);
     return 1;
 }

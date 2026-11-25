@@ -16,6 +16,7 @@ static int32_t fs_fail(LughaString **error, const char *message) {
 }
 
 /* Whether `path` holds a NUL byte, which would cut it short in C. */
-static bool fs_has_nul(const LughaString *path) {
+/* Unused on Windows, whose parts that call it aren't built yet. */
+__attribute__((unused)) static bool fs_has_nul(const LughaString *path) {
     return memchr(path->bytes, 0, (size_t)path->len) != NULL;
 }

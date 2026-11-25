@@ -44,9 +44,8 @@ static RcChunk *rc_chunk_of(const void *block) {
  * 64 GB down to 1 GB. Without one, every block comes from calloc. */
 static void rc_alloc_start(void) {
     for (size_t size = (size_t)1 << 36; size >= ((size_t)1 << 30); size /= 4) {
-        void *at = mmap(NULL, size + RC_CHUNK, PROT_READ | PROT_WRITE,
-                        MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
-        if (at != MAP_FAILED) {
+        void *at = os_reserve(size + RC_CHUNK);
+        if (at != NULL) {
             // Chunks are aligned to their size, so a block finds its chunk
             // by clearing its low bits.
             rc_region = ((uintptr_t)at + RC_CHUNK - 1) & ~(RC_CHUNK - 1);
@@ -126,6 +125,7 @@ static uintptr_t rc_chunk_take(Worker *w, size_t class) {
     if (chunk >= rc_region_end) {
         return 0;
     }
+    os_commit((void *)chunk, RC_CHUNK);
     RcChunk *head = (RcChunk *)chunk;
     head->class = class;
     head->owner = w;

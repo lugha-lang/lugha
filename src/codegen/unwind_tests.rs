@@ -88,3 +88,16 @@ fn a_struct_result_through_a_pointer_keeps_its_pad() {
         "{main}"
     );
 }
+
+#[test]
+fn windows_names_the_seh_form_of_the_personality() {
+    use super::personality_name;
+    use crate::codegen::Target;
+    assert_eq!(
+        personality_name(Target::X86_64Windows),
+        "__gcc_personality_seh0"
+    );
+    for target in [Target::X86_64Linux, Target::Aarch64MacOs] {
+        assert_eq!(personality_name(target), "__gcc_personality_v0");
+    }
+}

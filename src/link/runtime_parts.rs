@@ -25,6 +25,14 @@ pub const DARWIN_ONLY: [&str; 5] = [
     "os/darwin/lockdown.c",
 ];
 
+/// The parts of [`RUNTIME_PARTS`] only Windows has (`os/windows/`): its
+/// OS layer, its CPU code, and what fails closed until it is built.
+pub const WINDOWS_ONLY: [&str; 3] = [
+    "os/windows/os.c",
+    "os/windows/x86_64.c",
+    "os/windows/missing.c",
+];
+
 /// The system a runtime is joined for: which `os/<system>/` parts it takes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum System {
@@ -32,6 +40,8 @@ pub enum System {
     Linux,
     /// macOS: `os/darwin/`.
     MacOs,
+    /// Windows: `os/windows/`, and none of `os/posix/`.
+    Windows,
 }
 
 impl System {
@@ -39,6 +49,8 @@ impl System {
     pub fn of(triple: &str) -> System {
         if triple.contains("-apple-") {
             System::MacOs
+        } else if triple.contains("-windows") {
+            System::Windows
         } else {
             System::Linux
         }
@@ -49,17 +61,24 @@ impl System {
         match self {
             System::Linux => "os/linux/",
             System::MacOs => "os/darwin/",
+            System::Windows => "os/windows/",
         }
     }
 }
 
-/// The runtime joined for `system`: every shared part, `os/posix/`, and
-/// that system's own; [`RUNTIME_SOURCE`] for Linux.
+/// The runtime joined for `system`: every shared part, `os/posix/` (but
+/// for Windows), and that system's own; [`RUNTIME_SOURCE`] for Linux.
 pub fn runtime_source(system: System) -> std::borrow::Cow<'static, str> {
     if system == System::Linux {
         return std::borrow::Cow::Borrowed(RUNTIME_SOURCE);
     }
-    let others = [System::Linux, System::MacOs].map(System::folder);
+    let mut others = vec![System::Linux, System::MacOs, System::Windows]
+        .into_iter()
+        .map(System::folder)
+        .collect::<Vec<_>>();
+    if system == System::Windows {
+        others.push("os/posix/");
+    }
     let parts = RUNTIME_PARTS.iter().filter(|(name, _)| {
         !others.iter().any(|f| name.starts_with(f)) || name.starts_with(system.folder())
     });
@@ -67,7 +86,9 @@ pub fn runtime_source(system: System) -> std::borrow::Cow<'static, str> {
 }
 
 /// The parts Linux and macOS share but Windows doesn't (`os/posix/`).
-pub const POSIX_ONLY: [&str; 5] = [
+pub const POSIX_ONLY: [&str; 7] = [
+    "os/posix/faults.c",
+    "os/posix/basics.c",
     "os/posix/dir.c",
     "os/posix/dir_names.c",
     "os/posix/process.c",
@@ -77,7 +98,7 @@ pub const POSIX_ONLY: [&str; 5] = [
 
 /// The runtime's source files, in the order they are joined: the core first,
 /// since it holds every `#include`, then the fragments that rely on it.
-pub const RUNTIME_PARTS: [(&str, &str); 60] = [
+pub const RUNTIME_PARTS: [(&str, &str); 64] = [
     (
         "core/lugha_rt.c",
         include_str!("../../runtime/core/lugha_rt.c"),
@@ -93,10 +114,21 @@ pub const RUNTIME_PARTS: [(&str, &str); 60] = [
         include_str!("../../runtime/os/darwin/trust.c"),
     ),
     (
+        "os/windows/os.c",
+        include_str!("../../runtime/os/windows/os.c"),
+    ),
+    (
         "tasks/rt_lock.c",
         include_str!("../../runtime/tasks/rt_lock.c"),
     ),
-    ("tasks/stack.c", include_str!("../../runtime/tasks/stack.c")),
+    (
+        "os/posix/faults.c",
+        include_str!("../../runtime/os/posix/faults.c"),
+    ),
+    (
+        "os/posix/basics.c",
+        include_str!("../../runtime/os/posix/basics.c"),
+    ),
     ("io/helpers.c", include_str!("../../runtime/io/helpers.c")),
     ("text/print.c", include_str!("../../runtime/text/print.c")),
     ("text/input.c", include_str!("../../runtime/text/input.c")),
@@ -158,6 +190,10 @@ pub const RUNTIME_PARTS: [(&str, &str); 60] = [
     (
         "os/darwin/aarch64.c",
         include_str!("../../runtime/os/darwin/aarch64.c"),
+    ),
+    (
+        "os/windows/x86_64.c",
+        include_str!("../../runtime/os/windows/x86_64.c"),
     ),
     ("tasks/runq.c", include_str!("../../runtime/tasks/runq.c")),
     (
@@ -246,171 +282,10 @@ pub const RUNTIME_PARTS: [(&str, &str); 60] = [
         "os/posix/udp_options.c",
         include_str!("../../runtime/os/posix/udp_options.c"),
     ),
-];
-
-/// Every runtime function codegen may call; `lugha_rt.c` defines them all.
-pub const RUNTIME_SYMBOLS: [&str; 161] = [
-    "lugha_rt_init",
-    "lugha_rt_task_go",
-    "lugha_rt_print_begin",
-    "lugha_rt_print_end",
-    "lugha_rt_rc_freeze_start",
-    "lugha_rt_rc_freeze_end",
-    "lugha_rt_main",
-    "lugha_rt_c_call",
-    "lugha_rt_c_blocking",
-    "lugha_rt_cb_enter",
-    "lugha_rt_stack_low",
-    "lugha_rt_read_line",
-    "lugha_rt_eprint",
-    "lugha_rt_exit",
-    "lugha_rt_str_slice",
-    "lugha_rt_args",
-    "lugha_rt_parse_f64",
-    "lugha_rt_alloc",
-    "lugha_rt_panic",
-    "lugha_rt_panic_bounds",
-    "lugha_rt_str_concat",
-    "lugha_rt_str_eq",
-    "lugha_rt_str_cmp",
-    "lugha_rt_array_grow",
-    "lugha_rt_print_i32",
-    "lugha_rt_print_i64",
-    "lugha_rt_print_u8",
-    "lugha_rt_print_f64",
-    "lugha_rt_print_u64",
-    "lugha_rt_print_f32",
-    "lugha_rt_print_bool",
-    "lugha_rt_print_str",
-    "lugha_rt_str_quote",
-    "lugha_rt_fmt_int",
-    "lugha_rt_fmt_float",
-    "lugha_rt_pad",
-    "lugha_rt_read_stdin_bytes",
-    "lugha_rt_str_to_bytes",
-    "lugha_rt_str_from_bytes",
-    "lugha_rt_env",
-    "lugha_rt_spawn",
-    "lugha_rt_show_enter",
-    "lugha_rt_show_leave",
-    "lugha_rt_print_char",
-    "lugha_rt_to_string_char",
-    "lugha_rt_char_quote",
-    "lugha_rt_print_newline",
-    "lugha_rt_to_string_i32",
-    "lugha_rt_to_string_i64",
-    "lugha_rt_to_string_u8",
-    "lugha_rt_to_string_f64",
-    "lugha_rt_to_string_u64",
-    "lugha_rt_to_string_f32",
-    "lugha_rt_to_string_bool",
-    "lugha_rt_os_seed",
-    "lugha_rt_now_ms",
-    "lugha_rt_wall_ms",
-    "lugha_rt_local_offset",
-    "lugha_rt_flush",
-    "lugha_rt_test_is",
-    "lugha_rt_test_unknown",
-    "lugha_rt_test_skip",
-    "lugha_rt_cb_pin",
-    "lugha_rt_cb_release",
-    "lugha_rt_str_from_c",
-    "lugha_rt_task_spawn",
-    "lugha_rt_task_join",
-    "lugha_rt_task_yield",
-    "lugha_rt_task_sleep",
-    "lugha_rt_task_preempt",
-    "lugha_rt_task_select",
-    "lugha_rt_chan_new",
-    "lugha_rt_ring_new",
-    "lugha_rt_ring_try_send",
-    "lugha_rt_chan_send",
-    "lugha_rt_chan_recv",
-    "lugha_rt_chan_try_recv",
-    "lugha_rt_chan_try_send",
-    "lugha_rt_chan_unbounded",
-    "lugha_rt_chan_close",
-    "lugha_rt_chan_end",
-    "lugha_rt_actor_new",
-    "lugha_rt_actor_run",
-    "lugha_rt_actor_started",
-    "lugha_rt_actor_call",
-    "lugha_rt_actor_cast",
-    "lugha_rt_actor_stop",
-    "lugha_rt_net_listen",
-    "lugha_rt_net_connect",
-    "lugha_rt_net_resolve",
-    "lugha_rt_net_private",
-    "lugha_rt_udp_bind",
-    "lugha_rt_udp_send",
-    "lugha_rt_udp_recv",
-    "lugha_rt_udp_group",
-    "lugha_rt_udp_option",
-    "lugha_rt_udp_multicast_if",
-    "lugha_rt_net_interfaces",
-    "lugha_rt_net_accept",
-    "lugha_rt_net_read",
-    "lugha_rt_net_write",
-    "lugha_rt_net_close",
-    "lugha_rt_net_name",
-    "lugha_rt_file_read",
-    "lugha_rt_file_write",
-    "lugha_rt_file_close",
-    "lugha_rt_dir_cwd",
-    "lugha_rt_dir_open",
-    "lugha_rt_dir_sub",
-    "lugha_rt_dir_read_bytes",
-    "lugha_rt_dir_read_text",
-    "lugha_rt_dir_write",
-    "lugha_rt_dir_list",
-    "lugha_rt_dir_make",
-    "lugha_rt_dir_remove",
-    "lugha_rt_dir_rename",
-    "lugha_rt_dir_kind",
-    "lugha_rt_dir_size",
-    "lugha_rt_dir_chmod",
-    "lugha_rt_dir_sync",
-    "lugha_rt_dir_file",
-    "lugha_rt_dir_path",
-    "lugha_rt_lockdown",
-    "lugha_rt_unwound_to_c",
-    "lugha_rt_scope_enter",
-    "lugha_rt_pin_here",
-    "lugha_rt_cb_leave",
-    "lugha_rt_cb_hold",
-    "lugha_rt_cb_queue",
-    "lugha_rt_cb_task_panicked",
-    "lugha_rt_cb_caught",
-    "lugha_rt_cb_run",
-    "lugha_rt_scope_root",
-    "lugha_rt_task_spawn_in",
-    "lugha_rt_scope_end",
-    "lugha_rt_scope_leave",
-    "lugha_rt_scope_caught",
-    "lugha_rt_scope_exit",
-    "lugha_rt_task_failed",
-    "lugha_rt_cancel_point",
-    "lugha_rt_task_join_status",
-    "lugha_rt_task_cancel",
-    "lugha_rt_task_name",
-    "lugha_rt_scope_root_finish",
-    "lugha_rt_scope_root_unwound",
-    "lugha_rt_cell_new",
-    "lugha_rt_cell_get",
-    "lugha_rt_cell_set",
-    "lugha_rt_cell_bytes",
-    "lugha_rt_cell_set_bytes",
-    "lugha_rt_task_policy",
-    "lugha_rt_task_handler",
-    "lugha_rt_task_own_name",
-    "lugha_rt_task_caught",
-    "lugha_rt_task_panicked",
-    "lugha_rt_scope_remaining",
-    "lugha_rt_shield_enter",
-    "lugha_rt_shield_exit",
-    "lugha_rt_shield_caught",
-    "lugha_rt_shield_lost",
-    "lugha_rt_shield_end",
+    (
+        "os/windows/missing.c",
+        include_str!("../../runtime/os/windows/missing.c"),
+    ),
 ];
 
 /// The C runtime for Linux: [`RUNTIME_PARTS`] but macOS's joined in order,
@@ -420,7 +295,8 @@ pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/os/layer.c"),
     include_str!("../../runtime/os/linux/os.c"),
     include_str!("../../runtime/tasks/rt_lock.c"),
-    include_str!("../../runtime/tasks/stack.c"),
+    include_str!("../../runtime/os/posix/faults.c"),
+    include_str!("../../runtime/os/posix/basics.c"),
     include_str!("../../runtime/io/helpers.c"),
     include_str!("../../runtime/text/print.c"),
     include_str!("../../runtime/text/input.c"),

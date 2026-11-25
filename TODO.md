@@ -47,7 +47,7 @@ Done: portable x86-64 binaries (`--cpu`), `$LUGHA_CC`, Linux on ARM64 with AAPCS
 - Step 3 (C1) is done: the OS layer and the runtime's folders (milestone 249), sockets at the operation level (milestone 250).
 - [ ] **C2 — Mac runtime, the rest** (hello world runs: milestone 251; helper threads, pipes, signals and limits checked against XNU: milestone 253; folders confined: milestone 254; lockdown, sockets and processes: milestone 255; the program suite on CI's Mac: milestone 256): Intel Macs (`os/darwin/x86_64.c`), and last, `run`/`test` for a Mac target (lughac itself on a Mac). TLS and crypto for a Mac build: milestone 257; certificates checked by the Mac's own verifier: milestone 258.
 - [ ] **C3 — Mac calling rules and linking:** Apple's AArch64 differences (variadics), Mach-O, signing; built and tested on a Mac runner.
-- [ ] **D1–D3 — Windows:** runtime (files, processes, env, stack overflow), sockets, Windows x64 calling rules, `.exe` linking with MinGW first. Large.
+- [ ] **D1–D3 — Windows, the rest** (hello world, the console, arguments, environment, tasks, panics and stack overflow on x86-64: milestone 259): folders confined (`Dir`, with security review), sockets through the completion port, processes (`CreateProcessW`, with security review), lockdown (job objects and mitigation policies, with security review), Windows x64's rules for `extern struct`s by value (lifting E0337), the whole program suite on CI's Windows runner, then ARM64 Windows.
 - [ ] **E — WebAssembly (wasm32-wasi):** decisions first (tasks with no threads, or none; which capabilities and std modules exist). Large.
 
 ## Compiler internals

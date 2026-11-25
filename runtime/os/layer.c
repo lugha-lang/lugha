@@ -10,7 +10,8 @@
  * Waiting on a word is how workers park and the runtime's locks wait.
  *
  * A fragment, not compiled on its own: joined right after the core, before
- * the system's own file.
+ * the system's own file. The declarations only POSIX systems implement
+ * (os/posix/'s helpers) are left out of a Windows build.
  */
 
 /* The operating-system layer (os/<system>.c): every event, wake-up,
@@ -43,6 +44,58 @@ static void os_wake_on(uint32_t *word, int n);
 static int os_cpus(void);
 static bool os_random64(uint64_t *out);
 static bool os_thread_stack(void **base, size_t *size);
+
+/* Memory. `os_reserve`: `size` bytes of address space with no memory
+ * behind them yet, or NULL; `os_commit` makes part of it usable (POSIX
+ * systems back pages as they are touched, so it does nothing there).
+ * A task's stack: `os_stack_ready` makes a carved or trimmed stack ready
+ * to run on; `os_stack_trim` gives a waiting stack's pages back;
+ * `os_stack_guard` makes its lowest `guard` bytes fault, for C, which has
+ * no entry checks, and `os_stack_unguard` undoes it (false on failure). */
+static void *os_reserve(size_t size);
+static void os_commit(void *at, size_t size);
+static void os_stack_ready(char *stack, size_t size);
+static void os_stack_trim(char *stack, size_t size);
+static bool os_stack_guard(char *stack, size_t guard);
+static bool os_stack_unguard(char *stack, size_t guard);
+
+/* Faults and Ctrl-C. `os_faults_install`: a C stack's overflow reported
+ * as `panic: stack overflow`, as the program starts; `os_thread_faults`
+ * readies a worker thread for it. `os_interrupts_install`: `on` called at
+ * each Ctrl-C (in a signal handler or a thread of the system's: it may
+ * only count and wake). `os_worker_signals`: a worker thread leaves Ctrl-C
+ * to the main thread. `os_thread_start`: a helper thread started with
+ * every signal blocked; pthread_create's result. */
+static void os_faults_install(void);
+static void os_thread_faults(void);
+static void os_interrupts_install(void (*on)(void));
+static void os_worker_signals(void);
+static int os_thread_start(pthread_t *thread, const pthread_attr_t *attr, void *(*run)(void *),
+                           void *arg);
+
+/* The standard streams. `os_write`: `len` bytes of text to `f` (stdout or
+ * stderr), as a console shows UTF-8 where it is one. `os_read_line`: the
+ * next line of `f` with its `\n`, as `getline`. `os_stream_lock` and
+ * `os_stream_unlock`: a stream's own lock, which nests. `os_std_streams_open`:
+ * a stream the program was started without opened onto nothing, as it
+ * starts. `os_dup`: a copy of a descriptor, -1 and `errno` on failure. */
+static void os_write(FILE *f, const char *text, size_t len);
+static int64_t os_read_line(FILE *f, char **line, size_t *cap);
+static void os_stream_lock(FILE *f);
+static void os_stream_unlock(FILE *f);
+static void os_std_streams_open(void);
+static int os_dup(int fd);
+
+/* The program's arguments and environment as UTF-8. `os_args`: C's
+ * `argc` and `argv`, replaced where the system gives them another way.
+ * `os_env`: a variable's value as a copy from `malloc` the caller frees,
+ * or NULL when it is unset. */
+static void os_args(int32_t *argc, char ***argv);
+static char *os_env(const char *name);
+
+/* The system zone's offset from UTC at `seconds` since 1970, in seconds
+ * east, daylight saving included; false for a moment it can't give. */
+static bool os_local_offset(int64_t seconds, int64_t *out);
 
 /* `OS_TLS_TRUST`: 1 where the system's own verifier decides whether a TLS
  * client trusts a server, through `os_tls_trust` (os/darwin/trust.c); 0
@@ -85,6 +138,21 @@ static int64_t os_sock_name(OsSocket s, bool peer, struct sockaddr_storage *at, 
                             const char **message);
 static void os_sock_close(OsSocket s);
 
+/* A descriptor a helper writes to: a write to a pipe whose reader is gone
+ * is `EPIPE` through it, never SIGPIPE ending the program. Linux sends
+ * SIGPIPE to the writing thread, and a helper blocks it, so nothing is
+ * needed there; macOS sends it to the process, which delivers it to a
+ * thread that doesn't block it. */
+static void os_no_sigpipe(int fd);
+
+/* What a system sets up once, as the program starts. */
+static void os_start(void);
+
+#if !defined(_WIN32)
+/* 64 random bits from `/dev/urandom` (os/posix/basics.c), for a system
+ * whose own call failed. */
+static bool posix_urandom64(uint64_t *out);
+
 /* What a POSIX system's own file gives os/posix/: a non-blocking,
  * close-on-exec socket and accepted connection, and a socket hearing only
  * the multicast groups it joined; with the flag `OS_SEND_FLAGS` (a closed
@@ -101,16 +169,6 @@ static bool os_udp_own_groups(int s, int family);
  * stdin, stdout and stderr, as extra `posix_spawnattr` flags. */
 static int os_pipe(int fds[2]);
 static short os_spawn_prepare(posix_spawn_file_actions_t *actions, bool share);
-
-/* A descriptor a helper writes to: a write to a pipe whose reader is gone
- * is `EPIPE` through it, never SIGPIPE ending the program. Linux sends
- * SIGPIPE to the writing thread, and a helper blocks it, so nothing is
- * needed there; macOS sends it to the process, which delivers it to a
- * thread that doesn't block it. */
-static void os_no_sigpipe(int fd);
-
-/* What a system sets up once, as the program starts. */
-static void os_start(void);
 
 /* Sets the length byte a system's socket addresses carry (macOS's
  * `sa_len`), `len` the address's size; nothing where they carry none. */
@@ -134,3 +192,4 @@ static int os_dir_stat(int dirfd, const char *path, struct stat *st);
 static int os_dir_chmod(int dirfd, const char *path, mode_t mode);
 static ssize_t os_dir_where(int fd, char *buf, size_t len);
 static const char *os_dir_message(int code);
+#endif

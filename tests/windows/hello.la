@@ -1,0 +1,4 @@
+// Run on Windows by CI, and under Wine by tests/windows.rs: printing works.
+fun main(console: Console) {
+    console.println("hi");
+}

@@ -31,6 +31,8 @@ pub fn zig_triple(triple: &str) -> Option<&'static str> {
         "aarch64-unknown-linux-musl" => Some("aarch64-linux-musl"),
         // macOS 14.4, Sonoma's: `os_sync_wait_on_address` came with it.
         "aarch64-apple-darwin" => Some("aarch64-macos.14.4-none"),
+        // MinGW's headers and import libraries, Windows' own C runtime (UCRT).
+        "x86_64-pc-windows-gnu" => Some("x86_64-windows-gnu"),
         _ => None,
     }
 }
@@ -39,7 +41,9 @@ pub fn zig_triple(triple: &str) -> Option<&'static str> {
 /// unwinder, since zig links none for C programs on Linux and panics
 /// unwind, and `-static` for musl, whose executables need nothing
 /// installed. macOS needs neither: libSystem has the unwinder, and macOS
-/// has no static executables.
+/// has no static executables. Windows also needs the import libraries of
+/// `WaitOnAddress` (an API set), `ProcessPrng` and Winsock (name lookups),
+/// which MinGW doesn't link by default.
 pub fn link_args(triple: &str) -> Vec<OsString> {
     if triple.contains("-apple-") {
         return Vec::new();
@@ -47,6 +51,11 @@ pub fn link_args(triple: &str) -> Vec<OsString> {
     let mut args = vec![OsString::from("-lunwind")];
     if triple.ends_with("-musl") {
         args.push(OsString::from("-static"));
+    }
+    if triple.contains("-windows") {
+        args.push(OsString::from("-lapi-ms-win-core-synch-l1-2-0"));
+        args.push(OsString::from("-lbcryptprimitives"));
+        args.push(OsString::from("-lws2_32"));
     }
     args
 }
@@ -106,11 +115,12 @@ mod tests {
             ("x86_64-unknown-linux-musl", "x86_64-linux-musl"),
             ("aarch64-unknown-linux-musl", "aarch64-linux-musl"),
             ("aarch64-apple-darwin", "aarch64-macos.14.4-none"),
+            ("x86_64-pc-windows-gnu", "x86_64-windows-gnu"),
         ];
         for (llvm, zig) in table {
             assert_eq!(zig_triple(llvm), Some(zig), "{llvm}");
         }
-        assert_eq!(zig_triple("x86_64-pc-windows-gnu"), None);
+        assert_eq!(zig_triple("aarch64-pc-windows-gnu"), None);
     }
 
     #[test]
@@ -129,6 +139,15 @@ mod tests {
         assert!(
             strings("aarch64-apple-darwin").is_empty(),
             "libSystem unwinds"
+        );
+        assert_eq!(
+            strings("x86_64-pc-windows-gnu"),
+            [
+                "-lunwind",
+                "-lapi-ms-win-core-synch-l1-2-0",
+                "-lbcryptprimitives",
+                "-lws2_32"
+            ]
         );
     }
 

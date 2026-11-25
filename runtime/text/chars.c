@@ -28,7 +28,7 @@ static int utf8_encode(uint32_t code, char *out) {
 
 void lugha_rt_print_char(uint32_t code) {
     char text[4];
-    fwrite(text, 1, (size_t)utf8_encode(code, text), stdout);
+    os_write(stdout, text, (size_t)utf8_encode(code, text));
 }
 
 LughaString *lugha_rt_to_string_char(uint32_t code) {

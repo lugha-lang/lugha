@@ -31,6 +31,20 @@ pub(super) const PAD_KIND: &str = "lugha.unwind";
 /// for frames that only clean up.
 const PERSONALITY: &str = "__gcc_personality_v0";
 
+/// [`PERSONALITY`] on Windows, where LLVM names the personality as each
+/// function's SEH handler: the form Windows calls, which hands the frame to
+/// the same C personality.
+const PERSONALITY_SEH: &str = "__gcc_personality_seh0";
+
+/// The personality a function built for `target` names.
+pub(super) fn personality_name(target: super::Target) -> &'static str {
+    if target.is_windows() {
+        PERSONALITY_SEH
+    } else {
+        PERSONALITY
+    }
+}
+
 /// Where a statement starts, naming its cleanup.
 pub(super) type Start<'ctx> = (BasicBlock<'ctx>, Option<InstructionValue<'ctx>>);
 
@@ -380,10 +394,10 @@ impl<'ctx> Lowerer<'ctx> {
 
     /// `__gcc_personality_v0`, declared once.
     pub(super) fn personality(&self) -> FunctionValue<'ctx> {
-        self.module.get_function(PERSONALITY).unwrap_or_else(|| {
+        let name = personality_name(self.target);
+        self.module.get_function(name).unwrap_or_else(|| {
             let ty = self.context.i32_type().fn_type(&[], true);
-            self.module
-                .add_function(PERSONALITY, ty, Some(Linkage::External))
+            self.module.add_function(name, ty, Some(Linkage::External))
         })
     }
 }
