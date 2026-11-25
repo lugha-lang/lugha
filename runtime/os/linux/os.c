@@ -142,8 +142,8 @@ static int os_cpus(void) {
     return n > 0 ? (int)n : 1;
 }
 
-/* OpenSSL's defaults are where Linux keeps its roots. */
-#define OS_TLS_ROOTS_FILE NULL
+/* A TLS client trusts OpenSSL's roots, which are where Linux keeps them. */
+#define OS_TLS_TRUST 0
 
 /* 64 random bits from the kernel into `out`; false if it has none to give. */
 static bool os_random64(uint64_t *out) {

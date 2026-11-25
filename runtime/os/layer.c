@@ -44,9 +44,11 @@ static int os_cpus(void);
 static bool os_random64(uint64_t *out);
 static bool os_thread_stack(void **base, size_t *size);
 
-/* `OS_TLS_ROOTS_FILE`: a file of trusted roots a TLS client loads besides
- * OpenSSL's defaults, or NULL. Each system defines it: an OpenSSL built
- * for a system needn't know where that system keeps its roots. */
+/* `OS_TLS_TRUST`: 1 where the system's own verifier decides whether a TLS
+ * client trusts a server, through `os_tls_trust` (os/darwin/trust.c); 0
+ * where OpenSSL checks against the system's roots. Each system defines it:
+ * an OpenSSL built for a system needn't know where that system keeps its
+ * roots, or which it has stopped trusting. */
 
 /* Sockets, at the level of operations: each call opens, connects, accepts,
  * receives or sends, waiting as a task does (parking the task, never the

@@ -1,0 +1,7 @@
+x
+x
+certificate verify failed: unable to get local issuer certificate
+certificate verify failed: self-signed certificate
+x
+certificate verify failed: certificate has expired
+certificate verify failed: IP address mismatch

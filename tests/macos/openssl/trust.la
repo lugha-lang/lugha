@@ -1,0 +1,60 @@
+// Run on a Mac by CI, in a folder holding what tests/macos/certs.sh makes:
+// the system's verifier decides, with the program's own CA added to the
+// system's roots, and each refusal reads as it does on Linux.
+import std.tls;
+
+/** A PEM file's text, empty when it can't be read. */
+fun pem(fs: Fs, name: string): string = fs.cwd().read_file(name).unwrap_or("");
+
+fun serve(l: tls.SecureListener) {
+    while true {
+        match l.accept() {
+            .Ok(conn) => {
+                if let .Ok(got) = conn.read(100) {
+                    let _ = conn.write(got);
+                }
+                conn.close();
+            }
+            .Err(_) => {}
+        }
+    }
+}
+
+fun trusting(fs: Fs, file: string): tls.Options = tls.Options {
+    ca_pem: pem(fs, file),
+    ..tls.options(),
+};
+
+fun try(net: Net, console: Console, addr: string, opts: tls.Options) {
+    match tls.connect_with(net, addr, opts) {
+        .Ok(c) => {
+            c.write("x".to_bytes()).unwrap();
+            console.println(string_from_utf8(c.read(10).unwrap()).unwrap());
+            c.close();
+        }
+        .Err(e) => console.println(e),
+    }
+}
+
+fun listening(s: Scope, fs: Fs, net: Net, cert: string, key: string): string {
+    let l = tls.listen(net, "127.0.0.1:0", pem(fs, cert), pem(fs, key)).unwrap();
+    let addr = l.addr();
+    s.spawn(serve(l));
+    addr
+}
+
+fun main(console: Console, net: Net, fs: Fs) {
+    let servers = scope s {
+        let good = listening(s, fs, net, "cert.pem", "key.pem");
+        try(net, console, good, trusting(fs, "ca.pem"));
+        let port = good.split(":")[1];
+        try(net, console, "localhost:{port}", trusting(fs, "ca.pem"));
+        try(net, console, good, tls.options());
+        try(net, console, listening(s, fs, net, "self.pem", "self.key"), trusting(fs, "ca.pem"));
+        try(net, console, listening(s, fs, net, "self.pem", "self.key"), trusting(fs, "self.pem"));
+        try(net, console, listening(s, fs, net, "old.pem", "key.pem"), trusting(fs, "ca.pem"));
+        try(net, console, listening(s, fs, net, "other.pem", "key.pem"), trusting(fs, "ca.pem"));
+        // Leaving early cancels the servers, which never end.
+        return;
+    };
+}

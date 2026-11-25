@@ -13,10 +13,12 @@ use super::object_cache::Cache;
 use super::openssl::Folder;
 use crate::span::Span;
 
-/// `runtime/openssl/tls.c` and `openssl/tls_keys.c` (connections by key):
+/// `runtime/openssl/tls.c`, `openssl/tls_trust.c` (the system's verifier)
+/// and `openssl/tls_keys.c` (connections by key):
 /// `std.tls` over OpenSSL, only for programs that use it.
 pub const TLS_SOURCE: &str = concat!(
     include_str!("../../runtime/openssl/tls.c"),
+    include_str!("../../runtime/openssl/tls_trust.c"),
     include_str!("../../runtime/openssl/tls_keys.c")
 );
 
@@ -232,6 +234,8 @@ mod tests {
         assert!(!read(false, false).contains("openssl"));
         let tls = read(true, false);
         assert!(tls.contains("#include <openssl/ssl.h>") && !tls.contains("openssl/hpke.h"));
+        // The system's verifier is joined with TLS, and only a Mac asks it.
+        assert!(tls.contains("tls_trust_verify") && tls.contains("#define OS_TLS_TRUST 0"));
         let crypto = read(false, true);
         assert!(crypto.contains("#include <openssl/hpke.h>") && !crypto.contains("openssl/ssl.h"));
     }

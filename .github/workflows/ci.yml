@@ -105,6 +105,8 @@ jobs:
             target/debug/lughac build "$f" --target aarch64-apple-darwin -o "macos/$name"
             cp "${f%.la}.stdout" "macos/$name.stdout"
           done
+          # trust.la's certificates, made fresh here: no key is committed.
+          sh tests/macos/certs.sh macos/trust.certs
 
       - name: Build the program suite for a Mac
         # Every run case in tests/programs/, a folder each, for
@@ -189,7 +191,8 @@ jobs:
       - name: Run the programs built on Linux
         # Each prints exactly its .stdout within a minute (macOS has no
         # `timeout`: perl's alarm ends a hung one), in an empty folder of
-        # its own, since some make files; `start` again with stdin closed;
+        # its own, since some make files (with the certificates the build
+        # made for it, if any); `start` again with stdin closed;
         # lockdown reports what it applied.
         working-directory: macos
         run: |
@@ -199,6 +202,7 @@ jobs:
             exe="${expected%.stdout}"
             chmod +x "$exe"
             mkdir "$exe.d"
+            if [ -d "$exe.certs" ]; then cp "$exe.certs"/* "$exe.d"/; fi
             if (cd "$exe.d" && limit ../"$exe" > ../"$exe.out") && diff -u "$expected" "$exe.out"; then
               echo "ok $exe"
             else

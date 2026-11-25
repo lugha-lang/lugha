@@ -17,8 +17,9 @@ pub const LINUX_ONLY: [&str; 5] = [
 
 /// The parts of [`RUNTIME_PARTS`] only macOS has (`os/darwin/`), each
 /// joined where its Linux counterpart is.
-pub const DARWIN_ONLY: [&str; 4] = [
+pub const DARWIN_ONLY: [&str; 5] = [
     "os/darwin/os.c",
+    "os/darwin/trust.c",
     "os/darwin/aarch64.c",
     "os/darwin/dir_resolve.c",
     "os/darwin/lockdown.c",
@@ -76,7 +77,7 @@ pub const POSIX_ONLY: [&str; 5] = [
 
 /// The runtime's source files, in the order they are joined: the core first,
 /// since it holds every `#include`, then the fragments that rely on it.
-pub const RUNTIME_PARTS: [(&str, &str); 59] = [
+pub const RUNTIME_PARTS: [(&str, &str); 60] = [
     (
         "core/lugha_rt.c",
         include_str!("../../runtime/core/lugha_rt.c"),
@@ -86,6 +87,10 @@ pub const RUNTIME_PARTS: [(&str, &str); 59] = [
     (
         "os/darwin/os.c",
         include_str!("../../runtime/os/darwin/os.c"),
+    ),
+    (
+        "os/darwin/trust.c",
+        include_str!("../../runtime/os/darwin/trust.c"),
     ),
     (
         "tasks/rt_lock.c",

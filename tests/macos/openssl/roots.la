@@ -1,5 +1,5 @@
-// Run on a Mac by CI: a connection to a public host is verified against
-// the roots macOS ships, with no certificate of the program's own, and an
+// Run on a Mac by CI: a connection to a public host is verified by the
+// system's own verifier, with no certificate of the program's own, and an
 // HTTPS request, through the same OpenSSL, gets an answer.
 import std.tls;
 import std.http;

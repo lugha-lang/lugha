@@ -11,7 +11,8 @@
  * gives, a fake one included. One `tls_step` is one OpenSSL call.
  *
  * Certificates are always verified: the chain against the system's roots
- * (plus certificates the program passes as PEM text) and the host name. TLS
+ * (plus certificates the program passes as PEM text) and the host name; by
+ * the system's own verifier where it has one (tls_trust.c). TLS
  * 1.2 is the oldest version spoken. Connections by key (tls_keys.c) verify
  * the peer's raw public key against a list instead, over TLS 1.3 only.
  *
@@ -42,6 +43,14 @@ __attribute__((constructor)) static void tls_openssl_start(void) {
  * about one record long between drains. */
 enum { TLS_RECORD = 16384, TLS_MAX_PEM = 16 * 1024 * 1024 };
 
+/* Certificates as DER, each after its 4-byte big-endian length, for the
+ * system's verifier: `n` of them in `len` bytes from `malloc`. */
+typedef struct {
+    unsigned char *bytes;
+    size_t len;
+    int n;
+} TrustBytes;
+
 /* A context: certificates or keys, shared by the connections made from it. */
 typedef struct {
     SSL_CTX *ctx;
@@ -50,7 +59,12 @@ typedef struct {
     int by_key;
     EVP_PKEY **keys;
     int64_t nkeys;
+    /* The program's extra roots, for the system's verifier. */
+    TrustBytes anchors;
 } TlsContext;
+
+/* `TlsConn.trust` before the system's verifier was asked. */
+enum { TRUST_UNASKED = -2 };
 
 typedef struct {
     SSL *ssl;
@@ -59,6 +73,13 @@ typedef struct {
     BIO *out;
     /* 1 for a connection by key: a failed check names the key, not a certificate. */
     int by_key;
+    /* For the system's verifier: the name or address the server must
+     * show, the context's extra roots (a copy), the chain the server sent,
+     * and the verifier's answer (`TRUST_UNASKED` before). */
+    char *host;
+    TrustBytes anchors;
+    TrustBytes chain;
+    int trust;
 } TlsConn;
 
 /* `(status, bytes)`, as Lugha's `(i64, u8[])`: 1 done (a read's bytes), 0
@@ -69,6 +90,12 @@ typedef struct {
 } TlsStep;
 
 static int tls_expect(SSL *ssl, EVP_PKEY **keys, int64_t n);
+#if OS_TLS_TRUST
+static bool trust_put(TrustBytes *b, X509 *x);
+static void trust_clear(TrustBytes *b);
+static void tls_trust_ask(TlsConn *c);
+static int tls_trust_verify(X509_STORE_CTX *x, void *arg);
+#endif
 static void tls_free_keys(EVP_PKEY **keys, int64_t n);
 
 /* OpenSSL's reason for the last failure, or `fallback`. */
@@ -116,6 +143,7 @@ static TlsContext *tls_context_of(SSL_CTX *ctx, int server) {
     t->by_key = 0;
     t->keys = NULL;
     t->nkeys = 0;
+    t->anchors = (TrustBytes){0};
     return t;
 }
 
@@ -132,12 +160,20 @@ int32_t lugha_rt_tls_client_context(const LughaString *ca_pem, int64_t *handle,
     SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
     /* A peer closing without close_notify reads as the end of the stream. */
     SSL_CTX_set_options(ctx, SSL_OP_IGNORE_UNEXPECTED_EOF);
-    const char *roots = OS_TLS_ROOTS_FILE;
-    if (SSL_CTX_set_default_verify_paths(ctx) != 1 ||
-        (roots != NULL && SSL_CTX_load_verify_file(ctx, roots) != 1)) {
+    TrustBytes anchors = {0};
+#if OS_TLS_TRUST
+    // No fallback to a file of roots: without the verifier, nothing is trusted.
+    if (!os_tls_trust_ready()) {
         SSL_CTX_free(ctx);
         return tls_error(error, "can't load trusted certificates");
     }
+    SSL_CTX_set_cert_verify_callback(ctx, tls_trust_verify, NULL);
+#else
+    if (SSL_CTX_set_default_verify_paths(ctx) != 1) {
+        SSL_CTX_free(ctx);
+        return tls_error(error, "can't load trusted certificates");
+    }
+#endif
     if (ca_pem->len > 0) {
         BIO *b = tls_pem(ca_pem);
         X509_STORE *store = SSL_CTX_get_cert_store(ctx);
@@ -146,18 +182,24 @@ int32_t lugha_rt_tls_client_context(const LughaString *ca_pem, int64_t *handle,
         X509 *x;
         while (ok && (x = PEM_read_bio_X509(b, NULL, tls_no_passphrase, NULL)) != NULL) {
             ok = X509_STORE_add_cert(store, x) == 1;
+#if OS_TLS_TRUST
+            ok = ok && trust_put(&anchors, x);
+#endif
             X509_free(x);
             added++;
         }
         BIO_free(b);
         if (!ok || added == 0) {
+            free(anchors.bytes);
             SSL_CTX_free(ctx);
             return tls_error(error, "can't load trusted certificates");
         }
         // The read past the last certificate leaves "no start line" queued.
         ERR_clear_error();
     }
-    *handle = (int64_t)(intptr_t)tls_context_of(ctx, 0);
+    TlsContext *t = tls_context_of(ctx, 0);
+    t->anchors = anchors;
+    *handle = (int64_t)(intptr_t)t;
     return 1;
 }
 
@@ -207,6 +249,7 @@ void lugha_rt_tls_free_context(int64_t context) {
     TlsContext *t = (TlsContext *)(intptr_t)context;
     SSL_CTX_free(t->ctx);
     tls_free_keys(t->keys, t->nkeys);
+    free(t->anchors.bytes);
     free(t);
 }
 
@@ -265,6 +308,19 @@ int32_t lugha_rt_tls_new(int64_t context, const LughaString *host, int64_t *hand
     c->in = in;
     c->out = out;
     c->by_key = t->by_key;
+    c->host = strdup(name);
+    c->anchors = t->anchors;
+    c->anchors.bytes = malloc(t->anchors.len > 0 ? t->anchors.len : 1);
+    if (c->host == NULL || c->anchors.bytes == NULL) {
+        die("panic: out of memory\n");
+    }
+    if (t->anchors.len > 0) {
+        memcpy(c->anchors.bytes, t->anchors.bytes, t->anchors.len);
+    }
+    c->chain = (TrustBytes){0};
+    c->trust = TRUST_UNASKED;
+    // The verify callback finds the connection through its `SSL`.
+    SSL_set_app_data(ssl, c);
     *handle = (int64_t)(intptr_t)c;
     return 1;
 }
@@ -310,6 +366,14 @@ int32_t lugha_rt_tls_step(int64_t conn, int64_t op, const LughaArray *data, int6
     int r;
     if (op == 0) {
         r = SSL_do_handshake(c->ssl);
+#if OS_TLS_TRUST
+        // Paused for the system's verifier: asked between OpenSSL calls.
+        if (r <= 0 && SSL_get_error(c->ssl, r) == SSL_ERROR_WANT_RETRY_VERIFY) {
+            tls_trust_ask(c);
+            ERR_clear_error();
+            r = SSL_do_handshake(c->ssl);
+        }
+#endif
     } else if (op == 1) {
         buffer = lugha_rt_alloc(max);
         r = SSL_read(c->ssl, buffer, (int)max);
@@ -385,5 +449,8 @@ void lugha_rt_tls_free(int64_t conn) {
     TlsConn *c = (TlsConn *)(intptr_t)conn;
     SSL_free(c->ssl);
     ERR_clear_error();
+    free(c->host);
+    free(c->anchors.bytes);
+    free(c->chain.bytes);
     free(c);
 }
