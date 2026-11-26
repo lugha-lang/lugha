@@ -69,6 +69,8 @@ static const char *win_sock_message(int err) {
         return "Too many open files";
     case WSAEINVAL:
         return "Invalid argument";
+    case WSA_OPERATION_ABORTED:
+        return "Operation canceled";
     case WSAENOPROTOOPT:
         return "Protocol not available";
     case WSAEPROTOTYPE:

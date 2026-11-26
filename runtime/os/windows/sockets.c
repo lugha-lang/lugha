@@ -60,10 +60,20 @@ static bool win_io_refused(int got) {
     return got != 0 && WSAGetLastError() != WSA_IO_PENDING;
 }
 
+/* `win_io_wait`'s answer when the operation was aborted though its task
+ * never cancelled it: Windows' cancelling of another task's read or write
+ * on the same socket can abort this one too. Nothing moved, so the task
+ * starts it again. */
+#define WIN_IO_AGAIN (-100)
+
+/* `ov.Internal` of an operation aborted by a cancel. */
+#define WIN_STATUS_CANCELLED 0xC0000120
+
 /* Parks the running task until `io`'s operation on `s` (started) has its
- * packet: 0 when it finished (its result in `io`), else `OS_TIMED_OUT`
- * (`deadline` passed: monotonic ns, < 0 for none), `OS_CANCELLED` or
- * `OS_CLOSED`, the operation cancelled and its packet taken. */
+ * packet: 0 when it finished (its result in `io`), `WIN_IO_AGAIN` when
+ * someone else's cancel aborted it, else `OS_TIMED_OUT` (`deadline`
+ * passed: monotonic ns, < 0 for none), `OS_CANCELLED` or `OS_CLOSED`, the
+ * operation cancelled and its packet taken. */
 static int64_t win_io_wait(SOCKET s, WinIo *io, int64_t deadline) {
     if (deadline >= 0) {
         add_sleeper(current, deadline);
@@ -88,6 +98,9 @@ static int64_t win_io_wait(SOCKET s, WinIo *io, int64_t deadline) {
                  WIN_IO_DONE);
     }
     __atomic_sub_fetch(&net_waiting, 1, __ATOMIC_ACQ_REL);
+    if (done && io->ov.Internal == WIN_STATUS_CANCELLED && io->bytes == 0) {
+        return WIN_IO_AGAIN;
+    }
     if (done || io->ov.Internal == 0) {
         return 0;
     }
@@ -209,6 +222,10 @@ static int64_t os_sock_connect(OsSocket s, const struct sockaddr *at, socklen_t 
         return win_sock_failed(WSAGetLastError(), message);
     }
     int64_t waited = win_io_wait((SOCKET)s, &io, deadline);
+    if (waited == WIN_IO_AGAIN) {
+        // Only this task uses a socket it is connecting: never expected.
+        return win_sock_failed(WSA_OPERATION_ABORTED, message);
+    }
     if (waited != 0) {
         return waited;
     }
@@ -259,6 +276,9 @@ static OsSocket os_sock_accept(OsSocket s, int64_t deadline, const char **messag
         int64_t waited = win_io_wait((SOCKET)s, &io, deadline);
         if (waited != 0) {
             closesocket(c);
+            if (waited == WIN_IO_AGAIN) {
+                continue;
+            }
             return waited;
         }
         int64_t done = win_io_result((SOCKET)s, &io, message);
@@ -283,18 +303,22 @@ enum { WIN_SEND_MOST = 1 << 30 };
 static int64_t os_sock_recv(OsSocket s, char *buf, int64_t max, int64_t deadline,
                             const char **message) {
     RT_SECTION();
-    WinIo io;
-    int64_t outcome;
-    if (!win_io_begin(&io, &outcome)) {
-        return outcome;
+    for (;;) {
+        WinIo io;
+        int64_t outcome;
+        if (!win_io_begin(&io, &outcome)) {
+            return outcome;
+        }
+        WSABUF part = {.len = (ULONG)max, .buf = buf};
+        DWORD flags = 0;
+        if (win_io_refused(WSARecv((SOCKET)s, &part, 1, NULL, &flags, &io.ov, NULL))) {
+            return win_sock_failed(WSAGetLastError(), message);
+        }
+        int64_t waited = win_io_wait((SOCKET)s, &io, deadline);
+        if (waited != WIN_IO_AGAIN) {
+            return waited != 0 ? waited : win_io_result((SOCKET)s, &io, message);
+        }
     }
-    WSABUF part = {.len = (ULONG)max, .buf = buf};
-    DWORD flags = 0;
-    if (win_io_refused(WSARecv((SOCKET)s, &part, 1, NULL, &flags, &io.ov, NULL))) {
-        return win_sock_failed(WSAGetLastError(), message);
-    }
-    int64_t waited = win_io_wait((SOCKET)s, &io, deadline);
-    return waited != 0 ? waited : win_io_result((SOCKET)s, &io, message);
 }
 
 /* Every byte, or the first failure: what was sent before it stays sent. */
@@ -315,6 +339,9 @@ static int64_t os_sock_send(OsSocket s, const char *buf, int64_t n, int64_t dead
             return win_sock_failed(WSAGetLastError(), message);
         }
         int64_t waited = win_io_wait((SOCKET)s, &io, deadline);
+        if (waited == WIN_IO_AGAIN) {
+            continue;
+        }
         if (waited != 0) {
             return waited;
         }
@@ -339,19 +366,23 @@ static int64_t os_sock_recvfrom(OsSocket s, char *buf, int64_t max, struct socka
                                 socklen_t *len, int64_t deadline, const char **message) {
     RT_SECTION();
     WinIo io;
-    int64_t outcome;
-    if (!win_io_begin(&io, &outcome)) {
-        return outcome;
-    }
-    WSABUF parts[2] = {{.len = (ULONG)max, .buf = buf},
-                       {.len = sizeof sock_overflow, .buf = sock_overflow}};
-    DWORD flags = 0;
-    INT from_len = sizeof *from;
-    if (win_io_refused(WSARecvFrom((SOCKET)s, parts, 2, NULL, &flags, (struct sockaddr *)from,
-                                   &from_len, &io.ov, NULL))) {
-        return win_sock_failed(WSAGetLastError(), message);
-    }
-    int64_t waited = win_io_wait((SOCKET)s, &io, deadline);
+    INT from_len;
+    int64_t waited;
+    do {
+        int64_t outcome;
+        if (!win_io_begin(&io, &outcome)) {
+            return outcome;
+        }
+        WSABUF parts[2] = {{.len = (ULONG)max, .buf = buf},
+                           {.len = sizeof sock_overflow, .buf = sock_overflow}};
+        DWORD flags = 0;
+        from_len = sizeof *from;
+        if (win_io_refused(WSARecvFrom((SOCKET)s, parts, 2, NULL, &flags,
+                                       (struct sockaddr *)from, &from_len, &io.ov, NULL))) {
+            return win_sock_failed(WSAGetLastError(), message);
+        }
+        waited = win_io_wait((SOCKET)s, &io, deadline);
+    } while (waited == WIN_IO_AGAIN);
     if (waited != 0) {
         return waited;
     }
@@ -367,17 +398,21 @@ static int64_t os_sock_recvfrom(OsSocket s, char *buf, int64_t max, struct socka
 static int64_t os_sock_sendto(OsSocket s, const char *buf, int64_t n, const struct sockaddr *to,
                               socklen_t len, int64_t deadline, const char **message) {
     RT_SECTION();
-    WinIo io;
-    int64_t outcome;
-    if (!win_io_begin(&io, &outcome)) {
-        return outcome;
+    for (;;) {
+        WinIo io;
+        int64_t outcome;
+        if (!win_io_begin(&io, &outcome)) {
+            return outcome;
+        }
+        WSABUF part = {.len = (ULONG)n, .buf = (char *)buf};
+        if (win_io_refused(WSASendTo((SOCKET)s, &part, 1, NULL, 0, to, (int)len, &io.ov, NULL))) {
+            return win_sock_failed(WSAGetLastError(), message);
+        }
+        int64_t waited = win_io_wait((SOCKET)s, &io, deadline);
+        if (waited != WIN_IO_AGAIN) {
+            return waited != 0 ? waited : win_io_result((SOCKET)s, &io, message);
+        }
     }
-    WSABUF part = {.len = (ULONG)n, .buf = (char *)buf};
-    if (win_io_refused(WSASendTo((SOCKET)s, &part, 1, NULL, 0, to, (int)len, &io.ov, NULL))) {
-        return win_sock_failed(WSAGetLastError(), message);
-    }
-    int64_t waited = win_io_wait((SOCKET)s, &io, deadline);
-    return waited != 0 ? waited : win_io_result((SOCKET)s, &io, message);
 }
 
 static int64_t os_sock_name(OsSocket s, bool peer, struct sockaddr_storage *at, socklen_t *len,
