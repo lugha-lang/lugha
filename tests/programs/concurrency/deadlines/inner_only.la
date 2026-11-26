@@ -1,0 +1,19 @@
+// An inner scope's deadline cancels only that scope's body and tasks: the
+// enclosing scope's task runs on, and the enclosing scope waits for it.
+import std.task;
+
+fun later(console: Console) {
+    task.sleep(100);
+    console.println("later ran");
+}
+
+fun main(console: Console) {
+    let r = scope s {
+        s.spawn(later(console));
+        let inner = scope t within 20 {
+            task.sleep(1000);
+        };
+        console.println("inner {inner.is_err()}");
+    };
+    console.println("outer {r.is_ok()}");
+}

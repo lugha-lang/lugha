@@ -4,35 +4,6 @@ Known bugs that are understood but not fixed: what happens, why, and the ways to
 
 ---
 
-## A nested scope's deadline cancels its enclosing scope's tasks
-
-**Status:** open, found 2026-11-26 while writing Windows' socket cases; not yet analysed. Linux (and so every system).
-
-### What happens
-
-```
-import std.task;
-fun later(console: Console) {
-    task.sleep(400);
-    console.eprintln("later ran");          // never printed
-}
-fun main(console: Console) {
-    let r = scope s {
-        s.spawn(later(console));
-        let inner = scope t within 50 { task.sleep(1000); };
-    };
-    console.eprintln("{r.is_ok()}");        // true, at once
-}
-```
-
-The spec says a deadline cancels "the body and every task of the scope": `t`'s, not `s`'s. Here `later`, a task of `s`, is cancelled silently, and `s` ends `Ok` without waiting for it. A socket read in `t` cancelled by the deadline shows it too: a task of `s` that would write to that socket later never does.
-
-### Where to look
-
-`check_times` (`runtime/tasks/scope_time.c`) cancels `t`'s tasks and then its owner, `cancel_fiber(s->owner, REASON_DEADLINE, NULL, s)`. The owner, the main task, is also the body of `s`. Whether that cancellation is cleared when `t` catches it, or `s` sees its owner still cancelled at its end and cancels its own tasks with `.Parent`, is the first question.
-
----
-
 ## Two tasks waiting on one socket at once: only the last is woken
 
 **Status:** open, found 2026-11-26. Linux and macOS (readiness); Windows waits per operation and isn't affected.

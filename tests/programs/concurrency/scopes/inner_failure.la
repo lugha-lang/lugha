@@ -1,0 +1,27 @@
+// An inner scope's failure cancels only that scope's body and tasks: the
+// enclosing scope's task runs on, and the enclosing scope waits for it.
+import std.task;
+
+fun later(console: Console) {
+    task.sleep(50);
+    console.println("later ran");
+}
+
+fun bad(): Result<i64, string> = Err("inner failed");
+
+fun wait_long() {
+    task.sleep(1000);
+}
+
+fun main(console: Console) {
+    let r = scope s {
+        s.spawn(later(console));
+        let inner = scope t {
+            t.spawn(bad());
+            t.spawn(wait_long());
+            task.sleep(1000);
+        };
+        console.println("inner {inner.is_err()}");
+    };
+    console.println("outer {r.is_ok()}");
+}

@@ -104,6 +104,25 @@ static void actor_task_ended(bool panicked);
 static void deadline_start(LughaScope *s, int64_t within, int64_t until);
 static void deadline_stop(LughaScope *s);
 
+/* Whether `f`'s cancellation, made by `cancelled_by`, reaches its scope
+ * `s`: it does when it was made by `s` or a scope `f` opened outside it,
+ * or by anything that isn't one of `f`'s scopes (its task's own scope,
+ * Ctrl-C, `cancel`), which cancels the whole task. A scope `f` opened
+ * inside `s` cancels only itself and what is inside it. */
+static bool cancel_reaches(const Fiber *f, const LughaScope *s) {
+    const void *by = f->cancelled_by;
+    bool inside = false;
+    for (const LughaScope *at = f->scopes; at != NULL; at = at->outer) {
+        if (at == s) {
+            inside = true;
+        }
+        if ((const void *)at == by) {
+            return inside;
+        }
+    }
+    return true;
+}
+
 /* Cancels `f` with `reason` (and `text`, for `REASON_REQUESTED`), by
  * `by`: a wait that may be cut short ends at once. */
 static void cancel_fiber(Fiber *f, int32_t reason, LughaString *text, void *by) {
@@ -118,7 +137,9 @@ static void cancel_fiber(Fiber *f, int32_t reason, LughaString *text, void *by) 
     }
     f->cancel_text = text;
     f->cancelled_by = by;
-    for (LughaScope *s = f->scopes; s != NULL; s = s->outer) {
+    // The scopes it reaches: from the innermost out to `by`, when `by` is
+    // one of them (its deadline or failure leaves the scopes outside it be).
+    for (LughaScope *s = f->scopes; s != NULL && cancel_reaches(f, s); s = s->outer) {
         cancel_tasks(s, REASON_PARENT);
     }
     // A wait in a shield goes on until the shield's deadline (scope_time.c).
@@ -312,7 +333,8 @@ static LughaTask *spawn_into(LughaScope *s, void (*entry)(void *, void *, void *
     s->tasks = task;
     s->running++;
     bool failed = __atomic_load_n(&s->failed, __ATOMIC_ACQUIRE) != TASK_OK;
-    bool leaving = __atomic_load_n(&s->owner->cancelled, __ATOMIC_ACQUIRE) != REASON_NONE;
+    bool leaving = __atomic_load_n(&s->owner->cancelled, __ATOMIC_ACQUIRE) != REASON_NONE &&
+                   cancel_reaches(s->owner, s);
     lock_give(&s->lock);
     // A scope already failed, or leaving, stops what it starts at once:
     // under the scopes lock, which comes before the scope's. One failing
@@ -321,7 +343,7 @@ static LughaTask *spawn_into(LughaScope *s, void (*entry)(void *, void *, void *
         RT_SECTION();
         if (s->failed != TASK_OK) {
             cancel_fiber(f, REASON_SIBLING, NULL, s);
-        } else if (s->owner->cancelled != REASON_NONE) {
+        } else if (s->owner->cancelled != REASON_NONE && cancel_reaches(s->owner, s)) {
             cancel_fiber(f, REASON_PARENT, NULL, s);
         }
     }
