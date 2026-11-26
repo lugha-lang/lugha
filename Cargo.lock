@@ -269,7 +269,7 @@ dependencies = [
 
 [[package]]
 name = "lugha"
-version = "0.18.18"
+version = "0.18.19"
 dependencies = [
  "clap",
  "codespan-reporting",
