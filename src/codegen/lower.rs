@@ -341,7 +341,7 @@ pub(super) fn lower<'ctx>(
     lowerer.invokes();
     // Stack probes; the caller shares slots, before or
     // after optimising (`codegen::frames`).
-    super::frames::probe_stacks(context, &lowerer.module);
+    super::frames::probe_stacks(context, &lowerer.module, lowerer.target);
     lowerer
         .module
         .verify()

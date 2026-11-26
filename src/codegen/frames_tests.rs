@@ -16,7 +16,7 @@ pub(super) fn run(ir: &str) -> String {
         .create_module_from_ir(buffer)
         .expect("the test's IR parses");
     share_all_slots(&module);
-    probe_stacks(&context, &module);
+    probe_stacks(&context, &module, Target::X86_64Linux);
     module.verify().expect("the module verifies");
     module.print_to_string().to_string()
 }
@@ -56,6 +56,16 @@ fn a_match_costs_its_largest_arm() {
     // Was 63: five slots in each of twelve arms, and three outside them.
     let n = walk_slots(&ir(&twelve_arms()));
     assert!(n <= 8, "{n} slots of %V");
+}
+
+#[test]
+fn windows_functions_share_slots_and_leave_probing_to_windows() {
+    let ir = ir_for(&twelve_arms(), Target::X86_64Windows);
+    assert!(walk_slots(&ir) <= 8);
+    assert!(
+        !ir.contains("probe-stack"),
+        "Windows probes through ___chkstk_ms"
+    );
 }
 
 #[test]

@@ -1,0 +1,16 @@
+Ok(3)
+Ok(4)
+Ok("one two")
+Ok(7)
+Ok(["a.txt", "deep"])
+Ok(())
+false true true
+Ok(())
+Ok("one two")
+Err("path leads outside the folder")
+true
+Ok(())
+Ok(())
+Ok(())
+Ok(())
+true

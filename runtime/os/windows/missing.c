@@ -1,7 +1,6 @@
 /*
  * os/windows/missing.c — part of lugha_rt.c on Windows: what isn't built
- * for Windows yet, failing closed. Every folder operation is
- * `Err("folders aren't supported on Windows yet")`, every start of a
+ * for Windows yet, failing closed. Every start of a
  * program `Err("processes aren't supported on Windows yet")`, and every
  * socket operation and option `Err("sockets aren't supported on Windows
  * yet")` (the layer's `os_sock_*` too), so a
@@ -12,7 +11,6 @@
  * stands in for would have been.
  */
 
-static const char WIN_NO_DIRS[] = "folders aren't supported on Windows yet";
 static const char WIN_NO_PROCS[] = "processes aren't supported on Windows yet";
 static const char WIN_NO_SOCKETS[] = "sockets aren't supported on Windows yet";
 
@@ -20,130 +18,6 @@ static const char WIN_NO_SOCKETS[] = "sockets aren't supported on Windows yet";
 static int32_t win_refuse(LughaString **error, const char *message) {
     *error = string_of(message, (int64_t)strlen(message));
     return 0;
-}
-
-int32_t lugha_rt_dir_cwd(void **out, LughaString **error) {
-    (void)out;
-    return win_refuse(error, WIN_NO_DIRS);
-}
-
-int32_t lugha_rt_dir_open(const LughaString *path, void **out, LughaString **error) {
-    (void)path;
-    (void)out;
-    return win_refuse(error, WIN_NO_DIRS);
-}
-
-int32_t lugha_rt_dir_sub(void *dir, const LughaString *path, void **out, LughaString **error) {
-    (void)dir;
-    (void)path;
-    (void)out;
-    return win_refuse(error, WIN_NO_DIRS);
-}
-
-int32_t lugha_rt_dir_read_bytes(void *dir, const LughaString *path, LughaArray **out,
-                                LughaString **error) {
-    (void)dir;
-    (void)path;
-    (void)out;
-    return win_refuse(error, WIN_NO_DIRS);
-}
-
-int32_t lugha_rt_dir_read_text(void *dir, const LughaString *path, LughaString **out,
-                               LughaString **error) {
-    (void)dir;
-    (void)path;
-    (void)out;
-    return win_refuse(error, WIN_NO_DIRS);
-}
-
-int32_t lugha_rt_dir_write(void *dir, const LughaString *path, const LughaArray *bytes,
-                           int64_t append, int64_t *count, LughaString **error) {
-    (void)dir;
-    (void)path;
-    (void)bytes;
-    (void)append;
-    (void)count;
-    return win_refuse(error, WIN_NO_DIRS);
-}
-
-int32_t lugha_rt_dir_list(void *dir, const LughaString *path, LughaArray **out,
-                          LughaString **error) {
-    (void)dir;
-    (void)path;
-    (void)out;
-    return win_refuse(error, WIN_NO_DIRS);
-}
-
-int32_t lugha_rt_dir_file(void *dir, const LughaString *path, int64_t mode, int64_t *out,
-                          LughaString **error) {
-    (void)dir;
-    (void)path;
-    (void)mode;
-    (void)out;
-    return win_refuse(error, WIN_NO_DIRS);
-}
-
-int32_t lugha_rt_dir_path(void *dir, LughaArray **out, LughaString **error) {
-    (void)dir;
-    (void)out;
-    return win_refuse(error, WIN_NO_DIRS);
-}
-
-int32_t lugha_rt_dir_make(void *dir, const LughaString *path, int64_t *done, LughaString **error) {
-    (void)dir;
-    (void)path;
-    (void)done;
-    return win_refuse(error, WIN_NO_DIRS);
-}
-
-int32_t lugha_rt_dir_remove(void *dir, const LughaString *path, int64_t folder, int64_t *done,
-                            LughaString **error) {
-    (void)dir;
-    (void)path;
-    (void)folder;
-    (void)done;
-    return win_refuse(error, WIN_NO_DIRS);
-}
-
-int32_t lugha_rt_dir_rename(void *dir, const LughaString *from, const LughaString *to,
-                            int64_t *done, LughaString **error) {
-    (void)dir;
-    (void)from;
-    (void)to;
-    (void)done;
-    return win_refuse(error, WIN_NO_DIRS);
-}
-
-/* Nothing is there, as far as a program can tell. */
-int64_t lugha_rt_dir_kind(void *dir, const LughaString *path) {
-    (void)dir;
-    (void)path;
-    return 0;
-}
-
-int32_t lugha_rt_dir_size(void *dir, const LughaString *path, int64_t *out,
-                          LughaString **error) {
-    (void)dir;
-    (void)path;
-    (void)out;
-    return win_refuse(error, WIN_NO_DIRS);
-}
-
-int32_t lugha_rt_dir_chmod(void *dir, const LughaString *path, int64_t mode, int64_t *done,
-                           LughaString **error) {
-    (void)dir;
-    (void)path;
-    (void)mode;
-    (void)done;
-    return win_refuse(error, WIN_NO_DIRS);
-}
-
-int32_t lugha_rt_dir_sync(void *dir, const LughaString *path, int64_t *done,
-                          LughaString **error) {
-    (void)dir;
-    (void)path;
-    (void)done;
-    return win_refuse(error, WIN_NO_DIRS);
 }
 
 int32_t lugha_rt_spawn(const LughaString *cmd, const LughaArray *args, const LughaArray *input,

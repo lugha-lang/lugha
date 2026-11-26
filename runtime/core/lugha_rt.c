@@ -399,8 +399,7 @@ static void rt_scratch_done(void *memory) {
 
 /* Lets go of `object`, a counted object the runtime made and won't hand
  * to the program (an error message no one asked for). */
-/* Unused on Windows, whose parts that call it aren't built yet. */
-__attribute__((unused)) static void rt_let_go(void *object) {
+static void rt_let_go(void *object) {
     lugha_rt_rc_release(object);
 }
 

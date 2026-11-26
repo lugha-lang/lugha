@@ -42,8 +42,9 @@ pub fn zig_triple(triple: &str) -> Option<&'static str> {
 /// unwind, and `-static` for musl, whose executables need nothing
 /// installed. macOS needs neither: libSystem has the unwinder, and macOS
 /// has no static executables. Windows also needs the import libraries of
-/// `WaitOnAddress` (an API set), `ProcessPrng` and Winsock (name lookups),
-/// which MinGW doesn't link by default.
+/// `WaitOnAddress` (an API set), `ProcessPrng`, Winsock (name lookups) and
+/// ntdll (folders opened relative to a handle), which MinGW doesn't link
+/// by default.
 pub fn link_args(triple: &str) -> Vec<OsString> {
     if triple.contains("-apple-") {
         return Vec::new();
@@ -56,6 +57,7 @@ pub fn link_args(triple: &str) -> Vec<OsString> {
         args.push(OsString::from("-lapi-ms-win-core-synch-l1-2-0"));
         args.push(OsString::from("-lbcryptprimitives"));
         args.push(OsString::from("-lws2_32"));
+        args.push(OsString::from("-lntdll"));
     }
     args
 }
@@ -146,7 +148,8 @@ mod tests {
                 "-lunwind",
                 "-lapi-ms-win-core-synch-l1-2-0",
                 "-lbcryptprimitives",
-                "-lws2_32"
+                "-lws2_32",
+                "-lntdll"
             ]
         );
     }

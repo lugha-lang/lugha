@@ -142,8 +142,7 @@ static void job_free(Job *job) {
 }
 
 /* Grows `*buffer` (`*cap` bytes, `*len` used) to hold `more` bytes more. */
-/* Unused on Windows, whose parts that call it aren't built yet. */
-__attribute__((unused)) static void job_grow(char **buffer, size_t *cap, size_t len, size_t more) {
+static void job_grow(char **buffer, size_t *cap, size_t len, size_t more) {
     if (len + more <= *cap) {
         return;
     }

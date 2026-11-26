@@ -1,0 +1,69 @@
+// Run on Windows by CI: tests/macos/confined.la, the same program and
+// output for what every system shares, its links made through C (`Proc`
+// can't start `mklink` on Windows yet); then Windows' own ways out: drives,
+// shares, data streams, reserved names, junctions and `\`.
+extern fun make_link(target: string, name: string, folder: i64): i64;
+extern fun make_junction(target: string, name: string): i64;
+
+fun main(console: Console, fs: Fs): i32 {
+    let here = fs.cwd();
+    here.make_dirs("box/inner").unwrap();
+    here.write_file("secret.txt", "secret").unwrap();
+    here.write_file("box/inner/f.txt", "inside").unwrap();
+    let made = make_link("..\\secret.txt", "box\\escape.txt", 0) + make_link(
+        "..",
+        "box\\up",
+        1,
+    ) + make_link("\\", "box\\root", 1) + make_link("inner", "box\\in", 1) + make_junction(
+        "box\\inner",
+        "box\\jin",
+    ) + make_junction(".", "box\\jout");
+    if made != 6 {
+        console.println("only {made} of 6 links made");
+        return 1;
+    }
+    let box = here.dir("box").unwrap();
+    console.println(box.read_file("../secret.txt").debug());
+    console.println(box.read_file("/etc/passwd").debug());
+    console.println(box.read_file("escape.txt").debug());
+    console.println(box.read_bytes("up/secret.txt").debug());
+    console.println(box.list("up").debug());
+    console.println(box.list("root").debug());
+    console.println(
+        "{box.exists("escape.txt")} {box.is_dir("up")} {box.size("escape.txt").debug()}",
+    );
+    console.println(box.write_file("up/planted.txt", "x").debug());
+    console.println(box.set_mode("escape.txt", 0o600).debug());
+    console.println(box.open("escape.txt").is_err());
+    console.println(box.dir("up").debug());
+    console.println(box.read_file("in/f.txt").debug());
+    console.println(box.rename("in/f.txt", "moved.txt").debug());
+    console.println(box.rename("moved.txt", "../moved.txt").debug());
+    console.println(box.remove_file("escape.txt").debug());
+    console.println(here.read_file("secret.txt").debug());
+    console.println(box.make_dir(".").debug());
+    console.println(box.remove_dir("..").debug());
+    let inner = box.dir("inner").unwrap();
+    console.println(inner.read_file("../moved.txt").debug());
+    let ro = box.read_only();
+    console.println(ro.read_file("moved.txt").debug());
+    console.println(ro.read_file("../moved.txt").debug());
+    console.println(ro.dir("inner").unwrap().read_file("../moved.txt").debug());
+    console.println(ro.dir("..").is_err());
+    console.println(box.path().unwrap().ends_with("\\box"));
+    console.println(here.exists("planted.txt"));
+    // Windows' own.
+    console.println(box.read_file("C:\\Windows\\win.ini").debug());
+    console.println(box.read_file("\\\\server\\share\\x.txt").debug());
+    console.println(box.read_file("..\\secret.txt").debug());
+    console.println(box.write_file("moved.txt:hidden", "x").debug());
+    console.println(box.read_file("NUL").debug());
+    console.println(box.write_file("com\u{b9}.txt", "x").debug());
+    console.println(box.write_file("name.", "x").debug());
+    console.println(box.read_file("jin\\..\\moved.txt").debug());
+    console.println(box.list("jout").debug());
+    console.println(box.remove_dir("jin").debug());
+    console.println(box.write_file("inner\\g.txt", "back").debug());
+    console.println(box.read_file("inner/g.txt").debug());
+    0
+}

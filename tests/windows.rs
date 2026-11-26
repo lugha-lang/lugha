@@ -66,6 +66,12 @@ fn wine() -> bool {
     here
 }
 
+/// Cases Wine can't run, each with why; CI runs them on Windows itself.
+const WINE_CANT: [(&str, &str); 1] = [(
+    "confined",
+    "Wine's CreateSymbolicLinkW makes no link, and junctions can't be set",
+)];
+
 /// Every case: its name and the source to build (relative to the root).
 fn cases() -> Vec<(String, String)> {
     let mut found = Vec::new();
@@ -119,6 +125,10 @@ fn every_windows_case_builds_and_runs_under_wine() {
         ]);
         assert!(out.status.success(), "{name}: {}", text(&out.stderr));
         if !running {
+            continue;
+        }
+        if let Some((_, why)) = WINE_CANT.iter().find(|(n, _)| *n == name) {
+            eprintln!("{name}: built, not run under wine: {why}");
             continue;
         }
         let expect =

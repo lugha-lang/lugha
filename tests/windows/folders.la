@@ -1,0 +1,23 @@
+// Run on Windows by CI, and under Wine by tests/windows.rs: the working folder's `Dir`, every operation once.
+fun main(console: Console, fs: Fs) {
+    let here = fs.cwd();
+    here.make_dirs("work/deep/er").unwrap();
+    console.println(here.write_file("work/a.txt", "one").debug());
+    console.println(here.append_file("work/a.txt", " two").debug());
+    console.println(here.read_file("work/a.txt").debug());
+    console.println(here.size("work/a.txt").debug());
+    console.println(here.list("work").debug());
+    console.println(here.rename("work/a.txt", "work/deep/b.txt").debug());
+    console.println("{here.exists("work/a.txt")} {here.is_dir("work/deep")} {here.exists("work/deep/b.txt")}");
+    console.println(here.set_mode("work/deep/b.txt", 0o600).debug());
+    let deep = here.dir("work/deep").unwrap();
+    console.println(deep.read_file("b.txt").debug());
+    console.println(deep.read_file("../deep/er/../b.txt").debug());
+    let at = deep.path().unwrap();
+    console.println(at.ends_with("\\work\\deep") && !at.starts_with("\\\\?\\"));
+    console.println(here.remove_file("work/deep/b.txt").debug());
+    console.println(here.remove_dir("work/deep/er").debug());
+    console.println(here.remove_dir("work/deep").debug());
+    console.println(here.remove_dir("work").debug());
+    console.println(here.read_file("work/a.txt").is_err());
+}
