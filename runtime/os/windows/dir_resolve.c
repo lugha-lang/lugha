@@ -14,8 +14,9 @@
  * - `..` only undoes a name the walk went down through: the walk starts
  *   again from the `Dir` along the names left; `..` at the `Dir` itself
  *   leads outside;
- * - what isn't a link is opened again from its own handle (`ReOpenFile`)
- *   with the access the caller wants, so nothing can be swapped in between.
+ * - what isn't a link is opened again from its own handle (an empty name
+ *   relative to it) with the access the caller wants, so nothing can be
+ *   swapped in between.
  *
  * Paths take `/` and `\` alike. A path starting with either, or holding
  * `:` (a drive, a drive-relative path, a data stream) or `?` (`\\?\`),

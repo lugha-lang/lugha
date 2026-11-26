@@ -250,13 +250,15 @@ static NTSTATUS win_open_name(HANDLE at, const char *name, size_t n, ACCESS_MASK
 }
 
 /* `h` opened again with `access`: the same file, whatever its name is now;
- * NULL with `errno` set. */
+ * NULL with `errno` set. An empty name relative to `h`, as `ReOpenFile`
+ * does, but without the `FILE_NON_DIRECTORY_FILE` it adds, which refuses
+ * every folder. */
 static HANDLE win_reopen(HANDLE h, ACCESS_MASK access, bool folder) {
-    HANDLE again = ReOpenFile(h, access | SYNCHRONIZE,
-                              FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                              folder ? FILE_FLAG_BACKUP_SEMANTICS : 0);
-    if (again == INVALID_HANDLE_VALUE) {
-        errno = win_errno_last();
+    HANDLE again;
+    NTSTATUS s = win_open_name(h, "", 0, access, FILE_OPEN,
+                               folder ? FILE_DIRECTORY_FILE : FILE_NON_DIRECTORY_FILE, &again);
+    if (!NT_SUCCESS(s)) {
+        errno = win_errno_nt(s);
         return NULL;
     }
     return again;
