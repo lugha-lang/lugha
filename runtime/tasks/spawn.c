@@ -116,10 +116,15 @@ static void fiber_exit(Fiber *self) {
     if (self->next_live != NULL) {
         self->next_live->prev_live = self->prev_live;
     }
+    // Its hold on the task, let go of under this lock, unless the report at
+    // the program's end let go of it already (`lugha_rt_rc_stop_threads`,
+    // under this lock too): one of the two lets go, never both, and the
+    // report never counts a task whose fiber has left the list but not yet
+    // let go. Its joiners hold the task themselves.
+    lugha_rt_rc_release(self->task);
+    self->task = NULL;
     lock_give(&live_lock);
     __atomic_sub_fetch(&live_count, 1, __ATOMIC_RELAXED);
-    /* Its joiners hold the task themselves now. */
-    lugha_rt_rc_release(task);
     worker->zombie = self;
     switch_away(false, false);
     die("panic: internal error: a finished green thread ran again\n");
