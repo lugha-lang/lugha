@@ -350,46 +350,88 @@ fun main(console: Console, net: Net) {
 }
 ",
     );
-    let built = Command::new(env!("CARGO_BIN_EXE_lughac"))
-        .args(["build", "main.la", "-o", "main"])
-        .current_dir(&case.0)
-        .env("HOME", &case.0)
-        .output()
-        .expect("lughac runs");
-    assert!(
-        built.status.success(),
-        "{}",
-        String::from_utf8_lossy(&built.stderr)
-    );
-    for workers in ["1", "4"] {
-        // The program itself, so a hang is killed rather than waited on.
-        let mut child = Command::new(case.0.join("main"))
-            .env("LUGHA_WORKERS", workers)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
+    case.runs_on_one_and_four_workers("accept: true\nread: closed\nudp: closed\ntrue true true\n");
+}
+
+impl Case {
+    /// Builds the case and runs it on one worker and on four, each killed
+    /// after a minute, checking it exits 0 printing `stdout`.
+    fn runs_on_one_and_four_workers(&self, stdout: &str) {
+        let built = Command::new(env!("CARGO_BIN_EXE_lughac"))
+            .args(["build", "main.la", "-o", "main"])
+            .current_dir(&self.0)
+            .env("HOME", &self.0)
+            .output()
             .expect("lughac runs");
-        let started = std::time::Instant::now();
-        while child.try_wait().expect("waitable").is_none() {
-            if started.elapsed() > std::time::Duration::from_secs(60) {
-                // Best effort: the test fails below either way.
-                let _ = child.kill();
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(20));
-        }
-        let out = child.wait_with_output().expect("lughac finishes");
-        assert_eq!(
-            (
-                out.status.code(),
-                String::from_utf8_lossy(&out.stdout).as_ref()
-            ),
-            (
-                Some(0),
-                "accept: true\nread: closed\nudp: closed\ntrue true true\n"
-            ),
-            "workers {workers}, stderr: {}",
-            String::from_utf8_lossy(&out.stderr)
+        assert!(
+            built.status.success(),
+            "{}",
+            String::from_utf8_lossy(&built.stderr)
         );
+        for workers in ["1", "4"] {
+            // The program itself, so a hang is killed rather than waited on.
+            let mut child = Command::new(self.0.join("main"))
+                .env("LUGHA_WORKERS", workers)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .expect("lughac runs");
+            let started = std::time::Instant::now();
+            while child.try_wait().expect("waitable").is_none() {
+                if started.elapsed() > std::time::Duration::from_secs(60) {
+                    // Best effort: the test fails below either way.
+                    let _ = child.kill();
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+            let out = child.wait_with_output().expect("lughac finishes");
+            assert_eq!(
+                (
+                    out.status.code(),
+                    String::from_utf8_lossy(&out.stdout).as_ref()
+                ),
+                (Some(0), stdout),
+                "workers {workers}, stderr: {}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+        }
     }
+}
+
+#[test]
+fn closing_a_connection_as_another_task_reads_it_is_always_closed() {
+    // The close and the read run at once on two workers, thousands of
+    // times: the read always ends `Err("closed")`, never on a socket closed
+    // under it (where it waited out its deadline, or read another socket
+    // reusing the number).
+    Case::new(
+        "fun reader(c: Conn): string = c.read(10).debug();
+
+fun closer(c: Conn) {
+    c.close();
+}
+
+fun main(console: Console, net: Net) {
+    let server = net.listen(\"127.0.0.1:0\").unwrap();
+    let mut wrong = 0;
+    for _ in 0..3000 {
+        let r = scope s within 5000 {
+            let c = net.connect(server.addr()).unwrap();
+            let other = server.accept().unwrap();
+            let read = s.spawn(reader(c));
+            s.spawn(closer(c));
+            let got = read.join().unwrap();
+            other.close();
+            got
+        };
+        if r.unwrap_or(\"timed out\") != \"Err(\\\"closed\\\")\" {
+            wrong += 1;
+        }
+    }
+    console.println(\"wrong: {wrong}\");
+}
+",
+    )
+    .runs_on_one_and_four_workers("wrong: 0\n");
 }

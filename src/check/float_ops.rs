@@ -124,7 +124,11 @@ pub fn os_signature(op: &str) -> Option<(Vec<Type>, Type)> {
         ),
         "net_read" => (vec![Type::I64, Type::I64, Type::I64], result(bytes())),
         "net_write" => (vec![Type::I64, bytes(), Type::I64], result(Type::I64)),
-        "net_close" => (vec![Type::I64], Type::Unit),
+        // A socket's cell: held open while an operation runs, closed once
+        // the last lets go (`runtime/io/net.c`).
+        "net_hold" => (vec![cptr()], Type::I64),
+        "net_let_go" => (vec![cptr()], Type::Unit),
+        "net_shut" => (vec![cptr()], Type::Unit),
         "net_name" => (vec![Type::I64, Type::I64], result(Type::String)),
         "net_resolve" => (vec![Type::String, Type::I64], result(Type::String)),
         // 1 when an address isn't a public unicast one, for `net.only`.

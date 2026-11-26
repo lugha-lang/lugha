@@ -129,6 +129,22 @@ static void net_waits_add(OsSocket fd, uint32_t gen, uint8_t dir, bool queued) {
         .fd = fd, .fiber = current, .gen = gen, .dir = dir, .queued = queued, .seq = ++seq};
 }
 
+/* Sockets closed while an operation still holds them (`lugha_rt_net_shut`):
+ * open until the last lets go, but every wait on one ends at once as
+ * closed, since no event will come. Under the runtime's lock. */
+static OsSocket *net_closing;
+static int64_t net_closing_len;
+static int64_t net_closing_cap;
+
+static bool net_is_closing(OsSocket fd) {
+    for (int64_t i = 0; i < net_closing_len; i++) {
+        if (net_closing[i] == fd) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /* Takes the running task off the list, however its wait ended: whether
  * it had been woken to try again. */
 static bool net_waits_remove(void) {
@@ -349,12 +365,59 @@ int32_t lugha_rt_net_write(int64_t fd, const LughaArray *bytes, int64_t timeout_
     return net_outcome(sent, message, error);
 }
 
-/* `$os.net_close(fd)`: the tasks parked on it are woken with
- * `Err("closed")` first, since closing also takes it out of the poll and
- * no event would reach them; then it is closed. Under the runtime's lock,
- * so no task parks on it in between. */
-void lugha_rt_net_close(int64_t fd) {
+/* A socket's handle cell: slot 0 its descriptor (-1 once closed), 1 its
+ * timeout, 2 how many operations hold it, 3 whether it is closing. */
+enum { NET_CELL_FD = 0, NET_CELL_HELD = 2, NET_CELL_CLOSING = 3 };
+
+/* Closes `fd` now: what `lugha_rt_net_shut` put off until no operation held
+ * it. Under the runtime's lock. */
+static void net_close_now(LughaCell *cell) {
+    OsSocket fd = (OsSocket)cell->slots[NET_CELL_FD];
+    for (int64_t i = 0; i < net_closing_len; i++) {
+        if (net_closing[i] == fd) {
+            net_closing[i] = net_closing[--net_closing_len];
+            break;
+        }
+    }
+    cell->slots[NET_CELL_FD] = -1;
+    os_sock_close(fd);
+}
+
+/* `$os.net_hold(cell)`: the socket's descriptor, held open until
+ * `$os.net_let_go(cell)`; -1 once it is closed or closing, so an operation
+ * never starts on a descriptor closed, or reused by another socket, after
+ * it was read. */
+int64_t lugha_rt_net_hold(LughaCell *cell) {
     RT_SECTION();
+    if (cell->slots[NET_CELL_FD] < 0 || cell->slots[NET_CELL_CLOSING] != 0) {
+        return -1;
+    }
+    cell->slots[NET_CELL_HELD]++;
+    return cell->slots[NET_CELL_FD];
+}
+
+/* `$os.net_let_go(cell)`: one hold ended; the last one closes a socket
+ * that was closed meanwhile. */
+void lugha_rt_net_let_go(LughaCell *cell) {
+    RT_SECTION();
+    if (--cell->slots[NET_CELL_HELD] == 0 && cell->slots[NET_CELL_CLOSING] != 0 &&
+        cell->slots[NET_CELL_FD] >= 0) {
+        net_close_now(cell);
+    }
+}
+
+/* `$os.net_shut(cell)`: closes the socket once, for every copy. The tasks
+ * parked on it are woken with `Err("closed")` first, since closing also
+ * takes it out of the poll and no event would reach them, and any that
+ * holds it and has yet to park finds it closing. Closed now when nothing
+ * holds it, else by the last `$os.net_let_go`. */
+void lugha_rt_net_shut(LughaCell *cell) {
+    RT_SECTION();
+    if (cell->slots[NET_CELL_FD] < 0 || cell->slots[NET_CELL_CLOSING] != 0) {
+        return;
+    }
+    cell->slots[NET_CELL_CLOSING] = 1;
+    OsSocket fd = (OsSocket)cell->slots[NET_CELL_FD];
     for (int64_t i = 0; i < net_waits_len; i++) {
         if (net_waits[i].fd == fd) {
             wake_gen(net_waits[i].fiber, net_waits[i].gen, SOCKET_CLOSED);
@@ -363,7 +426,19 @@ void lugha_rt_net_close(int64_t fd) {
 #if !defined(_WIN32)
     net_fd_closed((int)fd);
 #endif
-    os_sock_close(fd);
+    if (cell->slots[NET_CELL_HELD] == 0) {
+        net_close_now(cell);
+        return;
+    }
+    if (net_closing_len == net_closing_cap) {
+        net_closing_cap = net_closing_cap == 0 ? 8 : net_closing_cap * 2;
+        OsSocket *bigger = realloc(net_closing, (size_t)net_closing_cap * sizeof *net_closing);
+        if (bigger == NULL) {
+            die("panic: out of memory\n");
+        }
+        net_closing = bigger;
+    }
+    net_closing[net_closing_len++] = fd;
 }
 
 /* `$os.net_name(fd, peer)`: 1 and "host:port" of this end (or the peer's),

@@ -124,6 +124,10 @@ static int wait_fd(int fd, uint32_t want, int64_t deadline) {
     if (current->cancelled != REASON_NONE && !current->unwinding) {
         return WAIT_CANCELLED;
     }
+    // Closed while this operation held it: no event will come.
+    if (net_is_closing(fd)) {
+        return WAIT_CLOSED;
+    }
     may_wait(NULL, 0);
     io_open();
     uint8_t dir = want == OS_READ ? 0 : 1;

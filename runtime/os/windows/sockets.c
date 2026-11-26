@@ -75,17 +75,22 @@ static bool win_io_refused(int got) {
  * passed: monotonic ns, < 0 for none), `OS_CANCELLED` or `OS_CLOSED`, the
  * operation cancelled and its packet taken. */
 static int64_t win_io_wait(SOCKET s, WinIo *io, int64_t deadline) {
-    if (deadline >= 0) {
-        add_sleeper(current, deadline);
-    }
-    net_waits_add((OsSocket)s, next_wait_gen(current), 0, false);
     __atomic_add_fetch(&net_waiting, 1, __ATOMIC_ACQ_REL);
-    current->cancellable = true;
-    int64_t why = block();
-    current->cancellable = false;
-    // The section is open again here (`switch_away`), so the list is safe.
-    // One operation per wait here: none waits behind another to be woken.
-    (void)net_waits_remove();
+    int64_t why = SOCKET_CLOSED;
+    // Closed while this operation held it: no wake will come, so it is
+    // cancelled at once below.
+    if (!net_is_closing((OsSocket)s)) {
+        if (deadline >= 0) {
+            add_sleeper(current, deadline);
+        }
+        net_waits_add((OsSocket)s, next_wait_gen(current), 0, false);
+        current->cancellable = true;
+        why = block();
+        current->cancellable = false;
+        // The section is open again here (`switch_away`), so the list is
+        // safe. One operation per wait here: none waits behind another.
+        (void)net_waits_remove();
+    }
     // Whatever woke the task, a packet taken already means it finished;
     // else the next wait is the one the packet wakes.
     bool done = __atomic_exchange_n(&io->packed, win_io_token(), __ATOMIC_ACQ_REL) == WIN_IO_DONE;

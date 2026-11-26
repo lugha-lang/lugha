@@ -1,0 +1,38 @@
+// Closing a connection while another task is about to read it, or already
+// waits to: the read is always `Err("closed")`, however the two meet, and
+// never reaches a socket closed (or reopened as another) under it.
+import std.task;
+
+fun reader(c: Conn): string = c.read(10).debug();
+
+fun main(console: Console, net: Net) {
+    let server = net.listen("127.0.0.1:0").unwrap();
+    let mut wrong = 0;
+    for round in 0..300 {
+        let r = scope s within 5000 {
+            let c = net.connect(server.addr()).unwrap();
+            let other = server.accept().unwrap();
+            let read = s.spawn(reader(c));
+            // Every third round lets the reader park first.
+            if round % 3 == 0 {
+                task.sleep(1);
+            }
+            c.close();
+            let got = read.join().unwrap();
+            other.close();
+            got
+        };
+        if r.unwrap_or("") != "Err(\"closed\")" {
+            wrong += 1;
+            console.println(r.debug());
+        }
+    }
+    console.println("wrong: {wrong}");
+    // A read after the close, on a copy.
+    let c = net.connect(server.addr()).unwrap();
+    let copy = c;
+    c.close();
+    console.println(copy.read(1).debug());
+    console.println(copy.peer().debug());
+    server.close();
+}
