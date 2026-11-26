@@ -145,6 +145,7 @@ Never deleted. Older entries are never modified.
 - Writing inside a map entry (`m["a"].x = 5`, `n["a"][0] = 3`, `n["a"].push(4)`, `swap(n["a"], …)`, `for x of mut n["a"]`) crashed lughac in codegen; it is now E0502, as for an element a type's `index` returned, with help that copies the entry out and writes it back. `for x of mut g[i]` through `index` is E0502 too. The E0404 help for `m[k] += v` and `a[i] += v` quotes the program's own element and value.
 
 ### Changed
+- `lughac`'s version is `0.18.20`: processes on Windows, with never a shell (milestone 267, PRP-296), and process lockdown on Windows (milestone 269, PRP-297): no new processes without `Proc`, files read-only without `Fs`, the network not limited and said so.
 - `lughac`'s version is `0.18.19`: sockets on Windows (milestone 262, PRP-294), the program suite on Windows (milestone 265, PRP-295), and three fixes: a nested scope's deadline or failure no longer cancels its enclosing scope's tasks (milestone 263), several tasks may wait on one socket on Linux and macOS (milestone 264), and one task's cancelled read no longer aborts another's on Windows (milestone 266).
 - `lughac`'s version is `0.18.18`: folders on Windows, confined as on Linux and macOS (milestone 260, PRP-293; one fix in milestone 261: Windows reopened no folder through `ReOpenFile`).
 - `lughac`'s version is `0.18.17`: programs built for Windows on x86-64, `--target=x86_64-pc-windows-gnu` (milestone 259, PRP-292).
