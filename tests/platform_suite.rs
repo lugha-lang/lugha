@@ -10,7 +10,7 @@
 //! A case folder holds `name`, the program (`exe`, or `exe.exe` for
 //! Windows, which starts only names ending `.exe`), `stdout`, `exit` and,
 //! when the case has them, `stderr`, `args`, `stdin`, `envvars` and
-//! `scratch`. Cases a build for the target refuses (E0334, E0335, E0337)
+//! `scratch`. Cases a build for the target refuses (E0334, E0335)
 //! are listed in `skipped.txt` with why. Each system's expected failures
 //! are its `known.txt` (`tests/macos/`, `tests/windows/`).
 
@@ -94,15 +94,12 @@ fn lines(items: impl Iterator<Item = String>) -> Vec<u8> {
 }
 
 /// Why a build of a case for the target is refused rather than failed: a
-/// library built for this machine that a foreign build can't link, or a
-/// C rule lughac doesn't lower for that target yet.
+/// library built for this machine that a foreign build can't link.
 fn refused(stderr: &str) -> Option<&'static str> {
     if stderr.contains("E0334") {
         Some("E0334: std.tls, std.http and std.crypto need an OpenSSL built for the target")
     } else if stderr.contains("E0335") {
         Some("E0335: a [link] pkg-config line names this machine's libraries")
-    } else if stderr.contains("E0337") {
-        Some("E0337: an extern struct passed by value, not lowered for Windows yet")
     } else {
         None
     }
@@ -298,7 +295,6 @@ fn a_case_folder_mirrors_its_case() {
 fn a_build_refused_for_the_target_is_skipped_with_why() {
     assert!(refused("error[E0334]: …").unwrap().starts_with("E0334"));
     assert!(refused("error[E0335]: …").unwrap().starts_with("E0335"));
-    assert!(refused("error[E0337]: …").unwrap().starts_with("E0337"));
     assert!(refused("error[E0101]: …").is_none());
 }
 

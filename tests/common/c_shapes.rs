@@ -1,4 +1,4 @@
-//! The `extern struct` shapes the `extern_structs` and `arm` tests both run:
+//! The `extern struct` shapes the `extern_structs`, `arm` and `windows` tests run:
 //! a C side computing every result, the Lugha declarations of it, and
 //! programs with what they print. A wrong calling convention shows as a wrong number.
 
@@ -7,14 +7,14 @@
 pub const SIDE: &str = "typedef struct { unsigned char r, g, b, a; } Color;\n\
     typedef struct { float x, y; } V2;\n\
     typedef struct { float x, y, w, h; } Rect;\n\
-    typedef struct { long i; double d; } Mixed;\n\
+    typedef struct { long long i; double d; } Mixed;\n\
     typedef struct { float f; int n; } FI;\n\
     typedef struct { V2 offset, target; float rotation, zoom; } Cam;\n\
     typedef struct { unsigned char tag; double v; } TagD;\n\
     typedef struct { float x, y, z; } V3;\n\
-    typedef struct { long a, b; } L2;\n\
+    typedef struct { long long a, b; } L2;\n\
     Color color_dim(Color c) { Color r = { c.r / 2, c.g / 2, c.b / 2, c.a }; return r; }\n\
-    long color_sum(Color c) { return c.r + c.g + c.b + c.a; }\n\
+    long long color_sum(Color c) { return c.r + c.g + c.b + c.a; }\n\
     V2 v2_add(V2 a, V2 b) { V2 r = { a.x + b.x, a.y + b.y }; return r; }\n\
     Rect rect_grow(Rect r, float by) { Rect o = { r.x - by, r.y - by, r.w + 2 * by, r.h + 2 * by }; return o; }\n\
     Mixed mixed_twice(Mixed m) { Mixed o = { m.i * 2, m.d * 2 }; return o; }\n\
@@ -23,11 +23,11 @@ pub const SIDE: &str = "typedef struct { unsigned char r, g, b, a; } Color;\n\
     double cam_sum(Cam c) { return c.offset.x + c.offset.y + c.target.x + c.target.y + c.rotation + c.zoom; }\n\
     TagD tagd_bump(TagD t) { t.tag++; t.v += 0.5; return t; }\n\
     V3 v3_scale(V3 v, float k) { V3 o = { v.x * k, v.y * k, v.z * k }; return o; }\n\
-    long many(long a, long b, long c, long d, long e, L2 s, long f) { return a + b + c + d + e + s.a * 100 + s.b * 1000 + f * 10000; }\n\
+    long long many(long long a, long long b, long long c, long long d, long long e, L2 s, long long f) { return a + b + c + d + e + s.a * 100 + s.b * 1000 + f * 10000; }\n\
     double floats(double a, double b, double c, double d, double e, double f, double g, double h, V2 v, double i) { return a + b + c + d + e + f + g + h + v.x * 10 + v.y * 100 + i * 1000; }\n\
     V2 map_point(V2 (*f)(V2, void *), void *d) { V2 p = { 1.5f, 2.5f }; return f(p, d); }\n\
     double map_cam(Cam (*f)(Cam, void *), void *d) { Cam c = { { 1, 2 }, { 3, 4 }, 5, 6 }; return cam_sum(f(c, d)); }\n\
-    long pick(Color (*f)(long), long i) { return color_sum(f(i)); }\n";
+    long long pick(Color (*f)(long long), long long i) { return color_sum(f(i)); }\n";
 
 pub const DECLS: &str = "extern struct Color { r: u8, g: u8, b: u8, a: u8 }\n\
     extern struct V2 { x: f32, y: f32 }\n\

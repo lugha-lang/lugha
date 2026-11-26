@@ -14,6 +14,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 #[path = "common/cross.rs"]
 mod cross;
 
+#[path = "common/c_shapes.rs"]
+mod c_shapes;
+use c_shapes::{DECLS, PROGRAMS, SIDE};
+
 const WINDOWS: &str = "x86_64-pc-windows-gnu";
 
 /// A temp dir removed on drop.
@@ -180,43 +184,42 @@ fn run_and_test_refuse_a_windows_target() {
 }
 
 #[test]
-fn a_struct_passed_to_c_by_value_is_e0337_for_windows_only() {
-    if !cross::ready("windows_e0337", &["zig"]) {
+fn extern_structs_cross_to_c_by_value_on_windows() {
+    if !cross::ready("windows_structs", &["zig"]) {
         return;
     }
-    let t = Temp::new();
-    let main = t.0.join("main.la");
-    std::fs::write(
-        &main,
-        "extern struct Point { x: f64, y: f64 }\n\
-         extern fun length(p: Point): f64;\n\
-         extern fun made(): Point;\n\
-         extern fun by_address(ptr p: Point): f64;\n\
-         fun main(console: Console) {\n\
-             let p = Point { x: 1.0, y: 2.0 };\n\
-             console.println(length(made()) + by_address(ptr p));\n\
-         }\n",
-    )
-    .unwrap();
-    let path = main.to_str().unwrap();
-    let out = lughac(&[
-        "build",
-        path,
-        "--target",
-        WINDOWS,
-        "-o",
-        t.0.join("m.exe").to_str().unwrap(),
-    ]);
-    let stderr = text(&out.stderr);
-    assert_eq!(out.status.code(), Some(1), "{stderr}");
-    assert_eq!(stderr.matches("error[E0337]").count(), 2, "{stderr}");
-    assert!(
-        stderr.contains("`Point` can't be passed to C by value on Windows yet"),
-        "{stderr}"
-    );
-    // Elsewhere the same program checks clean.
-    let linux = lughac(&["check", path]);
-    assert!(linux.status.success(), "{}", text(&linux.stderr));
+    let running = wine();
+    for (name, main, prints) in PROGRAMS {
+        let t = Temp::new();
+        std::fs::write(t.0.join("main.la"), [DECLS, main].concat()).unwrap();
+        std::fs::write(t.0.join("side.c"), SIDE).unwrap();
+        std::fs::write(t.0.join("lugha.toml"), "[link]\nc = [\"side.c\"]\n").unwrap();
+        for opt in ["-O0", "-O2"] {
+            let built = Command::new(env!("CARGO_BIN_EXE_lughac"))
+                .args([
+                    "build", "main.la", "--target", WINDOWS, opt, "-o", "prog.exe",
+                ])
+                .current_dir(&t.0)
+                .env_remove("LUGHA_CC")
+                .output()
+                .expect("lughac runs");
+            assert!(
+                built.status.success(),
+                "{name} {opt}: {}",
+                text(&built.stderr)
+            );
+            if !running {
+                continue;
+            }
+            let out = run(&t.0.join("prog.exe"), None);
+            assert_eq!(
+                (out.status.code(), text(&out.stdout)),
+                (Some(0), prints.to_string()),
+                "{name} {opt}: {}",
+                text(&out.stderr)
+            );
+        }
+    }
 }
 
 #[test]

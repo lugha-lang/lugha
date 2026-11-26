@@ -8,7 +8,8 @@
 //! `byval` pointer; a result in memory comes back through a hidden `sret`
 //! pointer, the first parameter. Signatures without structs never come here,
 //! so their IR is unchanged. On AArch64 the pieces are
-//! AAPCS64's (`c_abi_arm`) and a big argument is a plain pointer to a copy.
+//! AAPCS64's (`c_abi_arm`) and a big argument is a plain pointer to a copy;
+//! on Windows x64 a struct is one integer or a pointer to a copy (`c_abi_win`).
 
 use inkwell::attributes::{Attribute, AttributeLoc};
 use inkwell::types::{
@@ -105,6 +106,9 @@ impl<'ctx> Lowerer<'ctx> {
     pub(super) fn c_sig(&self, kinds: &[CKind], ret: &Type) -> CSig<'ctx> {
         if self.target.arch() == super::Arch::Aarch64 {
             return self.c_sig_arm(kinds, ret);
+        }
+        if self.target.is_windows() {
+            return self.c_sig_win(kinds, ret);
         }
         let classified = |ty: &Type| classify(ty, &self.structs, &self.enums);
         let ret = match ret {

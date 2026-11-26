@@ -111,7 +111,6 @@ mod value;
 mod views;
 mod weak;
 
-pub use self::c_abi_win::struct_refusals;
 pub use self::emit::{
     Cpu, Instruments, OptLevel, emit_ir, emit_ir_for, emit_ir_modules, emit_ir_with, emit_object,
     emit_object_modules,

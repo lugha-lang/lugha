@@ -303,17 +303,6 @@ pub(super) fn build(
             return Err(Failure::Program(front.source.clone(), found));
         }
     }
-    if target.is_windows() {
-        let items = front
-            .modules
-            .iter()
-            .flat_map(|m| m.program.iter())
-            .flat_map(|p| &p.items);
-        let refused = codegen::struct_refusals(items, checked(front));
-        if !refused.is_empty() {
-            return Err(Failure::Program(front.source.clone(), refused));
-        }
-    }
     let tls = std_import(&front.modules, "tls", &["tls", "http"]);
     let crypto = std_import(&front.modules, "crypto", &["crypto"]);
     let openssl = link::foreign_refusals(
