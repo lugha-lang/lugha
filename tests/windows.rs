@@ -308,6 +308,7 @@ fn a_windows_executable_imports_only_what_windows_has() {
             "kernel32.dll",
             "ntdll.dll",
             "ws2_32.dll",
+            "iphlpapi.dll",
             "bcryptprimitives.dll",
         ]
         .contains(&dll.as_str())

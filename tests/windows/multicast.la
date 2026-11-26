@@ -1,0 +1,16 @@
+// Run on Windows by CI, and under Wine by tests/windows.rs: a group
+// joined, a datagram sent to it looping back, the group left.
+fun main(console: Console, net: Net) {
+    let member = net.udp_bind("0.0.0.0:0").unwrap();
+    let port = member.addr().split(":")[1];
+    console.println(member.join("239.255.42.99", "").debug());
+    let sender = net.udp_bind("0.0.0.0:0").unwrap();
+    console.println(sender.set_multicast_loop(true).debug());
+    sender.send_to("hello".to_bytes(), "239.255.42.99:{port}").unwrap();
+    member.set_timeout(2000);
+    match member.recv_from(100) {
+        .Ok((bytes, _)) => console.println(bytes.debug()),
+        .Err(e) => console.println(e),
+    }
+    console.println(member.leave("239.255.42.99", "").debug());
+}

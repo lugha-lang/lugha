@@ -1222,4 +1222,4 @@ One platform at a time, each step one or more PRPs [PRT-04]:
 ## 9.4 Deferred
 
 - Platform-specific Lugha code (`@cfg`), only if a port needs it; it is a language change [PRT-12].
-- Windows sockets through overlapped I/O or the AFD poll; precompiled runtimes with `lld`, so foreign builds need no zig [PRT-13].
+- Precompiled runtimes with `lld`, so foreign builds need no zig [PRT-13]. (Windows sockets: overlapped I/O, milestone 262.)

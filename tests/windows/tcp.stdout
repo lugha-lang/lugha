@@ -1,0 +1,17 @@
+true
+true
+Ok([104, 105])
+Ok([])
+true
+Err("timed out")
+true
+Ok([108, 97, 116, 101])
+Err("closed")
+true
+1048576
+true
+Ok([111, 107])
+true
+Address already in use
+Connection refused
+Name or service not known

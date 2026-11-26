@@ -286,7 +286,7 @@ The draft must cite every `approved` line exactly once as a rule, and contain no
 - PRT-14 approved — The task switch is written per CPU and OS (on Windows it also switches the thread's recorded stack bounds); stack overflow is caught per OS (`SIGSEGV` and `SIGBUS` on POSIX, a vectored exception handler on Windows).
 - PRT-11 deferred — What a program promises on an OS whose kernel can't lock it down (seccomp, Landlock), and the `Dir` confinement each OS uses (SEC-01): decided with that OS's port, with security review. macOS approved: a `Dir` confined by walking each path one name at a time, as Go's `os.Root` does (milestone 254); lockdown through Seatbelt's coarse parts, no socket reaching an address without `Net` and no new processes without `Proc`, files not limited by the kernel (milestone 255). Windows and WASI still to decide.
 - PRT-12 deferred — Platform-specific Lugha code (`@cfg`), only if a port needs it; a language change, so v19 or an approved Draft rule.
-- PRT-13 deferred — Windows sockets through overlapped I/O or the AFD poll; precompiled runtimes with `lld` so foreign builds need no zig. (OpenSSL for foreign targets: resolved by PRT-05's amendment, milestone 257.)
+- PRT-13 deferred — precompiled runtimes with `lld` so foreign builds need no zig. Windows sockets resolved 2026-11-26: overlapped I/O on the completion port, as the Draft's 9.2 describes (the AFD poll is undocumented), milestone 262. (OpenSSL for foreign targets: resolved by PRT-05's amendment, milestone 257.)
 
 ## PRF — performance targets (baseline: `bench/RESULTS.md`, 2026-10-31, commit 5d5ab18)
 

@@ -5,9 +5,10 @@
  * links in.
  *
  * Events come from one I/O completion port: the two signals other threads
- * raise are packets posted to it with their tokens, and it is where
- * sockets will complete (until then, the layer's socket operations fail
- * closed in missing.c). Waiting on a word is `WaitOnAddress`.
+ * raise are packets posted to it with their tokens, and every socket is
+ * tied to it, so each overlapped operation's completion arrives there
+ * carrying its `WinIo`, which names the task waiting for it
+ * (os/windows/sockets.c). Waiting on a word is `WaitOnAddress`.
  *
  * A task's stack is reserved whole and committed as it grows, through a
  * guard page below what is committed, as a thread's own stack is: the task
@@ -78,19 +79,23 @@ static void os_poll_open(void) {
     pthread_once(&os_port_once, os_port_make);
 }
 
-/* Sockets aren't built for Windows yet, so none is ever armed. */
-/* Unused until sockets and their faults are built for Windows. */
-__attribute__((unused)) static void os_poll_arm(int fd, uint32_t want, uint64_t token) {
-    (void)fd;
-    (void)want;
-    (void)token;
-    die("panic: internal error: a socket armed on Windows\n");
-}
+/* The completion key every socket is tied to the port with: its packets
+ * carry a `WinIo`, whose token says whom they wake. Never a signal's. */
+#define OS_TOKEN_IO 3
 
-/* Unused until sockets and their faults are built for Windows. */
-__attribute__((unused)) static void os_poll_disarm(int fd) {
-    (void)fd;
-}
+/* One overlapped operation, in its waiting task's frame: the `OVERLAPPED`
+ * Windows completes, and `packed`, the fiber and wait its packet wakes (as
+ * the poll packs them, net.c's `poll_found`). The poll stores the byte
+ * count, then swaps `packed` for `WIN_IO_DONE` and wakes whom it named;
+ * after that swap nothing touches the record, so its task may leave. */
+typedef struct {
+    OVERLAPPED ov;
+    uint64_t packed;
+    DWORD bytes;
+} WinIo;
+
+/* `packed` once the poll has taken the packet: never a fiber's token. */
+#define WIN_IO_DONE 0
 
 /* Waits up to `timeout_ms` (< 0 for ever, 0 not at all) for packets; up
  * to `max` of them, each its token, into `out`. Their count, 0 when none. */
@@ -103,7 +108,13 @@ static int os_poll_wait(OsEvent *out, int max, int timeout_ms) {
         return 0;
     }
     for (ULONG i = 0; i < n; i++) {
-        out[i].token = (uint64_t)entries[i].lpCompletionKey;
+        if (entries[i].lpCompletionKey != OS_TOKEN_IO) {
+            out[i].token = (uint64_t)entries[i].lpCompletionKey;
+            continue;
+        }
+        WinIo *io = (WinIo *)entries[i].lpOverlapped;
+        io->bytes = entries[i].dwNumberOfBytesTransferred;
+        out[i].token = __atomic_exchange_n(&io->packed, WIN_IO_DONE, __ATOMIC_ACQ_REL);
     }
     return (int)n;
 }
@@ -187,7 +198,7 @@ static void os_start(void) {
     os_console_out = os_is_console(STD_OUTPUT_HANDLE);
     os_console_err = os_is_console(STD_ERROR_HANDLE);
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
-    // Name lookups use Winsock, which wants starting once.
+    // Sockets and name lookups use Winsock, which wants starting once.
     WSADATA wsa;
     (void)WSAStartup(MAKEWORD(2, 2), &wsa);
 }

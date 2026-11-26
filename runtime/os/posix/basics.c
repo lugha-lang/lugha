@@ -144,3 +144,21 @@ static bool posix_urandom64(uint64_t *out) {
     close(fd);
     return got == (ssize_t)sizeof *out;
 }
+
+/* Name lookups: the C library's own words, and interfaces by name. */
+static const char *os_lookup_message(int code) {
+    return gai_strerror(code);
+}
+
+static void os_scope_name(char *host, size_t cap) {
+    (void)host;
+    (void)cap;
+}
+
+static bool os_scope_numeric(const char *host, size_t len, char *out, size_t cap) {
+    (void)host;
+    (void)len;
+    (void)out;
+    (void)cap;
+    return false;
+}

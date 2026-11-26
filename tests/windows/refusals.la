@@ -1,9 +1,5 @@
 // What isn't built for Windows yet fails closed, with its reason.
-fun main(console: Console, net: Net, proc: Proc) {
-    match net.connect("127.0.0.1:9") {
-        .Ok(_) => console.println("?"),
-        .Err(e) => console.println(e),
-    }
+fun main(console: Console, proc: Proc) {
     match proc.run("cmd", ["/c", "echo"]) {
         .Ok(_) => console.println("?"),
         .Err(e) => console.println(e),

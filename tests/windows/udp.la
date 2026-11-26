@@ -1,0 +1,52 @@
+// Run on Windows by CI, and under Wine by tests/windows.rs: UDP through
+// overlapped I/O, and its options.
+fun said(r: Result<(u8[], string), string>): string = match r {
+    .Ok((bytes, _)) => bytes.debug(),
+    .Err(e) => e,
+};
+
+fun main(console: Console, net: Net) {
+    let a = net.udp_bind("127.0.0.1:0").unwrap();
+    let b = net.udp_bind("127.0.0.1:0").unwrap();
+
+    // A datagram and its sender.
+    a.send_to("ping".to_bytes(), b.addr()).unwrap();
+    let (bytes, from) = b.recv_from(100).unwrap();
+    console.println(bytes.debug());
+    console.println(from == a.addr());
+
+    // Longer than `max`: refused with its real length.
+    a.send_to("0123456789abcdef".to_bytes(), b.addr()).unwrap();
+    console.println(said(b.recv_from(10)));
+
+    // Waiting too long, and a wait cancelled by a deadline.
+    b.set_timeout(50);
+    console.println(said(b.recv_from(10)));
+    b.set_timeout(0);
+    let cancelled = scope t within 50 {
+        b.recv_from(10)
+    };
+    console.println(cancelled.is_err());
+    a.send_to("after".to_bytes(), b.addr()).unwrap();
+    console.println(said(b.recv_from(10)));
+
+    // A datagram to a closed port: the next receive still just waits.
+    let gone = net.udp_bind("127.0.0.1:0").unwrap();
+    let gone_at = gone.addr();
+    gone.close();
+    a.send_to("x".to_bytes(), gone_at).unwrap();
+    a.set_timeout(100);
+    console.println(said(a.recv_from(10)));
+
+    // Two sockets sharing one port.
+    let one = net.udp_bind_shared("127.0.0.1:0").unwrap();
+    console.println(net.udp_bind_shared(one.addr()).is_ok());
+
+    // Options.
+    console.println(a.set_multicast_ttl(4).debug());
+    console.println(a.set_multicast_loop(false).debug());
+    console.println(a.set_multicast_ttl(0).debug());
+    console.println(a.join("127.0.0.1", "").debug());
+    console.println(a.join("224.0.0.251", "no-such-interface").debug());
+    console.println(a.set_multicast_interface("no-such-interface").debug());
+}

@@ -23,7 +23,7 @@ int32_t lugha_rt_net_resolve(const LughaString *name, int64_t numeric, LughaStri
     int code = net_lookup(name->bytes, (size_t)name->len, NULL, numeric ? AI_NUMERICHOST : 0,
                           &list);
     if (code != 0) {
-        return net_error(error, gai_strerror(code));
+        return net_error(error, os_lookup_message(code));
     }
     size_t cap = 64, len = 0;
     char *text = rt_scratch((int64_t)cap);

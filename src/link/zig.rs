@@ -57,6 +57,7 @@ pub fn link_args(triple: &str) -> Vec<OsString> {
         args.push(OsString::from("-lapi-ms-win-core-synch-l1-2-0"));
         args.push(OsString::from("-lbcryptprimitives"));
         args.push(OsString::from("-lws2_32"));
+        args.push(OsString::from("-liphlpapi"));
         args.push(OsString::from("-lntdll"));
     }
     args
@@ -149,6 +150,7 @@ mod tests {
                 "-lapi-ms-win-core-synch-l1-2-0",
                 "-lbcryptprimitives",
                 "-lws2_32",
+                "-liphlpapi",
                 "-lntdll"
             ]
         );

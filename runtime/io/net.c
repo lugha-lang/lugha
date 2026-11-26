@@ -1,7 +1,7 @@
 /*
  * net.c — part of lugha_rt.c: `std.net`'s built-ins. TCP sockets through
  * the OS layer's operations (`os_sock_*`; os/posix/sockets.c on Linux and
- * macOS), which park only the calling green thread while the others run;
+ * macOS, os/windows/sockets.c on Windows), which park only the calling green thread while the others run;
  * the poll an idle worker waits in when nothing is ready (workers.c), and
  * the list of tasks parked on a socket, which closing it wakes. Every
  * failure comes back as 0 and the system's message, never a panic.
@@ -81,9 +81,10 @@ static void poll_sockets(int64_t wait_ns) {
 
 /* The tasks parked on a socket, so that closing it wakes them
  * (`lugha_rt_net_close`): an `epoll` event can't, since closing the
- * descriptor takes it out of the set. Under the runtime's lock. */
+ * descriptor takes it out of the set. On Windows each still takes its
+ * aborted operation's completion before it goes on. Under the runtime's lock. */
 typedef struct {
-    int fd;
+    OsSocket fd;
     Fiber *fiber;
     uint32_t gen;
 } NetWait;
@@ -92,8 +93,7 @@ static int64_t net_waits_len;
 static int64_t net_waits_cap;
 
 /* Lists the running task as parked on `fd` for wait `gen`. */
-/* Unused on Windows, whose parts that call it aren't built yet. */
-__attribute__((unused)) static void net_waits_add(int fd, uint32_t gen) {
+static void net_waits_add(OsSocket fd, uint32_t gen) {
     if (net_waits_len == net_waits_cap) {
         net_waits_cap = net_waits_cap == 0 ? 16 : net_waits_cap * 2;
         NetWait *bigger = realloc(net_waits, (size_t)net_waits_cap * sizeof *net_waits);
@@ -106,8 +106,7 @@ __attribute__((unused)) static void net_waits_add(int fd, uint32_t gen) {
 }
 
 /* Takes the running task off the list, however its wait ended. */
-/* Unused on Windows, whose parts that call it aren't built yet. */
-__attribute__((unused)) static void net_waits_remove(void) {
+static void net_waits_remove(void) {
     for (int64_t i = 0; i < net_waits_len; i++) {
         if (net_waits[i].fiber == current) {
             net_waits[i] = net_waits[--net_waits_len];
@@ -149,6 +148,11 @@ static int net_lookup(const char *host, size_t len, const char *port, int flags,
                       struct addrinfo **out) {
     Job *job = job_new(net_lookup_job);
     job->drop = net_lookup_drop;
+    char scoped[NI_MAXHOST];
+    if (os_scope_numeric(host, len, scoped, sizeof scoped)) {
+        host = scoped;
+        len = strlen(scoped);
+    }
     job->path = job_copy(host, len);
     job->path2 = port == NULL ? NULL : job_copy(port, strlen(port));
     job->flags = flags;
@@ -200,7 +204,7 @@ static const char *net_resolve(const LughaString *addr, int flags, struct addrin
         return "port must be a number from 0 to 65535";
     }
     int code = net_lookup(host, host_len, port, flags, out);
-    return code == 0 ? NULL : gai_strerror(code);
+    return code == 0 ? NULL : os_lookup_message(code);
 }
 
 /* What a socket operation's outcome means to Lugha: 1 when it was done,
@@ -325,7 +329,7 @@ int32_t lugha_rt_net_write(int64_t fd, const LughaArray *bytes, int64_t timeout_
 void lugha_rt_net_close(int64_t fd) {
     RT_SECTION();
     for (int64_t i = 0; i < net_waits_len; i++) {
-        if (net_waits[i].fd == (int)fd) {
+        if (net_waits[i].fd == fd) {
             wake_gen(net_waits[i].fiber, net_waits[i].gen, SOCKET_CLOSED);
         }
     }

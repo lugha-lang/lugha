@@ -4,9 +4,11 @@
  * wake-up, wait on a word and system fact the shared parts need. They call
  * the operating system through nothing else.
  *
- * Events: sockets are armed for one wake-up each (`os_poll_arm`) and come
- * back with the token they were armed with; two signals other threads raise
- * (the helpers' and the workers' wake-up) come back with fixed tokens.
+ * Events come back from one poll with a token each: on POSIX a socket is
+ * armed for one wake-up (`os_poll_arm`) and comes back with the token it
+ * was armed with; on Windows an operation's completion comes back with
+ * its waiting task's; two signals other threads raise (the helpers' and
+ * the workers' wake-up) come back with fixed tokens.
  * Waiting on a word is how workers park and the runtime's locks wait.
  *
  * A fragment, not compiled on its own: joined right after the core, before
@@ -33,8 +35,10 @@ enum { OS_READ = 1, OS_WRITE = 2 };
 enum { OS_TOKEN_HELPERS = 1, OS_TOKEN_WAKE = 2 };
 
 static void os_poll_open(void);
+#if !defined(_WIN32)
 static void os_poll_arm(int fd, uint32_t want, uint64_t token);
 static void os_poll_disarm(int fd);
+#endif
 static int os_poll_wait(OsEvent *out, int max, int timeout_ms);
 static OsSignal os_signal_new(uint64_t token);
 static void os_signal_raise(OsSignal s);
@@ -137,6 +141,18 @@ static int64_t os_sock_sendto(OsSocket s, const char *buf, int64_t n, const stru
 static int64_t os_sock_name(OsSocket s, bool peer, struct sockaddr_storage *at, socklen_t *len,
                             const char **message);
 static void os_sock_close(OsSocket s);
+
+/* Names. `os_lookup_message`: a name lookup's failure (`getaddrinfo`'s
+ * code) in glibc's words, on every system. A link-local IPv6 address
+ * carries its interface: `os_scope_name` turns a number after `%` in the
+ * NUL-terminated `host` (`cap` bytes) into the interface's name, as
+ * `net_interfaces` names it; `os_scope_numeric` writes `host` (`len`
+ * bytes, no NUL) into `out` with a name after `%` turned into its number,
+ * true if it did, false to use `host` as it is. Nothing to do where the
+ * system's own calls take and give names. */
+static const char *os_lookup_message(int code);
+static void os_scope_name(char *host, size_t cap);
+static bool os_scope_numeric(const char *host, size_t len, char *out, size_t cap);
 
 /* A descriptor a helper writes to: a write to a pipe whose reader is gone
  * is `EPIPE` through it, never SIGPIPE ending the program. Linux sends

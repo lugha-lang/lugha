@@ -1,0 +1,14 @@
+[112, 105, 110, 103]
+true
+datagram of 16 bytes is longer than max
+timed out
+true
+[97, 102, 116, 101, 114]
+timed out
+true
+Ok(())
+Ok(())
+Err("TTL must be from 1 to 255")
+Err("not a multicast group")
+Err("no such interface")
+Err("no such interface")

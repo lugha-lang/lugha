@@ -2,7 +2,7 @@
  * udp.c — part of lugha_rt.c: `std.net`'s UDP sockets, through the OS
  * layer's operations as TCP's are (io/net.c); a wait parks only its green
  * thread. Multicast and network interfaces are the system's
- * (os/posix/udp_options.c). Datagrams are
+ * (os/posix/udp_options.c, os/windows/net_options.c). Datagrams are
  * external input: never longer than the caller's `max`, never silently cut
  * short, and their sender is reported, not trusted.
  *
@@ -85,6 +85,7 @@ static LughaString *udp_name(const struct sockaddr *at, socklen_t len) {
                     NI_NUMERICHOST | NI_NUMERICSERV) != 0) {
         return string_of("", 0);
     }
+    os_scope_name(host, sizeof host);
     snprintf(text, sizeof text, at->sa_family == AF_INET6 ? "[%s]:%s" : "%s:%s", host, port);
     return string_of(text, (int64_t)strlen(text));
 }
