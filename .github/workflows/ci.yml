@@ -285,7 +285,7 @@ jobs:
         # Each with the arguments `a b` and `ñandú`, LUGHA_TEST_WIN=héllo
         # and its .stdin (else nothing), within a minute, in an empty folder
         # of its own: exactly its .stdout, its .exit (else 0), and its
-        # .stderr somewhere in stderr. Lockdown reports it isn't applied.
+        # .stderr somewhere in stderr. Lockdown reports what it limited.
         working-directory: windows
         env:
           LC_ALL: C.UTF-8
@@ -313,10 +313,14 @@ jobs:
               status=1
             fi
           done
-          if LUGHA_LOCKDOWN=report ./hello.exe 2>&1 >/dev/null | grep -q "lockdown: not applied on Windows"; then
+          LUGHA_LOCKDOWN=report ./hello.exe > /dev/null 2> lockdown.txt
+          LUGHA_LOCKDOWN=report ./lockdown_held.exe > /dev/null 2>> lockdown.txt
+          if grep -q "lockdown: processes refused, files read-only, network not limited; net refused, proc refused, fs refused" lockdown.txt &&
+             grep -q "lockdown: nothing needed, network not limited; net refused, proc held, fs held" lockdown.txt; then
             echo "ok lockdown report"
           else
             echo "FAILED lockdown report"
+            cat lockdown.txt
             status=1
           fi
           exit $status

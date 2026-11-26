@@ -1,0 +1,11 @@
+// Run on Windows by CI: holding neither `Proc` nor `Fs`, C code can't
+// start a program or make a file, and can still read one.
+extern fun start_one(): i64;
+extern fun can_write(): i64;
+extern fun can_read(): i64;
+
+fun main(console: Console) {
+    console.println("start {start_one()}");
+    console.println("write {can_write()}");
+    console.println("read {can_read()}");
+}

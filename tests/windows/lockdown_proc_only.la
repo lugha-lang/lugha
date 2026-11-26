@@ -1,0 +1,11 @@
+// Run on Windows by CI: holding `Proc` but not `Fs`, programs start, and
+// one started can't make a file either: it runs at the same Low level.
+fun code(proc: Proc, line: string): string = match proc.run("cmd.exe", ["/c", line]) {
+    .Ok(o) => "{o.code}",
+    .Err(e) => "err {e}",
+};
+
+fun main(console: Console, proc: Proc) {
+    console.println("exit {code(proc, "exit 7")}");
+    console.println("write {code(proc, "type nul> made.txt")}");
+}

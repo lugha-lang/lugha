@@ -67,10 +67,20 @@ fn wine() -> bool {
 }
 
 /// Cases Wine can't run, each with why; CI runs them on Windows itself.
-const WINE_CANT: [(&str, &str); 1] = [(
-    "confined",
-    "Wine's CreateSymbolicLinkW makes no link, and junctions can't be set",
-)];
+const WINE_CANT: [(&str, &str); 3] = [
+    (
+        "confined",
+        "Wine's CreateSymbolicLinkW makes no link, and junctions can't be set",
+    ),
+    (
+        "lockdown_bare",
+        "Wine enforces neither a job's process limit nor integrity levels",
+    ),
+    (
+        "lockdown_proc_only",
+        "Wine doesn't enforce integrity levels",
+    ),
+];
 
 /// Every case: its name and the source to build (relative to the root).
 fn cases() -> Vec<(String, String)> {
@@ -210,7 +220,7 @@ fn a_struct_passed_to_c_by_value_is_e0337_for_windows_only() {
 }
 
 #[test]
-fn a_windows_build_reports_lockdown_not_applied() {
+fn a_windows_build_reports_what_lockdown_limits() {
     if !cross::ready("windows_lockdown", &["zig"]) || !wine() {
         return;
     }
@@ -232,8 +242,11 @@ fn a_windows_build_reports_lockdown_not_applied() {
         .output()
         .expect("wine runs");
     let stderr = text(&ran.stderr);
+    // `hello` holds no capability at all. Wine accepts each part of
+    // lockdown and enforces none, so CI checks what applies on Windows.
+    assert!(stderr.contains("lockdown: processes "), "{stderr}");
     assert!(
-        stderr.contains("lockdown: not applied on Windows"),
+        stderr.contains(", network not limited; net refused, proc refused, fs refused"),
         "{stderr}"
     );
 }
@@ -306,6 +319,7 @@ fn a_windows_executable_imports_only_what_windows_has() {
     for dll in &dlls {
         let system = [
             "kernel32.dll",
+            "advapi32.dll",
             "ntdll.dll",
             "ws2_32.dll",
             "iphlpapi.dll",

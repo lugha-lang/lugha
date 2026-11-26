@@ -38,7 +38,7 @@ pub const WINDOWS_ONLY: [&str; 11] = [
     "os/windows/sockets.c",
     "os/windows/command_line.c",
     "os/windows/process.c",
-    "os/windows/missing.c",
+    "os/windows/lockdown.c",
 ];
 
 /// The system a runtime is joined for: which `os/<system>/` parts it takes.
@@ -323,8 +323,8 @@ pub const RUNTIME_PARTS: [(&str, &str); 72] = [
         include_str!("../../runtime/os/windows/process.c"),
     ),
     (
-        "os/windows/missing.c",
-        include_str!("../../runtime/os/windows/missing.c"),
+        "os/windows/lockdown.c",
+        include_str!("../../runtime/os/windows/lockdown.c"),
     ),
 ];
 
