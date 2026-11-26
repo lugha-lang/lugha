@@ -1,23 +1,30 @@
 #!/bin/sh
-# Runs the program suite tests/macos_suite.rs built, as tests/programs.rs
+# Runs the program suite tests/platform_suite.rs built, as tests/programs.rs
 # runs each case on Linux: one worker, the case's environment, arguments
 # and stdin (or an empty one), from a fresh folder or the repository's
 # root; stdout, the exit code and any expected stderr compared byte for
-# byte. Known differences (tests/macos/known.txt) are expected to fail.
+# byte. The cases on the known list are expected to fail.
 #
-#   sh tests/macos/suite.sh <suite folder>     (from the repository's root)
+#   sh tests/suite.sh <suite folder> <known list>     (from the repository's root)
+#   sh tests/suite.sh macos/suite tests/macos/known.txt
 #
-# POSIX sh and perl only: a Mac runner has both and nothing else is needed.
+# LUGHA_SUITE_RUNNER, when set, starts each program (`wine`, to run a
+# Windows suite on Linux). POSIX sh, with `timeout` where the system has it
+# (Linux, Git Bash on Windows) and perl where it doesn't (a Mac).
 
 set -u
 suite=$(cd "$1" && pwd)
 root=$(pwd)
-known="$root/tests/macos/known.txt"
+known=$2
 seconds=${LUGHA_SUITE_SECONDS:-30}
 passed=0 failed=0 expected=0 fixed=0
 
-# perl's alarm outlives its exec: a case still running is ended by SIGALRM.
-limit() { perl -e 'alarm shift; exec @ARGV or die "cannot run $ARGV[0]: $!\n"' "$seconds" "$@"; }
+if command -v timeout > /dev/null 2>&1; then
+    limit() { timeout "$seconds" "$@"; }
+else
+    # perl's alarm outlives its exec: a case still running is ended by SIGALRM.
+    limit() { perl -e 'alarm shift; exec @ARGV or die "cannot run $ARGV[0]: $!\n"' "$seconds" "$@"; }
+fi
 
 is_known() {
     awk -v n="$1" 'index($0, n " — ") == 1 { found = 1 } END { exit !found }' "$known"
@@ -47,7 +54,14 @@ for dir in "$suite"/*/; do
             [ -n "$line" ] && set -- "$@" "$line"
         done < "$dir/envvars"
     fi
-    set -- "$@" "$dir/exe"
+    if [ -n "${LUGHA_SUITE_RUNNER:-}" ]; then
+        set -- "$@" "$LUGHA_SUITE_RUNNER"
+    fi
+    if [ -f "$dir/exe.exe" ]; then
+        set -- "$@" "$dir/exe.exe"
+    else
+        set -- "$@" "$dir/exe"
+    fi
     if [ -f "$dir/args" ]; then
         while IFS= read -r line || [ -n "$line" ]; do
             set -- "$@" "$line"
@@ -64,7 +78,7 @@ for dir in "$suite"/*/; do
     fi
     if $ok; then
         if is_known "$name"; then
-            echo "PASSES $name: on tests/macos/known.txt, but passes"
+            echo "PASSES $name: on $known, but passes"
             fixed=$((fixed + 1))
         else
             passed=$((passed + 1))

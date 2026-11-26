@@ -1,14 +1,18 @@
-//! The whole program suite for a Mac: every run case in `tests/programs/`
-//! built for `aarch64-apple-darwin` here, on Linux, into a folder of plain
-//! files that `tests/macos/suite.sh` runs on a Mac (CI's `macos` job).
+//! The whole program suite for another system: every run case in
+//! `tests/programs/` built here, on Linux, for the target
+//! `LUGHA_SUITE_TARGET` names, into a folder of plain files that
+//! `tests/suite.sh` runs on that system (CI's `macos` and `windows` jobs;
+//! under Wine, or on Linux itself, by hand).
 //!
-//! The building test is ignored: CI runs it with `--ignored` and
-//! `LUGHA_MACOS_SUITE=<folder>`. `LUGHA_MACOS_SUITE_TARGET` builds for
-//! another target instead, so the script can be tried on Linux.
+//! The building test is ignored: CI runs it with `--ignored`,
+//! `LUGHA_SUITE=<folder>` and `LUGHA_SUITE_TARGET=<triple>`.
 //!
-//! A case folder holds `name`, `exe`, `stdout`, `exit` and, when the case
-//! has them, `stderr`, `args`, `stdin`, `envvars` and `scratch`. Cases a Mac
-//! build refuses (E0334, E0335) are listed in `skipped.txt` with why.
+//! A case folder holds `name`, the program (`exe`, or `exe.exe` for
+//! Windows, which starts only names ending `.exe`), `stdout`, `exit` and,
+//! when the case has them, `stderr`, `args`, `stdin`, `envvars` and
+//! `scratch`. Cases a build for the target refuses (E0334, E0335, E0337)
+//! are listed in `skipped.txt` with why. Each system's expected failures
+//! are its `known.txt` (`tests/macos/`, `tests/windows/`).
 
 // Only `discover` and `Case` are used; the rest of the runner runs `lughac`.
 #[allow(dead_code, unused_imports)]
@@ -24,7 +28,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use support::runner::{Case, Mode, discover};
 
-const MAC: &str = "aarch64-apple-darwin";
+/// The target lughac builds for without `--target`, on the Linux it runs
+/// on: no zig needed.
+fn host() -> String {
+    format!("{}-unknown-linux-gnu", std::env::consts::ARCH)
+}
 
 fn root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -85,15 +93,27 @@ fn lines(items: impl Iterator<Item = String>) -> Vec<u8> {
         .into_bytes()
 }
 
-/// Why a Mac build of a case is refused rather than failed: a library
-/// built for this machine that a foreign build can't link.
+/// Why a build of a case for the target is refused rather than failed: a
+/// library built for this machine that a foreign build can't link, or a
+/// C rule lughac doesn't lower for that target yet.
 fn refused(stderr: &str) -> Option<&'static str> {
     if stderr.contains("E0334") {
         Some("E0334: std.tls, std.http and std.crypto need an OpenSSL built for the target")
     } else if stderr.contains("E0335") {
         Some("E0335: a [link] pkg-config line names this machine's libraries")
+    } else if stderr.contains("E0337") {
+        Some("E0337: an extern struct passed by value, not lowered for Windows yet")
     } else {
         None
+    }
+}
+
+/// The program's name in a case folder: Windows starts only `.exe` names.
+fn program(target: &str) -> &'static str {
+    if target.contains("-windows") {
+        "exe.exe"
+    } else {
+        "exe"
     }
 }
 
@@ -117,7 +137,7 @@ fn build(case: &Case, dir: &Path, target: &str) -> Built {
         .arg("build")
         .arg(&arg)
         .args(["--target", target, "-o"])
-        .arg(dir.join("exe"))
+        .arg(dir.join(program(target)))
         .current_dir(root())
         .env_remove("LUGHA_CC")
         .output()
@@ -128,6 +148,12 @@ fn build(case: &Case, dir: &Path, target: &str) -> Built {
             Some(why) => Built::Skipped(why.into()),
             None => Built::Failed(stderr.into_owned()),
         };
+    }
+    // zig's debug database beside a Windows program: 2.4 MB a case, and
+    // nothing reads it here. Absent on every other target.
+    let pdb = dir.join("exe.pdb");
+    if pdb.exists() {
+        std::fs::remove_file(&pdb).expect("the suite folder is writable");
     }
     let files = match case_files(case, &out.stderr) {
         Ok(files) => files,
@@ -140,11 +166,12 @@ fn build(case: &Case, dir: &Path, target: &str) -> Built {
 }
 
 #[test]
-#[ignore = "CI builds the suite for its Mac: LUGHA_MACOS_SUITE=<folder>"]
-fn build_the_suite_for_a_mac() {
-    let out = PathBuf::from(std::env::var_os("LUGHA_MACOS_SUITE").expect("LUGHA_MACOS_SUITE"));
-    let target = std::env::var("LUGHA_MACOS_SUITE_TARGET").unwrap_or_else(|_| MAC.into());
-    if target == MAC && !cross::ready("macos_suite", &["zig"]) {
+#[ignore = "CI builds the suite: LUGHA_SUITE=<folder> LUGHA_SUITE_TARGET=<triple>"]
+fn build_the_suite() {
+    let out = PathBuf::from(std::env::var_os("LUGHA_SUITE").expect("LUGHA_SUITE"));
+    // Named, never defaulted: a suite built for the wrong system fails loudly.
+    let target = std::env::var("LUGHA_SUITE_TARGET").expect("LUGHA_SUITE_TARGET");
+    if target != host() && !cross::ready("platform_suite", &["zig"]) {
         return;
     }
     let cases: Vec<Case> = cases()
@@ -202,9 +229,9 @@ fn build_the_suite_for_a_mac() {
     );
 }
 
-/// `tests/macos/known.txt`: `<case> — <reason>` per line, `#` comments.
-fn known() -> Vec<(String, String)> {
-    let text = std::fs::read_to_string(root().join("tests/macos/known.txt")).expect("known.txt");
+/// A system's `known.txt`: `<case> — <reason>` per line, `#` comments.
+fn known(list: &str) -> Vec<(String, String)> {
+    let text = std::fs::read_to_string(root().join(list)).expect("known.txt");
     text.lines()
         .filter(|l| !l.trim().is_empty() && !l.starts_with('#'))
         .map(|l| match l.split_once(" — ") {
@@ -217,13 +244,15 @@ fn known() -> Vec<(String, String)> {
 #[test]
 fn every_known_difference_names_a_run_case_and_why() {
     let cases = cases();
-    for (name, why) in known() {
-        let case = cases.iter().find(|c| c.name == name);
-        assert!(
-            case.is_some_and(|c| matches!(c.mode, Mode::Run { .. })),
-            "known.txt: {name} isn't a run case"
-        );
-        assert!(!why.is_empty(), "known.txt: {name} has no reason");
+    for list in ["tests/macos/known.txt", "tests/windows/known.txt"] {
+        for (name, why) in known(list) {
+            let case = cases.iter().find(|c| c.name == name);
+            assert!(
+                case.is_some_and(|c| matches!(c.mode, Mode::Run { .. })),
+                "{list}: {name} isn't a run case"
+            );
+            assert!(!why.is_empty(), "{list}: {name} has no reason");
+        }
     }
 }
 
@@ -266,8 +295,16 @@ fn a_case_folder_mirrors_its_case() {
 }
 
 #[test]
-fn a_mac_build_refused_is_skipped_with_why() {
+fn a_build_refused_for_the_target_is_skipped_with_why() {
     assert!(refused("error[E0334]: …").unwrap().starts_with("E0334"));
     assert!(refused("error[E0335]: …").unwrap().starts_with("E0335"));
+    assert!(refused("error[E0337]: …").unwrap().starts_with("E0337"));
     assert!(refused("error[E0101]: …").is_none());
+}
+
+#[test]
+fn a_windows_program_is_named_for_windows() {
+    assert_eq!(program("x86_64-pc-windows-gnu"), "exe.exe");
+    assert_eq!(program("aarch64-apple-darwin"), "exe");
+    assert_eq!(program(&host()), "exe");
 }
