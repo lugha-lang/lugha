@@ -2,7 +2,9 @@
 # A reason is a real platform difference, or a bug written up in BUGS.md.
 # tests/suite.sh fails on any other failure, and on a case here that
 # passes; tests/platform_suite.rs checks each name is a run case.
+capabilities/clock_env_proc_entropy/bytes.la — it holds `Proc` without `Fs`, so the programs it starts run at Low integrity, and Git Bash's tools (`printf`, `sh`) can't start there (0xC0000142: MSYS's runtime fails to initialise)
 capabilities/clock_env_proc_entropy/env.la — an absolute path on Windows starts with a drive (C:\), not /
+capabilities/clock_env_proc_entropy/objective.la — it holds `Proc` without `Fs`, so the programs it starts run at Low integrity, and Git Bash's tools (`printf`, `sh`) can't start there (0xC0000142: MSYS's runtime fails to initialise)
 capabilities/clock_env_proc_entropy/process.la — it expects 137 from `kill -9 $$` (128 + the signal); Windows has no signals
 capabilities/dir_confinement/confined.la — its links are made with Git Bash's `ln -s`, which copies instead of linking; tests/windows/confined/ covers Windows' confinement
 collections/growable_arrays/segv_from_c.la — a crash in C is a Windows exception, not SIGSEGV's exit 139
