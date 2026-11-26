@@ -1,0 +1,26 @@
+0
+"a b"
+""
+"say \"hi\""
+"c:\\path\\"
+"back\\\\\"slash"
+"tab\there"
+"ñandú 中文"
+"&|<>^% !"
+"trailing\\"
+"\\\\"
+"\""
+7 1048576 read 1048576
+1000
+arg 999
+"called"
+Ok(0)
+no-such-program-xyz: No such file or directory
+x.cmd: a batch file runs through cmd.exe, a shell, which Proc never starts
+x.BAT: a batch file runs through cmd.exe, a shell, which Proc never starts
+command contains a quote, which no program's name holds
+args[1] contains a NUL byte
+command line is longer than Windows allows
+lookup_probe: No such file or directory
+.\lookup_probe.exe: Exec format error
+true

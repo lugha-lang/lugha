@@ -27,7 +27,7 @@ pub const DARWIN_ONLY: [&str; 5] = [
 
 /// The parts of [`RUNTIME_PARTS`] only Windows has (`os/windows/`): its
 /// OS layer, its CPU code, and what fails closed until it is built.
-pub const WINDOWS_ONLY: [&str; 9] = [
+pub const WINDOWS_ONLY: [&str; 11] = [
     "os/windows/os.c",
     "os/windows/paths.c",
     "os/windows/dir_resolve.c",
@@ -36,6 +36,8 @@ pub const WINDOWS_ONLY: [&str; 9] = [
     "os/windows/x86_64.c",
     "os/windows/net_options.c",
     "os/windows/sockets.c",
+    "os/windows/command_line.c",
+    "os/windows/process.c",
     "os/windows/missing.c",
 ];
 
@@ -104,7 +106,7 @@ pub const POSIX_ONLY: [&str; 7] = [
 
 /// The runtime's source files, in the order they are joined: the core first,
 /// since it holds every `#include`, then the fragments that rely on it.
-pub const RUNTIME_PARTS: [(&str, &str); 70] = [
+pub const RUNTIME_PARTS: [(&str, &str); 72] = [
     (
         "core/lugha_rt.c",
         include_str!("../../runtime/core/lugha_rt.c"),
@@ -311,6 +313,14 @@ pub const RUNTIME_PARTS: [(&str, &str); 70] = [
     (
         "os/windows/sockets.c",
         include_str!("../../runtime/os/windows/sockets.c"),
+    ),
+    (
+        "os/windows/command_line.c",
+        include_str!("../../runtime/os/windows/command_line.c"),
+    ),
+    (
+        "os/windows/process.c",
+        include_str!("../../runtime/os/windows/process.c"),
     ),
     (
         "os/windows/missing.c",

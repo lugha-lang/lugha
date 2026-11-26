@@ -1,0 +1,84 @@
+// Run on Windows by CI, and under Wine by tests/windows.rs: Proc starting
+// this same program as its child ("child" first), so every argument is
+// checked as a round trip; then what Proc refuses, and where it looks.
+fun child(console: Console, args: string[]): i32 {
+    let how = args[2];
+    if how == "echo" {
+        for i in 3..args.len {
+            console.println(args[i].debug());
+        }
+        return 0;
+    }
+    if how == "count" {
+        console.println(args.len - 3);
+        console.println(args[args.len - 1]);
+        return 0;
+    }
+    if how == "big" {
+        // Writes a megabyte before reading its own: no deadlock either way.
+        let x: u8 = 120;
+        console.print(string_from_utf8([x; 1048576]).unwrap());
+        let input = console.read_bytes().unwrap();
+        console.eprint("read {input.len}");
+        return 7;
+    }
+    3
+}
+
+fun failure(r: Result<ProcessOutput, string>): string = match r {
+    .Ok(out) => "ran: {out.code}",
+    .Err(e) => e,
+};
+
+fun main(args: string[], console: Console, proc: Proc, fs: Fs): i32 {
+    if args.len > 2 && args[1] == "child" {
+        return child(console, args);
+    }
+    let me = args[0];
+
+    // Each argument arrives exactly as given: nothing is a shell's.
+    let awkward = [
+        "a b", "", "say \"hi\"", "c:\\path\\", "back\\\\\"slash", "tab\there", "ñandú 中文",
+        "&|<>^% !", "trailing\\", "\\\\", "\"",
+    ];
+    let r = proc.run(me, ["child", "echo"] + awkward).unwrap();
+    console.println(r.code);
+    console.print(r.stdout);
+
+    // A megabyte each way at once, stderr apart, the exit code.
+    let i: u8 = 105;
+    let b = proc.run_bytes_with(me, ["child", "big"], [i; 1048576]).unwrap();
+    console.println("{b.code} {b.stdout.len} {string_from_utf8(b.stderr).unwrap()}");
+
+    // A thousand arguments.
+    let mut many = ["child", "count"];
+    for n in 0..1000 {
+        many.push("arg {n}");
+    }
+    console.print(proc.run(me, many).unwrap().stdout);
+
+    // `call` shares this program's console.
+    console.flush();
+    console.println(proc.call(me, ["child", "echo", "called"]).debug());
+
+    // Refused before anything starts.
+    let x: u8 = 120;
+    let long = string_from_utf8([x; 40000]).unwrap();
+    console.println(failure(proc.run("no-such-program-xyz", [])));
+    console.println(failure(proc.run("x.cmd", [])));
+    console.println(failure(proc.run("x.BAT", [])));
+    console.println(failure(proc.run("tool \"x\"", [])));
+    console.println(failure(proc.run(me, ["child", "bad\0"])));
+    console.println(failure(proc.run(me, ["child", long])));
+
+    // A bare name is looked up on PATH only, never in the current folder;
+    // a path reaches the file there (which isn't a program).
+    fs.cwd().write_file("lookup_probe.exe", "not a program").unwrap();
+    console.println(failure(proc.run("lookup_probe", [])));
+    console.println(failure(proc.run(".\\lookup_probe.exe", [])));
+    fs.cwd().remove_file("lookup_probe.exe").unwrap();
+
+    // A program Windows ships, found on PATH.
+    console.println(failure(proc.run("hostname", [])).starts_with("ran: 0"));
+    0
+}
