@@ -1,0 +1,25 @@
+// Two tasks read one connection: the second waits behind the first. One
+// gives up at its deadline; the other still gets the data sent later.
+import std.task;
+
+fun reader(c: Conn): Result<i64, string> {
+    let got = c.read(10)?;
+    Ok(got.len)
+}
+
+fun main(console: Console, net: Net) {
+    let server = net.listen("127.0.0.1:0").unwrap();
+    let c = net.connect(server.addr()).unwrap();
+    let other = server.accept().unwrap();
+    let r = scope s within 5000 {
+        let patient = s.spawn(reader(c));
+        task.sleep(20);
+        let hasty = scope t within 50 {
+            c.read(10)
+        };
+        console.println(hasty.is_err());
+        other.write("late".to_bytes()).unwrap();
+        console.println(patient.join().debug());
+    };
+    console.println(r.is_ok());
+}

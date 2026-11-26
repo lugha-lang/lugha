@@ -64,32 +64,44 @@ static void os_poll_open(void) {
     }
 }
 
-/* `fd` reported once, with `token`, when ready for `want` (OS_READ,
- * OS_WRITE); armed again for each wait. */
-static void os_poll_arm(int fd, uint32_t want, uint64_t token) {
+/* A socket's events carry its descriptor with this bit, so none is taken
+ * for a signal's token. */
+#define OS_FD_EVENT (UINT64_C(1) << 63)
+
+/* `fd` reported once, as itself, when ready for `want` (OS_READ,
+ * OS_WRITE); armed again for each wait, for every direction waited on. */
+static void os_poll_arm(int fd, uint32_t want) {
     uint32_t events = EPOLLONESHOT | ((want & OS_READ) != 0 ? EPOLLIN : 0) |
                       ((want & OS_WRITE) != 0 ? EPOLLOUT : 0);
-    struct epoll_event ev = {.events = events, .data = {.u64 = token}};
+    struct epoll_event ev = {.events = events, .data = {.u64 = OS_FD_EVENT | (uint32_t)fd}};
     if (epoll_ctl(os_poll_fd, EPOLL_CTL_MOD, fd, &ev) != 0 &&
-        epoll_ctl(os_poll_fd, EPOLL_CTL_ADD, fd, &ev) != 0) {
+        epoll_ctl(os_poll_fd, EPOLL_CTL_ADD, fd, &ev) != 0 && errno != EBADF) {
         die("panic: epoll_ctl failed\n");
     }
 }
 
 /* `fd` reported no more, until armed again. */
 static void os_poll_disarm(int fd) {
-    struct epoll_event off = {.events = 0, .data = {.ptr = NULL}};
+    struct epoll_event off = {.events = 0, .data = {.u64 = OS_FD_EVENT | (uint32_t)fd}};
     // Failing means it was never armed, or is closed: nothing to stop.
     (void)epoll_ctl(os_poll_fd, EPOLL_CTL_MOD, fd, &off);
 }
 
 /* Waits up to `timeout_ms` (< 0 for ever, 0 not at all) for events; up to
- * `max` of them, each its token, into `out`. Their count, 0 when none. */
+ * `max` of them into `out`. Their count, 0 when none. An error or hang-up
+ * makes a socket ready both ways: whichever waits then finds out. */
 static int os_poll_wait(OsEvent *out, int max, int timeout_ms) {
     struct epoll_event events[64];
     int n = epoll_wait(os_poll_fd, events, max < 64 ? max : 64, timeout_ms);
     for (int i = 0; i < n; i++) {
-        out[i].token = events[i].data.u64;
+        uint64_t data = events[i].data.u64;
+        uint32_t got = events[i].events;
+        bool socket = (data & OS_FD_EVENT) != 0;
+        out[i].token = socket ? 0 : data;
+        out[i].fd = socket ? (int)(uint32_t)data : -1;
+        out[i].ready = !socket ? 0
+                               : ((got & (EPOLLIN | EPOLLERR | EPOLLHUP)) != 0 ? OS_READ : 0) |
+                                     ((got & (EPOLLOUT | EPOLLERR | EPOLLHUP)) != 0 ? OS_WRITE : 0);
     }
     return n < 0 ? 0 : n;
 }

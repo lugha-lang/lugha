@@ -4,11 +4,11 @@
  * wake-up, wait on a word and system fact the shared parts need. They call
  * the operating system through nothing else.
  *
- * Events come back from one poll with a token each: on POSIX a socket is
- * armed for one wake-up (`os_poll_arm`) and comes back with the token it
- * was armed with; on Windows an operation's completion comes back with
- * its waiting task's; two signals other threads raise (the helpers' and
- * the workers' wake-up) come back with fixed tokens.
+ * Events come back from one poll: on POSIX a socket is armed for one
+ * wake-up per direction (`os_poll_arm`) and comes back as its descriptor
+ * and the directions ready; on Windows an operation's completion comes
+ * back with its waiting task's token; two signals other threads raise
+ * (the helpers' and the workers' wake-up) come back with fixed tokens.
  * Waiting on a word is how workers park and the runtime's locks wait.
  *
  * A fragment, not compiled on its own: joined right after the core, before
@@ -19,9 +19,12 @@
 /* The operating-system layer (os/<system>.c): every event, wake-up,
  * wait on a word and system fact the shared parts need. */
 
-/* An event from `os_poll_wait`: the token its source was armed with. */
+/* An event from `os_poll_wait`: a socket's (`fd` >= 0, ready for the
+ * directions in `ready`), or else the token its source carries. */
 typedef struct {
     uint64_t token;
+    int fd;
+    uint32_t ready;
 } OsEvent;
 
 /* A signal one thread raises to wake the poll (`os_signal_new`). */
@@ -36,7 +39,10 @@ enum { OS_TOKEN_HELPERS = 1, OS_TOKEN_WAKE = 2 };
 
 static void os_poll_open(void);
 #if !defined(_WIN32)
-static void os_poll_arm(int fd, uint32_t want, uint64_t token);
+/* `fd` armed for exactly the directions in `want`, each for one event;
+ * nothing for a descriptor closed meanwhile (whoever waits on it is woken
+ * by the close). `os_poll_disarm`: armed for none. */
+static void os_poll_arm(int fd, uint32_t want);
 static void os_poll_disarm(int fd);
 #endif
 static int os_poll_wait(OsEvent *out, int max, int timeout_ms);

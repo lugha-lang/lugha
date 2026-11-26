@@ -1,0 +1,33 @@
+// One task reads a connection while another writes to it until the
+// connection is full: both waits must be woken.
+fun reader(c: Conn): Result<i64, string> {
+    let got = c.read(10)?;
+    Ok(got.len)
+}
+
+fun writer(c: Conn): Result<(), string> {
+    let b: u8 = 1;
+    c.write([b; 8388608])
+}
+
+fun drain(c: Conn): Result<i64, string> {
+    let mut total = 0;
+    while total < 8388608 {
+        total += c.read(65536)?.len;
+    }
+    c.write("x".to_bytes())?;
+    Ok(total)
+}
+
+fun main(console: Console, net: Net) {
+    let server = net.listen("127.0.0.1:0").unwrap();
+    let r = scope s within 5000 {
+        let c = net.connect(server.addr()).unwrap();
+        let other = server.accept().unwrap();
+        let read = s.spawn(reader(c));
+        let wrote = s.spawn(writer(c));
+        let drained = s.spawn(drain(other));
+        console.println("{read.join().debug()} {wrote.join().debug()} {drained.join().debug()}");
+    };
+    console.println(r.is_ok());
+}

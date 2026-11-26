@@ -31,10 +31,23 @@ static int32_t net_error(LughaString **error, const char *message) {
  * (workers.c). */
 static void poller_back(void);
 
+#if !defined(_WIN32)
+/* A socket the poll found ready for `ready`: the tasks waiting that way
+ * are woken (os/posix/sockets.c); `net_fd_closed`: one closed. */
+static void net_fd_ready(int fd, uint32_t ready);
+static void net_fd_closed(int fd);
+#endif
+
 /* What one poll found, waking tasks: under the lock, as every wake is. */
 static void poll_found(OsEvent *events, int n) {
     RT_SECTION();
     for (int i = 0; i < n; i++) {
+#if !defined(_WIN32)
+        if (events[i].fd >= 0) {
+            net_fd_ready(events[i].fd, events[i].ready);
+            continue;
+        }
+#endif
         if (events[i].token == OS_TOKEN_HELPERS) {
             jobs_collect();
             continue;
@@ -43,7 +56,8 @@ static void poll_found(OsEvent *events, int n) {
             wake_taken();
             continue;
         }
-        // A fiber and the wait it was armed for: a late event misses.
+        // A fiber and the wait it was armed for (an operation's completion,
+        // on Windows): a late event misses.
         uint64_t packed = events[i].token;
         Fiber *f = (Fiber *)(uintptr_t)(packed & EVENT_FIBER);
         if (f != NULL) {
@@ -87,13 +101,22 @@ typedef struct {
     OsSocket fd;
     Fiber *fiber;
     uint32_t gen;
+    /* Which way it waits (0 to read, 1 to write), whether it waits in a
+     * queue behind the task that holds that way (POSIX: `wait_fd`), and
+     * whether it was woken to try again; `seq` orders the queue. */
+    uint8_t dir;
+    bool queued;
+    bool woken;
+    uint64_t seq;
 } NetWait;
 static NetWait *net_waits;
 static int64_t net_waits_len;
 static int64_t net_waits_cap;
 
-/* Lists the running task as parked on `fd` for wait `gen`. */
-static void net_waits_add(OsSocket fd, uint32_t gen) {
+/* Lists the running task as parked on `fd` for wait `gen`, way `dir`,
+ * `queued` behind another or not. */
+static void net_waits_add(OsSocket fd, uint32_t gen, uint8_t dir, bool queued) {
+    static uint64_t seq;
     if (net_waits_len == net_waits_cap) {
         net_waits_cap = net_waits_cap == 0 ? 16 : net_waits_cap * 2;
         NetWait *bigger = realloc(net_waits, (size_t)net_waits_cap * sizeof *net_waits);
@@ -102,17 +125,21 @@ static void net_waits_add(OsSocket fd, uint32_t gen) {
         }
         net_waits = bigger;
     }
-    net_waits[net_waits_len++] = (NetWait){.fd = fd, .fiber = current, .gen = gen};
+    net_waits[net_waits_len++] = (NetWait){
+        .fd = fd, .fiber = current, .gen = gen, .dir = dir, .queued = queued, .seq = ++seq};
 }
 
-/* Takes the running task off the list, however its wait ended. */
-static void net_waits_remove(void) {
+/* Takes the running task off the list, however its wait ended: whether
+ * it had been woken to try again. */
+static bool net_waits_remove(void) {
     for (int64_t i = 0; i < net_waits_len; i++) {
         if (net_waits[i].fiber == current) {
+            bool woken = net_waits[i].woken;
             net_waits[i] = net_waits[--net_waits_len];
-            return;
+            return woken;
         }
     }
+    return false;
 }
 
 static int64_t net_deadline(int64_t timeout_ms) {
@@ -333,6 +360,9 @@ void lugha_rt_net_close(int64_t fd) {
             wake_gen(net_waits[i].fiber, net_waits[i].gen, SOCKET_CLOSED);
         }
     }
+#if !defined(_WIN32)
+    net_fd_closed((int)fd);
+#endif
     os_sock_close(fd);
 }
 

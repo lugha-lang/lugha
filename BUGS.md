@@ -4,25 +4,6 @@ Known bugs that are understood but not fixed: what happens, why, and the ways to
 
 ---
 
-## Two tasks waiting on one socket at once: only the last is woken
-
-**Status:** open, found 2026-11-26. Linux and macOS (readiness); Windows waits per operation and isn't affected.
-
-### What happens
-
-Eight tasks calling `accept()` on one `Listener` at the same moment, while eight connections arrive: some never return. The same holds for two tasks reading one `Conn`, or one reading and one writing it.
-
-### Why
-
-`wait_fd` (`runtime/os/posix/sockets.c`) arms the socket for one wake-up, with the waiting task's token (`os_poll_arm`: `EPOLL_CTL_MOD` with `EPOLLONESHOT` on Linux, a kqueue filter on macOS). A socket holds one armed token, so a second waiter's arm replaces the first's: the first is never woken by readiness, only by its timeout, a cancellation or `close`.
-
-### Fixes weighed
-
-- **A waiter list per socket** (as Go's netpoll keeps a reader and a writer per descriptor, and parks any more behind them): the poll wakes the list's head for each direction, which re-arms for the next. Keeps one epoll registration per socket.
-- **Refusing a second waiter** with an error: honest, but `Conn` and `Listener` copies are documented as shared, so a server accepting in several tasks is a fair thing to write.
-
----
-
 ## A channel holding its own receiver is never freed
 
 **Status:** open, analysed 2026-11-22. Spec §7 ("Not freed") and CLAUDE.md's known issues state it.

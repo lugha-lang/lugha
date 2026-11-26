@@ -73,45 +73,52 @@ static void os_poll_open(void) {
     }
 }
 
-/* `fd` reported once, with `token`, when ready for `want` (OS_READ,
- * OS_WRITE); armed again for each wait. */
-static void os_poll_arm(int fd, uint32_t want, uint64_t token) {
-    struct kevent ev[2];
+/* `fd` reported once per direction, as itself, when ready for `want`
+ * (OS_READ, OS_WRITE: a filter each); armed again for each wait. */
+static void os_poll_arm(int fd, uint32_t want) {
+    struct kevent ev;
+    // A filter not wanted is taken away; failing means it was never armed,
+    // has fired, or `fd` is closed: nothing to stop then.
+    if ((want & OS_READ) == 0) {
+        EV_SET(&ev, (uintptr_t)fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+        (void)kevent(os_poll_fd, &ev, 1, NULL, 0, NULL);
+    }
+    if ((want & OS_WRITE) == 0) {
+        EV_SET(&ev, (uintptr_t)fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
+        (void)kevent(os_poll_fd, &ev, 1, NULL, 0, NULL);
+    }
+    struct kevent add[2];
     int n = 0;
-    void *data = (void *)(uintptr_t)token;
     if ((want & OS_READ) != 0) {
-        EV_SET(&ev[n++], (uintptr_t)fd, EVFILT_READ, EV_ADD | EV_ONESHOT, 0, 0, data);
+        EV_SET(&add[n++], (uintptr_t)fd, EVFILT_READ, EV_ADD | EV_ONESHOT, 0, 0, NULL);
     }
     if ((want & OS_WRITE) != 0) {
-        EV_SET(&ev[n++], (uintptr_t)fd, EVFILT_WRITE, EV_ADD | EV_ONESHOT, 0, 0, data);
+        EV_SET(&add[n++], (uintptr_t)fd, EVFILT_WRITE, EV_ADD | EV_ONESHOT, 0, 0, NULL);
     }
-    if (kevent(os_poll_fd, ev, n, NULL, 0, NULL) != 0) {
+    if (n > 0 && kevent(os_poll_fd, add, n, NULL, 0, NULL) != 0 && errno != EBADF) {
         die("panic: kevent failed\n");
     }
 }
 
 /* `fd` reported no more, until armed again. */
 static void os_poll_disarm(int fd) {
-    struct kevent ev;
-    // Either may be unarmed, fired already or closed: nothing to stop then.
-    EV_SET(&ev, (uintptr_t)fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
-    (void)kevent(os_poll_fd, &ev, 1, NULL, 0, NULL);
-    EV_SET(&ev, (uintptr_t)fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
-    (void)kevent(os_poll_fd, &ev, 1, NULL, 0, NULL);
+    os_poll_arm(fd, 0);
 }
 
 /* Waits up to `timeout_ms` (< 0 for ever, 0 not at all) for events; up to
- * `max` of them, each its token, into `out`. Their count, 0 when none. */
+ * `max` of them into `out`. Their count, 0 when none. */
 static int os_poll_wait(OsEvent *out, int max, int timeout_ms) {
     struct kevent events[64];
     struct timespec wait = {timeout_ms / 1000, (long)(timeout_ms % 1000) * 1000000};
     int n = kevent(os_poll_fd, NULL, 0, events, max < 64 ? max : 64,
                    timeout_ms < 0 ? NULL : &wait);
     for (int i = 0; i < n; i++) {
-        // A signal's ident is its token; its udata is whatever the last
-        // change to it carried, as kevent replaces udata on every change.
-        out[i].token = events[i].filter == EVFILT_USER ? (uint64_t)events[i].ident
-                                                       : (uint64_t)(uintptr_t)events[i].udata;
+        int16_t filter = events[i].filter;
+        bool user = filter == EVFILT_USER;
+        // A signal's ident is its token; a socket's is its descriptor.
+        out[i].token = user ? (uint64_t)events[i].ident : 0;
+        out[i].fd = user ? -1 : (int)events[i].ident;
+        out[i].ready = user ? 0 : filter == EVFILT_READ ? OS_READ : OS_WRITE;
     }
     return n < 0 ? 0 : n;
 }

@@ -1,0 +1,19 @@
+// Eight tasks accept on one listener at once while eight connect.
+fun take(server: Listener): Result<(), string> {
+    let c = server.accept()?;
+    c.close();
+    Ok(())
+}
+
+fun main(console: Console, net: Net) {
+    let server = net.listen("127.0.0.1:0").unwrap();
+    let r = scope s within 5000 {
+        for _ in 0..8 {
+            s.spawn(take(server));
+        }
+        for _ in 0..8 {
+            net.connect(server.addr()).unwrap().close();
+        }
+    };
+    console.println(r.is_ok());
+}

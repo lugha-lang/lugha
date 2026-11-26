@@ -108,6 +108,8 @@ static int os_poll_wait(OsEvent *out, int max, int timeout_ms) {
         return 0;
     }
     for (ULONG i = 0; i < n; i++) {
+        out[i].fd = -1;
+        out[i].ready = 0;
         if (entries[i].lpCompletionKey != OS_TOKEN_IO) {
             out[i].token = (uint64_t)entries[i].lpCompletionKey;
             continue;
