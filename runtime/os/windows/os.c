@@ -35,9 +35,6 @@ BOOL WINAPI ProcessPrng(PBYTE data, SIZE_T len);
  * `clock_gettime`, from the performance counter). */
 #define OS_MONOTONIC CLOCK_MONOTONIC
 
-/* A TLS client trusts OpenSSL's roots; no build links one for Windows yet. */
-#define OS_TLS_TRUST 0
-
 /* The key holding each thread's worker, made before `main`. */
 static pthread_key_t os_worker_key;
 

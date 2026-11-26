@@ -108,8 +108,8 @@ static char *os_env(const char *name);
 static bool os_local_offset(int64_t seconds, int64_t *out);
 
 /* `OS_TLS_TRUST`: 1 where the system's own verifier decides whether a TLS
- * client trusts a server, through `os_tls_trust` (os/darwin/trust.c); 0
- * where OpenSSL checks against the system's roots. Each system defines it:
+ * client trusts a server, through `os_tls_trust` (os/darwin/trust.c,
+ * os/windows/trust.c); 0 where OpenSSL checks against the system's roots. Each system defines it:
  * an OpenSSL built for a system needn't know where that system keeps its
  * roots, or which it has stopped trusting. */
 

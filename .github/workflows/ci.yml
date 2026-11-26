@@ -79,21 +79,37 @@ jobs:
 
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         # OpenSSL for Mac builds of TLS and crypto programs: the release
-        # tests/macos/openssl.sh pins, built with zig, kept until the script
+        # tests/openssl.sh pins, built with zig, kept until the script
         # (its version and checksum) or zig changes.
         id: openssl-mac
         with:
           path: openssl-mac
-          key: openssl-mac-zig-0.17.1-${{ hashFiles('tests/macos/openssl.sh') }}
+          key: openssl-mac-zig-0.17.1-${{ hashFiles('tests/openssl.sh') }}
 
       - name: Build OpenSSL for a Mac
         if: steps.openssl-mac.outputs.cache-hit != 'true'
-        run: sh tests/macos/openssl.sh aarch64-apple-darwin "$PWD/openssl-mac"
+        run: sh tests/openssl.sh aarch64-apple-darwin "$PWD/openssl-mac"
 
       - name: Name the Mac's OpenSSL
         # For the Mac builds below: the suite's TLS, HTTP and crypto cases
         # and tests/macos/openssl/.
         run: echo "LUGHA_OPENSSL_AARCH64_APPLE_DARWIN=$PWD/openssl-mac" >> "$GITHUB_ENV"
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # OpenSSL for Windows builds, the same release, kept the same way.
+        id: openssl-win
+        with:
+          path: openssl-win
+          key: openssl-win-zig-0.17.1-${{ hashFiles('tests/openssl.sh') }}
+
+      - name: Build OpenSSL for Windows
+        if: steps.openssl-win.outputs.cache-hit != 'true'
+        run: sh tests/openssl.sh x86_64-pc-windows-gnu "$PWD/openssl-win"
+
+      - name: Name Windows' OpenSSL
+        # For the Windows builds below: the suite's TLS, HTTP and crypto
+        # cases and tests/windows/openssl/.
+        run: echo "LUGHA_OPENSSL_X86_64_PC_WINDOWS_GNU=$PWD/openssl-win" >> "$GITHUB_ENV"
 
       - name: Build the macOS cases
         # Built here, on Linux, through zig; the macos job runs them on a Mac.
@@ -106,25 +122,29 @@ jobs:
             cp "${f%.la}.stdout" "macos/$name.stdout"
           done
           # trust.la's certificates, made fresh here: no key is committed.
-          sh tests/macos/certs.sh macos/trust.certs
+          sh tests/certs.sh macos/trust.certs
 
       - name: Build the Windows cases
         # Built here, on Linux, through zig; the windows job runs them on
         # Windows. A case is a .la file or a folder with main.la, beside
         # what it must print (.stdout), exit with (.exit), show on stderr
-        # (.stderr) and read (.stdin).
+        # (.stderr) and read (.stdin). Those in tests/windows/openssl/ need
+        # the OpenSSL above.
         run: |
           mkdir -p windows
-          for f in tests/windows/*.la tests/windows/*/main.la; do
+          for f in tests/windows/*.la tests/windows/*/main.la tests/windows/openssl/*.la; do
             case $f in
               */main.la) name=$(basename "$(dirname "$f")") ;;
               *) name=$(basename "$f" .la) ;;
             esac
             target/debug/lughac build "$f" --target x86_64-pc-windows-gnu -o "windows/$name.exe"
             for ext in stdout exit stderr stdin; do
+              if [ -f "${f%.la}.$ext" ]; then cp "${f%.la}.$ext" "windows/$name.$ext"; fi
               if [ -f "tests/windows/$name.$ext" ]; then cp "tests/windows/$name.$ext" "windows/$name.$ext"; fi
             done
           done
+          # trust.la's certificates, made fresh here: no key is committed.
+          sh tests/certs.sh windows/trust.certs
 
       - name: Build the program suite for a Mac and for Windows
         # Every run case in tests/programs/, a folder each, for
@@ -283,9 +303,10 @@ jobs:
 
       - name: Run the programs built on Linux
         # Each with the arguments `a b` and `ñandú`, LUGHA_TEST_WIN=héllo
-        # and its .stdin (else nothing), within a minute, in an empty folder
-        # of its own: exactly its .stdout, its .exit (else 0), and its
-        # .stderr somewhere in stderr. Lockdown reports what it limited.
+        # and its .stdin (else nothing), within a minute, in a folder of its
+        # own holding only the certificates the build made for it, if any:
+        # exactly its .stdout, its .exit (else 0), and its .stderr somewhere
+        # in stderr. Lockdown reports what it limited.
         working-directory: windows
         env:
           LC_ALL: C.UTF-8
@@ -301,6 +322,7 @@ jobs:
             input=/dev/null
             if [ -f "$name.stdin" ]; then input="$PWD/$name.stdin"; fi
             mkdir "$name.d"
+            if [ -d "$name.certs" ]; then cp "$name.certs"/* "$name.d"/; fi
             (cd "$name.d" && timeout 60 ../"$name.exe" "a b" "ñandú" < "$input" > ../"$name.out" 2> ../"$name.err")
             got=$?
             if [ "$got" = "$want" ] && cmp -s "$expected" "$name.out" &&

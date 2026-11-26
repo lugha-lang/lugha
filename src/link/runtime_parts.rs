@@ -27,9 +27,10 @@ pub const DARWIN_ONLY: [&str; 5] = [
 
 /// The parts of [`RUNTIME_PARTS`] only Windows has (`os/windows/`): its
 /// OS layer, its CPU code, and what fails closed until it is built.
-pub const WINDOWS_ONLY: [&str; 11] = [
+pub const WINDOWS_ONLY: [&str; 12] = [
     "os/windows/os.c",
     "os/windows/paths.c",
+    "os/windows/trust.c",
     "os/windows/dir_resolve.c",
     "os/windows/dir.c",
     "os/windows/dir_names.c",
@@ -106,7 +107,7 @@ pub const POSIX_ONLY: [&str; 7] = [
 
 /// The runtime's source files, in the order they are joined: the core first,
 /// since it holds every `#include`, then the fragments that rely on it.
-pub const RUNTIME_PARTS: [(&str, &str); 72] = [
+pub const RUNTIME_PARTS: [(&str, &str); 73] = [
     (
         "core/lugha_rt.c",
         include_str!("../../runtime/core/lugha_rt.c"),
@@ -158,6 +159,10 @@ pub const RUNTIME_PARTS: [(&str, &str); 72] = [
     (
         "os/windows/paths.c",
         include_str!("../../runtime/os/windows/paths.c"),
+    ),
+    (
+        "os/windows/trust.c",
+        include_str!("../../runtime/os/windows/trust.c"),
     ),
     (
         "os/windows/dir_resolve.c",

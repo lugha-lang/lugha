@@ -92,6 +92,10 @@ fn cases() -> Vec<(String, String)> {
     for entry in std::fs::read_dir(root().join("tests/windows")).unwrap() {
         let path = entry.unwrap().path();
         let name = path.file_stem().unwrap().to_string_lossy().into_owned();
+        // TLS's cases need an OpenSSL built for Windows: a test of their own.
+        if name == "openssl" {
+            continue;
+        }
         if path.is_dir() {
             found.push((name.clone(), format!("tests/windows/{name}/main.la")));
         } else if path.extension().is_some_and(|e| e == "la") {
@@ -219,6 +223,67 @@ fn extern_structs_cross_to_c_by_value_on_windows() {
                 text(&out.stderr)
             );
         }
+    }
+}
+
+/// The folder of an OpenSSL built for Windows, from
+/// `LUGHA_OPENSSL_X86_64_PC_WINDOWS_GNU` (`tests/openssl.sh` makes one).
+fn openssl() -> Option<String> {
+    let folder = std::env::var("LUGHA_OPENSSL_X86_64_PC_WINDOWS_GNU").ok();
+    if folder.is_none() {
+        eprintln!("windows: TLS cases not built, needs LUGHA_OPENSSL_X86_64_PC_WINDOWS_GNU");
+    }
+    folder
+}
+
+#[test]
+fn windows_verifier_decides_which_servers_a_tls_client_trusts() {
+    if !cross::ready("windows_tls", &["zig", "openssl"]) || openssl().is_none() {
+        return;
+    }
+    let t = Temp::new();
+    let exe = t.0.join("trust.exe");
+    let out = lughac(&[
+        "build",
+        "tests/windows/openssl/trust.la",
+        "--target",
+        WINDOWS,
+        "-o",
+        exe.to_str().unwrap(),
+    ]);
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    // The public host's case is CI's alone: a sandbox may have no network.
+    let roots = lughac(&[
+        "build",
+        "tests/windows/openssl/roots.la",
+        "--target",
+        WINDOWS,
+        "-o",
+        t.0.join("roots.exe").to_str().unwrap(),
+    ]);
+    assert!(roots.status.success(), "{}", text(&roots.stderr));
+    if !wine() {
+        return;
+    }
+    let made = Command::new("sh")
+        .arg(root().join("tests/certs.sh"))
+        .arg(&t.0)
+        .output()
+        .expect("sh runs");
+    assert!(made.status.success(), "{}", text(&made.stderr));
+    let ran = run(&exe, None);
+    let expected =
+        std::fs::read_to_string(root().join("tests/windows/openssl/trust.stdout")).unwrap();
+    let got = text(&ran.stdout);
+    let (got, expected): (Vec<&str>, Vec<&str>) =
+        (got.lines().collect(), expected.lines().collect());
+    assert_eq!(got.len(), expected.len(), "{got:?}\n{}", text(&ran.stderr));
+    // Wine's chain engines ignore an exclusive root, so a program's own CA
+    // is never trusted there: the cases that need one are CI's to check on
+    // Windows. These don't: no CA given, a self-signed server, an expired
+    // certificate (its dates are read before its issuer).
+    for i in [2, 3, 5] {
+        assert_eq!(got[i], expected[i], "{got:?}");
     }
 }
 

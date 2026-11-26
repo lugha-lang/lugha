@@ -44,7 +44,8 @@ pub fn zig_triple(triple: &str) -> Option<&'static str> {
 /// has no static executables. Windows also needs the import libraries of
 /// `WaitOnAddress` (an API set), `ProcessPrng`, Winsock (name lookups) and
 /// ntdll (folders opened relative to a handle), which MinGW doesn't link
-/// by default.
+/// by default, and those a static OpenSSL needs (gdi32, crypt32). A
+/// library a program calls nothing from adds no import.
 pub fn link_args(triple: &str) -> Vec<OsString> {
     if triple.contains("-apple-") {
         return Vec::new();
@@ -59,6 +60,8 @@ pub fn link_args(triple: &str) -> Vec<OsString> {
         args.push(OsString::from("-lws2_32"));
         args.push(OsString::from("-liphlpapi"));
         args.push(OsString::from("-lntdll"));
+        args.push(OsString::from("-lgdi32"));
+        args.push(OsString::from("-lcrypt32"));
     }
     args
 }
@@ -151,7 +154,9 @@ mod tests {
                 "-lbcryptprimitives",
                 "-lws2_32",
                 "-liphlpapi",
-                "-lntdll"
+                "-lntdll",
+                "-lgdi32",
+                "-lcrypt32"
             ]
         );
     }

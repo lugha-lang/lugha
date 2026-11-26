@@ -2,7 +2,7 @@
 # Builds OpenSSL for a target lughac builds for, with zig, into <folder>:
 # its headers and static libraries, the folder LUGHA_OPENSSL_<TARGET> names.
 #
-#   sh tests/macos/openssl.sh aarch64-apple-darwin "$HOME/openssl-mac"
+#   sh tests/openssl.sh aarch64-apple-darwin "$HOME/openssl-mac"
 #
 # The release is pinned and checked against its SHA-256 before it is
 # unpacked. Nothing is installed outside <folder>, which must be absolute
@@ -14,7 +14,7 @@ SHA256=967311f84955316969bdb1d8d4b983718ef42338639c621ec4c34fddef355e99
 URL="https://github.com/openssl/openssl/releases/download/openssl-$VERSION/openssl-$VERSION.tar.gz"
 
 if [ $# -ne 2 ]; then
-    echo "usage: sh tests/macos/openssl.sh <target> <folder>" >&2
+    echo "usage: sh tests/openssl.sh <target> <folder>" >&2
     exit 2
 fi
 target=$1
@@ -25,6 +25,7 @@ case $target in
     aarch64-apple-darwin) zig=aarch64-macos.14.4-none; conf=darwin64-arm64-cc ;;
     x86_64-unknown-linux-musl) zig=x86_64-linux-musl; conf=linux-x86_64 ;;
     aarch64-unknown-linux-musl) zig=aarch64-linux-musl; conf=linux-aarch64 ;;
+    x86_64-pc-windows-gnu) zig=x86_64-windows-gnu; conf=mingw64 ;;
     *)
         echo "openssl.sh: no recipe for $target" >&2
         exit 2
