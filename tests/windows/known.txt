@@ -2,13 +2,11 @@
 # A reason is a real platform difference, or a bug written up in BUGS.md.
 # tests/suite.sh fails on any other failure, and on a case here that
 # passes; tests/platform_suite.rs checks each name is a run case.
-capabilities/clock_env_proc_entropy/bytes.la — processes aren't supported on Windows yet
 capabilities/clock_env_proc_entropy/env.la — an absolute path on Windows starts with a drive (C:\), not /
-capabilities/clock_env_proc_entropy/objective.la — processes aren't supported on Windows yet
-capabilities/clock_env_proc_entropy/process.la — processes aren't supported on Windows yet
-capabilities/dir_confinement/confined.la — its links are made with `ln` through Proc, which Windows refuses; tests/windows/confined/ covers Windows' confinement
+capabilities/clock_env_proc_entropy/process.la — it expects 137 from `kill -9 $$` (128 + the signal); Windows has no signals
+capabilities/dir_confinement/confined.la — its links are made with Git Bash's `ln -s`, which copies instead of linking; tests/windows/confined/ covers Windows' confinement
 collections/growable_arrays/segv_from_c.la — a crash in C is a Windows exception, not SIGSEGV's exit 139
 control/defer/files.la — it counts open descriptors in /dev/fd, which Windows doesn't have
 std/calendar/local.la — Windows' C runtime gives no local time past the year 3000; the case asks for i64.MAX
-std/fs_size/size.la — its link, FIFO and sparse file are made with ln, mkfifo and truncate through Proc
-std/math/more.la — exp(1.0) isn't e() under Wine's C runtime
+std/fs_size/size.la — Git Bash's `ln -s` copies instead of linking, and Windows has no FIFO in a folder
+std/math/more.la — Windows' C runtime (UCRT) gives exp(1.0) a hair off e(), as Wine's does
