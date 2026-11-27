@@ -384,15 +384,21 @@ jobs:
                 esac
                 # A fail-fast runs no handler of the program's: once more
                 # under the system's debugger, which shows where it stopped
-                # (the modules' bases map the program's frames).
+                # (the modules' bases map the program's frames), with the
+                # thread's stack bounds and, for a context restore it
+                # refused, the context's frame, stack and program pointers
+                # and the check itself.
                 cdb=""
                 for arch in arm64 x64; do
                   f="/c/Program Files (x86)/Windows Kits/10/Debuggers/$arch/cdb.exe"
                   if [ -x "$f" ]; then cdb="$f"; break; fi
                 done
                 if [ -n "$cdb" ]; then
-                  (cd "$name.d" && printf '.symfix c:\\sym\n.reload\n.lastevent\n.exr -1\nr\nkn 40\nlm\nq\n' |
-                    timeout 300 "$cdb" -g -lines ../"$name.exe" "a b" 2>&1 | tail -n 150)
+                  (cd "$name.d" && printf '%s\n' '.symfix c:\sym' .reload .lastevent '.exr -1' r 'kn 40' \
+                    'dq @$teb+8 L2' 'dq @$teb+0x1478 L1' 'dq @x22+0xf0 L4' 'dq @x22 L2' \
+                    'u ntdll!RtlGuardRestoreContext L0x80' lm q |
+                    timeout 300 "$cdb" -g -lines ../"$name.exe" "a b" 2>&1 |
+                    grep -v -e NatVis -e Repository -e '^ *$' | tail -n 400)
                 else
                   echo "  no cdb on this runner"
                 fi
