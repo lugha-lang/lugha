@@ -83,6 +83,10 @@ fn windows_cases_build_as_arm64_executables() {
         let out = build(root(), &[&source, "-o", exe.to_str().unwrap()]);
         assert!(out.status.success(), "{case}: {}", text(&out.stderr));
         assert_eq!(pe_machine(&exe), ARM64, "{case}");
+        assert!(
+            !t.0.join(format!("{case}.pdb")).exists(),
+            "a build writes only its .exe"
+        );
     }
 }
 

@@ -373,6 +373,10 @@ fn a_windows_executable_imports_only_what_windows_has() {
         exe.to_str().unwrap(),
     ]);
     assert!(out.status.success(), "{}", text(&out.stderr));
+    assert!(
+        !t.0.join("hello.pdb").exists(),
+        "a build writes only its .exe"
+    );
     let listed = Command::new("llvm-objdump-21")
         .arg("-p")
         .arg(&exe)

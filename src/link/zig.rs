@@ -42,7 +42,10 @@ pub fn zig_triple(triple: &str) -> Option<&'static str> {
 /// unwinder, since zig links none for C programs on Linux and panics
 /// unwind, and `-static` for musl, whose executables need nothing
 /// installed. macOS needs neither: libSystem has the unwinder, and macOS
-/// has no static executables. Windows also needs the import libraries of
+/// has no static executables. A Windows link strips (`-s`): otherwise zig
+/// writes a `.pdb` beside the `.exe` describing only its own C libraries,
+/// since nothing emits debug information for Lugha code. Windows also
+/// needs the import libraries of
 /// `WaitOnAddress` (an API set), `ProcessPrng`, Winsock (name lookups) and
 /// ntdll (folders opened relative to a handle), which MinGW doesn't link
 /// by default, and those a static OpenSSL needs (gdi32, crypt32). A
@@ -56,6 +59,7 @@ pub fn link_args(triple: &str) -> Vec<OsString> {
         args.push(OsString::from("-static"));
     }
     if triple.contains("-windows") {
+        args.push(OsString::from("-s"));
         args.push(OsString::from("-lapi-ms-win-core-synch-l1-2-0"));
         args.push(OsString::from("-lbcryptprimitives"));
         args.push(OsString::from("-lws2_32"));
@@ -152,6 +156,7 @@ mod tests {
             strings("x86_64-pc-windows-gnu"),
             [
                 "-lunwind",
+                "-s",
                 "-lapi-ms-win-core-synch-l1-2-0",
                 "-lbcryptprimitives",
                 "-lws2_32",
@@ -166,6 +171,13 @@ mod tests {
             strings("x86_64-pc-windows-gnu"),
             "the same import libraries on either CPU"
         );
+        for other in [
+            "x86_64-unknown-linux-gnu",
+            "aarch64-unknown-linux-musl",
+            "aarch64-apple-darwin",
+        ] {
+            assert!(!strings(other).contains(&"-s".to_string()), "{other}");
+        }
     }
 
     #[test]
