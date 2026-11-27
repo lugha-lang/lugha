@@ -1,0 +1,161 @@
+# A quick look at a few programs on another system, for chasing a bug
+# there: a push to a `probe/<name>` branch builds the programs its
+# `probe.txt` names, on Linux, and runs each on that system's runner,
+# printing what it printed and how it ended. Nothing else runs, so a probe
+# takes minutes, not the whole of CI. Probe branches are scratch: never
+# merged, deleted when done.
+#
+# probe.txt, one item a line (`#` starts a comment):
+#   system windows-arm64        # or `windows` (x86-64) or `macos`
+#   env LUGHA_WORKERS=1         # set while the programs run, any number
+#   tests/windows/tcp.la        # a program: a .la file, or a folder with main.la
+#   tests/programs/runtime/socket_waits/queued_timeout.la
+# Each runs with the arguments `a b`, stdin empty, within a minute, in a
+# folder of its own. On Windows, one a fail-fast ends runs again under the
+# system's debugger, which shows the exception, registers and stack.
+# Programs needing OpenSSL (std.tls, std.crypto) aren't built here.
+name: Probe
+
+on:
+  push:
+    branches: ['probe/**']
+
+# A newer push to the same probe replaces the run still going.
+concurrency:
+  group: probe-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build the probe
+    runs-on: ubuntu-latest
+    container: ubuntu:26.04
+    outputs:
+      runner: ${{ steps.plan.outputs.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Read probe.txt
+        id: plan
+        shell: bash
+        run: |
+          system=$(awk '$1 == "system" { print $2; exit }' probe.txt)
+          case $system in
+            windows-arm64) target=aarch64-pc-windows-gnu runner=windows-11-arm ext=.exe ;;
+            windows) target=x86_64-pc-windows-gnu runner=windows-latest ext=.exe ;;
+            macos) target=aarch64-apple-darwin runner=macos-15 ext= ;;
+            *) echo "probe.txt: \`system\` is windows-arm64, windows or macos, not '$system'"; exit 1 ;;
+          esac
+          {
+            echo "target=$target"
+            echo "runner=$runner"
+            echo "ext=$ext"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/system
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --profile minimal --default-toolchain none
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          "$HOME/.cargo/bin/rustup" toolchain install
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          # Read main's cache; a probe never saves one of its own.
+          shared-key: build
+          save-if: false
+
+      - name: Build the programs
+        shell: bash
+        env:
+          TARGET: ${{ steps.plan.outputs.target }}
+          EXT: ${{ steps.plan.outputs.ext }}
+        run: |
+          cargo build
+          mkdir -p probe
+          sed 's/#.*//' probe.txt | while read -r first rest; do
+            case $first in
+              ''|system) continue ;;
+              env) echo "$rest" >> probe/env.txt; continue ;;
+            esac
+            f=$first
+            if [ -d "$f" ]; then f="$f/main.la"; fi
+            case $f in
+              */main.la) name=$(basename "$(dirname "$f")") ;;
+              *) name=$(basename "$f" .la) ;;
+            esac
+            target/debug/lughac build "$f" --target "$TARGET" -o "probe/$name$EXT"
+          done
+          touch probe/env.txt
+          ls -l probe
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: probe-programs
+          path: probe/
+          retention-days: 1
+
+  run:
+    name: Run the probe
+    needs: build
+    runs-on: ${{ needs.build.outputs.runner }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: probe-programs
+          path: probe
+
+      - name: Run the programs
+        working-directory: probe
+        run: |
+          set +e
+          while IFS= read -r line; do
+            if [ -n "$line" ]; then export "${line?}"; fi
+          done < env.txt
+          for exe in *; do
+            [ "$exe" = env.txt ] && continue
+            [ -d "$exe" ] && continue
+            chmod +x "$exe"
+            echo "::group::$exe"
+            mkdir "$exe.d"
+            (cd "$exe.d" && perl -e 'alarm 60; exec @ARGV' ../"$exe" "a b" < /dev/null > ../"$exe.out" 2> ../"$exe.err")
+            got=$?
+            echo "--- stdout"; cat "$exe.out"
+            echo "--- stderr"; cat "$exe.err"
+            echo "--- exit $got"
+            case $exe in
+              *.exe)
+                # Git Bash says 127 for a Windows status it has no signal
+                # for, such as a fail-fast: once more under the debugger.
+                if [ "$got" = 127 ]; then
+                  cdb=""
+                  for arch in arm64 x64; do
+                    f="/c/Program Files (x86)/Windows Kits/10/Debuggers/$arch/cdb.exe"
+                    if [ -x "$f" ]; then cdb="$f"; break; fi
+                  done
+                  if [ -n "$cdb" ]; then
+                    (cd "$exe.d" && printf '%s\n' '.symfix c:\sym' .reload .lastevent '.exr -1' r 'kn 40' \
+                      'dq @$teb+8 L2' 'dq @$teb+0x1478 L1' lm q |
+                      timeout 300 "$cdb" -g -lines ../"$exe" "a b" 2>&1 |
+                      grep -v -e NatVis -e Repository -e '^ *$' | tail -n 200)
+                  else
+                    echo "no cdb on this runner"
+                  fi
+                fi
+                ;;
+            esac
+            echo "::endgroup::"
+            echo "$exe: exit $got"
+          done
