@@ -1,0 +1,9 @@
+// C faulting: the runtime names the exception and where, then ends the
+// program as a panic does, rather than dying without a word.
+extern fun poke(at: i64);
+
+fun main(console: Console) {
+    console.println("before");
+    poke(0);
+    console.println("after");
+}

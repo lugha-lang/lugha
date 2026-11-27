@@ -374,6 +374,15 @@ jobs:
               echo "FAILED $name: exit $got (want $want)"
               diff -u "$expected" "$name.out" || true
               cat "$name.err"
+              if [ "$got" = 127 ]; then
+                # Git Bash says 127 for any Windows status it has no signal
+                # for, such as a fail-fast: run again, cmd reporting it.
+                win=$(cd "$name.d" && cmd //v:on //c "..\\$name.exe a b < NUL > NUL 2>&1 & echo !errorlevel!" | tr -d '\r' | tail -n 1)
+                case ${win#-} in
+                  ''|*[!0-9]*) echo "  Windows exit status, run again: unknown ($win)" ;;
+                  *) echo "  Windows exit status, run again: $(printf '0x%08X' $(( win & 0xFFFFFFFF )))" ;;
+                esac
+              fi
               status=1
             fi
           done

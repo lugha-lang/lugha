@@ -260,9 +260,21 @@ static char *win_committed_low(char *top) {
 /* Room the system keeps for the handler once a stack overflowed. */
 #define WIN_GUARANTEE (32 * 1024)
 
+/* Whether an exception is one no program recovers from, and if so says
+ * which and where, then ends the program (crash.c). */
+static bool win_is_crash(DWORD code);
+static void win_crash(EXCEPTION_POINTERS *e);
+
 /* A C stack's overflow: reported once, without unwinding, as on Linux.
- * Anything else goes on to the system's own handling. */
+ * A fault no program recovers from is reported too (crash.c), here rather
+ * than as an unhandled exception: Windows stops looking for a handler at a
+ * frame outside the running stack's bounds, which every C call has above
+ * it (on the C stack, under a task's frames), so it would end the program
+ * without a word. Anything else goes on to the system's own handling. */
 static LONG CALLBACK os_on_fault(EXCEPTION_POINTERS *e) {
+    if (win_is_crash(e->ExceptionRecord->ExceptionCode)) {
+        win_crash(e);
+    }
     if (e->ExceptionRecord->ExceptionCode != EXCEPTION_STACK_OVERFLOW) {
         return EXCEPTION_CONTINUE_SEARCH;
     }
