@@ -1,5 +1,5 @@
 failing task unwound
-task `fails` panicked: on purpose at tests/windows/unwinding.la:12:5
+task `fails` panicked: on purpose at tests/android/unwinding.la:12:5
 deep task unwound
 task `deep` panicked: stack overflow
 main goes on

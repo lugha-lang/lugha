@@ -213,6 +213,10 @@ static void os_no_sigpipe(int fd) {
     (void)fd;
 }
 
+#if defined(__ANDROID__)
+#include <paths.h>
+#endif
+
 /* Nothing to set up on Linux. */
 static void os_start(void) {
 }
@@ -227,6 +231,48 @@ static short os_spawn_prepare(posix_spawn_file_actions_t *actions, bool share) {
     (void)actions;
     (void)share;
     return 0;
+}
+
+/* On Android, bionic's `posix_spawnp` reports no failure to start: the
+ * child exits 127 instead. So the program is looked for first, as
+ * `posix_spawnp` looks: a name with `/` is a path, else each folder on
+ * `PATH` in turn (bionic's own list when it is unset). Elsewhere
+ * `posix_spawnp` says why itself. */
+static int os_spawn_check(const char *cmd) {
+#if defined(__ANDROID__)
+    if (strchr(cmd, '/') != NULL) {
+        return access(cmd, X_OK) == 0 ? 0 : errno;
+    }
+    const char *path = getenv("PATH");
+    if (path == NULL) {
+        path = _PATH_DEFPATH;
+    }
+    int why = ENOENT;
+    for (const char *at = path;;) {
+        const char *end = strchr(at, ':');
+        int n = end != NULL ? (int)(end - at) : (int)strlen(at);
+        char full[PATH_MAX];
+        // An empty entry is the current folder, as for `posix_spawnp`.
+        int len = n == 0 ? snprintf(full, sizeof full, "%s", cmd)
+                         : snprintf(full, sizeof full, "%.*s/%s", n, at, cmd);
+        struct stat st;
+        if (len > 0 && (size_t)len < sizeof full) {
+            if (access(full, X_OK) == 0 && stat(full, &st) == 0 && S_ISREG(st.st_mode)) {
+                return 0;
+            }
+            if (errno == EACCES) {
+                why = EACCES;
+            }
+        }
+        if (end == NULL) {
+            return why;
+        }
+        at = end + 1;
+    }
+#else
+    (void)cmd;
+    return 0;
+#endif
 }
 
 /* Linux's socket addresses carry no length. */

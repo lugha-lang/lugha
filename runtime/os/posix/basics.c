@@ -147,6 +147,14 @@ static bool posix_urandom64(uint64_t *out) {
 
 /* Name lookups: the C library's own words, and interfaces by name. */
 static const char *os_lookup_message(int code) {
+#if defined(__ANDROID__)
+    // Android's resolver answers a name that doesn't exist with "no
+    // address" (`EAI_NODATA`), where glibc says it isn't known: glibc's
+    // words, as on Windows.
+    if (code == EAI_NODATA) {
+        return "Name or service not known";
+    }
+#endif
     return gai_strerror(code);
 }
 

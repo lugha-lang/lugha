@@ -192,6 +192,10 @@ static bool os_udp_own_groups(int s, int family);
 static int os_pipe(int fds[2]);
 static short os_spawn_prepare(posix_spawn_file_actions_t *actions, bool share);
 
+/* Whether the command `cmd` can be started, before starting it: 0, or why
+ * not (an `errno`), where the system's start can't say so itself. */
+static int os_spawn_check(const char *cmd);
+
 /* Sets the length byte a system's socket addresses carry (macOS's
  * `sa_len`), `len` the address's size; nothing where they carry none. */
 static void os_sockaddr_len(struct sockaddr *at, socklen_t len);

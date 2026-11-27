@@ -125,6 +125,12 @@ static void spawn_pump(int in_fd, int out_fd, int err_fd, const char *input, siz
  * serves its pipes and waits for it: its code in `value` and its outputs
  * in `out` and `out2`, or the failure in `err`. */
 static void spawn_job(Job *job) {
+    // Where the system's start can't say a program is missing (Android).
+    int why = os_spawn_check(job->argv[0]);
+    if (why != 0) {
+        job->err = why;
+        return;
+    }
     int mode = job->flags;
     bool capture = mode != 0;
     int in_pipe[2] = {-1, -1}, out_pipe[2] = {-1, -1}, err_pipe[2] = {-1, -1};

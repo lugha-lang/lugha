@@ -280,6 +280,12 @@ static short os_spawn_prepare(posix_spawn_file_actions_t *actions, bool share) {
     return POSIX_SPAWN_CLOEXEC_DEFAULT;
 }
 
+/* `posix_spawnp` itself says why a program can't start. */
+static int os_spawn_check(const char *cmd) {
+    (void)cmd;
+    return 0;
+}
+
 /* macOS's socket addresses carry their length, which its kernel checks. */
 static void os_sockaddr_len(struct sockaddr *at, socklen_t len) {
     at->sa_len = (uint8_t)len;
