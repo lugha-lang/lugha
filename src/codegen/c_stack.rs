@@ -36,6 +36,26 @@ pub(super) const CB_RUN: &str = "lugha-cb-run";
 /// `lugha_rt_cb_run_realtime`, which never allocates or locks.
 pub(super) const REALTIME: &str = "realtime";
 
+/// [`CB_RUN`]'s value on an exported function's body: it goes through
+/// `lugha_rt_export_run`, which runs it as a task while C's thread waits.
+pub(super) const EXPORT: &str = "export";
+
+/// The attribute on an exported function's C entry and its body: C calls
+/// them by C's rules, which the passes after lowering keep.
+pub(super) const C_ENTRY: &str = "lugha-c-entry";
+
+/// True for a function C calls by C's rules, which keeps them through the
+/// passes that change Lugha's own: `main`, a callback's entries, an
+/// exported function's entry and body.
+pub(super) fn is_c_entry(f: FunctionValue<'_>) -> bool {
+    let name = f.get_name().to_string_lossy();
+    name == "main"
+        || name.starts_with("lugha_cb_")
+        || name.starts_with("lugha_cfn_")
+        || f.get_string_attribute(AttributeLoc::Function, C_ENTRY)
+            .is_some()
+}
+
 /// The attribute on an extern taking or giving a pinned handle: each call
 /// first pins the task to its worker (`lugha_rt_pin_here`).
 pub(super) const PINNED: &str = "lugha-pinned";
@@ -73,10 +93,14 @@ pub(super) fn calls_on_c_stack<'ctx>(context: &'ctx Context, module: &Module<'ct
         let entry_body = CallSiteValue::try_from(call)
             .ok()
             .and_then(|site| site.get_string_attribute(AttributeLoc::Function, CB_RUN));
-        let realtime = entry_body
-            .as_ref()
-            .is_some_and(|a| a.get_string_value().to_bytes() == REALTIME.as_bytes());
+        let door = |value: &str| {
+            entry_body
+                .as_ref()
+                .is_some_and(|a| a.get_string_value().to_bytes() == value.as_bytes())
+        };
+        let (realtime, export) = (door(REALTIME), door(EXPORT));
         let through = match (entry_body.is_some(), marked) {
+            (true, _) if export => switch(context, module, "lugha_rt_export_run"),
             (true, _) if realtime => switch(context, module, "lugha_rt_cb_run_realtime"),
             (true, _) => switch(context, module, "lugha_rt_cb_run"),
             (false, true) => switch(context, module, "lugha_rt_c_blocking"),

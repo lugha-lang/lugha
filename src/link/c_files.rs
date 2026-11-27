@@ -21,30 +21,38 @@ use super::object_cache::Cache;
 /// that doesn't compile.
 pub(super) fn compile(
     files: &[CFile],
-    temp: &Path,
+    (temp, pic): (&Path, bool),
     cache: &Cache,
 ) -> Result<Vec<PathBuf>, LinkError> {
     let mut objects = Vec::new();
     for (n, c) in files.iter().enumerate() {
+        // Position-independent where a shared library may hold it.
+        let flags: Vec<std::ffi::OsString> = c
+            .flags
+            .iter()
+            .cloned()
+            .chain(pic.then(|| "-fPIC".into()))
+            .collect();
         // Numbered, not named after the source: two packages may both have `shim.c`.
         let object = temp.join(format!("c{n}.o"));
         // An unreadable file isn't cached: `cc` then says what is wrong with it.
         let found = match std::fs::read(&c.file) {
-            Ok(source) => cache.object("c", &source, &c.flags, &object, |extra| {
-                one(cache.cc(), c, extra, &object)
+            Ok(source) => cache.object("c", &source, &flags, &object, |extra| {
+                one(cache.cc(), (c, &flags), extra, &object)
             }),
-            Err(_) => one(cache.cc(), c, &[], &object).map(|()| object.clone()),
+            Err(_) => one(cache.cc(), (c, &flags), &[], &object).map(|()| object.clone()),
         }?;
         objects.push(found);
     }
     Ok(objects)
 }
 
-/// `cc -c` of `c` into `object`, with `extra` arguments (the cache's
+/// `cc -c` of `c` with `flags` (its own, and `-fPIC` where wanted) into
+/// `object`, with `extra` arguments (the cache's
 /// dependency file), `cc` being the build's compiler.
 fn one(
     cc: &Compiler,
-    c: &CFile,
+    (c, flags): (&CFile, &[std::ffi::OsString]),
     extra: &[std::ffi::OsString],
     object: &Path,
 ) -> Result<(), LinkError> {
@@ -52,7 +60,7 @@ fn one(
         .command()
         .arg("-c")
         .arg(&c.file)
-        .args(&c.flags)
+        .args(flags)
         .args(extra)
         .arg("-o")
         .arg(object)

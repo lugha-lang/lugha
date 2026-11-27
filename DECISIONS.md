@@ -2361,6 +2361,16 @@ Printing sites and `==` reach a type's own plain `show`/`eq` too (`show_instance
 
 ---
 
+### 230. Lugha functions C calls: `extern fun` with a body — milestone 284 (PRP-303)
+
+**Decision:** the user's choice (2026-11-27): a function C calls by name is written `extern fun name(…) { … }`, reusing `extern` rather than a new mark: `extern` means a C-facing function with C's name and rules, and the body says which side defines it, as C's own `extern` and Rust's `extern "C" fn` do. `lughac build --shared` makes a shared library of them with a C header. Exported functions get no capabilities for now (the user's choice): C has none to give, and a library granting some through its manifest is a later PRP.
+
+**Why:** one word for one idea, visible at the declaration; most of the machinery (C's calling rules both ways, threads C made, panics stopped at the boundary) already existed for callbacks.
+
+**Not now:** capabilities for exports (`[library] allow`); arrays, views and `out` across an export; an in-place form for hot calls; unloading a library.
+
+---
+
 ## OPEN — Requires human input before implementation
 
 None.

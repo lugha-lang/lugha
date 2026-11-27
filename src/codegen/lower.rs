@@ -319,8 +319,12 @@ pub(super) fn lower<'ctx>(
     lowerer.const_init = lowerer.define_const_init(units, &checked.consts)?;
     lowerer.finish_upcasts();
     lowerer.finish_shows();
+    // Functions C calls by name: each a C entry under its C name.
+    lowerer.c_exports(units)?;
     match lowerer.tests.clone() {
         Some(tests) => lowerer.c_test_main(&tests),
+        // A shared library has no `main`: its exports are its entries.
+        None if checked.library => {}
         None => {
             let user_main = lowerer
                 .functions

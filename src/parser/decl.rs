@@ -256,6 +256,7 @@ impl Parser<'_> {
             test: None,
             integration: false,
             caller_location: None,
+            export: None,
         })
     }
 

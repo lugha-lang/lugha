@@ -210,6 +210,9 @@ static void wake_idle_worker(void);
  * nonzero, C may still make a task ready, so no deadlock is declared. */
 static int64_t foreign_live;
 static int64_t callbacks_live;
+/* A shared library, started by its first call (exports.c): no `main`,
+ * and C may call it whenever every task waits. */
+static bool library_mode;
 /* Rings readers wait on (rings.c): their writers wake them through the
  * poller, so the poll counts as outstanding. */
 static int64_t rings_waiting;
@@ -217,7 +220,8 @@ static int64_t rings_waiting;
 /* True while C may still call back. */
 static bool c_may_call(void) {
     return __atomic_load_n(&foreign_live, __ATOMIC_ACQUIRE) > 0 ||
-           __atomic_load_n(&callbacks_live, __ATOMIC_ACQUIRE) > 0;
+           __atomic_load_n(&callbacks_live, __ATOMIC_ACQUIRE) > 0 ||
+           __atomic_load_n(&library_mode, __ATOMIC_ACQUIRE);
 }
 
 /* On a thread C made, which no worker takes from: `f` goes to the shared

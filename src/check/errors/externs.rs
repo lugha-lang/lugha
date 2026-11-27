@@ -121,3 +121,43 @@ pub(in crate::check) fn c_union_pointer(span: Span) -> Diagnostic {
         "reading it from another field's bytes would make one up; a union holds numbers, `bool`, `char` and extern structs and unions of those",
     )
 }
+
+/// E0485: an exported function's parameter or result is `what`, which C
+/// can't pass; `help` says what can.
+pub(in crate::check) fn export_type(what: &str, help: &str, span: Span) -> Diagnostic {
+    Diagnostic::error(
+        "E0485",
+        format!("a function C calls can't take or give {what}"),
+        span,
+    )
+    .with_help(help.to_string())
+}
+
+/// E0486: a second exported function under the C name `symbol`.
+pub(in crate::check) fn export_twice(symbol: &str, span: Span, first: Span) -> Diagnostic {
+    Diagnostic::error(
+        "E0486",
+        format!("C already calls another function `{symbol}`"),
+        span,
+    )
+    .with_label(first, "exported here first")
+    .with_help("give one a C name of its own: `extern \"other_name\" fun …`")
+}
+
+/// E0338: a shared library's program has `main`, at `span`.
+pub(in crate::check) fn shared_main(span: Span) -> Diagnostic {
+    Diagnostic::error("E0338", "a shared library has no `main`", span)
+        .with_help("its entry points are the functions C calls, `extern fun name(…) { … }`; build a program without `--shared`")
+}
+
+/// E0338: a shared library's program exports nothing.
+pub(in crate::check) fn shared_empty() -> Diagnostic {
+    Diagnostic::error(
+        "E0338",
+        "a shared library needs a function C calls",
+        Span::new(0, 0),
+    )
+    .with_help(
+        "write one with a body after `extern`: `extern fun add(a: i64, b: i64): i64 = a + b;`",
+    )
+}

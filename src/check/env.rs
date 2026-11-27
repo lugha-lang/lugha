@@ -22,7 +22,7 @@ pub(super) fn is_intrinsic(name: &str) -> bool {
 }
 
 /// True if `symbol` is a C identifier lughac may call: not one of its own (`lugha_…`).
-fn c_name(symbol: &str) -> bool {
+pub(super) fn c_name(symbol: &str) -> bool {
     let mut chars = symbol.chars();
     chars
         .next()
@@ -68,6 +68,8 @@ impl Checker {
             // each callback as a plain function type.
             let (declared, params) = match item {
                 Item::Extern(e) => self.extern_params(e, &self.key(&name.name)),
+                // C calls it: only what C can pass (E0485).
+                Item::Fun(f) if f.export.is_some() => self.export_params(f),
                 _ => {
                     let types = params.iter().map(|p| self.resolve(&p.ty)).collect();
                     (params.clone(), types)
@@ -79,6 +81,11 @@ impl Checker {
                 Some(ty) => self.resolve(ty),
                 None => Type::Unit,
             };
+            if let Item::Fun(f) = item
+                && f.export.is_some()
+            {
+                self.export_result(f, &ret_type);
+            }
             if is_extern {
                 let blocking = matches!(item, Item::Extern(e) if e.blocking.is_some());
                 // Only numbers and strings cross the C boundary;

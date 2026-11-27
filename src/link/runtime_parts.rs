@@ -121,7 +121,7 @@ pub const POSIX_ONLY: [&str; 7] = [
 
 /// The runtime's source files, in the order they are joined: the core first,
 /// since it holds every `#include`, then the fragments that rely on it.
-pub const RUNTIME_PARTS: [(&str, &str); 77] = [
+pub const RUNTIME_PARTS: [(&str, &str); 78] = [
     (
         "core/lugha_rt.c",
         include_str!("../../runtime/core/lugha_rt.c"),
@@ -294,6 +294,10 @@ pub const RUNTIME_PARTS: [(&str, &str); 77] = [
         include_str!("../../runtime/tasks/callbacks.c"),
     ),
     (
+        "tasks/exports.c",
+        include_str!("../../runtime/tasks/exports.c"),
+    ),
+    (
         "tasks/scope_time.c",
         include_str!("../../runtime/tasks/scope_time.c"),
     ),
@@ -408,6 +412,7 @@ pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/tasks/scope_unwind.c"),
     include_str!("../../runtime/tasks/scope_policy.c"),
     include_str!("../../runtime/tasks/callbacks.c"),
+    include_str!("../../runtime/tasks/exports.c"),
     include_str!("../../runtime/tasks/scope_time.c"),
     include_str!("../../runtime/memory/cells.c"),
     include_str!("../../runtime/channels/chans.c"),

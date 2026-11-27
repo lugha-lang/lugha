@@ -12,7 +12,7 @@ use crate::parser::sexp;
 
 pub(super) fn build(
     out: &mut Output,
-    file: &Path,
+    (file, shared): (&Path, bool),
     output: Option<&Path>,
     emit: Option<Emit>,
     (code, mode): ((OptLevel, Cpu, Target, Instruments), Mode),
@@ -23,6 +23,8 @@ pub(super) fn build(
     // `--emit=ast` shows the tree even when it doesn't type-check.
     let front: Front = if let Some(Emit::Ast) = emit {
         pipeline::parsed(file, mode)?
+    } else if shared {
+        pipeline::front_shared(file, mode)?
     } else {
         pipeline::front(file, mode)?
     };
@@ -37,6 +39,11 @@ pub(super) fn build(
         }
         Some(Emit::Ir) => out.print(&pipeline::ir(&front, (code.2, code.3))?),
         Some(Emit::Tokens) => unreachable!("handled above"),
+        None if shared => {
+            let library =
+                output.map_or_else(|| pipeline::shared_output(file, code.2), Path::to_path_buf);
+            pipeline::build_shared(&front, code, (file, &library))?;
+        }
         None => {
             let exe =
                 output.map_or_else(|| pipeline::default_output(file, code.2), Path::to_path_buf);

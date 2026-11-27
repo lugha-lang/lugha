@@ -289,8 +289,15 @@ impl Printer<'_> {
     fn fun(&mut self, f: &FunDecl) -> Doc {
         let head = concat(vec![
             text(format!(
-                "{}fun {}{}",
+                "{}{}fun {}{}",
                 visibility(f.visibility),
+                // An exported function: `extern`, and its C name when renamed.
+                f.export
+                    .as_ref()
+                    .map_or(String::new(), |e| match &e.symbol {
+                        Some(symbol) => format!("extern {:?} ", symbol.name),
+                        None => "extern ".to_string(),
+                    }),
                 self.ident(&f.name),
                 self.type_params(&f.type_params)
             )),

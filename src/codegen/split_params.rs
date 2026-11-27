@@ -75,9 +75,7 @@ fn bool_results<'ctx>(context: &'ctx Context, module: &Module<'ctx>) {
 
 /// True for a function defined here that isn't an entry C calls.
 fn lugha_defined(f: FunctionValue<'_>) -> bool {
-    let name = f.get_name().to_string_lossy();
-    let c_entry = name == "main" || name.starts_with("lugha_cb_") || name.starts_with("lugha_cfn_");
-    f.count_basic_blocks() > 0 && !c_entry
+    f.count_basic_blocks() > 0 && !super::c_stack::is_c_entry(f)
 }
 
 /// True for a Lugha function defined here taking a struct by value.

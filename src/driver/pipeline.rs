@@ -12,10 +12,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use super::render::Report;
 use super::source::Source;
 use super::update;
+
+pub(super) use super::linking::{build, build_shared, default_output, shared_output};
 use crate::check::{self, Checked};
 use crate::codegen::{self, CodegenError, Cpu, Instruments, OptLevel, Target};
 use crate::diagnostic::{Diagnostic, Severity};
-use crate::link;
 use crate::modules::fetch::Mode;
 use crate::modules::link_table::PackageLink;
 use crate::modules::{self, Loaded, Module};
@@ -121,7 +122,12 @@ fn parse_loaded((source, loaded): (Source, Loaded)) -> Result<Front, Failure> {
 
 /// Reads, lexes, parses and type-checks `path`.
 pub(super) fn front(path: &Path, mode: Mode) -> Result<Front, Failure> {
-    check_parsed(parsed(path, mode)?, None)
+    check_parsed(parsed(path, mode)?, Checking::Program)
+}
+
+/// [`front`] for `build --shared`: no `main`, and the functions C calls.
+pub(super) fn front_shared(path: &Path, mode: Mode) -> Result<Front, Failure> {
+    check_parsed(parsed(path, mode)?, Checking::Shared)
 }
 
 /// [`parsed`] for `lughac test` and `lughac check`: a file in its package's
@@ -134,7 +140,7 @@ fn parsed_module(path: &Path, mode: Mode) -> Result<Front, Failure> {
 /// [`front`] for `lughac test`: no `main` needed, and the
 /// checker lists the file's tests.
 pub(super) fn front_tests(path: &Path, mode: Mode) -> Result<Front, Failure> {
-    check_parsed(parsed_module(path, mode)?, Some(1))
+    check_parsed(parsed_module(path, mode)?, Checking::Tests(1))
 }
 
 /// [`front_tests`] for several test files of one package folder, checked
@@ -142,7 +148,7 @@ pub(super) fn front_tests(path: &Path, mode: Mode) -> Result<Front, Failure> {
 pub(super) fn front_test_roots(paths: &[PathBuf], mode: Mode) -> Result<Front, Failure> {
     let mut read = |file: &Path| std::fs::read(file);
     let loaded = loaded_all(paths, mode, &mut read, (true, false, true))?;
-    check_parsed(parse_loaded(loaded)?, Some(paths.len()))
+    check_parsed(parse_loaded(loaded)?, Checking::Tests(paths.len()))
 }
 
 /// [`front`] for `lughac check`: a file without `fun main` is checked as a
@@ -153,7 +159,7 @@ pub(super) fn front_check(path: &Path, mode: Mode) -> Result<Front, Failure> {
     if std::fs::read(path).is_ok_and(|text| modules::declares_main(&text)) {
         return front(path, mode);
     }
-    check_parsed(parsed_module(path, mode)?, Some(1))
+    check_parsed(parsed_module(path, mode)?, Checking::Tests(1))
 }
 
 /// A program checked for the language server: what the checker found,
@@ -225,8 +231,16 @@ pub(super) fn front_partial(
     })
 }
 
-/// Checks a parsed program; `tests` lists the tests of that many first modules.
-fn check_parsed(mut front: Front, tests: Option<usize>) -> Result<Front, Failure> {
+/// How a parsed program is checked: as a program, as tests (listing those
+/// of that many first modules), or as a shared library.
+enum Checking {
+    Program,
+    Tests(usize),
+    Shared,
+}
+
+/// Checks a parsed program `how` it is to be built.
+fn check_parsed(mut front: Front, how: Checking) -> Result<Front, Failure> {
     // The prelude's array helpers are checked and compiled with every program.
     let mut prelude_errors = Vec::new();
     // Past every file loaded, manifests too: a link diagnostic points
@@ -243,9 +257,10 @@ fn check_parsed(mut front: Front, tests: Option<usize>) -> Result<Front, Failure
     front.source.add("<prelude>", prelude.base, &prelude.text);
     let start = prelude.base;
     let units = units(&front.modules);
-    let result = match tests {
-        Some(roots) => check::check_test_roots(&units, roots),
-        None => check::check_modules(&units),
+    let result = match how {
+        Checking::Tests(roots) => check::check_test_roots(&units, roots),
+        Checking::Shared => check::check_shared(&units),
+        Checking::Program => check::check_modules(&units),
     };
     match result {
         Ok((checked, warnings)) if prelude_errors.is_empty() => {
@@ -275,94 +290,6 @@ pub(super) fn ir(front: &Front, (target, costs): (Target, Instruments)) -> Resul
         .map_err(|e| codegen_failure(&front.source, e))
 }
 
-/// Compiles and links `front` at `opt` for `cpu` on `target` into the executable `exe`,
-/// with what its `[link]` tables add: `pkg-config` runs first, so its
-/// failures come before codegen's work.
-pub(super) fn build(
-    front: &Front,
-    (opt, cpu, target, costs): (OptLevel, Cpu, Target, Instruments),
-    exe: &Path,
-) -> Result<(), Failure> {
-    // `debug(x)` is for development: an optimized build is a release. Only
-    // the main file's package's calls are its to remove; a dependency's
-    // print nothing there.
-    if opt == OptLevel::O2 {
-        let own = |at: usize| {
-            front.modules.iter().any(|m| {
-                (m.base..=m.base + m.text.len()).contains(&at)
-                    && m.package == front.modules[0].package
-            })
-        };
-        let found: Vec<Diagnostic> = checked(front)
-            .debug_calls
-            .iter()
-            .filter(|span| own(span.start))
-            .map(|&span| debug_in_release(span))
-            .collect();
-        if !found.is_empty() {
-            return Err(Failure::Program(front.source.clone(), found));
-        }
-    }
-    let tls = std_import(&front.modules, "tls", &["tls", "http"]);
-    let crypto = std_import(&front.modules, "crypto", &["crypto"]);
-    let openssl = link::foreign_refusals(
-        (target.triple(), target.is_native()),
-        &front.links,
-        (tls, crypto),
-        &|name| std::env::var_os(name),
-    )
-    .map_err(|refused| Failure::Program(front.source.clone(), refused))?;
-    let cc = link::compiler::Compiler::for_target(target.triple(), target.is_native())
-        .map_err(|e| internal(&front.source, e.to_string()))?;
-    let mut plan = link::Plan::new(&front.links, &mut link::pkg_config::run)
-        .map_err(|e| Failure::Program(front.source.clone(), vec![e.diagnostic()]))?;
-    (plan.tls, plan.crypto, plan.openssl) = (tls, crypto, openssl);
-    let temp = TempDir::new().map_err(|e| internal(&front.source, temp_error(e)))?;
-    let object = temp.path.join("prog.o");
-    codegen::emit_object_modules(
-        &units(&front.modules),
-        checked(front),
-        &sources(front),
-        opt,
-        (cpu, target, costs),
-        &object,
-    )
-    .map_err(|e| codegen_failure(&front.source, e))?;
-    let system = link::System::of(target.triple());
-    link::link_with(&[&object], &plan, (&temp.path, cc, system), exe).map_err(|e| {
-        match e.diagnostic() {
-            Some(d) => Failure::Program(front.source.clone(), vec![d]),
-            None => internal(&front.source, e.to_string()),
-        }
-    })
-}
-
-/// E0465: a `debug(x)` call at `span` in an optimized build.
-fn debug_in_release(span: crate::span::Span) -> Diagnostic {
-    Diagnostic::error("E0465", "`debug` is for development builds", span)
-        .with_help("remove the `debug(…)` call, or build without `-O2`")
-}
-
-/// The program's import that brings in OpenSSL's `std.<module>`:
-/// `None` unless the program loads it; else the first import of the
-/// program's own modules that leads there (one of `via`: `std.http` leads
-/// to `std.tls`). Only such programs get that runtime part and OpenSSL.
-fn std_import(modules: &[Module], module: &str, via: &[&str]) -> Option<crate::span::Span> {
-    if !modules.iter().any(|m| m.path == ["std", module]) {
-        return None;
-    }
-    modules
-        .iter()
-        .filter(|m| m.package.as_deref() != Some("std"))
-        .filter_map(|m| m.program.as_ref())
-        .flat_map(|p| &p.imports)
-        .find(|i| {
-            let names: Vec<&str> = i.path.iter().map(|s| s.name.as_str()).collect();
-            names.len() >= 2 && names[0] == "std" && via.contains(&names[1])
-        })
-        .map(|i| i.span)
-}
-
 /// Builds `front` into a temp dir and runs it with inherited standard
 /// streams through `runner`, passing `args` to the program.
 ///
@@ -390,26 +317,9 @@ pub(super) fn run(
     })
 }
 
-/// Where `build` writes for `target` when there is no `-o`: the file name
-/// without its extension, with `.exe` for Windows, which runs only names
-/// ending in it.
-///
-/// A file with no extension gets `.out` elsewhere, so the source is never
-/// overwritten.
-pub(super) fn default_output(file: &Path, target: Target) -> PathBuf {
-    let stem = PathBuf::from(file.file_stem().unwrap_or(file.as_os_str()));
-    if target.is_windows() {
-        stem.with_extension("exe")
-    } else if file.extension().is_none() {
-        stem.with_extension("out")
-    } else {
-        stem
-    }
-}
-
 /// The source name and text codegen needs for panic locations.
 /// Every module's file, for panic locations in any of them.
-fn sources(front: &Front) -> Vec<codegen::ModuleSource<'_>> {
+pub(super) fn sources(front: &Front) -> Vec<codegen::ModuleSource<'_>> {
     front
         .source
         .files
@@ -423,7 +333,7 @@ fn sources(front: &Front) -> Vec<codegen::ModuleSource<'_>> {
 }
 
 /// The modules as the checker and codegen take them, the main file first.
-fn units(modules: &[Module]) -> Vec<check::Unit<'_>> {
+pub(super) fn units(modules: &[Module]) -> Vec<check::Unit<'_>> {
     modules
         .iter()
         .map(|m| check::Unit {
@@ -438,14 +348,14 @@ fn units(modules: &[Module]) -> Vec<check::Unit<'_>> {
 }
 
 /// The type table of a front end that ran the checker.
-fn checked(front: &Front) -> &Checked {
+pub(super) fn checked(front: &Front) -> &Checked {
     front
         .checked
         .as_ref()
         .expect("codegen runs only after `front()` type-checked")
 }
 
-fn codegen_failure(source: &Source, error: CodegenError) -> Failure {
+pub(super) fn codegen_failure(source: &Source, error: CodegenError) -> Failure {
     // Codegen errors are compiler or LLVM failures, with no source location.
     Failure::Internal(
         source.clone(),
@@ -453,11 +363,11 @@ fn codegen_failure(source: &Source, error: CodegenError) -> Failure {
     )
 }
 
-fn internal(source: &Source, message: String) -> Failure {
+pub(super) fn internal(source: &Source, message: String) -> Failure {
     Failure::Internal(source.clone(), Box::new(Report::internal(message, None)))
 }
 
-fn temp_error(error: io::Error) -> String {
+pub(super) fn temp_error(error: io::Error) -> String {
     format!("cannot create a temporary directory: {error}")
 }
 
@@ -481,41 +391,5 @@ impl Drop for TempDir {
     fn drop(&mut self) {
         // Best effort: a leftover temp dir is harmless and must not hide the real result.
         let _ = std::fs::remove_dir_all(&self.path);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn default_output_never_overwrites_the_source() {
-        let linux = Target::X86_64Linux;
-        assert_eq!(
-            default_output(Path::new("arith.la"), linux),
-            PathBuf::from("arith")
-        );
-        assert_eq!(
-            default_output(Path::new("dir/prog.la"), linux),
-            PathBuf::from("prog")
-        );
-        assert_eq!(
-            default_output(Path::new("prog"), linux),
-            PathBuf::from("prog.out")
-        );
-    }
-
-    #[test]
-    fn a_windows_build_is_named_exe() {
-        for windows in [Target::X86_64Windows, Target::Aarch64Windows] {
-            assert_eq!(
-                default_output(Path::new("dir/app.la"), windows),
-                PathBuf::from("app.exe")
-            );
-            assert_eq!(
-                default_output(Path::new("app"), windows),
-                PathBuf::from("app.exe")
-            );
-        }
     }
 }

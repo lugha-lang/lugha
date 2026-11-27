@@ -89,6 +89,8 @@ impl Checker {
             derive_calls: HashMap::new(),
             hover: partial::Recorder::new(count),
             test_mode: false,
+            library_mode: false,
+            exports: HashMap::new(),
             written_used: HashSet::new(),
         }
     }

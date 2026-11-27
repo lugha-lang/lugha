@@ -3,7 +3,7 @@
 //! editor work offline and match this compiler.
 
 /// Every code with its explanation, in code order (`docs/errors/<CODE>.md`).
-pub const EXPLANATIONS: [(&str, &str); 171] = [
+pub const EXPLANATIONS: [(&str, &str); 174] = [
     ("E0101", include_str!("../docs/errors/E0101.md")),
     ("E0102", include_str!("../docs/errors/E0102.md")),
     ("E0103", include_str!("../docs/errors/E0103.md")),
@@ -69,6 +69,7 @@ pub const EXPLANATIONS: [(&str, &str); 171] = [
     ("E0335", include_str!("../docs/errors/E0335.md")),
     ("E0336", include_str!("../docs/errors/E0336.md")),
     ("E0337", include_str!("../docs/errors/E0337.md")),
+    ("E0338", include_str!("../docs/errors/E0338.md")),
     ("E0401", include_str!("../docs/errors/E0401.md")),
     ("E0402", include_str!("../docs/errors/E0402.md")),
     ("E0403", include_str!("../docs/errors/E0403.md")),
@@ -153,6 +154,8 @@ pub const EXPLANATIONS: [(&str, &str); 171] = [
     ("E0482", include_str!("../docs/errors/E0482.md")),
     ("E0483", include_str!("../docs/errors/E0483.md")),
     ("E0484", include_str!("../docs/errors/E0484.md")),
+    ("E0485", include_str!("../docs/errors/E0485.md")),
+    ("E0486", include_str!("../docs/errors/E0486.md")),
     ("E0501", include_str!("../docs/errors/E0501.md")),
     ("E0502", include_str!("../docs/errors/E0502.md")),
     ("E0503", include_str!("../docs/errors/E0503.md")),

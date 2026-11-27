@@ -2,7 +2,8 @@
 
 use super::{PResult, Parser};
 use crate::ast::{
-    ExternDecl, ExternTypeDecl, Field, Ident, Import, Item, Param, StructDecl, Type, TypeKind,
+    Export, ExternDecl, ExternTypeDecl, Field, FunDecl, Ident, Import, Item, Param, StructDecl,
+    Type, TypeKind,
 };
 use crate::diagnostic::Diagnostic;
 use crate::lexer::TokenKind;
@@ -163,6 +164,33 @@ impl Parser<'_> {
         let open = self.expect(&TokenKind::LParen)?;
         let params = self.comma_list(open, TokenKind::RParen, |p| p.extern_param())?;
         let ret = self.return_type()?;
+        // A body: a Lugha function C calls by its name. Its parameters
+        // were read as an extern's, so `check` refuses what C can't pass.
+        if matches!(self.peek(), TokenKind::LBrace | TokenKind::Eq) {
+            if let Some(at) = blocking {
+                let message = "`blocking` is for C functions Lugha calls";
+                let help = "an `extern fun` with a body is Lugha's, called by C: remove `blocking`";
+                self.error(Diagnostic::error("E0201", message, at).with_help(help));
+            }
+            let body = self.fun_body()?;
+            return Ok(Item::Fun(FunDecl {
+                visibility: None,
+                name,
+                type_params: Vec::new(),
+                receiver: None,
+                params,
+                ret,
+                body,
+                span: Span::new(start, self.prev_end()),
+                test: None,
+                integration: false,
+                caller_location: None,
+                export: Some(Export {
+                    symbol,
+                    span: Span::new(start, start + "extern".len()),
+                }),
+            }));
+        }
         self.expect(&TokenKind::Semi)?;
         Ok(Item::Extern(ExternDecl {
             visibility: None,

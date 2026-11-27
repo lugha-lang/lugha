@@ -20,6 +20,7 @@ pub mod pkg_config;
 pub mod runtime;
 mod runtime_parts;
 mod runtime_symbols;
+mod shared;
 pub mod zig;
 
 use std::ffi::OsString;
@@ -69,7 +70,7 @@ pub fn link_with(
 ) -> Result<(), LinkError> {
     // Compiled C objects are kept between builds.
     let cache = object_cache::Cache::open(cc);
-    let shims = c_files::compile(&plan.c_files, temp, &cache)?;
+    let shims = c_files::compile(&plan.c_files, (temp, system != System::Windows), &cache)?;
     let variant = (plan.tls.is_some(), plan.crypto.is_some());
     let openssl = plan
         .tls
@@ -77,10 +78,15 @@ pub fn link_with(
         .map(|at| (at, plan.openssl.as_ref()));
     let runtime = runtime::compile(variant, &cache, openssl, system)?;
     let linked: Vec<&Path> = vec![runtime.path.as_path()];
+    let shared = match &plan.shared {
+        Some(symbols) => shared::args(symbols, (temp, system), output).map_err(LinkError::Io)?,
+        None => Vec::new(),
+    };
     let result = cache
         .cc()
         .link_command()
         .args(args(objects, &shims, &linked, plan, output))
+        .args(shared)
         .output();
     let out = match result {
         Ok(out) => out,

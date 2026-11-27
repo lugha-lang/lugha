@@ -36,6 +36,7 @@ mod dispatch;
 mod emit;
 mod enums;
 mod equality;
+mod exports;
 mod expr;
 mod externs;
 mod float_ops;

@@ -144,6 +144,17 @@ pub struct FunDecl {
     pub integration: bool,
     /// The `@caller_location` before it: its panics report its caller's place.
     pub caller_location: Option<Span>,
+    /// `extern fun name(…) { … }`: a Lugha function C calls by name.
+    pub export: Option<Export>,
+}
+
+/// What makes a function C's to call: `extern`, and its C name when renamed.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Export {
+    /// `extern "symbol" fun`: the C name, when it isn't the function's own.
+    pub symbol: Option<Ident>,
+    /// The `extern` word.
+    pub span: Span,
 }
 
 /// `extern type Name;`: a handle, an opaque C pointer.

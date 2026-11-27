@@ -184,7 +184,7 @@ impl<'ctx> Lowerer<'ctx> {
     }
 
     /// The C function type of a callback, `data` included at `data`.
-    fn c_function_type(
+    pub(super) fn c_function_type(
         &self,
         params: &[Type],
         ret: &Type,
@@ -435,7 +435,12 @@ impl<'ctx> Lowerer<'ctx> {
 
     /// The lowered signature of a C entry taking `params` (with the `data`
     /// pointer at `data`) and returning `ret`, when it passes structs.
-    fn entry_sig(&self, params: &[Type], ret: &Type, data: Option<usize>) -> Option<CSig<'ctx>> {
+    pub(super) fn entry_sig(
+        &self,
+        params: &[Type],
+        ret: &Type,
+        data: Option<usize>,
+    ) -> Option<CSig<'ctx>> {
         let mut kinds: Vec<CKind> = params.iter().cloned().map(CKind::Value).collect();
         if let Some(at) = data {
             kinds.insert(at, CKind::Pointer);
@@ -444,7 +449,7 @@ impl<'ctx> Lowerer<'ctx> {
     }
 
     /// C's extensions on an entry's `bool`, `u8`, `u16`, `i8` and `i16`.
-    fn c_abi_entry(
+    pub(super) fn c_abi_entry(
         &self,
         entry: FunctionValue<'ctx>,
         params: &[Type],

@@ -147,6 +147,11 @@ pub(super) fn compile(
     // run through this code.
     // Unwind tables: a panic unwinds through the runtime's own frames.
     let mut flags = vec![std::ffi::OsString::from("-O2"), "-funwind-tables".into()];
+    // Position-independent, so a shared library can hold it too (it costs
+    // an executable nothing); Windows' code needs no such flag.
+    if system != super::System::Windows {
+        flags.push("-fPIC".into());
+    }
     // The folder is part of the flags, so of the cached object's key.
     let folder = openssl.and_then(|(_, folder)| folder);
     flags.extend(folder.map(Folder::include));

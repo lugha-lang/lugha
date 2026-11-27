@@ -7,6 +7,7 @@
 //! program has errors, 2 bad usage or an internal error.
 
 mod build;
+mod c_header;
 mod cli;
 mod emulate;
 mod explain;
@@ -14,6 +15,7 @@ mod fmt;
 mod guard;
 mod init;
 mod json;
+mod linking;
 mod lsp;
 mod pipeline;
 mod render;
@@ -116,9 +118,20 @@ where
             output,
             emit,
             target,
+            shared,
             options,
         } => {
             let target = target.map_or(Target::native(), Into::into);
+            // A musl build is static: there is no shared library to make.
+            if *shared && target.triple().ends_with("-musl") {
+                let message =
+                    "`--shared` needs a target with shared libraries: musl builds are static";
+                let error = <Cli as clap::CommandFactory>::command()
+                    .error(clap::error::ErrorKind::ArgumentConflict, message);
+                // Nowhere better to report it; the exit code still says so.
+                let _ = write!(out.stderr, "{}", error.render());
+                return 2;
+            }
             let code = (
                 options.opt,
                 options.cpu(),
@@ -127,7 +140,7 @@ where
             );
             build::build(
                 &mut out,
-                file,
+                (file, *shared),
                 output.as_deref(),
                 *emit,
                 (code, options.mode()),

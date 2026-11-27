@@ -3,7 +3,10 @@
 //! its bare name), each module sees its own items unqualified and imported
 //! modules through `m.` (`check::modules::lookup`).
 
+mod entries;
 mod lookup;
+
+pub use entries::{check_modules, check_shared, check_test_roots, check_tests};
 
 use std::collections::HashMap;
 
@@ -49,44 +52,14 @@ impl<'a> Origin<'a> {
     }
 }
 
-/// Type-checks a whole program of modules, the main file first.
-///
-/// # Errors
-///
-/// Every diagnostic found (errors and warnings) when there is at least one error.
-pub fn check_modules(units: &[Unit]) -> Result<(Checked, Vec<Diagnostic>), Vec<Diagnostic>> {
-    check_with(units, None)
-}
-
-/// [`check_modules`] for `lughac test`: the main file
-/// needs no `main`, and [`Checked::tests`] lists its tests.
-///
-/// # Errors
-///
-/// As [`check_modules`].
-pub fn check_tests(units: &[Unit]) -> Result<(Checked, Vec<Diagnostic>), Vec<Diagnostic>> {
-    check_test_roots(units, 1)
-}
-
-/// [`check_tests`] for a program of several roots, the first `roots`
-/// units: every root's tests are listed, in order.
-///
-/// # Errors
-///
-/// As [`check_modules`].
-pub fn check_test_roots(
-    units: &[Unit],
-    roots: usize,
-) -> Result<(Checked, Vec<Diagnostic>), Vec<Diagnostic>> {
-    check_with(units, Some(roots))
-}
-
-/// Checks `units`; with `tests`, lists the tests of that many first units.
+/// Checks `units`; with `tests`, lists the tests of that many first units;
+/// with `library`, as a shared library's: exports, no `main`.
 fn check_with(
     units: &[Unit],
     tests: Option<usize>,
+    library: bool,
 ) -> Result<(Checked, Vec<Diagnostic>), Vec<Diagnostic>> {
-    let (mut checker, monos, layouts, used) = run_with(units, tests.is_some());
+    let (mut checker, monos, layouts, used) = run_with(units, tests.is_some(), library);
     // Once every body is typed: what `realtime` callbacks reach.
     let realtime = super::realtime::check(units, &checker);
     checker.diagnostics.extend(realtime);
@@ -179,6 +152,7 @@ fn check_with(
                         .collect()
                 })
                 .unwrap_or_default(),
+            library: checker.library_mode,
             tests: tests.map(|roots| {
                 // Qualified, so a package's module keeps its tests' keys.
                 units
@@ -201,10 +175,14 @@ fn check_with(
 /// Every checking pass over `units`, before codegen's tables are built:
 /// shared by `check_modules` and the language server's `check_partial`.
 pub(in crate::check) fn run(units: &[Unit]) -> (Checker, Vec<Instance>, Vec<Type>, Vec<Type>) {
-    run_with(units, false)
+    run_with(units, false, false)
 }
 
-fn run_with(units: &[Unit], tests: bool) -> (Checker, Vec<Instance>, Vec<Type>, Vec<Type>) {
+fn run_with(
+    units: &[Unit],
+    tests: bool,
+    library: bool,
+) -> (Checker, Vec<Instance>, Vec<Type>, Vec<Type>) {
     // Ids are shared across modules, so the last module's count covers all.
     let count = units
         .iter()
@@ -217,6 +195,7 @@ fn run_with(units: &[Unit], tests: bool) -> (Checker, Vec<Instance>, Vec<Type>, 
         .flat_map(|u| u.program.self_types.iter().copied())
         .collect();
     checker.test_mode = tests;
+    checker.library_mode = library;
     checker.modules(units);
     let monos = checker.monomorphize();
     checker.instance_literals(&monos);
@@ -296,7 +275,7 @@ impl Checker {
             self.enter(main);
             // `lughac test` runs tests, never `main`.
             if !self.test_mode {
-                self.check_main(main.program);
+                self.check_entry(main.program);
             }
             for unit in others {
                 self.enter(unit);

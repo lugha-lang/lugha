@@ -6,7 +6,8 @@
 //! rewritten to take a first parameter `ptr sret(T)` and return nothing,
 //! and every call of one passes a slot in its caller's entry block and
 //! reads the result from it. Functions C calls (`main`, the `lugha_cb_`
-//! and `lugha_cfn_` entries) and calls into C keep C's own convention.
+//! and `lugha_cfn_` entries, exports) and calls into C keep C's own
+//! convention.
 
 use inkwell::attributes::{Attribute, AttributeLoc};
 use inkwell::builder::Builder;
@@ -53,10 +54,8 @@ fn struct_result(ret: Option<BasicTypeEnum<'_>>) -> Option<StructType<'_>> {
 /// True for a Lugha function defined here that returns a struct: not an
 /// extern's declaration, and not an entry C calls.
 fn rewritten(f: FunctionValue<'_>) -> bool {
-    let name = f.get_name().to_string_lossy();
-    let c_entry = name == "main" || name.starts_with("lugha_cb_") || name.starts_with("lugha_cfn_");
     f.count_basic_blocks() > 0
-        && !c_entry
+        && !super::c_stack::is_c_entry(f)
         && struct_result(f.get_type().get_return_type()).is_some()
 }
 

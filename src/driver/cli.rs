@@ -30,6 +30,9 @@ pub(super) enum Command {
         /// The platform to build for [default: this machine]
         #[arg(long, value_enum)]
         target: Option<TargetArg>,
+        /// A shared library of the functions C calls (`extern fun … { … }`), with a C header
+        #[arg(long)]
+        shared: bool,
         #[command(flatten)]
         options: Options,
     },

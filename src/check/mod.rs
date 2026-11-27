@@ -48,6 +48,7 @@ mod enums;
 mod env;
 mod eq_ord;
 mod errors;
+mod exports;
 mod expr;
 mod float_bits;
 mod float_ops;
@@ -165,7 +166,9 @@ pub use instances::{Instance, lazy_key};
 pub use iterators::{ITER, Iteration};
 pub use layouts::UNION_MARK;
 pub use members::{Detail, Member, MemberKind, TypeMembers, type_members, value_members};
-pub use modules::{Origin, Unit, check_modules, check_test_roots, check_tests, qualify, symbol};
+pub use modules::{
+    Origin, Unit, check_modules, check_shared, check_test_roots, check_tests, qualify, symbol,
+};
 pub use ordering::ORDERING;
 pub use overloads::interface_of as operator_interface;
 pub use partial::{Name, Partial, Target, check_partial};
@@ -423,6 +426,10 @@ pub(super) struct Checker {
     written_used: HashSet<ExprId>,
     /// Checking for `lughac test`: no `main` needed.
     test_mode: bool,
+    /// Checking a shared library's program (`check_shared`): no `main`.
+    library_mode: bool,
+    /// Each export's C name and where it is first declared (E0486).
+    exports: HashMap<String, Span>,
 }
 
 impl Checker {

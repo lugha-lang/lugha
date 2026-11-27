@@ -70,6 +70,13 @@ hello from C
 - **Views:** a callback may take `View<T>` (read) or `MutView<T>` (write) to
   work on C's buffer in place, bounds-checked, without copying. A view never
   outlives the call.
+- **C calling Lugha by name:** an `extern fun` with a body is a Lugha
+  function C calls, `extern fun add(a: i64, b: i64): i64 = a + b;` (renamed
+  with `extern "c_name" fun …`). It takes and gives what an extern does;
+  a `string` it returns is C's own copy, freed with `free()`. It runs as a
+  task while C waits, so it may use scopes and channels, but it gets no
+  capabilities. `lughac build --shared lib.la` makes `liblib.so` (and
+  `lib.h`) from a file with such functions and no `main`.
 - **The `ffi` grant:** a dependency that declares `extern` items or has a
   `[link]` table builds only with `allow = ["ffi"]` in the program's
   `lugha.toml`.

@@ -58,6 +58,9 @@ pub struct Plan {
     /// The OpenSSL built for a foreign target, linked instead of this
     /// machine's `-lssl -lcrypto`.
     pub openssl: Option<super::openssl::Folder>,
+    /// A shared library's link: the C names of its exports, the only
+    /// symbols it shows; `None` for an executable.
+    pub shared: Option<Vec<String>>,
 }
 
 /// Runs `pkg-config` for some names: [`super::pkg_config::run`], or a fake in tests.

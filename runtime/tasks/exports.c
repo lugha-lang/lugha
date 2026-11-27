@@ -1,0 +1,176 @@
+/*
+ * exports.c — part of lugha_rt.c: functions C calls by name, `extern fun
+ * name(…) { … }`. Each C entry runs its body through `lugha_rt_export_run`:
+ *
+ * - From a thread C made, the body runs as a task, so it may wait (scopes,
+ *   channels, sleep), while C's thread waits for it on a futex word. A
+ *   panic ends the task, which has no scope, and with it the process.
+ * - From the program's own threads (a task calling C that calls back by
+ *   name) it runs in place, on the C stack, as a direct callback does.
+ *
+ * In a shared library there is no `main`: the first call starts the
+ * runtime, once, on a home thread of its own, which becomes the first
+ * worker and runs a `main` task that only ever sleeps. A library leaves
+ * the process alone: no signal handlers, no Ctrl-C handler, no lockdown,
+ * stdio as the host set it. Its constants are made by its first call
+ * (`lugha_rt_export_init`). In a program, `main` started the runtime
+ * already, and its exports go straight to the workers.
+ *
+ * A fragment, not compiled on its own: joined after callbacks.c, whose
+ * `foreign_attach` a thread C made goes through first.
+ */
+
+/* One call from C: the body's thunk and frame, and whether it is done. */
+typedef struct {
+    void (*thunk)(void *);
+    void *frame;
+    uint32_t done;
+} ExportCall;
+
+/* The task running one call: the body, then C's thread woken. */
+static void export_task(void *code, void *env, void *result) {
+    (void)env;
+    (void)result;
+    ExportCall *call = code;
+    call->thunk(call->frame);
+    // C's thread may return as soon as it sees `done`: the wake only
+    // names the word's address, which a later wait there takes as spurious.
+    __atomic_store_n(&call->done, 1, __ATOMIC_RELEASE);
+    os_wake_on(&call->done, 1);
+}
+
+/* Whether the runtime is up: `lugha_rt_init` or a library's start made
+ * this thread or another a worker. */
+static bool runtime_up(void) {
+    pthread_mutex_lock(&workers_lock);
+    bool up = workers != NULL;
+    pthread_mutex_unlock(&workers_lock);
+    return up;
+}
+
+/* Set once the home thread's runtime is up, its `main` task running. */
+static uint32_t library_up;
+
+/* A library's `main` task: once it runs (and with it the task list C's
+ * calls join), C may call in; then it sleeps, while the workers run C's
+ * calls. */
+static int32_t library_main(int32_t argc, char **argv) {
+    (void)argc;
+    (void)argv;
+    ensure_started();
+    __atomic_store_n(&library_up, 1, __ATOMIC_RELEASE);
+    os_wake_on(&library_up, INT32_MAX);
+    for (;;) {
+        lugha_rt_task_sleep(1000LL * 60 * 60 * 24);
+    }
+    // Never reached: the loop never ends.
+    return 0;
+}
+
+/* The home thread: the runtime's start without the process-wide parts a
+ * program's `lugha_rt_init` makes (signals, Ctrl-C, stdio, arguments),
+ * then a `main` that never returns. */
+static void *library_home(void *arg) {
+    (void)arg;
+    __atomic_store_n(&library_mode, true, __ATOMIC_RELEASE);
+    lugha_rt_worker_enter();
+    sched_init();
+    workers_init();
+    hash_key_init();
+    helpers_init();
+    lugha_rc_start();
+    // Lockdown would let helpers start; a library has none, so they may.
+    helpers_allowed = true;
+    lugha_rt_main(0, NULL, library_main);
+    return NULL;
+}
+
+static pthread_once_t library_once = PTHREAD_ONCE_INIT;
+
+static void library_spawn(void) {
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    pthread_attr_setstacksize(&attr, 256 * 1024);
+    pthread_t home;
+    if (pthread_create(&home, &attr, library_home, NULL) != 0) {
+        die("panic: can't start the Lugha runtime's thread\n");
+    }
+    pthread_attr_destroy(&attr);
+}
+
+/* Starts the runtime for a shared library, once, unless a program's
+ * `main` started it; returns once it is up. */
+static void library_start(void) {
+    if (__atomic_load_n(&library_up, __ATOMIC_ACQUIRE) != 0) {
+        return;
+    }
+    // Up without the library's start: a program's `main` started it. Read
+    // after `runtime_up`'s lock, which the home thread took after setting
+    // `library_mode`, so a library starting meanwhile is seen as one.
+    if (runtime_up() && !__atomic_load_n(&library_mode, __ATOMIC_ACQUIRE)) {
+        return;
+    }
+    pthread_once(&library_once, library_spawn);
+    while (__atomic_load_n(&library_up, __ATOMIC_ACQUIRE) == 0) {
+        os_wait_on(&library_up, 0);
+    }
+}
+
+/* `lugha_rt_export_run(thunk, frame)`: every export's call of its body. */
+void lugha_rt_export_run(void (*thunk)(void *), void *frame) {
+    Worker *w = worker;
+    if (w->runtime_thread || on_helper || w->on_c_stack) {
+        thunk(frame);
+        return;
+    }
+    library_start();
+    // A thread C made gets a fiber of its own, as for a callback, so the
+    // runtime's calls below know where they are.
+    if (!w->foreign) {
+        foreign_attach(w, false);
+    }
+    ExportCall call = {thunk, frame, 0};
+    LughaTask *task = lugha_rt_task_spawn(export_task, &call, NULL, 1);
+    lugha_rt_rc_release(task);
+    while (__atomic_load_n(&call.done, __ATOMIC_ACQUIRE) == 0) {
+        os_wait_on(&call.done, 0);
+    }
+}
+
+/* `lugha_rt_export_init(init)`: a shared library's constants, made by
+ * its first call while any other waits; nothing in a program, whose
+ * `main` made them. */
+void lugha_rt_export_init(void (*init)(void)) {
+    if (!__atomic_load_n(&library_mode, __ATOMIC_ACQUIRE)) {
+        return;
+    }
+    static uint32_t state; // 0 not made, 1 being made, 2 made
+    uint32_t none = 0;
+    if (__atomic_compare_exchange_n(&state, &none, 1, false, __ATOMIC_ACQ_REL,
+                                    __ATOMIC_ACQUIRE)) {
+        init();
+        __atomic_store_n(&state, 2, __ATOMIC_RELEASE);
+        os_wake_on(&state, INT32_MAX);
+        return;
+    }
+    while (__atomic_load_n(&state, __ATOMIC_ACQUIRE) != 2) {
+        os_wait_on(&state, 1);
+    }
+}
+
+/* `lugha_rt_export_string(s)`: a string an export gives C, as C's own
+ * NUL-terminated copy, which C frees with `free()`. */
+char *lugha_rt_export_string(const LughaString *s) {
+    if (memchr(s->bytes, 0, (size_t)s->len) != NULL) {
+        static const char why[] = "a string given to C can't contain a NUL byte";
+        panic_with(why, sizeof why - 1);
+    }
+    char *copy = malloc((size_t)s->len + 1);
+    if (copy == NULL) {
+        die("panic: out of memory\n");
+    }
+    memcpy(copy, s->bytes, (size_t)s->len);
+    copy[s->len] = '\0';
+    return copy;
+}
