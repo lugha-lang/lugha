@@ -382,6 +382,20 @@ jobs:
                   ''|*[!0-9]*) echo "  Windows exit status, run again: unknown ($win)" ;;
                   *) echo "  Windows exit status, run again: $(printf '0x%08X' $(( win & 0xFFFFFFFF )))" ;;
                 esac
+                # A fail-fast runs no handler of the program's: once more
+                # under the system's debugger, which shows where it stopped
+                # (the modules' bases map the program's frames).
+                cdb=""
+                for arch in arm64 x64; do
+                  f="/c/Program Files (x86)/Windows Kits/10/Debuggers/$arch/cdb.exe"
+                  if [ -x "$f" ]; then cdb="$f"; break; fi
+                done
+                if [ -n "$cdb" ]; then
+                  (cd "$name.d" && printf '.symfix c:\\sym\n.reload\n.lastevent\n.exr -1\nr\nkn 40\nlm\nq\n' |
+                    timeout 300 "$cdb" -g -lines ../"$name.exe" "a b" 2>&1 | tail -n 150)
+                else
+                  echo "  no cdb on this runner"
+                fi
               fi
               status=1
             fi
