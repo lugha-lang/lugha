@@ -218,7 +218,11 @@ static void os_commit(void *at, size_t size) {
 #define WIN_STACK_FIRST (16 * 1024)
 #define WIN_PAGE 4096
 
+/* Windows moves the calling thread's `StackLimit` to any guard page set
+ * below committed memory, whatever stack it runs on: put back after. */
 static void os_stack_ready(char *stack, size_t size) {
+    NT_TIB *tib = (NT_TIB *)NtCurrentTeb();
+    void *limit = tib->StackLimit;
     char *committed = stack + size - WIN_STACK_FIRST;
     DWORD old;
     if (VirtualAlloc(committed, WIN_STACK_FIRST, MEM_COMMIT, PAGE_READWRITE) == NULL ||
@@ -226,6 +230,7 @@ static void os_stack_ready(char *stack, size_t size) {
         !VirtualProtect(committed - WIN_PAGE, WIN_PAGE, PAGE_READWRITE | PAGE_GUARD, &old)) {
         die("panic: out of memory\n");
     }
+    tib->StackLimit = limit;
 }
 
 /* Decommitted whole, then ready again as a fresh one. */
@@ -247,14 +252,17 @@ static bool os_stack_unguard(char *stack, size_t guard) {
     return true;
 }
 
-/* How far down the stack ending at `top` is committed now: the TEB's
- * `StackLimit` for it (x86_64.c, aarch64.c). */
-static char *win_committed_low(char *top) {
+/* How far the stack reserved at `stack`, ending at `top`, is committed
+ * (its regions: reserved, the guard page, committed); else its top. */
+static char *win_committed_low(char *stack, char *top) {
     MEMORY_BASIC_INFORMATION info;
-    if (VirtualQuery(top - 1, &info, sizeof info) == 0) {
-        die("panic: internal error: VirtualQuery failed\n");
+    for (char *at = stack; at < top && VirtualQuery(at, &info, sizeof info) != 0;
+         at = (char *)info.BaseAddress + info.RegionSize) {
+        if (info.State == MEM_COMMIT && (info.Protect & PAGE_GUARD) == 0) {
+            return (char *)info.BaseAddress;
+        }
     }
-    return (char *)info.BaseAddress;
+    return (char *)((uintptr_t)(top - 1) & ~(uintptr_t)(WIN_PAGE - 1));
 }
 
 /* Room the system keeps for the handler once a stack overflowed. */

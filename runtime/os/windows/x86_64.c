@@ -142,7 +142,7 @@ extern uintptr_t lugha_rt_stack_mask;
 void lugha_rt_on_stack(void (*fn)(void *), void *arg, char *top) {
     WinBounds saved = win_bounds_get();
     char *stack = (char *)((uintptr_t)top & ~lugha_rt_stack_mask);
-    WinBounds there = {stack + lugha_rt_stack_mask + 1, win_committed_low(top), stack};
+    WinBounds there = {stack + lugha_rt_stack_mask + 1, win_committed_low(stack, top), stack};
     win_bounds_set(there);
     win_on_stack_raw(fn, arg, top);
     win_bounds_set(saved);
@@ -159,7 +159,7 @@ static void *cpu_first_frame(Fiber *f) {
     frame[20] = 0x1f80 | ((uint64_t)0x037f << 32);
     // The TEB's bounds: the reservation, how far it's committed, its end.
     frame[22] = (uint64_t)(uintptr_t)f->map;
-    frame[23] = (uint64_t)(uintptr_t)win_committed_low(f->top);
+    frame[23] = (uint64_t)(uintptr_t)win_committed_low(f->map, f->top);
     frame[24] = (uint64_t)(uintptr_t)(f->top + 16);
     // r15, r14, r13, then r12 (the fiber), rsi, rdi, rbx and rbp.
     frame[28] = (uint64_t)(uintptr_t)f;
