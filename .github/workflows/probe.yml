@@ -6,13 +6,15 @@
 # merged, deleted when done.
 #
 # probe.txt, one item a line (`#` starts a comment):
-#   system windows-arm64        # or `windows` (x86-64) or `macos`
+#   system windows-arm64        # or `windows` (x86-64), `macos`, or `android`
+#                               # (x86-64 Android 10 on an emulator)
 #   env LUGHA_WORKERS=1         # set while the programs run, any number
 #   tests/windows/tcp.la        # a program: a .la file, or a folder with main.la
 #   tests/programs/runtime/socket_waits/queued_timeout.la
 # Each runs with the arguments `a b`, stdin empty, within a minute, in a
 # folder of its own. On Windows, one a fail-fast ends runs again under the
-# system's debugger, which shows the exception, registers and stack.
+# system's debugger, which shows the exception, registers and stack. On
+# Android each runs through `adb shell`, which keeps the program's exit.
 # Programs needing OpenSSL (std.tls, std.crypto) aren't built here.
 name: Probe
 
@@ -39,6 +41,7 @@ jobs:
     container: ubuntu:26.04
     outputs:
       runner: ${{ steps.plan.outputs.runner }}
+      system: ${{ steps.plan.outputs.system }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -51,12 +54,14 @@ jobs:
             windows-arm64) target=aarch64-pc-windows-gnu runner=windows-11-arm ext=.exe ;;
             windows) target=x86_64-pc-windows-gnu runner=windows-latest ext=.exe ;;
             macos) target=aarch64-apple-darwin runner=macos-15 ext= ;;
-            *) echo "probe.txt: \`system\` is windows-arm64, windows or macos, not '$system'"; exit 1 ;;
+            android) target=x86_64-linux-android runner=ubuntu-latest ext= ;;
+            *) echo "probe.txt: \`system\` is windows-arm64, windows, macos or android, not '$system'"; exit 1 ;;
           esac
           {
             echo "target=$target"
             echo "runner=$runner"
             echo "ext=$ext"
+            echo "system=$system"
           } >> "$GITHUB_OUTPUT"
 
       - uses: ./.github/actions/system
@@ -73,6 +78,21 @@ jobs:
           # Read main's cache; a probe never saves one of its own.
           shared-key: build
           save-if: false
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # Android's NDK, as CI's build job keeps it.
+        if: steps.plan.outputs.system == 'android'
+        id: ndk
+        with:
+          path: ndk
+          key: ndk-${{ hashFiles('tests/ndk.sh') }}
+
+      - name: Get Android's NDK
+        if: steps.plan.outputs.system == 'android'
+        shell: bash
+        run: |
+          if [ ! -d ndk/android-ndk-r29 ]; then sh tests/ndk.sh "$PWD/ndk"; fi
+          echo "ANDROID_NDK_HOME=$PWD/ndk/android-ndk-r29" >> "$GITHUB_ENV"
 
       - name: Build the programs
         shell: bash
@@ -117,8 +137,29 @@ jobs:
           name: probe-programs
           path: probe
 
+      - name: Let the emulator use KVM
+        if: needs.build.outputs.system == 'android'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run the programs on Android
+        if: needs.build.outputs.system == 'android'
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 29
+          arch: x86_64
+          target: default
+          disable-animations: true
+          emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim
+          # One line: the action runs each line of its script on its own.
+          script: for exe in probe/*; do [ "$exe" = probe/env.txt ] && continue; echo "::group::$exe"; adb push -q "$exe" /data/local/tmp/p && adb shell "cd /data/local/tmp && chmod +x p && env $(tr '\n' ' ' < probe/env.txt) timeout 60 ./p 'a b' < /dev/null"; echo "--- exit $?"; echo "::endgroup::"; done
+
       - name: Run the programs
         working-directory: probe
+        if: needs.build.outputs.system != 'android'
         run: |
           set +e
           while IFS= read -r line; do

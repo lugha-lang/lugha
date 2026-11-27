@@ -76,6 +76,14 @@ fn choose(target: Target, machine: &Machine) -> Result<Runner, String> {
             target.triple()
         ));
     }
+    // Before the CPU check: an x86-64 Android build would otherwise start
+    // here, on a Linux without Android's C library.
+    if target.is_android() {
+        return Err(format!(
+            "a program built for {} runs only on Android: build it with `lughac build`, then run it with `adb shell`",
+            target.triple()
+        ));
+    }
     let arch = target.arch();
     if arch == machine.arch {
         return Ok(Runner::default());
@@ -183,6 +191,17 @@ mod tests {
         }
         let arm = on(Arch::Aarch64, Target::Aarch64LinuxMusl, false).unwrap();
         assert_eq!(args(&arm), ["/t/prog"]);
+    }
+
+    #[test]
+    fn an_android_program_is_never_run_here_even_on_its_cpu() {
+        for target in [Target::X86_64Android, Target::Aarch64Android] {
+            for arch in [Arch::X86_64, Arch::Aarch64] {
+                let refused = on(arch, target, true).unwrap_err();
+                assert!(refused.contains("runs only on Android"), "{refused}");
+                assert!(refused.contains("adb shell"), "{refused}");
+            }
+        }
     }
 
     #[test]

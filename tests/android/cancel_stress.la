@@ -1,0 +1,78 @@
+// Run on Android by CI: reads ended by timeouts while bytes trickle in, on
+// eight connections at once, and reads cancelled by deadlines on an idle
+// one, which then still gets its byte. Every byte arrives once, in order:
+// a read cancelled after it completed still gives what it read.
+import std.task;
+
+const COUNT: i64 = 2000;
+
+fun trickle(c: Conn) {
+    for i in 0..COUNT {
+        let b = (i % 256).truncate<u8>();
+        c.write([b]).unwrap();
+        if i % 10 == 0 {
+            task.sleep(1);
+        }
+    }
+    c.close();
+}
+
+fun take(net: Net, at: string) {
+    let c = net.connect(at).unwrap();
+    c.set_timeout(1);
+    let mut next = 0;
+    while next < COUNT {
+        match c.read(64) {
+            .Ok(bytes) => {
+                if bytes.len == 0 {
+                    panic("ended at {next}");
+                }
+                for b of bytes {
+                    if b != (next % 256).truncate<u8>() {
+                        panic("byte {next} was {b}");
+                    }
+                    next += 1;
+                }
+            },
+            .Err(e) => {
+                if e != "timed out" {
+                    panic(e);
+                }
+            },
+        }
+    }
+    c.close();
+}
+
+fun main(console: Console, net: Net) {
+    let server = net.listen("127.0.0.1:0").unwrap();
+    let at = server.addr();
+    let r = scope s {
+        for _ in 0..8 {
+            s.spawn(take(net, at));
+        }
+        for _ in 0..8 {
+            s.spawn(trickle(server.accept().unwrap()));
+        }
+    };
+    console.println(r.is_ok());
+
+    // Deadlines on an idle connection, then a byte it still gets.
+    let idle = net.connect(at).unwrap();
+    let other = server.accept().unwrap();
+    let mut stopped = 0;
+    for _ in 0..500 {
+        let got = scope t within 1 {
+            idle.read(1)
+        };
+        if got.is_err() {
+            stopped += 1;
+        }
+    }
+    console.println(stopped);
+    let b: u8 = 42;
+    other.write([b]).unwrap();
+    console.println(idle.read(1).debug());
+    idle.close();
+    other.close();
+}

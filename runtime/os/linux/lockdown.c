@@ -130,6 +130,13 @@ static int lock_seccomp(int64_t kinds) {
 #endif
 }
 
+/* Landlock: never on Android, where an app's sandbox (a terminal app's,
+ * and every program it starts) ends a program that calls it, instead of
+ * failing the call, and a program can't tell whether it runs in one.
+ * There `Dir`s stay inside their folders through the walk, as on macOS,
+ * and the kernel limits sockets and processes only. */
+#if !defined(__ANDROID__)
+
 /* Every file right Landlock ABI `abi` knows. */
 static uint64_t lock_fs_rights(int abi) {
     uint64_t rights = (LANDLOCK_ACCESS_FS_MAKE_SYM << 1) - 1; /* ABI 1: bits 0 to 12 */
@@ -253,20 +260,31 @@ static int lock_landlock(int64_t kinds) {
     return done ? abi : 0;
 }
 
+#endif
+
 /* `lugha_rt_lockdown(kinds)`: limits the process to the capability kinds
  * in `kinds` (the `LOCK_*` bits), as far as the kernel can; nothing
  * printed unless `LUGHA_LOCKDOWN=report`. */
 void lugha_rt_lockdown(int64_t kinds) {
     // Both seccomp (without privileges) and Landlock need it; inherited too.
     bool private = prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == 0;
+#if defined(__ANDROID__)
+    int landlock = 0;
+#else
     int landlock = private ? lock_landlock(kinds) : 0;
+#endif
     int seccomp = private ? lock_seccomp(kinds) : 0;
     // Helper threads started from now on are limited as this one is.
     helpers_allowed = true;
     const char *report = getenv("LUGHA_LOCKDOWN");
     if (report != NULL && strcmp(report, "report") == 0) {
+#if defined(__ANDROID__)
+        fprintf(stderr, "lockdown: seccomp %s; files not limited",
+                seccomp ? "applied" : "not applied");
+#else
         fprintf(stderr, "lockdown: seccomp %s; landlock %s", seccomp ? "applied" : "not applied",
                 landlock ? "applied" : "not applied");
+#endif
         if (landlock) {
             fprintf(stderr, " (ABI %d)", landlock);
         }

@@ -9,7 +9,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::Command;
 
-use super::{LinkError, zig};
+use super::{LinkError, ndk, zig};
 
 /// A C compiler: a program and the arguments that go before lughac's own.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,17 +51,23 @@ impl Compiler {
         choose(std::env::var_os("LUGHA_CC").as_deref(), "cc")
     }
 
-    /// The compiler for the LLVM triple `target`: `$LUGHA_CC`'s when it is
-    /// set; else `cc` when `native` (the machine lughac runs on); else zig,
-    /// once `zig version` says it is new enough.
+    /// The compiler for the triple `target`: `$LUGHA_CC`'s when it is set;
+    /// else `cc` when `native` (the machine lughac runs on); else the NDK's
+    /// `clang` for Android; else zig, once `zig version` says it is new
+    /// enough.
     ///
     /// # Errors
     ///
-    /// As [`Compiler::from_env`], and [`zig::check`]'s for a foreign target.
+    /// As [`Compiler::from_env`], [`ndk::find`]'s for Android, and
+    /// [`zig::check`]'s for another foreign target.
     pub fn for_target(target: &str, native: bool) -> Result<Compiler, LinkError> {
         let chosen = Compiler::from_env()?;
         if chosen.from_env || native {
             return Ok(chosen);
+        }
+        if target.ends_with("-android") {
+            let (clang, version) = ndk::find(target, &|name| std::env::var_os(name))?;
+            return Ok(Compiler::ndk(target, clang, version));
         }
         let version = zig::check(target)?;
         let cache = crate::modules::cache::root(|n| std::env::var_os(n)).map(|r| r.join("zig"));
@@ -87,6 +93,19 @@ impl Compiler {
             from_env: false,
             link_args: zig::link_args(target),
             envs,
+            version,
+        }
+    }
+
+    /// The NDK's `clang` at `clang` for the Android triple `target`, whose
+    /// `--version` said `version`.
+    fn ndk(target: &str, clang: PathBuf, version: String) -> Compiler {
+        Compiler {
+            program: clang.into_os_string(),
+            args: ndk::args(target),
+            from_env: false,
+            link_args: ndk::link_args(),
+            envs: Vec::new(),
             version,
         }
     }
@@ -187,6 +206,26 @@ mod tests {
 
     fn strings<'a>(items: impl Iterator<Item = &'a std::ffi::OsStr>) -> Vec<String> {
         items.map(|a| a.to_string_lossy().into_owned()).collect()
+    }
+
+    #[test]
+    fn an_android_target_compiles_with_the_ndks_clang() {
+        let clang = std::path::PathBuf::from("/ndk/bin/clang");
+        let ndk = Compiler::ndk("aarch64-linux-android", clang, "clang 21".into());
+        let compile = ndk.command();
+        assert_eq!(compile.get_program(), "/ndk/bin/clang");
+        assert_eq!(
+            strings(compile.get_args()),
+            ["--target=aarch64-linux-android29"]
+        );
+        assert_eq!(
+            strings(ndk.link_command().get_args()),
+            [
+                "--target=aarch64-linux-android29",
+                "-Wl,-z,max-page-size=16384"
+            ]
+        );
+        assert!(ndk.key_words().contains("clang 21"), "{}", ndk.key_words());
     }
 
     #[test]

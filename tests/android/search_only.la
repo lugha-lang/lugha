@@ -1,0 +1,16 @@
+// Run on Android by CI: a folder its owner may only search (mode 0o111) is
+// still a way through, as on Linux: a `Dir` needs search permission only.
+fun main(console: Console, fs: Fs) {
+    let here = fs.cwd();
+    here.make_dirs("locked/open").unwrap();
+    here.write_file("locked/open/f.txt", "through").unwrap();
+    here.set_mode("locked", 0o111).unwrap();
+    console.println(here.read_file("locked/open/f.txt").debug());
+    let open = here.dir("locked/open").unwrap();
+    console.println(open.read_file("f.txt").debug());
+    let locked = here.dir("locked").unwrap();
+    console.println(locked.read_file("open/f.txt").debug());
+    console.println(locked.list(".").is_err());
+    here.set_mode("locked", 0o755).unwrap();
+    console.println(here.list("locked").debug());
+}

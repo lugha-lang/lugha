@@ -1,0 +1,29 @@
+// A panic unwinds a task's stack through its `defer`s and fails its scope;
+// a task out of stack grows it to the end, then panics the same way.
+fun depth(n: i64): i64 = if n == 0 { 0 } else { 1 + depth(n - 1) };
+
+fun deep(console: Console): i64 {
+    defer console.println("deep task unwound");
+    depth(1_000_000_000)
+}
+
+fun fails(console: Console): i64 {
+    defer console.println("failing task unwound");
+    panic("on purpose")
+}
+
+fun main(console: Console) {
+    match scope s {
+        s.spawn(fails(console));
+    } {
+        .Ok(_) => console.println("?"),
+        .Err(f) => console.println("{f}"),
+    }
+    match scope s {
+        s.spawn(deep(console));
+    } {
+        .Ok(_) => console.println("?"),
+        .Err(f) => console.println("{f}"),
+    }
+    console.println("main goes on");
+}

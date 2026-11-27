@@ -2351,6 +2351,16 @@ Printing sites and `==` reach a type's own plain `show`/`eq` too (`show_instance
 
 ---
 
+### 229. Android through the NDK, command line then libraries — milestone 283 (PRP-302)
+
+**Decision:** the user's choice (2026-11-27): Lugha programs run on Android as command-line programs (milestone 283), then as libraries an app's Kotlin or Java code calls (PRP-303), both built with Google's NDK against Android's own C library (bionic). Full apps (an APK, a UI) are out of scope.
+
+**Why:** a static musl executable doesn't run from apps targeting Android 10 or newer, the Play Store Termux included, which start every program through Android's own loader; a library inside an app must use the app's C library anyway. Through bionic, name lookups use the phone's resolver and local time its zone, with no code of ours. Full apps need packaging, signing and a UI story: a language and ecosystem question, not a target.
+
+**Not now:** a static musl Android build; 32-bit ARM; Android older than 10 (API 29), which lacks bionic's own thread-locals.
+
+---
+
 ## OPEN — Requires human input before implementation
 
 None.

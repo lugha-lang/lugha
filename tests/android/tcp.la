@@ -1,0 +1,118 @@
+// Run on Android by CI: TCP through
+// overlapped I/O, and every way a wait on a socket ends.
+import std.task;
+
+fun echo(server: Listener) {
+    let c = server.accept().unwrap();
+    c.write(c.read(100).unwrap()).unwrap();
+    c.close();
+}
+
+// One connection, held open for `ms`, then closed.
+fun hold(server: Listener, ms: i64) {
+    let c = server.accept().unwrap();
+    task.sleep(ms);
+    c.close();
+}
+
+// One connection: 1 MiB written to it, then closed.
+fun big(server: Listener) {
+    let c = server.accept().unwrap();
+    let b: u8 = 7;
+    c.write([b; 1048576]).unwrap();
+    c.close();
+}
+
+fun read_all(c: Conn): i64 {
+    let mut total = 0;
+    loop {
+        let got = c.read(65536).unwrap();
+        if got.len == 0 {
+            return total;
+        }
+        total += got.len;
+    }
+}
+
+fun reader(c: Conn, out: Sender<string>) {
+    out.send(c.read(10).debug());
+}
+
+fun failure(r: Result<Conn, string>): string = match r {
+    .Ok(_) => "connected",
+    .Err(e) => e,
+};
+
+fun main(console: Console, net: Net) {
+    let server = net.listen("127.0.0.1:0").unwrap();
+    let at = server.addr();
+
+    // An echo, the names of both ends, and the end of the stream.
+    let r = scope s {
+        s.spawn(echo(server));
+        let c = net.connect(at).unwrap();
+        console.println(c.peer() == at);
+        console.println(c.addr().starts_with("127.0.0.1:"));
+        c.write("hi".to_bytes()).unwrap();
+        console.println(c.read(100).debug());
+        console.println(c.read(100).debug());
+        c.close();
+    };
+    console.println(r.is_ok());
+
+    // A read timing out, one cancelled by a deadline, then the data.
+    let c = net.connect(at).unwrap();
+    let other = server.accept().unwrap();
+    c.set_timeout(50);
+    console.println(c.read(10).debug());
+    c.set_timeout(0);
+    let cancelled = scope t within 50 {
+        c.read(10)
+    };
+    console.println(cancelled.is_err());
+    other.write("late".to_bytes()).unwrap();
+    console.println(c.read(10).debug());
+    c.close();
+    other.close();
+
+    // Closing a connection another task waits to read from.
+    let (tx, rx) = Chan<string>.new(1);
+    let r = scope s {
+        s.spawn(hold(server, 300));
+        let c = net.connect(at).unwrap();
+        s.spawn(reader(c, tx));
+        task.sleep(50);
+        c.close();
+        console.println(rx.recv().unwrap());
+    };
+    console.println(r.is_ok());
+
+    // A megabyte, taken in pieces.
+    let r = scope s {
+        s.spawn(big(server));
+        let c = net.connect(at).unwrap();
+        console.println(read_all(c));
+        c.close();
+    };
+    console.println(r.is_ok());
+
+    // A name, and the port a listener holds.
+    let port = at.split(":")[1];
+    let r = scope s {
+        s.spawn(echo(server));
+        let c = net.connect("localhost:{port}").unwrap();
+        c.write("ok".to_bytes()).unwrap();
+        console.println(c.read(100).debug());
+        c.close();
+    };
+    console.println(r.is_ok());
+    match net.listen(at) {
+        .Ok(_) => console.println("listening twice"),
+        .Err(e) => console.println(e),
+    }
+    server.close();
+
+    // Nothing listening, and no such name.
+    console.println(failure(net.connect(at)));
+    console.println(failure(net.connect("no-such-host.invalid:80")));
+}

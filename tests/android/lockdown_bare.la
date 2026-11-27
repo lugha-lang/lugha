@@ -1,0 +1,7 @@
+// Run on Android by CI: without `Proc` the kernel refuses C code a new
+// process.
+extern fun fork(): i32;
+
+fun main(console: Console) {
+    console.println(fork());
+}

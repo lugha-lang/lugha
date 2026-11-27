@@ -1,0 +1,13 @@
+// Run on Android by CI: names are looked up by the system's own resolver,
+// which Android's C library asks (there is no /etc/resolv.conf to read):
+// `localhost` from the hosts file, and a public name over the network.
+fun main(console: Console, net: Net) {
+    match net.resolve("localhost") {
+        .Ok(found) => console.println(found.any(fun(a: string): bool = a == "127.0.0.1")),
+        .Err(e) => console.println("localhost: {e}"),
+    }
+    match net.resolve("github.com") {
+        .Ok(found) => console.println(found.len > 0),
+        .Err(e) => console.println("github.com: {e}"),
+    }
+}

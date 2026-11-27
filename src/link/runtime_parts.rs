@@ -25,6 +25,12 @@ pub const DARWIN_ONLY: [&str; 5] = [
     "os/darwin/lockdown.c",
 ];
 
+/// The parts of [`RUNTIME_PARTS`] only Android has (`os/android/`): it is
+/// Linux's runtime otherwise, but confines folders with the walk
+/// (`os/posix/dir_walk.c`) instead of `openat2`, which an app's sandbox
+/// ends a program for.
+pub const ANDROID_ONLY: [&str; 1] = ["os/android/dir_resolve.c"];
+
 /// The parts of [`RUNTIME_PARTS`] only Windows has (`os/windows/`): its
 /// OS layer, its CPU code, and what fails closed until it is built.
 pub const WINDOWS_ONLY: [&str; 14] = [
@@ -44,59 +50,65 @@ pub const WINDOWS_ONLY: [&str; 14] = [
     "os/windows/lockdown.c",
 ];
 
-/// The system a runtime is joined for: which `os/<system>/` parts it takes.
+/// The system a runtime is joined for: which parts it takes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum System {
-    /// Linux, glibc or musl: `os/linux/`.
+    /// Linux, glibc or musl: `os/linux/` and `os/posix/`.
     Linux,
-    /// macOS: `os/darwin/`.
+    /// macOS: `os/darwin/` and `os/posix/`.
     MacOs,
     /// Windows: `os/windows/`, and none of `os/posix/`.
     Windows,
+    /// Android: Linux's, but the folder walk for Linux's confinement.
+    Android,
 }
 
 impl System {
-    /// The system of the LLVM triple `triple`.
+    /// The system of the triple `triple`.
     pub fn of(triple: &str) -> System {
         if triple.contains("-apple-") {
             System::MacOs
         } else if triple.contains("-windows") {
             System::Windows
+        } else if triple.ends_with("-android") {
+            System::Android
         } else {
             System::Linux
         }
     }
 
-    /// The folder of the parts only this system has.
-    fn folder(self) -> &'static str {
+    /// The parts this system leaves out, by name or folder: the other
+    /// systems' own, and what it does another way.
+    fn left_out(self) -> &'static [&'static str] {
         match self {
-            System::Linux => "os/linux/",
-            System::MacOs => "os/darwin/",
-            System::Windows => "os/windows/",
+            System::Linux => &[
+                "os/darwin/",
+                "os/windows/",
+                "os/android/",
+                "os/posix/dir_walk.c",
+            ],
+            System::MacOs => &["os/linux/", "os/windows/", "os/android/"],
+            System::Windows => &["os/linux/", "os/darwin/", "os/android/", "os/posix/"],
+            System::Android => &["os/darwin/", "os/windows/", "os/linux/dir_resolve.c"],
         }
     }
 }
 
-/// The runtime joined for `system`: every shared part, `os/posix/` (but
-/// for Windows), and that system's own; [`RUNTIME_SOURCE`] for Linux.
+/// The runtime joined for `system`: every part it doesn't leave out, in
+/// order; [`RUNTIME_SOURCE`] for Linux.
 pub fn runtime_source(system: System) -> std::borrow::Cow<'static, str> {
     if system == System::Linux {
         return std::borrow::Cow::Borrowed(RUNTIME_SOURCE);
     }
-    let mut others = vec![System::Linux, System::MacOs, System::Windows]
-        .into_iter()
-        .map(System::folder)
-        .collect::<Vec<_>>();
-    if system == System::Windows {
-        others.push("os/posix/");
-    }
-    let parts = RUNTIME_PARTS.iter().filter(|(name, _)| {
-        !others.iter().any(|f| name.starts_with(f)) || name.starts_with(system.folder())
-    });
+    let left_out = system.left_out();
+    let parts = RUNTIME_PARTS
+        .iter()
+        .filter(|(name, _)| !left_out.iter().any(|out| name.starts_with(out)));
     std::borrow::Cow::Owned(parts.map(|(_, src)| *src).collect())
 }
 
-/// The parts Linux and macOS share but Windows doesn't (`os/posix/`).
+/// The parts Linux, macOS and Android share but Windows doesn't
+/// (`os/posix/`), but the folder walk, which Linux doesn't take.
 pub const POSIX_ONLY: [&str; 7] = [
     "os/posix/faults.c",
     "os/posix/basics.c",
@@ -109,7 +121,7 @@ pub const POSIX_ONLY: [&str; 7] = [
 
 /// The runtime's source files, in the order they are joined: the core first,
 /// since it holds every `#include`, then the fragments that rely on it.
-pub const RUNTIME_PARTS: [(&str, &str); 75] = [
+pub const RUNTIME_PARTS: [(&str, &str); 77] = [
     (
         "core/lugha_rt.c",
         include_str!("../../runtime/core/lugha_rt.c"),
@@ -161,6 +173,14 @@ pub const RUNTIME_PARTS: [(&str, &str); 75] = [
     (
         "os/darwin/dir_resolve.c",
         include_str!("../../runtime/os/darwin/dir_resolve.c"),
+    ),
+    (
+        "os/android/dir_resolve.c",
+        include_str!("../../runtime/os/android/dir_resolve.c"),
+    ),
+    (
+        "os/posix/dir_walk.c",
+        include_str!("../../runtime/os/posix/dir_walk.c"),
     ),
     (
         "os/windows/paths.c",
@@ -343,7 +363,8 @@ pub const RUNTIME_PARTS: [(&str, &str); 75] = [
     ),
 ];
 
-/// The C runtime for Linux: [`RUNTIME_PARTS`] but macOS's joined in order,
+/// The C runtime for Linux: [`RUNTIME_PARTS`] but what Linux leaves out
+/// (the other systems' own and the folder walk), joined in order,
 /// compiled as one `lugha_rt.c`.
 pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/core/lugha_rt.c"),
@@ -403,3 +424,41 @@ pub const RUNTIME_SOURCE: &str = concat!(
     include_str!("../../runtime/os/posix/sockets.c"),
     include_str!("../../runtime/os/posix/udp_options.c"),
 );
+
+#[cfg(test)]
+mod tests {
+    use super::{ANDROID_ONLY, RUNTIME_PARTS, RUNTIME_SOURCE, System, runtime_source};
+
+    #[test]
+    fn android_is_linux_with_the_folder_walk_for_openat2() {
+        assert_eq!(System::of("aarch64-linux-android"), System::Android);
+        assert_eq!(System::of("x86_64-linux-android"), System::Android);
+        let android = runtime_source(System::Android);
+        let part = |name: &str| {
+            RUNTIME_PARTS
+                .iter()
+                .find(|(n, _)| *n == name)
+                .expect(name)
+                .1
+        };
+        for name in ANDROID_ONLY
+            .iter()
+            .chain(&["os/posix/dir_walk.c", "os/linux/os.c"])
+        {
+            assert!(android.contains(part(name)), "{name}");
+        }
+        for name in ["os/linux/dir_resolve.c", "os/darwin/dir_resolve.c"] {
+            assert!(!android.contains(part(name)), "{name}");
+        }
+        // Linux keeps `openat2`, and never joins the walk.
+        assert!(RUNTIME_SOURCE.contains(part("os/linux/dir_resolve.c")));
+        assert!(!RUNTIME_SOURCE.contains(part("os/posix/dir_walk.c")));
+        // macOS joins its own part, then the walk, as one file before.
+        let mac = runtime_source(System::MacOs);
+        let own = mac
+            .find(part("os/darwin/dir_resolve.c"))
+            .expect("macOS's part");
+        let walk = mac.find(part("os/posix/dir_walk.c")).expect("the walk");
+        assert!(own < walk);
+    }
+}

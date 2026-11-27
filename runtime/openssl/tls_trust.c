@@ -9,7 +9,54 @@
  * verifier on a helper thread, then resumes the handshake, and the second
  * call gives the answer. The answer is set as OpenSSL's own error, so a
  * refusal reads as it does where OpenSSL checks.
+ *
+ * On Android, OpenSSL checks, against the system's own store read here.
  */
+
+#if defined(__ANDROID__)
+
+/* Android's trusted certificates: the store in the TLS module
+ * (Android 14 and newer, when it has any), else the system's. Each file
+ * is read and added: they are named by OpenSSL's old subject hash, which
+ * its folder lookup never matches. Only the system's: not those a user
+ * added in the phone's settings. True when one was added. */
+static bool tls_android_roots(SSL_CTX *ctx) {
+    static const char *const stores[] = {"/apex/com.android.conscrypt/cacerts",
+                                         "/system/etc/security/cacerts"};
+    X509_STORE *store = SSL_CTX_get_cert_store(ctx);
+    for (size_t i = 0; i < sizeof stores / sizeof *stores; i++) {
+        DIR *dir = opendir(stores[i]);
+        if (dir == NULL) {
+            continue;
+        }
+        int added = 0;
+        struct dirent *entry;
+        while ((entry = readdir(dir)) != NULL) {
+            char path[512];
+            int n = snprintf(path, sizeof path, "%s/%s", stores[i], entry->d_name);
+            FILE *f = entry->d_name[0] != '.' && n > 0 && (size_t)n < sizeof path
+                          ? fopen(path, "re")
+                          : NULL;
+            X509 *x = f != NULL ? PEM_read_X509(f, NULL, tls_no_passphrase, NULL) : NULL;
+            if (f != NULL) {
+                fclose(f);
+            }
+            if (x != NULL) {
+                added += X509_STORE_add_cert(store, x) == 1;
+                X509_free(x);
+            }
+        }
+        closedir(dir);
+        // A file that isn't a certificate leaves an error queued.
+        ERR_clear_error();
+        if (added > 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+#endif
 
 #if OS_TLS_TRUST
 

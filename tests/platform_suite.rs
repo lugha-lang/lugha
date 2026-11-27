@@ -12,7 +12,7 @@
 //! when the case has them, `stderr`, `args`, `stdin`, `envvars` and
 //! `scratch`. Cases a build for the target refuses (E0334, E0335)
 //! are listed in `skipped.txt` with why. Each system's expected failures
-//! are its `known.txt` (`tests/macos/`, `tests/windows/`).
+//! are its `known.txt` (`tests/macos/`, `tests/windows/`, `tests/android/`).
 
 // Only `discover` and `Case` are used; the rest of the runner runs `lughac`.
 #[allow(dead_code, unused_imports)]
@@ -241,7 +241,11 @@ fn known(list: &str) -> Vec<(String, String)> {
 #[test]
 fn every_known_difference_names_a_run_case_and_why() {
     let cases = cases();
-    for list in ["tests/macos/known.txt", "tests/windows/known.txt"] {
+    for list in [
+        "tests/macos/known.txt",
+        "tests/windows/known.txt",
+        "tests/android/known.txt",
+    ] {
         for (name, why) in known(list) {
             let case = cases.iter().find(|c| c.name == name);
             assert!(

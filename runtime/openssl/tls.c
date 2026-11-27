@@ -95,6 +95,8 @@ static bool trust_put(TrustBytes *b, X509 *x);
 static void trust_clear(TrustBytes *b);
 static void tls_trust_ask(TlsConn *c);
 static int tls_trust_verify(X509_STORE_CTX *x, void *arg);
+#elif defined(__ANDROID__)
+static bool tls_android_roots(SSL_CTX *ctx);
 #endif
 static void tls_free_keys(EVP_PKEY **keys, int64_t n);
 
@@ -168,6 +170,11 @@ int32_t lugha_rt_tls_client_context(const LughaString *ca_pem, int64_t *handle,
         return tls_error(error, "can't load trusted certificates");
     }
     SSL_CTX_set_cert_verify_callback(ctx, tls_trust_verify, NULL);
+#elif defined(__ANDROID__)
+    if (!tls_android_roots(ctx)) {
+        SSL_CTX_free(ctx);
+        return tls_error(error, "can't load trusted certificates");
+    }
 #else
     if (SSL_CTX_set_default_verify_paths(ctx) != 1) {
         SSL_CTX_free(ctx);

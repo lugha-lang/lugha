@@ -1,0 +1,19 @@
+// Run on Android by CI: a connection to a public host is verified by the
+// system's own certificates, with no certificate of the program's own, and an
+// HTTPS request, through the same OpenSSL, gets an answer.
+import std.tls;
+import std.http;
+
+fun main(console: Console, net: Net) {
+    match tls.connect(net, "github.com:443") {
+        .Ok(c) => {
+            console.println("verified");
+            c.close();
+        }
+        .Err(e) => console.println("tls: {e}"),
+    }
+    match http.get(net, "https://github.com/") {
+        .Ok(r) => console.println(r.status == 200),
+        .Err(e) => console.println("http: {e}"),
+    }
+}

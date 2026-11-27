@@ -1,12 +1,15 @@
 #!/bin/sh
 # Builds OpenSSL for a target lughac builds for, with zig, into <folder>:
 # its headers and static libraries, the folder LUGHA_OPENSSL_<TARGET> names.
+# For Android, with the NDK $ANDROID_NDK_HOME (else $ANDROID_NDK_ROOT)
+# names instead, for Android 10 (API 29), as lughac builds.
 #
 #   sh tests/openssl.sh aarch64-apple-darwin "$HOME/openssl-mac"
 #
 # The release is pinned and checked against its SHA-256 before it is
 # unpacked. Nothing is installed outside <folder>, which must be absolute
-# and empty or absent. Needs curl, perl, make and zig 0.17 or newer.
+# and empty or absent. Needs curl, perl, make and zig 0.17 or newer (or,
+# for Android, the NDK).
 set -eu
 
 VERSION=3.5.4
@@ -27,6 +30,8 @@ case $target in
     aarch64-unknown-linux-musl) zig=aarch64-linux-musl; conf=linux-aarch64 ;;
     x86_64-pc-windows-gnu) zig=x86_64-windows-gnu; conf=mingw64 ;;
     aarch64-pc-windows-gnu) zig=aarch64-windows-gnu; conf=mingwarm64 ;;
+    aarch64-linux-android) zig=; conf=android-arm64 ;;
+    x86_64-linux-android) zig=; conf=android-x86_64 ;;
     *)
         echo "openssl.sh: no recipe for $target" >&2
         exit 2
@@ -88,9 +93,22 @@ jobs=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)
 cd "$work/openssl-$VERSION"
 # Static libraries only, no programs, no loadable modules: what a program
 # links. The roots folder is where macOS keeps OpenSSL's (`cert.pem`).
-CC="zig cc -target $zig" AR="zig ar" RANLIB="zig ranlib" \
-    ./Configure $extra "$conf" no-shared no-module no-apps no-docs no-tests \
-    --prefix="$out" --libdir=lib --openssldir=/etc/ssl
-make -j"$jobs" build_libs
+if [ -z "$zig" ]; then
+    # OpenSSL's own Android targets find the NDK's clang on PATH.
+    ndk=${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-}}
+    if [ -z "$ndk" ]; then
+        echo "openssl.sh: building for $target needs \$ANDROID_NDK_HOME or \$ANDROID_NDK_ROOT" >&2
+        exit 2
+    fi
+    PATH="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH" ANDROID_NDK_ROOT="$ndk" \
+        ./Configure "$conf" -D__ANDROID_API__=29 no-shared no-module no-apps no-docs \
+        no-tests --prefix="$out" --libdir=lib --openssldir=/etc/ssl
+    PATH="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH" make -j"$jobs" build_libs
+else
+    CC="zig cc -target $zig" AR="zig ar" RANLIB="zig ranlib" \
+        ./Configure $extra "$conf" no-shared no-module no-apps no-docs no-tests \
+        --prefix="$out" --libdir=lib --openssldir=/etc/ssl
+    make -j"$jobs" build_libs
+fi
 make install_dev
 echo "OpenSSL $VERSION for $target is in $out"

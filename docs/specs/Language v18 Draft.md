@@ -1217,7 +1217,8 @@ One platform at a time, each step one or more PRPs [PRT-04]:
 | 3 | The runtime split by OS, no change in behaviour (9.2 rules 1–3), in two PRPs: the OS layer (`os/layer.c`, `os/linux.c`; PRP-283), then sockets at the operation level and the cancel acknowledgement (PRP-284) |
 | 4 | macOS: `os/darwin.c` (kqueue), Mach-O through zig, Apple's ARM64 calling differences; a Mac CI runner |
 | 5 | Windows: files, processes, environment, sockets, stack overflow, Windows x64 calling rules, `.exe` through zig's MinGW; a Windows CI runner |
-| 6 | WebAssembly (WASI): one worker, no helper threads; its capabilities and std modules decided first |
+| 6 | Android, through Google's NDK against Android's own C library: command-line programs (`aarch64-linux-android`, `x86_64-linux-android`; PRP-302), then libraries an app's Kotlin or Java code calls (PRP-303); full apps are out of scope [PRT-15] |
+| 7 | WebAssembly (WASI): one worker, no helper threads; its capabilities and std modules decided first |
 
 ## 9.4 Deferred
 

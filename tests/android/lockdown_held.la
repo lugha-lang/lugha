@@ -1,0 +1,11 @@
+// Run on Android by CI: holding `Net` and `Proc`, C code makes a socket and
+// a program starts.
+extern fun socket(domain: i32, kind: i32, protocol: i32): i32;
+
+fun main(console: Console, net: Net, proc: Proc) {
+    console.println(socket(2, 1, 0) >= 0);
+    match proc.run("echo", ["started"]) {
+        .Ok(o) => console.println("{o.code} {o.stdout.trim()}"),
+        .Err(e) => console.println("err {e}"),
+    }
+}

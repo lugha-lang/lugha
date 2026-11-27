@@ -292,6 +292,10 @@ pub(super) enum TargetArg {
     X86_64Windows,
     #[value(name = "aarch64-pc-windows-gnu")]
     Aarch64Windows,
+    #[value(name = "aarch64-linux-android")]
+    Aarch64Android,
+    #[value(name = "x86_64-linux-android")]
+    X86_64Android,
 }
 
 impl From<TargetArg> for Target {
@@ -304,6 +308,8 @@ impl From<TargetArg> for Target {
             TargetArg::Aarch64MacOs => Target::Aarch64MacOs,
             TargetArg::X86_64Windows => Target::X86_64Windows,
             TargetArg::Aarch64Windows => Target::Aarch64Windows,
+            TargetArg::Aarch64Android => Target::Aarch64Android,
+            TargetArg::X86_64Android => Target::X86_64Android,
         }
     }
 }

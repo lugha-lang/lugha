@@ -1,0 +1,11 @@
+// Run on Android by CI: local time comes from the system's zone, which
+// Android's C library finds without /etc/localtime: `TZ` when set (here a
+// POSIX rule, so no zone database is needed), else the device's setting.
+import std.time;
+
+fun main(console: Console, clock: Clock) {
+    let january = 1767225600000;     // 2026-01-01T00:00Z
+    let july = 1782864000000;        // 2026-07-01T00:00Z
+    console.println(clock.local_offset(january).debug());
+    console.println(clock.local_offset(july).debug());
+}

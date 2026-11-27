@@ -1,0 +1,11 @@
+// Run on Android by CI: a datagram longer than `max` is refused with its
+// real length, never cut short.
+fun main(console: Console, net: Net) {
+    let a = net.udp_bind("127.0.0.1:0").unwrap();
+    let b = net.udp_bind("127.0.0.1:0").unwrap();
+    a.send_to("0123456789abcdef".to_bytes(), b.addr()).unwrap();
+    match b.recv_from(10) {
+        .Ok(_) => console.println("received"),
+        .Err(e) => console.println(e),
+    }
+}

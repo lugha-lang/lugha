@@ -1,0 +1,5 @@
+// `main`'s `i32` is the program's exit code, after what was printed.
+fun main(console: Console): i32 {
+    console.print("leaving");
+    3
+}

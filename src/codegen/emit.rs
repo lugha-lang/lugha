@@ -221,7 +221,7 @@ fn target_machine(opt: OptLevel, cpu: Cpu, target: Target) -> Result<TargetMachi
         Arch::X86_64 => LlvmTarget::initialize_x86(&config),
         Arch::Aarch64 => LlvmTarget::initialize_aarch64(&config),
     }
-    let triple = TargetTriple::create(target.triple());
+    let triple = TargetTriple::create(target.llvm_triple());
     let llvm = LlvmTarget::from_triple(&triple).map_err(|e| CodegenError::Emit(e.to_string()))?;
     let level = match opt {
         OptLevel::O0 => OptimizationLevel::None,

@@ -1,0 +1,4 @@
+// Run on Android by CI: printing works.
+fun main(console: Console) {
+    console.println("hi");
+}

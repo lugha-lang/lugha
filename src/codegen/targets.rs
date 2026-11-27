@@ -23,6 +23,13 @@ pub enum Target {
     X86_64Windows,
     /// Windows on ARM64, `aarch64-pc-windows-gnu`: the same, for ARM64 PCs.
     Aarch64Windows,
+    /// Android on ARM64, `aarch64-linux-android`: PIE executables linked
+    /// against Android's own C library (bionic) by the NDK, for Android 10
+    /// and newer, built on Linux and run from a shell on the device.
+    Aarch64Android,
+    /// Android on x86-64, `x86_64-linux-android`: the same, for the
+    /// emulator and x86-64 devices.
+    X86_64Android,
 }
 
 /// A target's processor family: what codegen's instructions, registers and
@@ -46,17 +53,34 @@ impl Target {
             Target::Aarch64MacOs => "aarch64-apple-darwin",
             Target::X86_64Windows => "x86_64-pc-windows-gnu",
             Target::Aarch64Windows => "aarch64-pc-windows-gnu",
+            Target::Aarch64Android => "aarch64-linux-android",
+            Target::X86_64Android => "x86_64-linux-android",
+        }
+    }
+
+    /// The triple LLVM generates code for: [`Target::triple`], but for
+    /// Android, whose carries the oldest Android supported (10, API 29),
+    /// so thread-locals are the system's own rather than emulated.
+    pub fn llvm_triple(self) -> &'static str {
+        match self {
+            Target::Aarch64Android => "aarch64-unknown-linux-android29",
+            Target::X86_64Android => "x86_64-unknown-linux-android29",
+            other => other.triple(),
         }
     }
 
     /// The target's processor family.
     pub fn arch(self) -> Arch {
         match self {
-            Target::X86_64Linux | Target::X86_64LinuxMusl | Target::X86_64Windows => Arch::X86_64,
+            Target::X86_64Linux
+            | Target::X86_64LinuxMusl
+            | Target::X86_64Windows
+            | Target::X86_64Android => Arch::X86_64,
             Target::Aarch64Linux
             | Target::Aarch64LinuxMusl
             | Target::Aarch64MacOs
-            | Target::Aarch64Windows => Arch::Aarch64,
+            | Target::Aarch64Windows
+            | Target::Aarch64Android => Arch::Aarch64,
         }
     }
 
@@ -76,6 +100,12 @@ impl Target {
     /// Windows' own rules for passing structs to C.
     pub fn is_windows(self) -> bool {
         matches!(self, Target::X86_64Windows | Target::Aarch64Windows)
+    }
+
+    /// Whether this is an Android target: built with the NDK, run only on
+    /// Android.
+    pub fn is_android(self) -> bool {
+        matches!(self, Target::Aarch64Android | Target::X86_64Android)
     }
 
     /// Whether this is the machine lughac runs on, built for with `cc`;
@@ -119,10 +149,29 @@ mod tests {
                 "aarch64-pc-windows-gnu",
                 Arch::Aarch64,
             ),
+            (
+                Target::Aarch64Android,
+                "aarch64-linux-android",
+                Arch::Aarch64,
+            ),
+            (Target::X86_64Android, "x86_64-linux-android", Arch::X86_64),
         ];
         for (target, triple, arch) in all {
             assert_eq!((target.triple(), target.arch()), (triple, arch));
         }
+    }
+
+    #[test]
+    fn android_is_its_own_system_and_llvm_gets_its_api_level() {
+        for (target, llvm) in [
+            (Target::Aarch64Android, "aarch64-unknown-linux-android29"),
+            (Target::X86_64Android, "x86_64-unknown-linux-android29"),
+        ] {
+            assert!(target.is_android() && !target.is_windows() && !target.is_native());
+            assert_eq!(target.llvm_triple(), llvm);
+        }
+        assert!(!Target::Aarch64LinuxMusl.is_android());
+        assert_eq!(Target::X86_64Windows.llvm_triple(), "x86_64-pc-windows-gnu");
     }
 
     #[test]
@@ -135,6 +184,8 @@ mod tests {
             Target::Aarch64MacOs,
             Target::X86_64Windows,
             Target::Aarch64Windows,
+            Target::Aarch64Android,
+            Target::X86_64Android,
         ]
         .into_iter()
         .filter(|t| t.is_native())

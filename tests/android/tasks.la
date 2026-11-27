@@ -1,0 +1,22 @@
+// Tasks on every worker, a channel between them, and timers.
+import std.task;
+
+fun work(n: i64, out: Sender<i64>) {
+    task.sleep(n % 5);
+    out.send(n);
+}
+
+fun main(console: Console) {
+    let (tx, rx) = Chan<i64>.unbounded();
+    let r = scope s {
+        for i in 0..1000 {
+            s.spawn(work(i, tx));
+        }
+    };
+    tx.close();
+    let mut sum = 0;
+    for v of rx {
+        sum += v;
+    }
+    console.println("{r.is_ok()} {sum}");
+}

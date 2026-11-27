@@ -26,6 +26,13 @@ pub enum LinkError {
         download = super::zig::DOWNLOAD
     )]
     ZigTooOld { found: String, target: String },
+    /// A build for the Android target named found no NDK: neither variable
+    /// names a folder holding the NDK's `clang`.
+    #[error(
+        "building for {0} needs Android's NDK ({download}): set $ANDROID_NDK_HOME or $ANDROID_NDK_ROOT to its folder, or set $LUGHA_CC",
+        download = super::ndk::DOWNLOAD
+    )]
+    NdkNotFound(String),
     /// `$LUGHA_CC` isn't UTF-8, so its words can't be split.
     #[error("$LUGHA_CC isn't UTF-8")]
     BadCompiler,
@@ -108,6 +115,7 @@ impl LinkError {
             LinkError::CcNotFound(_)
             | LinkError::ZigNotFound(_)
             | LinkError::ZigTooOld { .. }
+            | LinkError::NdkNotFound(_)
             | LinkError::BadCompiler
             | LinkError::Io(_)
             | LinkError::Failed { .. } => None,

@@ -129,6 +129,39 @@ jobs:
       - name: Name ARM64 Windows' OpenSSL
         run: echo "LUGHA_OPENSSL_AARCH64_PC_WINDOWS_GNU=$PWD/openssl-win-arm64" >> "$GITHUB_ENV"
 
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # Android's NDK, the release tests/ndk.sh pins (its SHA-256 checked),
+        # kept until the script changes.
+        id: ndk
+        with:
+          path: ndk
+          key: ndk-${{ hashFiles('tests/ndk.sh') }}
+
+      - name: Get Android's NDK
+        if: steps.ndk.outputs.cache-hit != 'true'
+        run: sh tests/ndk.sh "$PWD/ndk"
+
+      - name: Name the NDK
+        run: echo "ANDROID_NDK_HOME=$PWD/ndk/android-ndk-r29" >> "$GITHUB_ENV"
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # OpenSSL for x86-64 Android, the same release, built with the NDK.
+        id: openssl-android
+        with:
+          path: openssl-android
+          key: openssl-android-ndk-r29-${{ hashFiles('tests/openssl.sh') }}
+
+      - name: Build OpenSSL for Android
+        if: steps.openssl-android.outputs.cache-hit != 'true'
+        run: sh tests/openssl.sh x86_64-linux-android "$PWD/openssl-android"
+
+      - name: Name Android's OpenSSL
+        run: echo "LUGHA_OPENSSL_X86_64_LINUX_ANDROID=$PWD/openssl-android" >> "$GITHUB_ENV"
+
+      - name: Android's builds
+        # The test jobs leave tests/android.rs out: only this job has the NDK.
+        run: cargo test --test android
+
       - name: Build the macOS cases
         # Built here, on Linux, through zig; the macos job runs them on a Mac.
         # Those in tests/macos/openssl/ need the OpenSSL above.
@@ -171,15 +204,32 @@ jobs:
           # the ARM64 runner (Wine checks x86-64's in tests/windows.rs).
           LUGHA_CASES_OUT="$PWD/windows-arm64" cargo test --test windows_arm64 extern_structs
 
-      - name: Build the program suite for a Mac and for Windows
+      - name: Build the Android cases
+        # Built here, with the NDK, for x86-64 Android; the android job runs
+        # them on the emulator. A case is a .la file beside what it must
+        # print (.stdout), exit with (.exit), show on stderr (.stderr) and
+        # its environment (.envvars).
+        run: |
+          mkdir -p android
+          for f in tests/android/*.la tests/android/openssl/*.la; do
+            name=$(basename "$f" .la)
+            target/debug/lughac build "$f" --target x86_64-linux-android -o "android/$name"
+            for ext in stdout exit stderr envvars; do
+              if [ -f "${f%.la}.$ext" ]; then cp "${f%.la}.$ext" "android/$name.$ext"; fi
+            done
+          done
+
+      - name: Build the program suite for a Mac, Windows and Android
         # Every run case in tests/programs/, a folder each, for
-        # tests/suite.sh on the macos and windows jobs.
+        # tests/suite.sh on the macos, windows and android jobs.
         run: |
           LUGHA_SUITE="$PWD/macos/suite" LUGHA_SUITE_TARGET=aarch64-apple-darwin \
             cargo test --test platform_suite -- --ignored
           LUGHA_SUITE="$PWD/windows/suite" LUGHA_SUITE_TARGET=x86_64-pc-windows-gnu \
             cargo test --test platform_suite -- --ignored
           LUGHA_SUITE="$PWD/windows-arm64/suite" LUGHA_SUITE_TARGET=aarch64-pc-windows-gnu \
+            cargo test --test platform_suite -- --ignored
+          LUGHA_SUITE="$PWD/android/suite" LUGHA_SUITE_TARGET=x86_64-linux-android \
             cargo test --test platform_suite -- --ignored
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -198,6 +248,12 @@ jobs:
         with:
           name: windows-arm64-programs
           path: windows-arm64/
+          retention-days: 1
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-programs
+          path: android/
           retention-days: 1
 
   test:
@@ -248,12 +304,45 @@ jobs:
         # were compiled with (`env!("CARGO_BIN_EXE_lughac")`).
         # No core dumps: the runner pipes each to its crash collector, which
         # made a test that dies by SIGSEGV on purpose take over 10 seconds.
+        # tests/android.rs runs in the build job, which has the NDK.
         run: |
           ulimit -c 0
           cargo-nextest nextest run --profile ci \
             --archive-file nextest-archive.tar.zst \
             --extract-to . --extract-overwrite --workspace-remap . \
-            --partition slice:${{ matrix.part }}/4
+            --partition slice:${{ matrix.part }}/4 \
+            -E 'not binary(android)'
+
+  android:
+    name: Android (x86-64)
+    needs: build
+    # Outside the container: the emulator needs the runner's KVM.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: android-programs
+          path: android
+
+      - name: Let the emulator use KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run the programs built on Linux, and the program suite
+        # Android 10 (API 29), the oldest supported, on x86-64 at full speed.
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 29
+          arch: x86_64
+          target: default
+          disable-animations: true
+          emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim
+          script: sh tests/android_run.sh android
 
   macos:
     name: macOS (Apple Silicon)

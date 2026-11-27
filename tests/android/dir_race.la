@@ -1,0 +1,34 @@
+// Run on Android by CI: while one task reads `box/sub/secret.txt` through a
+// `Dir` of `box` again and again, another keeps swapping `box/sub` for a
+// link to a folder outside and back. No read ever reaches the outside file.
+fun flip(here: Dir, times: i64) {
+    for i in 0..times {
+        // The folder out, the link in its place, then back.
+        here.rename("box/sub", "box/real").unwrap();
+        here.rename("box/link", "box/sub").unwrap();
+        here.rename("box/sub", "box/link").unwrap();
+        here.rename("box/real", "box/sub").unwrap();
+    }
+}
+
+fun main(console: Console, fs: Fs, proc: Proc) {
+    let here = fs.cwd();
+    here.make_dirs("box/sub").unwrap();
+    here.make_dirs("outside").unwrap();
+    here.write_file("box/sub/secret.txt", "inside").unwrap();
+    here.write_file("outside/secret.txt", "outside").unwrap();
+    proc.run("ln", ["-s", "../outside", "box/link"]).unwrap();
+    let box = here.dir("box").unwrap();
+    let (mut inside, mut leaked) = (0, 0);
+    let r = scope s {
+        s.spawn(flip(here, 5000));
+        for i in 0..20000 {
+            match box.read_file("sub/secret.txt") {
+                .Ok(text) => if text == "inside" { inside += 1; } else { leaked += 1; },
+                .Err(_) => {}
+            }
+        }
+    };
+    console.println("leaked {leaked}");
+    console.println(inside > 0);
+}

@@ -1,0 +1,7 @@
+// Run on Android by CI: starting a program and capturing what it prints.
+fun main(console: Console, proc: Proc) {
+    match proc.run("echo", ["started"]) {
+        .Ok(o) => console.println("{o.code} {o.stdout.trim()}"),
+        .Err(e) => console.println("err {e}"),
+    }
+}
