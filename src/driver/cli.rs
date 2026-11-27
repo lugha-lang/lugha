@@ -256,11 +256,9 @@ impl Command {
     /// Whether this command names an ARM64 target and an x86-64 `--cpu`
     /// level: a usage error.
     pub(super) fn arm_with_cpu(&self) -> bool {
+        // By the target's CPU, so every ARM64 target counts, new ones too.
         let arm = |t: &Option<TargetArg>| {
-            matches!(
-                t,
-                Some(TargetArg::Aarch64 | TargetArg::Aarch64Musl | TargetArg::Aarch64MacOs)
-            )
+            t.is_some_and(|t| Target::from(t).arch() == crate::codegen::Arch::Aarch64)
         };
         match self {
             Command::Build {
@@ -338,5 +336,55 @@ pub(super) fn opt_level(level: &str) -> Result<OptLevel, String> {
         "0" => Ok(OptLevel::O0),
         "2" => Ok(OptLevel::O2),
         _ => Err("expected 0 or 2".to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Cli;
+    use clap::Parser;
+
+    fn arm_with_cpu(args: &[&str]) -> bool {
+        let cli = Cli::try_parse_from(args).expect("parses");
+        cli.command.arm_with_cpu()
+    }
+
+    #[test]
+    fn an_x86_level_with_any_arm64_target_is_refused() {
+        for target in [
+            "aarch64-unknown-linux-gnu",
+            "aarch64-unknown-linux-musl",
+            "aarch64-apple-darwin",
+            "aarch64-pc-windows-gnu",
+            "aarch64-linux-android",
+        ] {
+            assert!(
+                arm_with_cpu(&[
+                    "lughac",
+                    "build",
+                    "a.la",
+                    "--target",
+                    target,
+                    "--cpu",
+                    "x86-64-v3"
+                ]),
+                "{target}"
+            );
+            assert!(
+                !arm_with_cpu(&["lughac", "build", "a.la", "--target", target]),
+                "{target}"
+            );
+        }
+        for target in ["x86_64-pc-windows-gnu", "x86_64-linux-android"] {
+            assert!(!arm_with_cpu(&[
+                "lughac",
+                "build",
+                "a.la",
+                "--target",
+                target,
+                "--cpu",
+                "x86-64-v3"
+            ]));
+        }
     }
 }
