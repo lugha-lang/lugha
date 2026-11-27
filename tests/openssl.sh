@@ -26,6 +26,7 @@ case $target in
     x86_64-unknown-linux-musl) zig=x86_64-linux-musl; conf=linux-x86_64 ;;
     aarch64-unknown-linux-musl) zig=aarch64-linux-musl; conf=linux-aarch64 ;;
     x86_64-pc-windows-gnu) zig=x86_64-windows-gnu; conf=mingw64 ;;
+    aarch64-pc-windows-gnu) zig=aarch64-windows-gnu; conf=mingwarm64 ;;
     *)
         echo "openssl.sh: no recipe for $target" >&2
         exit 2
@@ -59,12 +60,36 @@ if [ "${sum%% *}" != "$SHA256" ]; then
 fi
 tar -xzf "$work/openssl.tar.gz" -C "$work"
 
+# This release has no MinGW target for ARM64; the next (3.6.0) added
+# `mingwarm64`, given here word for word. This release's assembler scripts
+# already speak its `win64` flavour, so AES, SHA and bignums keep ARMv8's
+# instructions.
+extra=
+if [ "$conf" = mingwarm64 ]; then
+    cat > "$work/mingwarm64.conf" <<'CONF'
+my %targets = (
+    "mingwarm64" => {
+        inherit_from     => [ "mingw-common" ],
+        cflags           => "",
+        sys_id           => "MINGWARM64",
+        bn_ops           => add("SIXTY_FOUR_BIT"),
+        asm_arch         => 'aarch64',
+        uplink_arch      => 'armv8',
+        perlasm_scheme   => "win64",
+        shared_rcflag    => "",
+        multilib         => "-arm64",
+    },
+);
+CONF
+    extra="--config=$work/mingwarm64.conf"
+fi
+
 jobs=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)
 cd "$work/openssl-$VERSION"
 # Static libraries only, no programs, no loadable modules: what a program
 # links. The roots folder is where macOS keeps OpenSSL's (`cert.pem`).
 CC="zig cc -target $zig" AR="zig ar" RANLIB="zig ranlib" \
-    ./Configure "$conf" no-shared no-module no-apps no-docs no-tests \
+    ./Configure $extra "$conf" no-shared no-module no-apps no-docs no-tests \
     --prefix="$out" --libdir=lib --openssldir=/etc/ssl
 make -j"$jobs" build_libs
 make install_dev

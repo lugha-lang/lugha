@@ -12,7 +12,7 @@
  *
  * A task's stack is reserved whole and committed as it grows, through a
  * guard page below what is committed, as a thread's own stack is: the task
- * switch keeps the TEB's record of the running stack (x86_64.c), which is
+ * switch keeps the TEB's record of the running stack (x86_64.c, aarch64.c), which is
  * where the system looks. A C stack's overflow reaches the guard's end as
  * `EXCEPTION_STACK_OVERFLOW`, reported here as Linux reports it.
  *
@@ -24,8 +24,8 @@
  * layer's declarations.
  */
 
-#if !defined(__x86_64__)
-#error "green threads on Windows need a stack switch for this CPU (os/windows/ has x86_64.c)"
+#if !defined(__x86_64__) && !defined(__aarch64__)
+#error "green threads on Windows need a stack switch for this CPU (os/windows/ has x86_64.c and aarch64.c)"
 #endif
 
 /* `ProcessPrng` (bcryptprimitives.dll): random bytes that can't fail. */
@@ -248,7 +248,7 @@ static bool os_stack_unguard(char *stack, size_t guard) {
 }
 
 /* How far down the stack ending at `top` is committed now: the TEB's
- * `StackLimit` for it (x86_64.c). */
+ * `StackLimit` for it (x86_64.c, aarch64.c). */
 static char *win_committed_low(char *top) {
     MEMORY_BASIC_INFORMATION info;
     if (VirtualQuery(top - 1, &info, sizeof info) == 0) {

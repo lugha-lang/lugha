@@ -21,6 +21,8 @@ pub enum Target {
     /// Windows on x86-64, `x86_64-pc-windows-gnu`: PE executables linked
     /// against Windows' own C runtime, built on Linux and run on Windows.
     X86_64Windows,
+    /// Windows on ARM64, `aarch64-pc-windows-gnu`: the same, for ARM64 PCs.
+    Aarch64Windows,
 }
 
 /// A target's processor family: what codegen's instructions, registers and
@@ -43,6 +45,7 @@ impl Target {
             Target::Aarch64LinuxMusl => "aarch64-unknown-linux-musl",
             Target::Aarch64MacOs => "aarch64-apple-darwin",
             Target::X86_64Windows => "x86_64-pc-windows-gnu",
+            Target::Aarch64Windows => "aarch64-pc-windows-gnu",
         }
     }
 
@@ -50,7 +53,10 @@ impl Target {
     pub fn arch(self) -> Arch {
         match self {
             Target::X86_64Linux | Target::X86_64LinuxMusl | Target::X86_64Windows => Arch::X86_64,
-            Target::Aarch64Linux | Target::Aarch64LinuxMusl | Target::Aarch64MacOs => Arch::Aarch64,
+            Target::Aarch64Linux
+            | Target::Aarch64LinuxMusl
+            | Target::Aarch64MacOs
+            | Target::Aarch64Windows => Arch::Aarch64,
         }
     }
 
@@ -69,7 +75,7 @@ impl Target {
     /// Whether this is a Windows target: `.exe` names, SEH unwinding, and
     /// Windows' own rules for passing structs to C.
     pub fn is_windows(self) -> bool {
-        self == Target::X86_64Windows
+        matches!(self, Target::X86_64Windows | Target::Aarch64Windows)
     }
 
     /// Whether this is the machine lughac runs on, built for with `cc`;
@@ -108,6 +114,11 @@ mod tests {
             ),
             (Target::Aarch64MacOs, "aarch64-apple-darwin", Arch::Aarch64),
             (Target::X86_64Windows, "x86_64-pc-windows-gnu", Arch::X86_64),
+            (
+                Target::Aarch64Windows,
+                "aarch64-pc-windows-gnu",
+                Arch::Aarch64,
+            ),
         ];
         for (target, triple, arch) in all {
             assert_eq!((target.triple(), target.arch()), (triple, arch));
@@ -122,6 +133,8 @@ mod tests {
             Target::X86_64LinuxMusl,
             Target::Aarch64LinuxMusl,
             Target::Aarch64MacOs,
+            Target::X86_64Windows,
+            Target::Aarch64Windows,
         ]
         .into_iter()
         .filter(|t| t.is_native())

@@ -507,14 +507,15 @@ mod tests {
 
     #[test]
     fn a_windows_build_is_named_exe() {
-        let windows = Target::X86_64Windows;
-        assert_eq!(
-            default_output(Path::new("dir/app.la"), windows),
-            PathBuf::from("app.exe")
-        );
-        assert_eq!(
-            default_output(Path::new("app"), windows),
-            PathBuf::from("app.exe")
-        );
+        for windows in [Target::X86_64Windows, Target::Aarch64Windows] {
+            assert_eq!(
+                default_output(Path::new("dir/app.la"), windows),
+                PathBuf::from("app.exe")
+            );
+            assert_eq!(
+                default_output(Path::new("app"), windows),
+                PathBuf::from("app.exe")
+            );
+        }
     }
 }

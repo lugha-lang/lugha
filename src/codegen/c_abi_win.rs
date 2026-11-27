@@ -150,4 +150,25 @@ fun main() {
         assert!(win.contains("declare i32 @tint(i32)"), "{win}");
         assert!(!win.contains("byval("), "{win}");
     }
+
+    #[test]
+    fn arm64_windows_follows_aapcs64_as_linux_does() {
+        use crate::codegen::Target;
+        use crate::codegen::test_util::ir_for;
+        let declared = |target| -> Vec<String> {
+            ir_for(SHAPES, target)
+                .lines()
+                .filter(|l| {
+                    ["@len(", "@big(", "@make(", "@tint("]
+                        .iter()
+                        .any(|f| l.contains(f))
+                })
+                .filter(|l| l.starts_with("declare"))
+                .map(String::from)
+                .collect()
+        };
+        let windows = declared(Target::Aarch64Windows);
+        assert_eq!(windows.len(), 4, "{windows:?}");
+        assert_eq!(windows, declared(Target::Aarch64Linux));
+    }
 }

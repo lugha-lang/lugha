@@ -187,8 +187,12 @@ mod tests {
 
     #[test]
     fn a_windows_program_is_never_run_here() {
-        let refused = on(Arch::X86_64, Target::X86_64Windows, true).unwrap_err();
-        assert!(refused.contains("runs only on Windows"), "{refused}");
+        for target in [Target::X86_64Windows, Target::Aarch64Windows] {
+            for arch in [Arch::X86_64, Arch::Aarch64] {
+                let refused = on(arch, target, true).unwrap_err();
+                assert!(refused.contains("runs only on Windows"), "{refused}");
+            }
+        }
     }
 
     #[test]

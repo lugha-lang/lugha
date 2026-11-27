@@ -60,12 +60,14 @@ fn a_match_costs_its_largest_arm() {
 
 #[test]
 fn windows_functions_share_slots_and_leave_probing_to_windows() {
-    let ir = ir_for(&twelve_arms(), Target::X86_64Windows);
-    assert!(walk_slots(&ir) <= 8);
-    assert!(
-        !ir.contains("probe-stack"),
-        "Windows probes through ___chkstk_ms"
-    );
+    for target in [Target::X86_64Windows, Target::Aarch64Windows] {
+        let ir = ir_for(&twelve_arms(), target);
+        assert!(walk_slots(&ir) <= 8);
+        assert!(
+            !ir.contains("probe-stack"),
+            "Windows probes through its own __chkstk"
+        );
+    }
 }
 
 #[test]

@@ -33,6 +33,7 @@ pub fn zig_triple(triple: &str) -> Option<&'static str> {
         "aarch64-apple-darwin" => Some("aarch64-macos.14.4-none"),
         // MinGW's headers and import libraries, Windows' own C runtime (UCRT).
         "x86_64-pc-windows-gnu" => Some("x86_64-windows-gnu"),
+        "aarch64-pc-windows-gnu" => Some("aarch64-windows-gnu"),
         _ => None,
     }
 }
@@ -122,11 +123,12 @@ mod tests {
             ("aarch64-unknown-linux-musl", "aarch64-linux-musl"),
             ("aarch64-apple-darwin", "aarch64-macos.14.4-none"),
             ("x86_64-pc-windows-gnu", "x86_64-windows-gnu"),
+            ("aarch64-pc-windows-gnu", "aarch64-windows-gnu"),
         ];
         for (llvm, zig) in table {
             assert_eq!(zig_triple(llvm), Some(zig), "{llvm}");
         }
-        assert_eq!(zig_triple("aarch64-pc-windows-gnu"), None);
+        assert_eq!(zig_triple("aarch64-pc-windows-gnullvm"), None);
     }
 
     #[test]
@@ -158,6 +160,11 @@ mod tests {
                 "-lgdi32",
                 "-lcrypt32"
             ]
+        );
+        assert_eq!(
+            strings("aarch64-pc-windows-gnu"),
+            strings("x86_64-pc-windows-gnu"),
+            "the same import libraries on either CPU"
         );
     }
 

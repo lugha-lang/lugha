@@ -111,6 +111,21 @@ jobs:
         # cases and tests/windows/openssl/.
         run: echo "LUGHA_OPENSSL_X86_64_PC_WINDOWS_GNU=$PWD/openssl-win" >> "$GITHUB_ENV"
 
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # OpenSSL for Windows on ARM64 builds, the same release, kept the
+        # same way.
+        id: openssl-win-arm64
+        with:
+          path: openssl-win-arm64
+          key: openssl-win-arm64-zig-0.17.1-${{ hashFiles('tests/openssl.sh') }}
+
+      - name: Build OpenSSL for Windows on ARM64
+        if: steps.openssl-win-arm64.outputs.cache-hit != 'true'
+        run: sh tests/openssl.sh aarch64-pc-windows-gnu "$PWD/openssl-win-arm64"
+
+      - name: Name ARM64 Windows' OpenSSL
+        run: echo "LUGHA_OPENSSL_AARCH64_PC_WINDOWS_GNU=$PWD/openssl-win-arm64" >> "$GITHUB_ENV"
+
       - name: Build the macOS cases
         # Built here, on Linux, through zig; the macos job runs them on a Mac.
         # Those in tests/macos/openssl/ need the OpenSSL above.
@@ -125,26 +140,33 @@ jobs:
           sh tests/certs.sh macos/trust.certs
 
       - name: Build the Windows cases
-        # Built here, on Linux, through zig; the windows job runs them on
-        # Windows. A case is a .la file or a folder with main.la, beside
-        # what it must print (.stdout), exit with (.exit), show on stderr
-        # (.stderr) and read (.stdin). Those in tests/windows/openssl/ need
-        # the OpenSSL above.
+        # Built here, on Linux, through zig, for x86-64 (windows/) and ARM64
+        # (windows-arm64/); the windows job runs them on Windows. A case is
+        # a .la file or a folder with main.la, beside what it must print
+        # (.stdout), exit with (.exit), show on stderr (.stderr) and read
+        # (.stdin). Those in tests/windows/openssl/ need the OpenSSL above.
         run: |
-          mkdir -p windows
-          for f in tests/windows/*.la tests/windows/*/main.la tests/windows/openssl/*.la; do
-            case $f in
-              */main.la) name=$(basename "$(dirname "$f")") ;;
-              *) name=$(basename "$f" .la) ;;
-            esac
-            target/debug/lughac build "$f" --target x86_64-pc-windows-gnu -o "windows/$name.exe"
-            for ext in stdout exit stderr stdin; do
-              if [ -f "${f%.la}.$ext" ]; then cp "${f%.la}.$ext" "windows/$name.$ext"; fi
-              if [ -f "tests/windows/$name.$ext" ]; then cp "tests/windows/$name.$ext" "windows/$name.$ext"; fi
+          for pair in windows:x86_64-pc-windows-gnu windows-arm64:aarch64-pc-windows-gnu; do
+            dir=${pair%%:*}
+            target=${pair#*:}
+            mkdir -p "$dir"
+            for f in tests/windows/*.la tests/windows/*/main.la tests/windows/openssl/*.la; do
+              case $f in
+                */main.la) name=$(basename "$(dirname "$f")") ;;
+                *) name=$(basename "$f" .la) ;;
+              esac
+              target/debug/lughac build "$f" --target "$target" -o "$dir/$name.exe"
+              for ext in stdout exit stderr stdin; do
+                if [ -f "${f%.la}.$ext" ]; then cp "${f%.la}.$ext" "$dir/$name.$ext"; fi
+                if [ -f "tests/windows/$name.$ext" ]; then cp "tests/windows/$name.$ext" "$dir/$name.$ext"; fi
+              done
             done
+            # trust.la's certificates, made fresh here: no key is committed.
+            sh tests/certs.sh "$dir/trust.certs"
           done
-          # trust.la's certificates, made fresh here: no key is committed.
-          sh tests/certs.sh windows/trust.certs
+          # The struct shapes against zig's C, run against Windows' own on
+          # the ARM64 runner (Wine checks x86-64's in tests/windows.rs).
+          LUGHA_CASES_OUT="$PWD/windows-arm64" cargo test --test windows_arm64 extern_structs
 
       - name: Build the program suite for a Mac and for Windows
         # Every run case in tests/programs/, a folder each, for
@@ -153,6 +175,8 @@ jobs:
           LUGHA_SUITE="$PWD/macos/suite" LUGHA_SUITE_TARGET=aarch64-apple-darwin \
             cargo test --test platform_suite -- --ignored
           LUGHA_SUITE="$PWD/windows/suite" LUGHA_SUITE_TARGET=x86_64-pc-windows-gnu \
+            cargo test --test platform_suite -- --ignored
+          LUGHA_SUITE="$PWD/windows-arm64/suite" LUGHA_SUITE_TARGET=aarch64-pc-windows-gnu \
             cargo test --test platform_suite -- --ignored
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -165,6 +189,12 @@ jobs:
         with:
           name: windows-programs
           path: windows/
+          retention-days: 1
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-arm64-programs
+          path: windows-arm64/
           retention-days: 1
 
   test:
@@ -284,9 +314,21 @@ jobs:
           sh tests/suite.sh macos/suite tests/macos/known.txt
 
   windows:
-    name: Windows (x64)
+    name: Windows (${{ matrix.cpu }})
     needs: build
-    runs-on: windows-latest
+    # The same steps on each CPU, each running what the build job made
+    # for it.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cpu: x64
+            runner: windows-latest
+            programs: windows-programs
+          - cpu: ARM64
+            runner: windows-11-arm
+            programs: windows-arm64-programs
+    runs-on: ${{ matrix.runner }}
     defaults:
       run:
         shell: bash
@@ -298,7 +340,7 @@ jobs:
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: windows-programs
+          name: ${{ matrix.programs }}
           path: windows
 
       - name: Run the programs built on Linux
