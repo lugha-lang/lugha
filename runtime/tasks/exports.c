@@ -7,6 +7,10 @@
  *   panic ends the task, which has no scope, and with it the process.
  * - From the program's own threads (a task calling C that calls back by
  *   name) it runs in place, on the C stack, as a direct callback does.
+ * - A caller may catch a call's panic (`lugha_rt_export_catch`, as the
+ *   glue Java calls through does): the task unwinds as any, quietly, and
+ *   ends there; the caller takes the message (`lugha_rt_export_caught`)
+ *   instead of the process ending.
  *
  * In a shared library there is no `main`: the first call starts the
  * runtime, once, on a home thread of its own, which becomes the first
@@ -20,12 +24,20 @@
  * `foreign_attach` a thread C made goes through first.
  */
 
-/* One call from C: the body's thunk and frame, and whether it is done. */
+/* One call from C: the body's thunk and frame, whether it is done, and
+ * whether its caller catches a panic, whose message it then holds. */
 typedef struct {
     void (*thunk)(void *);
     void *frame;
     uint32_t done;
+    bool catches;
+    char *panic;
 } ExportCall;
+
+/* Whether this thread's next export call is caught, and the message of
+ * its last caught panic, until taken. */
+static __thread bool export_catch_next;
+static __thread char *export_panic;
 
 /* The task running one call: the body, then C's thread woken. */
 static void export_task(void *code, void *env, void *result) {
@@ -33,6 +45,7 @@ static void export_task(void *code, void *env, void *result) {
     (void)result;
     ExportCall *call = code;
     call->thunk(call->frame);
+    current->export_call = NULL;
     // C's thread may return as soon as it sees `done`: the wake only
     // names the word's address, which a later wait there takes as spurious.
     __atomic_store_n(&call->done, 1, __ATOMIC_RELEASE);
@@ -130,12 +143,64 @@ void lugha_rt_export_run(void (*thunk)(void *), void *frame) {
     if (!w->foreign) {
         foreign_attach(w, false);
     }
-    ExportCall call = {thunk, frame, 0};
-    LughaTask *task = lugha_rt_task_spawn(export_task, &call, NULL, 1);
+    ExportCall call = {thunk, frame, 0, export_catch_next, NULL};
+    export_catch_next = false;
+    LughaTask *task;
+    {
+        RT_SECTION();
+        task = task_create(export_task, &call, NULL, 1);
+        // Set before it can run: its panic looks here.
+        task->fiber->export_call = &call;
+        task_go(task);
+    }
     lugha_rt_rc_release(task);
     while (__atomic_load_n(&call.done, __ATOMIC_ACQUIRE) == 0) {
         os_wait_on(&call.done, 0);
     }
+    export_panic = call.panic;
+}
+
+/* `lugha_rt_export_catch()`: this thread's next export call is caught. */
+void lugha_rt_export_catch(void) {
+    export_catch_next = true;
+}
+
+/* `lugha_rt_export_caught()`: the message of the panic that ended this
+ * thread's last caught call, the caller's to `free`; NULL when it ended
+ * without one. */
+char *lugha_rt_export_caught(void) {
+    char *text = export_panic;
+    export_panic = NULL;
+    return text;
+}
+
+/* Whether the running task's panic is its caller's to catch. */
+static bool export_catches(void) {
+    ExportCall *call = current->export_call;
+    return call != NULL && call->catches;
+}
+
+static void export_unwound(const char *text, size_t len) {
+    if (current == NULL || !export_catches()) {
+        return;
+    }
+    ExportCall *call = current->export_call;
+    char *copy = malloc(len + 1);
+    if (copy == NULL) {
+        die("panic: out of memory\n");
+    }
+    memcpy(copy, text, len);
+    copy[len] = '\0';
+    call->panic = copy;
+    current->export_call = NULL;
+    current->unwinding = false;
+    // The caller may return as soon as it sees `done`: nothing of the call
+    // is touched after.
+    __atomic_store_n(&call->done, 1, __ATOMIC_RELEASE);
+    os_wake_on(&call->done, 1);
+    // Never returns: the task ends, the lock going on to the next fiber.
+    rt_enter();
+    fiber_exit(current);
 }
 
 /* `lugha_rt_export_init(init)`: a shared library's constants, made by

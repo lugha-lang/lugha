@@ -33,6 +33,26 @@
  * (os/linux/<cpu>.c). */
 static inline uintptr_t thread_pointer(void);
 
+#if defined(LUGHA_RT_LIBRARY)
+
+/* In a shared library a thread's thread-locals aren't at one place from
+ * its thread pointer: a library opened later (`dlopen`, as a JVM loads
+ * one) gets a block per thread, wherever it fits. So the address is asked
+ * each time, through a call whose result the compiler can neither fold
+ * nor keep across a task switch, which may move the task to another
+ * thread. */
+__attribute__((noinline)) static Worker *os_worker_here(void) {
+    Worker *w = &this_worker;
+    __asm__ volatile("" : "+r"(w));
+    return w;
+}
+
+static inline Worker *os_worker(void) {
+    return os_worker_here();
+}
+
+#else
+
 /* Where `this_worker` lies from the thread pointer: the same in every
  * thread (the executable's own thread-local block, at a fixed place in
  * each thread's under ELF), set before `main`. */
@@ -47,6 +67,8 @@ __attribute__((constructor)) static void worker_offset_init(void) {
 static inline Worker *os_worker(void) {
     return (Worker *)(thread_pointer() + (uintptr_t)worker_offset);
 }
+
+#endif
 
 /* The clock deadlines and sleeps are measured on: one that stops while
  * the machine is suspended. */

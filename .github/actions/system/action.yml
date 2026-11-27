@@ -29,13 +29,15 @@ runs:
       # libssl-dev and openssl: std.tls and std.crypto. git: git packages
       # and a real checkout. xz-utils: unpacks zig. zstd: nextest's archive
       # and a faster cache. curl and ca-certificates: downloads. unzip:
-      # unpacks Android's NDK (tests/ndk.sh).
+      # unpacks Android's NDK (tests/ndk.sh) and Kotlin's compiler.
+      # default-jdk-headless: javac and java for the `--jni` tests.
       shell: bash
       run: |
         apt-get update
         apt-get install -y --no-install-recommends \
           llvm-21-dev build-essential libc6-arm64-cross qemu-user xz-utils zstd \
-          curl ca-certificates git libssl-dev openssl unzip
+          curl ca-certificates git libssl-dev openssl unzip \
+          default-jdk-headless
 
     - name: Install zig
       # Builds for other platforms go through `zig cc`. The tarball is

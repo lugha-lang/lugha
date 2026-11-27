@@ -52,6 +52,20 @@ case $report in
         status=1 ;;
 esac
 
+# Kotlin calling a Lugha library through JNI, as an app's code would: the
+# Kotlin program as DEX, run by Android's own runtime (`app_process`).
+if [ -f "$built/jni/classes.dex" ]; then
+    jni=$(adb shell "cd $there/$name/jni && app_process -Djava.library.path=$there/$name/jni \
+        -cp $there/$name/jni/classes.dex / MainKt 2>&1")
+    case $jni in
+        *"Panic: index out of bounds"*"four threads answered"*) echo "ok jni" ;;
+        *)
+            echo "FAILED jni:"
+            echo "$jni"
+            status=1 ;;
+    esac
+fi
+
 adb shell "chmod +x $there/$name/suite/*/exe && cd $there &&
     sh tests/suite.sh $name/suite tests/android/known.txt" || status=1
 exit $status

@@ -117,8 +117,8 @@ impl Drop for RuntimeObject {
 }
 
 /// The runtime's object, with TLS's part when `tls` and crypto's when
-/// `crypto`: from `cache` when it has a fresh one, else `cc -c` of the
-/// runtime alone. `openssl` is where a TLS or crypto program asked for
+/// `crypto`, for a shared library when `library`: from `cache` when it has a
+/// fresh one, else `cc -c` of the runtime alone. `openssl` is where a TLS or crypto program asked for
 /// OpenSSL, for E0332, and the folder of a foreign target's OpenSSL, whose
 /// headers are compiled with.
 ///
@@ -131,7 +131,7 @@ pub(super) fn compile(
     (tls, crypto): (bool, bool),
     cache: &Cache,
     openssl: Option<(Span, Option<&Folder>)>,
-    system: super::System,
+    (system, library): (super::System, bool),
 ) -> Result<RuntimeObject, LinkError> {
     let source = RuntimeFile::write(tls, crypto, system).map_err(LinkError::Io)?;
     let object = source.0.with_extension("o");
@@ -151,6 +151,11 @@ pub(super) fn compile(
     // an executable nothing); Windows' code needs no such flag.
     if system != super::System::Windows {
         flags.push("-fPIC".into());
+    }
+    // A shared library's runtime finds its thread-locals as a library must
+    // (os/linux/os.c): part of the flags, so a cached object of its own.
+    if library {
+        flags.push("-DLUGHA_RT_LIBRARY".into());
     }
     // The folder is part of the flags, so of the cached object's key.
     let folder = openssl.and_then(|(_, folder)| folder);

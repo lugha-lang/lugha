@@ -77,6 +77,11 @@ hello from C
   task while C waits, so it may use scopes and channels, but it gets no
   capabilities. `lughac build --shared lib.la` makes `liblib.so` (and
   `lib.h`) from a file with such functions and no `main`.
+- **Kotlin and Java (Android apps too):** `lughac build --shared --jni
+  com.example.Words lib.la` also writes `com/example/Words.kt`, an `object`
+  whose methods are the exports (`word_count` is `Words.wordCount`;
+  `--jni-lang java` writes a Java class). A panic reaches the caller as
+  `Words.Panic`. Unsigned integers and extern structs can't cross (E0487).
 - **The `ffi` grant:** a dependency that declares `extern` items or has a
   `[link]` table builds only with `allow = ["ffi"]` in the program's
   `lugha.toml`.

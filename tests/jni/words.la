@@ -1,0 +1,15 @@
+// The library the JVM tests call through `--jni`: one export of each kind.
+extern type Db;
+
+extern fun word_count(text: string): i64 = text.split(" ").len;
+extern fun pick(i: i64): i64 {
+    let xs = [1, 2, 3];
+    xs[i]
+}
+extern fun greet(name: Option<string>): string = "hello, {name.unwrap_or("you")}";
+extern fun echo(text: string): string = text;
+extern fun is_big(n: i32): bool = n > 100;
+extern fun upper(c: char): char = if c == 'a' { 'A' } else { c };
+extern fun same(d: Db): Option<Db> = Some(d);
+extern fun half(x: f64): f64 = x / 2.0;
+extern fun nothing() {}

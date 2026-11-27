@@ -12,7 +12,7 @@ use crate::parser::sexp;
 
 pub(super) fn build(
     out: &mut Output,
-    (file, shared): (&Path, bool),
+    (file, shared, jni): (&Path, bool, Option<(&str, super::jni::Lang)>),
     output: Option<&Path>,
     emit: Option<Emit>,
     (code, mode): ((OptLevel, Cpu, Target, Instruments), Mode),
@@ -42,7 +42,7 @@ pub(super) fn build(
         None if shared => {
             let library =
                 output.map_or_else(|| pipeline::shared_output(file, code.2), Path::to_path_buf);
-            pipeline::build_shared(&front, code, (file, &library))?;
+            pipeline::build_shared(&front, code, (file, &library), jni)?;
         }
         None => {
             let exe =

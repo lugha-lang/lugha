@@ -22,6 +22,10 @@
 /* "LUGHPANC": a panic's exception class. */
 #define PANIC_CLASS 0x4c55474850414e43ULL
 
+/* Ends the running task when it runs a call whose caller catches its
+ * panic, keeping `text` for that caller (exports.c); else returns. */
+static void export_unwound(const char *text, size_t len);
+
 /* Whether the main thread unwinds, before any green thread exists. */
 static bool main_unwinding;
 
@@ -43,6 +47,10 @@ static _Unwind_Reason_Code panic_stop(int version, _Unwind_Action actions,
         return _URC_NO_REASON;
     }
     Panic *panic = (Panic *)exception;
+    // A call whose caller catches its panic ends there, its message kept.
+    if (!panic->cancel) {
+        export_unwound(panic->text, panic->len);
+    }
     // A task a scope started ends there: cancelled, or failing its scope.
     if (current != NULL && current->started_in != NULL) {
         current->in_flight = NULL;

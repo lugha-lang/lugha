@@ -33,6 +33,12 @@ pub(super) enum Command {
         /// A shared library of the functions C calls (`extern fun … { … }`), with a C header
         #[arg(long)]
         shared: bool,
+        /// With `--shared`: Kotlin's or Java's door too, the class `com.example.Words` and its JNI glue
+        #[arg(long, value_name = "CLASS", requires = "shared")]
+        jni: Option<String>,
+        /// With `--jni`: the class's source language [default: kotlin]
+        #[arg(long, value_enum, requires = "jni")]
+        jni_lang: Option<JniLang>,
         #[command(flatten)]
         options: Options,
     },
@@ -274,6 +280,13 @@ impl Command {
             _ => false,
         }
     }
+}
+
+/// `--jni-lang`'s values.
+#[derive(Clone, Copy, ValueEnum)]
+pub(super) enum JniLang {
+    Kotlin,
+    Java,
 }
 
 /// `--target`'s values.

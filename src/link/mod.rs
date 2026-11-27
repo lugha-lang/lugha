@@ -76,7 +76,7 @@ pub fn link_with(
         .tls
         .or(plan.crypto)
         .map(|at| (at, plan.openssl.as_ref()));
-    let runtime = runtime::compile(variant, &cache, openssl, system)?;
+    let runtime = runtime::compile(variant, &cache, openssl, (system, plan.shared.is_some()))?;
     let linked: Vec<&Path> = vec![runtime.path.as_path()];
     let shared = match &plan.shared {
         Some(symbols) => shared::args(symbols, (temp, system), output).map_err(LinkError::Io)?,

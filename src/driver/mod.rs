@@ -14,6 +14,9 @@ mod explain;
 mod fmt;
 mod guard;
 mod init;
+mod jni;
+mod jni_glue;
+mod jni_source;
 mod json;
 mod linking;
 mod lsp;
@@ -119,6 +122,8 @@ where
             emit,
             target,
             shared,
+            jni,
+            jni_lang,
             options,
         } => {
             let target = target.map_or(Target::native(), Into::into);
@@ -138,9 +143,24 @@ where
                 target,
                 cli::instruments_from_env(),
             );
+            // A class Java can hold, `com.example.Words`.
+            if let Some(class) = jni.as_deref().filter(|c| !jni::valid_class(c)) {
+                let message = format!(
+                    "`--jni {class}` needs a class name Java can hold: identifiers joined by `.`, as `com.example.Words`"
+                );
+                let error = <Cli as clap::CommandFactory>::command()
+                    .error(clap::error::ErrorKind::InvalidValue, message);
+                // Nowhere better to report it; the exit code still says so.
+                let _ = write!(out.stderr, "{}", error.render());
+                return 2;
+            }
+            let lang = match jni_lang {
+                Some(cli::JniLang::Java) => jni::Lang::Java,
+                _ => jni::Lang::Kotlin,
+            };
             build::build(
                 &mut out,
-                (file, *shared),
+                (file, *shared, jni.as_deref().map(|c| (c, lang))),
                 output.as_deref(),
                 *emit,
                 (code, options.mode()),

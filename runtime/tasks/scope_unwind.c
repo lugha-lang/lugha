@@ -54,14 +54,19 @@ static void scope_task_unwound(bool cancel, const char *text, size_t len) {
 }
 
 /* True if a panic here is reported elsewhere, so not printed as it
- * happens: the current fiber runs a scope's body (its scope's value), or
- * is a task a scope started (its entry reports it, naming the task). */
+ * happens: the current fiber runs a scope's body (its scope's value), is
+ * a task a scope started (its entry reports it, naming the task), or runs
+ * a call whose caller catches its panic (exports.c). */
+static bool export_catches(void);
+
 static bool panic_caught(void) {
     if (current == NULL) {
         return false;
     }
-    // Inside a direct callback, the registering scope reports it.
-    return current->scopes != NULL || current->started_in != NULL || current->in_callback > 0;
+    // Inside a direct callback, the registering scope reports it; in a
+    // call from Java, the exception thrown there.
+    return current->scopes != NULL || current->started_in != NULL || current->in_callback > 0 ||
+           export_catches();
 }
 
 /* At a safe point: a cancelled task unwinds from here. */

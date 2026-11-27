@@ -2,7 +2,7 @@
 //! `lugha_rt.c` must define (a test in `link` checks it).
 
 /// Every runtime function codegen may call; `lugha_rt.c` defines them all.
-pub const RUNTIME_SYMBOLS: [&str; 166] = [
+pub const RUNTIME_SYMBOLS: [&str; 168] = [
     "lugha_rt_init",
     "lugha_rt_task_go",
     "lugha_rt_print_begin",
@@ -140,6 +140,8 @@ pub const RUNTIME_SYMBOLS: [&str; 166] = [
     "lugha_rt_export_run",
     "lugha_rt_export_init",
     "lugha_rt_export_string",
+    "lugha_rt_export_catch",
+    "lugha_rt_export_caught",
     "lugha_rt_scope_root",
     "lugha_rt_task_spawn_in",
     "lugha_rt_scope_end",

@@ -31,15 +31,15 @@ pub fn decide(test: &str, missing: &[&str], required: bool) -> bool {
 }
 
 /// Whether `tool` is here: a folder for an absolute path, else a program
-/// that answers `version` (zig) or `--version`.
+/// that answers `version` (zig), `-version` (kotlinc) or `--version`.
 fn present(tool: &str) -> bool {
     if tool.starts_with('/') {
         return Path::new(tool).is_dir();
     }
-    let arg = if tool == "zig" {
-        "version"
-    } else {
-        "--version"
+    let arg = match tool {
+        "zig" => "version",
+        "kotlinc" => "-version",
+        _ => "--version",
     };
     Command::new(tool)
         .arg(arg)

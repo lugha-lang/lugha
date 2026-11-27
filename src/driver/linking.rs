@@ -30,8 +30,9 @@ pub(super) fn build_shared(
     front: &Front,
     code: (OptLevel, Cpu, Target, Instruments),
     (file, out): (&Path, &Path),
+    jni: Option<(&str, super::jni::Lang)>,
 ) -> Result<(), Failure> {
-    let symbols: Vec<String> = front
+    let mut symbols: Vec<String> = front
         .modules
         .iter()
         .filter_map(|m| m.program.as_ref())
@@ -44,7 +45,39 @@ pub(super) fn build_shared(
             _ => None,
         })
         .collect();
-    build_with(front, code, out, Some(symbols))?;
+    // `--jni`: the glue Kotlin or Java calls through, and their class.
+    let lib = out.file_stem().unwrap_or(out.as_os_str()).to_string_lossy();
+    let lib = lib.strip_prefix("lib").unwrap_or(&lib).to_string();
+    let door = match jni {
+        Some((class, lang)) => Some(
+            super::jni::door(&front.modules, (class, lang, &lib))
+                .map_err(|errors| Failure::Program(front.source.clone(), errors))?,
+        ),
+        None => None,
+    };
+    if let Some(door) = &door {
+        symbols.extend(door.symbols.iter().cloned());
+    }
+    build_with(
+        front,
+        code,
+        out,
+        Some((symbols, door.as_ref().map(|d| d.glue.clone()))),
+    )?;
+    if let Some(door) = door {
+        let (path, text) = door.source;
+        let path = out.with_file_name("").join(path);
+        let written = path
+            .parent()
+            .map_or(Ok(()), std::fs::create_dir_all)
+            .and_then(|()| std::fs::write(&path, text));
+        written.map_err(|e| {
+            internal(
+                &front.source,
+                format!("cannot write {}: {e}", path.display()),
+            )
+        })?;
+    }
     let stem = file
         .file_stem()
         .unwrap_or(file.as_os_str())
@@ -59,12 +92,13 @@ pub(super) fn build_shared(
     })
 }
 
-/// [`build`], or with `shared` (the exports' C names) a shared library.
+/// [`build`], or with `shared` (the C names the library shows, and any C
+/// glue to compile into it) a shared library.
 fn build_with(
     front: &Front,
     (opt, cpu, target, costs): (OptLevel, Cpu, Target, Instruments),
     exe: &Path,
-    shared: Option<Vec<String>>,
+    shared: Option<(Vec<String>, Option<String>)>,
 ) -> Result<(), Failure> {
     // `debug(x)` is for development: an optimized build is a release. Only
     // the main file's package's calls are its to remove; a dependency's
@@ -100,8 +134,20 @@ fn build_with(
     let mut plan = link::Plan::new(&front.links, &mut link::pkg_config::run)
         .map_err(|e| Failure::Program(front.source.clone(), vec![e.diagnostic()]))?;
     (plan.tls, plan.crypto, plan.openssl) = (tls, crypto, openssl);
-    plan.shared = shared;
     let temp = TempDir::new().map_err(|e| internal(&front.source, temp_error(e)))?;
+    if let Some((symbols, glue)) = shared {
+        if let Some(glue) = glue {
+            let file = temp.path.join("jni.c");
+            std::fs::write(&file, glue)
+                .map_err(|e| internal(&front.source, format!("cannot write the JNI glue: {e}")))?;
+            plan.c_files.push(link::inputs::CFile {
+                file,
+                flags: Vec::new(),
+                span: crate::span::Span::new(0, 0),
+            });
+        }
+        plan.shared = Some(symbols);
+    }
     let object = temp.path.join("prog.o");
     codegen::emit_object_modules(
         &units(&front.modules),

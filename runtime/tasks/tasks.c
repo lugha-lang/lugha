@@ -86,6 +86,8 @@ struct Fiber {
      * body it runs, or NULL. */
     void *started_in;
     void *scopes;
+    /* The call from C it runs, for a function C calls by name (exports.c). */
+    void *export_call;
     /* Cancelled with this reason (`REASON_*`, 0 for none) and text, by this
      * scope (NULL: by its own scope, or by `cancel`); noticed at its next
      * safe point. A wait that may be cut short says so first. */

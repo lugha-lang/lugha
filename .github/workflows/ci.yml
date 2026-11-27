@@ -162,6 +162,31 @@ jobs:
         # The test jobs leave tests/android.rs out: only this job has the NDK.
         run: cargo test --test android
 
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # Kotlin's compiler, the release tests/kotlin.sh pins (its SHA-256
+        # checked), kept until the script changes.
+        id: kotlin
+        with:
+          path: kotlin
+          key: kotlin-${{ hashFiles('tests/kotlin.sh') }}
+
+      - name: Get Kotlin's compiler
+        if: steps.kotlin.outputs.cache-hit != 'true'
+        run: sh tests/kotlin.sh "$PWD/kotlin"
+
+      - name: Kotlin and Java calling a Lugha library
+        # The test jobs leave tests/jni.rs out: only this job has kotlinc.
+        run: |
+          export PATH="$PWD/kotlin/kotlinc/bin:$PATH"
+          cargo test --test jni
+          # The same, for the android job's emulator: the library for x86-64
+          # Android and the Kotlin program, made DEX there.
+          mkdir -p android/jni
+          target/debug/lughac build --shared --jni com.example.Words tests/jni/words.la \
+            --target x86_64-linux-android -o android/jni/libwords.so
+          kotlinc android/jni/com/example/Words.kt tests/jni/Main.kt \
+            -include-runtime -d android/jni/main.jar
+
       - name: Build the macOS cases
         # Built here, on Linux, through zig; the macos job runs them on a Mac.
         # Those in tests/macos/openssl/ need the OpenSSL above.
@@ -304,14 +329,15 @@ jobs:
         # were compiled with (`env!("CARGO_BIN_EXE_lughac")`).
         # No core dumps: the runner pipes each to its crash collector, which
         # made a test that dies by SIGSEGV on purpose take over 10 seconds.
-        # tests/android.rs runs in the build job, which has the NDK.
+        # tests/android.rs and tests/jni.rs run in the build job, which has
+        # the NDK and Kotlin's compiler.
         run: |
           ulimit -c 0
           cargo-nextest nextest run --profile ci \
             --archive-file nextest-archive.tar.zst \
             --extract-to . --extract-overwrite --workspace-remap . \
             --partition slice:${{ matrix.part }}/4 \
-            -E 'not binary(android)'
+            -E 'not binary(android) and not binary(jni)'
 
   android:
     name: Android (x86-64)
@@ -325,6 +351,13 @@ jobs:
         with:
           name: android-programs
           path: android
+
+      - name: Make the JNI test's DEX
+        # Android runs DEX, not JVM classes: the SDK's d8 turns the Kotlin
+        # program (its standard library included) into it.
+        run: |
+          d8=$(ls -d "$ANDROID_HOME"/build-tools/*/d8 | sort -V | tail -n 1)
+          "$d8" --min-api 29 --output android/jni android/jni/main.jar
 
       - name: Let the emulator use KVM
         run: |
