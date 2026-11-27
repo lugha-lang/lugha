@@ -85,13 +85,7 @@ static int64_t win_io_wait(SOCKET s, WinIo *io, int64_t deadline) {
         }
         net_waits_add((OsSocket)s, next_wait_gen(current), 0, false);
         current->cancellable = true;
-#if defined(__aarch64__)
-        win_bounds_note("io block");
-#endif
         why = block();
-#if defined(__aarch64__)
-        win_bounds_note("io woke");
-#endif
         current->cancellable = false;
         // The section is open again here (`switch_away`), so the list is
         // safe. One operation per wait here: none waits behind another.
@@ -103,14 +97,8 @@ static int64_t win_io_wait(SOCKET s, WinIo *io, int64_t deadline) {
     if (!done) {
         // Fails only once the operation is over: its packet comes either way.
         CancelIoEx((HANDLE)s, &io->ov);
-#if defined(__aarch64__)
-        win_bounds_note("io cancelled");
-#endif
         do {
             block();
-#if defined(__aarch64__)
-            win_bounds_note("io packet");
-#endif
         } while (__atomic_exchange_n(&io->packed, win_io_token(), __ATOMIC_ACQ_REL) !=
                  WIN_IO_DONE);
     }

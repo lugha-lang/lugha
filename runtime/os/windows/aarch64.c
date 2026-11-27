@@ -28,8 +28,8 @@
  *   184 DeallocationStack. */
 __asm__(".text\n"
         ".p2align 2\n"
-        ".globl win_task_swap_raw\n"
-        "win_task_swap_raw:\n"
+        ".globl lugha_rt_task_swap\n"
+        "lugha_rt_task_swap:\n"
         "    sub sp, sp, #192\n"
         "    stp x19, x20, [sp, #0]\n"
         "    stp x21, x22, [sp, #16]\n"
@@ -138,80 +138,18 @@ static void win_bounds_set(WinBounds b) {
     __asm__ volatile("str %0, [x18, #0x1478]" : : "r"(b.start) : "memory");
 }
 
-/* A diagnostic: each thread's last states of the TEB's stack bounds, and
- * the first one that doesn't hold the running stack pointer, or whose
- * committed end lies outside the stack, reported with those before it. */
-typedef struct {
-    const char *where;
-    char *base;
-    char *limit;
-    char *start;
-    char *sp;
-} WinNote;
-
-enum { WIN_NOTES = 16 };
-static __thread WinNote win_notes[WIN_NOTES];
-static __thread unsigned win_note_next;
-
-/* Not inlined: a fiber may come back on another thread, and each call
- * finds its own thread's notes afresh. */
-__attribute__((noinline)) static void win_bounds_note(const char *where) {
-    WinBounds b = win_bounds_get();
-    char *sp = (char *)__builtin_frame_address(0);
-    WinNote *n = &win_notes[win_note_next++ % WIN_NOTES];
-    *n = (WinNote){where, b.base, b.limit, b.start, sp};
-    if (b.start <= b.limit && b.limit <= b.base && b.start <= sp && sp < b.base) {
-        return;
-    }
-    HANDLE err = GetStdHandle(STD_ERROR_HANDLE);
-    DWORD wrote;
-    static const char head[] = "panic: internal error: stack bounds broken; the thread's last:\n";
-    WriteFile(err, head, sizeof head - 1, &wrote, NULL);
-    for (unsigned i = 0; i < WIN_NOTES; i++) {
-        WinNote *e = &win_notes[(win_note_next + i) % WIN_NOTES];
-        if (e->where == NULL) {
-            continue;
-        }
-        char line[200];
-        char *at = win_text(line, "  ");
-        at = win_text(at, e->where);
-        at = win_text(at, " base ");
-        at = win_hex(at, (uint64_t)(uintptr_t)e->base);
-        at = win_text(at, " limit ");
-        at = win_hex(at, (uint64_t)(uintptr_t)e->limit);
-        at = win_text(at, " start ");
-        at = win_hex(at, (uint64_t)(uintptr_t)e->start);
-        at = win_text(at, " sp ");
-        at = win_hex(at, (uint64_t)(uintptr_t)e->sp);
-        *at++ = '\n';
-        WriteFile(err, line, (DWORD)(at - line), &wrote, NULL);
-    }
-    TerminateProcess(GetCurrentProcess(), 101);
-}
-
-void win_task_swap_raw(void **save, void *load);
-
-/* `lugha_rt_task_swap`, its bounds checked on the way out and back. */
-void lugha_rt_task_swap(void **save, void *load) {
-    win_bounds_note("swap out");
-    win_task_swap_raw(save, load);
-    win_bounds_note("swap back");
-}
-
 /* A task stack's size less one (tasks/stacks.c). */
 extern uintptr_t lugha_rt_stack_mask;
 
 /* `lugha_rt_on_stack` (tasks/stacks.c): the TEB says the new stack while
  * `fn` runs on it, and the caller's again after. */
 void lugha_rt_on_stack(void (*fn)(void *), void *arg, char *top) {
-    win_bounds_note("on_stack in");
     WinBounds saved = win_bounds_get();
     char *stack = (char *)((uintptr_t)top & ~lugha_rt_stack_mask);
     WinBounds there = {stack + lugha_rt_stack_mask + 1, win_committed_low(stack, top), stack};
     win_bounds_set(there);
     win_on_stack_raw(fn, arg, top);
     win_bounds_set(saved);
-    win_bounds_note("on_stack out");
 }
 
 /* The frame a new fiber's first switch pops (tasks/spawn.c's `fiber_frame`),

@@ -2341,6 +2341,16 @@ Printing sites and `==` reach a type's own plain `show`/`eq` too (`show_instance
 
 ---
 
+### 228. No Intel Macs — milestone 282
+
+**Decision:** the user's choice (2026-11-27): Lugha programs aren't built for Intel Macs (`x86_64-apple-darwin`). Apple Silicon (`aarch64-apple-darwin`) stays the only Mac target.
+
+**Why:** Apple is dropping Intel Macs, so a target for them would be work for a shrinking set of machines.
+
+**Not now:** lughac itself on a Mac is planned for Apple Silicon only.
+
+---
+
 ## OPEN — Requires human input before implementation
 
 None.
