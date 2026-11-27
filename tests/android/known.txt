@@ -2,3 +2,6 @@
 # A reason is a real platform difference, or a bug written up in BUGS.md.
 # tests/suite.sh fails on any other failure, and on a case here that
 # passes; tests/platform_suite.rs checks each name is a run case.
+collections/growable_arrays/segv_from_c.la — on CI's Android 10 emulator a process the kernel kills with SIGSEGV doesn't end before the timeout; a C program with the default action and no handler of ours does the same (probe, 2026-11-27)
+std/fs_size/size.la — Android's SELinux policy doesn't let a shell user make a FIFO (`mkfifo: pipe: Permission denied`), so the FIFO line has no file to measure
+capabilities/clock_env_proc_entropy/process.la — Android has no `perl`, which the case runs to list a child's open descriptors
