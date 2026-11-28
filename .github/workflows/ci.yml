@@ -474,6 +474,68 @@ jobs:
         # Every test, the program suite among them.
         run: cargo-nextest nextest run --profile ci
 
+  lughac-windows:
+    name: lughac on Windows (${{ matrix.cpu }})
+    # lughac itself built and tested on Windows, from source: LLVM 21
+    # linked statically from LLVM's own archive, zig for Windows' own
+    # programs.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cpu: x64
+            runner: windows-latest
+            llvm: x86_64-pc-windows-msvc
+          - cpu: ARM64
+            runner: windows-11-arm
+            llvm: aarch64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      LUGHA_CROSS_TESTS: ""
+      LLVM: clang+llvm-21.1.8-${{ matrix.llvm }}
+    steps:
+      - name: Keep line ends as committed
+        # The tests compare output byte for byte with files holding `\n`.
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: llvm
+        with:
+          path: C:/llvm-21
+          key: ${{ env.LLVM }}
+
+      - name: Install LLVM 21
+        # Only what linking needs: llvm-config, the headers, the libraries.
+        if: steps.llvm.outputs.cache-hit != 'true'
+        run: |
+          curl -sSfL -o llvm.tar.xz "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.8/$LLVM.tar.xz"
+          sha256sum llvm.tar.xz
+          mkdir -p /c/llvm-21
+          tar -xJf llvm.tar.xz -C /c/llvm-21 --strip-components=1 --wildcards "$LLVM/bin/llvm-config.exe" "$LLVM/include/*" "$LLVM/lib/*.lib"
+          rm llvm.tar.xz
+
+      - name: Install Rust
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: ${{ matrix.cpu }}
+
+      - name: What LLVM links (probe only)
+        run: |
+          /c/llvm-21/bin/llvm-config.exe --version --link-static --system-libs --libdir
+          ls /c/llvm-21/lib | head -50
+
+      - name: Build
+        env:
+          LLVM_SYS_211_PREFIX: C:/llvm-21
+        run: cargo build
+
   windows:
     name: Windows (${{ matrix.cpu }})
     needs: build
