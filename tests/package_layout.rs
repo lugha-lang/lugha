@@ -133,6 +133,25 @@ fn the_lookup_never_reads_above_home() {
 }
 
 #[test]
+fn a_home_reached_through_a_symlink_still_stops_the_lookup() {
+    // As a Mac's temp folders are: `/var` is a link to `/private/var`.
+    let above = Temp::with(&[
+        ("lugha.toml", MANIFEST),
+        ("src/array.la", ARRAY),
+        ("me/examples/basics.la", BASICS),
+    ]);
+    let link = above.0.with_extension("link");
+    // A leftover link from an earlier run is replaced.
+    let _ = std::fs::remove_file(&link);
+    std::os::unix::fs::symlink(&above.0, &link).expect("the link is made");
+    let run = lughac(&link, &link.join("me"), &["check", "me/examples/basics.la"]);
+    // Best effort: a leftover link must not mask the real failure.
+    let _ = std::fs::remove_file(&link);
+    assert_eq!(run.status.code(), Some(1), "{}", text(&run.stderr));
+    assert!(text(&run.stderr).contains("E0312"), "{}", text(&run.stderr));
+}
+
+#[test]
 fn one_file_imported_twice_is_e0328() {
     let t = Temp::with(&[
         (

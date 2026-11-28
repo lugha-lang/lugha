@@ -262,6 +262,7 @@ fn waiting_on_what_only_cs_thread_sends_isnt_a_deadlock() {
 
 /// C's thread counts the allocations made while it runs a callback: the
 /// system allocator and `mmap`, interposed for this program only.
+#[cfg(target_os = "linux")]
 const COUNTING: &str = "#define _GNU_SOURCE\n\
 #include <pthread.h>\n#include <stddef.h>\n#include <stdint.h>\n\
 #include <unistd.h>\n#include <sys/mman.h>\n#include <sys/syscall.h>\n\
@@ -279,6 +280,8 @@ int64_t first_call(cb_t cb, void *d) {\n\
     pthread_t t; pthread_create(&t, 0, play, &j); pthread_join(t, 0);\n\
     return (int64_t)counted * 1000 + (int64_t)j.buf[3]; }\n";
 
+// Counts allocations by wrapping glibc's own `__libc_malloc`: Linux only.
+#[cfg(target_os = "linux")]
 #[test]
 fn a_realtime_callbacks_first_call_on_cs_thread_allocates_nothing() {
     let dir = std::env::temp_dir().join(format!("lugha-foreign-rt-{}", std::process::id()));

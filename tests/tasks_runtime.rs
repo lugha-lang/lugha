@@ -195,7 +195,11 @@ fn harness() -> &'static PathBuf {
     BUILT.get_or_init(|| {
         let dir = std::env::temp_dir().join(format!("lugha-tasks-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("temp dir is writable");
-        std::fs::write(dir.join("lugha_rt.c"), lugha::link::RUNTIME_SOURCE).expect("writable");
+        std::fs::write(
+            dir.join("lugha_rt.c"),
+            lugha::link::runtime_source(lugha::link::System::host()).as_bytes(),
+        )
+        .expect("writable");
         std::fs::write(dir.join("harness.c"), HARNESS).expect("writable");
         let exe = dir.join("harness");
         // No -Werror: `runtime_compiles_without_warnings` (tests/codegen.rs)

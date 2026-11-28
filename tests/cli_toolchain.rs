@@ -93,6 +93,8 @@ fn a_missing_lugha_cc_is_exit_2_and_never_reaches_a_shell() {
     assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
 }
 
+// Builds and runs Linux programs as this machine's own: Linux only.
+#[cfg(target_os = "linux")]
 #[test]
 fn target_takes_four_triples_on_build_run_and_test() {
     let dir = TempDir::with(&[("arith.la", ARITH.as_bytes())]);

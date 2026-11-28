@@ -29,8 +29,12 @@ impl Case {
             .args([
                 "req",
                 "-x509",
+                // P-256, not Ed25519: a Mac's verifier takes no Ed25519
+                // certificate.
                 "-newkey",
-                "ed25519",
+                "ec",
+                "-pkeyopt",
+                "ec_paramgen_curve:P-256",
                 "-nodes",
                 "-keyout",
                 "self.key",
@@ -40,6 +44,10 @@ impl Case {
                 "2",
                 "-subj",
                 "/CN=localhost",
+                // A Mac's verifier takes a server certificate only if it says
+                // it is one.
+                "-addext",
+                "extendedKeyUsage=serverAuth",
                 "-addext",
                 "subjectAltName=IP:127.0.0.1",
             ])
@@ -216,9 +224,13 @@ fn certificates_and_keys_do_not_mix() {
         try(net, console, by_cert.addr(), a, server.key);
         console.println(by_cert.set_accept([a.key]).debug());
         // A certificate connection has no peer key.
-        let c = tls.connect_with(net, by_cert.addr(), trust).unwrap();
-        console.println(c.peer_key().len);
-        c.close();
+        match tls.connect_with(net, by_cert.addr(), trust) {
+            .Ok(c) => {
+                console.println(c.peer_key().len);
+                c.close();
+            }
+            .Err(e) => console.println(e),
+        }
         // Leaving early cancels the servers, which never end.
         return;
     };

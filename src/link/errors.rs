@@ -140,6 +140,15 @@ pub fn foreign_refusals(
     env: &dyn Fn(&str) -> Option<std::ffi::OsString>,
 ) -> Result<Option<Folder>, Vec<Diagnostic>> {
     if native {
+        // A Mac has no OpenSSL of its own to link: the one the variable
+        // names, as for a foreign build, else Homebrew's.
+        if let (true, Some(first)) = (target.contains("-apple-"), tls.or(crypto)) {
+            return match super::openssl::find(target, env) {
+                Ok(Some(found)) => Ok(Some(found)),
+                Ok(None) => Ok(super::openssl::first_at(&super::openssl::HOMEBREW)),
+                Err(bad) => Err(vec![bad_openssl(&bad, first, target)]),
+            };
+        }
         return Ok(None);
     }
     let mut refused = Vec::new();

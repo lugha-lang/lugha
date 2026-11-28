@@ -44,11 +44,11 @@ pub use self::runtime_symbols::RUNTIME_SYMBOLS;
 /// [`LinkError::Failed`] with `cc`'s stderr if it fails.
 pub fn link(objects: &[&Path], output: &Path) -> Result<(), LinkError> {
     let cc = compiler::Compiler::from_env()?;
-    // lughac itself runs on Linux: a native link is for it.
+    // A native link: the runtime of the system lughac runs on.
     link_with(
         objects,
         &Plan::default(),
-        (Path::new(""), cc, System::Linux),
+        (Path::new(""), cc, System::host()),
         output,
     )
 }

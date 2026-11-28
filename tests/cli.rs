@@ -381,6 +381,7 @@ fn check_takes_a_loose_library_file_in_a_cycle_as_a_module() {
 }
 
 /// `lughac` with its stdout on `/dev/full`, where every write fails with "no space left".
+#[cfg(target_os = "linux")]
 fn lughac_to_full_disk(dir: &Path, args: &[&str]) -> std::process::Output {
     let full = std::fs::OpenOptions::new()
         .write(true)
@@ -394,6 +395,8 @@ fn lughac_to_full_disk(dir: &Path, args: &[&str]) -> std::process::Output {
         .expect("lughac runs")
 }
 
+// Needs Linux's `/dev/full`, a file every write to fails.
+#[cfg(target_os = "linux")]
 #[test]
 fn output_that_cant_be_written_is_exit_2() {
     let dir = TempDir::with(&[("arith.la", ARITH.as_bytes())]);

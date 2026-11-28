@@ -28,6 +28,7 @@ impl Temp {
     }
 
     /// The executable path a test recorded in `name`.
+    #[cfg(target_os = "linux")]
     fn exe(&self, name: &str) -> String {
         std::fs::read_to_string(self.0.join(name)).unwrap_or_else(|e| panic!("{name}: {e}"))
     }
@@ -58,6 +59,7 @@ const MANIFEST: &str = "[package]\nname = \"pack\"\nversion = \"0.1.0\"\n";
 /// A test file whose integration test records its executable's path (its
 /// first argument, from `/proc/self/cmdline`) in `{dir}/<record>`, with
 /// a helper and a test whose names every such file shares.
+#[cfg(target_os = "linux")]
 fn recording(record: &str, value: i64) -> String {
     format!(
         "fun helper(): i64 = {value};\n\
@@ -69,6 +71,8 @@ fn recording(record: &str, value: i64) -> String {
     )
 }
 
+// Each test names the executable it ran in from Linux's `/proc/self/cmdline`.
+#[cfg(target_os = "linux")]
 #[test]
 fn a_package_folder_builds_once_and_keeps_its_files_apart() {
     let a = recording("a.exe", 1);
@@ -106,6 +110,8 @@ fn a_test_file_another_imports_is_loaded_once() {
     assert!(stdout.contains("2 tests: 2 passed, 0 failed"), "{stdout}");
 }
 
+// Each test names the executable it ran in from Linux's `/proc/self/cmdline`.
+#[cfg(target_os = "linux")]
 #[test]
 fn a_broken_file_is_reported_alone_and_the_rest_share_a_build() {
     let a = recording("a.exe", 1);
@@ -131,6 +137,8 @@ fn a_broken_file_is_reported_alone_and_the_rest_share_a_build() {
     assert_eq!(t.exe("a.exe"), t.exe("c.exe"));
 }
 
+// Each test names the executable it ran in from Linux's `/proc/self/cmdline`.
+#[cfg(target_os = "linux")]
 #[test]
 fn other_folders_and_loose_files_build_apart() {
     let t = Temp::with(&[
@@ -151,6 +159,8 @@ fn other_folders_and_loose_files_build_apart() {
     assert_ne!(loose.exe("a.exe"), loose.exe("b.exe"));
 }
 
+// Each test names the executable it ran in from Linux's `/proc/self/cmdline`.
+#[cfg(target_os = "linux")]
 #[test]
 fn a_filter_builds_only_the_files_it_selects() {
     let broken = "@test\nfun bad() { let x: i64 = \"no\"; }\n";

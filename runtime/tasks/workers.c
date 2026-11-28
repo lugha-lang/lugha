@@ -209,6 +209,10 @@ static void poller_back(void) {
     lock_give(&sched_lock);
 }
 
+static bool poller_waiting(void) {
+    return __atomic_load_n(&poller_busy, __ATOMIC_SEQ_CST);
+}
+
 /* True if any worker has a fiber in its queue or its inbox. */
 static bool any_queued(void) {
     int n = __atomic_load_n(&workers_running, __ATOMIC_ACQUIRE);

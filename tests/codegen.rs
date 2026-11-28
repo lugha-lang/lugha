@@ -83,7 +83,7 @@ fn emit(src: &str, opt: OptLevel, cpu: Cpu, object: &Path) {
         &checked,
         &sources,
         opt,
-        (cpu, Target::default(), codegen::Instruments::default()),
+        (cpu, Target::native(), codegen::Instruments::default()),
         object,
     )
     .unwrap_or_else(|e| panic!("{src}: {e}"));
@@ -99,6 +99,7 @@ fn build_and_run(src: &str, opt: OptLevel) -> ExitStatus {
 
 /// The object file `src` makes at -O2 for `cpu`, and the exit code of the
 /// program linked from it.
+#[cfg(target_arch = "x86_64")]
 fn object_and_exit(src: &str, cpu: Cpu) -> (Vec<u8>, Option<i32>) {
     let dir = TempDir::new();
     let (object, exe) = (dir.0.join("prog.o"), dir.0.join("prog"));
@@ -112,6 +113,7 @@ fn object_and_exit(src: &str, cpu: Cpu) -> (Vec<u8>, Option<i32>) {
 }
 
 /// True if `code` holds a `popcnt`: `F3`, an optional REX prefix, `0F B8`.
+#[cfg(target_arch = "x86_64")]
 fn has_popcnt(code: &[u8]) -> bool {
     let plain = code.windows(3).any(|w| w == [0xF3, 0x0F, 0xB8]);
     let rex = code
@@ -120,6 +122,8 @@ fn has_popcnt(code: &[u8]) -> bool {
     plain || rex
 }
 
+// x86-64's instruction levels: an ARM64 machine has none of them.
+#[cfg(target_arch = "x86_64")]
 #[test]
 fn the_default_cpu_is_baseline_x86_64_and_cpu_levels_add_instructions() {
     // `args()` keeps the value unknown until the program runs, so LLVM
@@ -247,7 +251,11 @@ fn let_initialiser_reads_the_outer_binding() {
 fn runtime_compiles_without_warnings() {
     let dir = TempDir::new();
     let source = dir.0.join("lugha_rt.c");
-    std::fs::write(&source, lugha::link::RUNTIME_SOURCE).expect("temp dir is writable");
+    std::fs::write(
+        &source,
+        lugha::link::runtime_source(lugha::link::System::host()).as_bytes(),
+    )
+    .expect("temp dir is writable");
     let out = Command::new("cc")
         .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
         .arg(&source)

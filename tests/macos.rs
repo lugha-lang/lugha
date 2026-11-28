@@ -95,6 +95,8 @@ fn every_macos_case_builds_into_a_mach_o_arm64_executable() {
     assert!(cases >= 2, "{cases} cases");
 }
 
+// On a Mac, a Mac's programs do run.
+#[cfg(not(target_os = "macos"))]
 #[test]
 fn a_macos_program_is_never_run_here() {
     let hello = "tests/macos/hello.la";

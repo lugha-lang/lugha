@@ -74,8 +74,13 @@ const SIDE: &str = "#define _GNU_SOURCE\n\
     ctx *ctx_new(void) { ctx *c = malloc(sizeof *c); c->owner = pthread_self(); c->wrong = 0; return c; }\n\
     void ctx_draw(ctx *c, long n) { (void)n; if (!pthread_equal(c->owner, pthread_self())) c->wrong++; }\n\
     long ctx_wrong(ctx *c) { return c->wrong; }\n\
+    #ifdef __APPLE__\n\
+    long thread_id(void) { unsigned long long id; pthread_threadid_np(NULL, &id); return (long)id; }\n\
+    long on_main_thread(void) { return pthread_main_np(); }\n\
+    #else\n\
     long thread_id(void) { return (long)gettid(); }\n\
-    long on_main_thread(void) { return getpid() == gettid(); }\n";
+    long on_main_thread(void) { return getpid() == gettid(); }\n\
+    #endif\n";
 
 /// Busy unpinned tasks beside the pinned ones, so idle workers steal.
 const BUSY: &str = "fun busy(n: i64, out: Sender<i64>) {\n\

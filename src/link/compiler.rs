@@ -11,6 +11,9 @@ use std::process::Command;
 
 use super::{LinkError, ndk, zig};
 
+/// The oldest macOS a Mac's own build runs on, as `cc` takes it.
+pub const MAC_MINIMUM: &str = "-mmacosx-version-min=14.4";
+
 /// A C compiler: a program and the arguments that go before lughac's own.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Compiler {
@@ -61,8 +64,16 @@ impl Compiler {
     /// As [`Compiler::from_env`], [`ndk::find`]'s for Android, and
     /// [`zig::check`]'s for another foreign target.
     pub fn for_target(target: &str, native: bool) -> Result<Compiler, LinkError> {
-        let chosen = Compiler::from_env()?;
-        if chosen.from_env || native {
+        let mut chosen = Compiler::from_env()?;
+        if chosen.from_env {
+            return Ok(chosen);
+        }
+        if native {
+            // A Mac's own build runs on any Mac zig's would: 14.4 brought
+            // `os_sync_wait_on_address`, which the runtime waits with.
+            if target.contains("-apple-") {
+                chosen.args.push(OsString::from(MAC_MINIMUM));
+            }
             return Ok(chosen);
         }
         if target.ends_with("-android") {
@@ -206,6 +217,18 @@ mod tests {
 
     fn strings<'a>(items: impl Iterator<Item = &'a std::ffi::OsStr>) -> Vec<String> {
         items.map(|a| a.to_string_lossy().into_owned()).collect()
+    }
+
+    #[test]
+    fn a_macs_own_build_runs_on_any_mac_from_14_4() {
+        // Unless `$LUGHA_CC` names a compiler, whose words are all it gets.
+        if std::env::var_os("LUGHA_CC").is_some() {
+            return;
+        }
+        let mac = Compiler::for_target("aarch64-apple-darwin", true).unwrap();
+        assert_eq!(mac.words(), format!("cc {}", super::MAC_MINIMUM));
+        let linux = Compiler::for_target("x86_64-unknown-linux-gnu", true).unwrap();
+        assert_eq!(linux.words(), "cc");
     }
 
     #[test]

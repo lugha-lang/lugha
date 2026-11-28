@@ -43,7 +43,7 @@ impl Project {
         // Logs each call; with FAIL_OPENSSL, the runtime's compile fails as without OpenSSL.
         let body = format!(
             "#!/bin/sh\necho \"$@\" >> \"{log}\"\n\
-             case \"$*\" in *lughac-rt*) if [ -n \"$FAIL_OPENSSL\" ] && [ \"$1\" = -c ]; then \
+             case \"$*\" in *lughac-rt*) if [ -n \"$FAIL_OPENSSL\" ] && echo \" $* \" | grep -q \" -c \"; then \
              echo 'fatal error: openssl/ssl.h: No such file or directory' >&2; exit 1; fi;; esac\n\
              exec \"{real}\" \"$@\"\n",
             log = p.0.join("cc.log").display()
@@ -84,7 +84,8 @@ impl Project {
         let log = std::fs::read_to_string(self.0.join("cc.log")).unwrap_or_default();
         let compiles = log
             .lines()
-            .filter(|l| l.starts_with("-c "))
+            // `-c` anywhere: a Mac's own builds name the oldest macOS first.
+            .filter(|l| l.split(' ').any(|w| w == "-c"))
             .map(str::to_string)
             .collect();
         (out, compiles)

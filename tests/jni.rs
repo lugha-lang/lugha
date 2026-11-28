@@ -67,7 +67,13 @@ fn ok(mut program: Command, what: &str) -> String {
 
 /// `tests/jni/words.la` built with `--jni` (and `extra`) into `t`.
 fn library(t: &Temp, extra: &[&str]) {
-    let mut args = vec!["--jni", "com.example.Words", "-o", "libwords.so"];
+    // Named as the JVM looks for `words` on this system.
+    let name = if cfg!(target_os = "macos") {
+        "libwords.dylib"
+    } else {
+        "libwords.so"
+    };
+    let mut args = vec!["--jni", "com.example.Words", "-o", name];
     args.extend(extra);
     let built = lughac(&t.0, &root().join("tests/jni/words.la"), &args);
     assert!(built.status.success(), "{}", text(&built.stderr));

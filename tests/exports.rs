@@ -234,17 +234,25 @@ fn only_the_exports_are_visible() {
     .unwrap();
     let built = lughac(&t.0, &["lib.la"]);
     assert!(built.status.success(), "{}", text(&built.stderr));
-    // Named as the system names a library, its header beside it.
-    assert!(t.0.join("liblib.so").is_file());
+    // Named as the system names a library, its header beside it; a Mac's
+    // nm lists exported symbols with `-gU`, each with C's leading `_`.
+    let (name, args, prefix) = if cfg!(target_os = "macos") {
+        ("liblib.dylib", ["-gU"].as_slice(), "_")
+    } else {
+        ("liblib.so", ["-D", "--defined-only"].as_slice(), "")
+    };
+    assert!(t.0.join(name).is_file());
     assert!(t.0.join("lib.h").is_file());
     let nm = Command::new("nm")
-        .args(["-D", "--defined-only", "liblib.so"])
+        .args(args)
+        .arg(name)
         .current_dir(&t.0)
         .output()
         .expect("nm runs");
     let shown: Vec<String> = text(&nm.stdout)
         .lines()
-        .filter_map(|l| l.split_whitespace().nth(2).map(str::to_string))
+        .filter_map(|l| l.split_whitespace().nth(2))
+        .map(|symbol| symbol.strip_prefix(prefix).unwrap_or(symbol).to_string())
         .collect();
     assert_eq!(shown, ["one"]);
 }

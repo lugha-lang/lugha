@@ -19,9 +19,13 @@ pub(super) fn env(mode: Mode) -> LoadEnv {
     let root = cache::root(|name| std::env::var_os(name));
     // Without a current folder the lookup can't go up: `/` stops it at once.
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
+    // Resolved as the current folder is, so a home reached through a
+    // symlink (a Mac's `/var` is `/private/var`) still stops the lookup;
+    // one that can't be resolved is compared as given.
     let home = std::env::var_os("HOME")
         .map(PathBuf::from)
-        .filter(|h| h.is_absolute());
+        .filter(|h| h.is_absolute())
+        .map(|h| std::fs::canonicalize(&h).unwrap_or(h));
     LoadEnv {
         fetcher: Fetcher::new(Box::new(SystemGit), root, mode),
         home,

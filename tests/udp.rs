@@ -182,10 +182,11 @@ fn shared_sockets_hear_a_multicast_group_until_they_leave() {
 
 #[test]
 fn interfaces_include_loopback() {
+    // Linux names the loopback interface `lo`, a Mac `lo0`.
     let out = run("fun main(console: Console, net: Net) {
     let all = net.interfaces().unwrap();
     for i of all {
-        if i.name == \"lo\" {
+        if i.name == \"lo\" || i.name == \"lo0\" {
             console.println(i.up);
             console.println(i.index >= 1);
             let mut has = false;

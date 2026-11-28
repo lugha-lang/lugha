@@ -180,7 +180,9 @@ static bool posix_urandom64(uint64_t *out);
  * the multicast groups it joined; with the flag `OS_SEND_FLAGS` (a closed
  * peer an error, not SIGPIPE) as a macro. A system's file also defines
  * `OS_MONOTONIC`, the clock deadlines and sleeps are measured on, which
- * stops while the machine is suspended. */
+ * stops while the machine is suspended. A system whose thread-locals are
+ * freed before a pthread key's destructor runs defines
+ * `OS_THREAD_AT_EXIT(fn, arg)`, run at the thread's exit before that. */
 static int os_sock_raw(int family, int type, int protocol);
 static int os_accept_raw(int s);
 static bool os_udp_own_groups(int s, int family);

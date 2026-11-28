@@ -30,6 +30,8 @@ static int32_t net_error(LughaString **error, const char *message) {
 /* The poller stops counting as parked before what it found wakes tasks
  * (workers.c). */
 static void poller_back(void);
+/* Whether a worker waits in the poll (workers.c). */
+static bool poller_waiting(void);
 
 #if !defined(_WIN32)
 /* A socket the poll found ready for `ready`: the tasks waiting that way
@@ -38,8 +40,9 @@ static void net_fd_ready(int fd, uint32_t ready);
 static void net_fd_closed(int fd);
 #endif
 
-/* What one poll found, waking tasks: under the lock, as every wake is. */
-static void poll_found(OsEvent *events, int n) {
+/* What one poll found, waking tasks: under the lock, as every wake is.
+ * `waits`: the poll could wait, so it was the poller's own. */
+static void poll_found(OsEvent *events, int n, bool waits) {
     RT_SECTION();
     for (int i = 0; i < n; i++) {
 #if !defined(_WIN32)
@@ -54,6 +57,14 @@ static void poll_found(OsEvent *events, int n) {
         }
         if (events[i].token == OS_TOKEN_WAKE) {
             wake_taken();
+            // Meant for the worker waiting in the poll: a look that doesn't
+            // wait took it (a kqueue or a completion port reports it to one
+            // caller only), so it is raised again, or that worker sleeps on
+            // through a new timer or a task made ready for it. At worst the
+            // poller wakes once for nothing.
+            if (!waits && poller_waiting()) {
+                poller_kick();
+            }
             continue;
         }
         // A fiber and the wait it was armed for (an operation's completion,
@@ -85,7 +96,7 @@ static void poll_sockets(int64_t wait_ns) {
         poller_back();
     }
     if (n > 0) {
-        poll_found(events, n);
+        poll_found(events, n, ms != 0);
     }
     // Rings whose writers found readers waiting (rings.c): after the
     // wake-up event was emptied, so a ring listed from now on kicks it

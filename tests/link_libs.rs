@@ -193,6 +193,8 @@ fn pkg_config_flags_link_the_library() {
     ran(&t.lughac(&["run", "main.la"], Some(&fake)), "5\n");
 }
 
+// SSE flags are x86-64's: ARM64's compilers refuse them.
+#[cfg(target_arch = "x86_64")]
 #[test]
 fn c_files_build_with_gtks_sse_cflags() {
     let t = Temp::with(&[

@@ -202,14 +202,21 @@ vim.lsp.enable("lugha")
 
 ## Working on lughac
 
-To build `lughac` on your own computer, you need Linux, Rust, LLVM 21 (`llvm-21-dev`) and a C
-compiler.
+To build `lughac` on your own computer, you need Linux or a Mac with Apple Silicon (macOS 14.4 or
+newer), Rust, LLVM 21 and a C compiler.
 
 ```sh
+# Linux: llvm-21-dev, a C compiler and libssl-dev
+# Mac:   brew install llvm@21 openssl@3, and Xcode's command-line tools for cc
 cargo install --path .
-cargo test        # needs llvm-21-dev, a C compiler and libssl-dev
+cargo test
 cargo fmt --check && cargo clippy --all-targets -- -D warnings
 ```
+
+On a Mac, programs build with Apple's `cc` and run on any Mac with macOS 14.4 or newer; a program
+using `std.tls` or `std.crypto` links Homebrew's `openssl@3`, or the one
+`LUGHA_OPENSSL_AARCH64_APPLE_DARWIN` names. Builds for other systems go through zig, as on Linux,
+but only a Mac's own builds run there.
 
 The test programs live in [`tests/programs/`](tests/programs), one folder for each feature. A
 test is a `.la` file with the output it should print next to it. To add one, add the files.

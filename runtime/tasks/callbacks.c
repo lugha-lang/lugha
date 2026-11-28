@@ -262,8 +262,13 @@ static void foreign_attach(Worker *w, bool realtime) {
     f->number = __atomic_add_fetch(&fibers_started, 1, __ATOMIC_RELAXED);
     w->running = f;
     c_stack_use(stack);
+#if defined(OS_THREAD_AT_EXIT)
+    // Before the thread-locals go, `w` among them.
+    OS_THREAD_AT_EXIT(foreign_exit, w);
+#else
     // Any value: the destructor runs only for a non-NULL one.
     pthread_setspecific(foreign_key, w);
+#endif
 }
 
 /* `lugha_rt_cb_run(body, frame)`: every C entry into Lugha runs its body

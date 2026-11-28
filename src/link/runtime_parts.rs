@@ -64,6 +64,15 @@ pub enum System {
 }
 
 impl System {
+    /// The system lughac runs on: Linux, or macOS on a Mac.
+    pub fn host() -> System {
+        if cfg!(target_os = "macos") {
+            System::MacOs
+        } else {
+            System::Linux
+        }
+    }
+
     /// The system of the triple `triple`.
     pub fn of(triple: &str) -> System {
         if triple.contains("-apple-") {
@@ -433,6 +442,16 @@ pub const RUNTIME_SOURCE: &str = concat!(
 #[cfg(test)]
 mod tests {
     use super::{ANDROID_ONLY, RUNTIME_PARTS, RUNTIME_SOURCE, System, runtime_source};
+
+    #[test]
+    fn the_host_is_the_system_lughac_was_built_for() {
+        let expected = if cfg!(target_os = "macos") {
+            System::MacOs
+        } else {
+            System::Linux
+        };
+        assert_eq!(System::host(), expected);
+    }
 
     #[test]
     fn android_is_linux_with_the_folder_walk_for_openat2() {

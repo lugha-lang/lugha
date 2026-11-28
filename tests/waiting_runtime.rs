@@ -104,7 +104,11 @@ fn harness(atomic: bool) -> &'static PathBuf {
             u8::from(atomic)
         ));
         std::fs::create_dir_all(&dir).expect("temp dir is writable");
-        std::fs::write(dir.join("lugha_rt.c"), lugha::link::RUNTIME_SOURCE).expect("writable");
+        std::fs::write(
+            dir.join("lugha_rt.c"),
+            lugha::link::runtime_source(lugha::link::System::host()).as_bytes(),
+        )
+        .expect("writable");
         std::fs::write(dir.join("harness.c"), HARNESS).expect("writable");
         let exe = dir.join("harness");
         let define = format!("-DLUGHA_TASKS_CROSS_THREADS={}", u8::from(atomic));

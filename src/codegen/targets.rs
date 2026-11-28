@@ -60,9 +60,12 @@ impl Target {
 
     /// The triple LLVM generates code for: [`Target::triple`], but for
     /// Android, whose carries the oldest Android supported (10, API 29),
-    /// so thread-locals are the system's own rather than emulated.
+    /// so thread-locals are the system's own rather than emulated, and for
+    /// macOS, whose names the oldest macOS supported (14.4), so the object
+    /// tells the linker its platform.
     pub fn llvm_triple(self) -> &'static str {
         match self {
+            Target::Aarch64MacOs => "arm64-apple-macosx14.4.0",
             Target::Aarch64Android => "aarch64-unknown-linux-android29",
             Target::X86_64Android => "x86_64-unknown-linux-android29",
             other => other.triple(),
@@ -87,6 +90,10 @@ impl Target {
     /// The machine lughac itself was built for, which its own builds and
     /// runs target unless `--target` names another.
     pub fn native() -> Target {
+        // lughac on a Mac: Apple Silicon's, the one Mac target.
+        if cfg!(target_os = "macos") {
+            return Target::Aarch64MacOs;
+        }
         let arm = cfg!(target_arch = "aarch64");
         match (arm, cfg!(target_env = "musl")) {
             (false, false) => Target::X86_64Linux,
@@ -172,6 +179,15 @@ mod tests {
         }
         assert!(!Target::Aarch64LinuxMusl.is_android());
         assert_eq!(Target::X86_64Windows.llvm_triple(), "x86_64-pc-windows-gnu");
+    }
+
+    #[test]
+    fn a_mac_object_names_the_oldest_macos_it_runs_on() {
+        assert_eq!(
+            Target::Aarch64MacOs.llvm_triple(),
+            "arm64-apple-macosx14.4.0"
+        );
+        assert_eq!(Target::Aarch64MacOs.triple(), "aarch64-apple-darwin");
     }
 
     #[test]

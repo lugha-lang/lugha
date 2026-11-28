@@ -149,6 +149,10 @@ fn tls_and_https_run_over_a_fake_net_and_a_refusing_one_keeps_them_off_the_netwo
             "2",
             "-subj",
             "/CN=localhost",
+            // A Mac's verifier takes a server certificate only if it says
+            // it is one.
+            "-addext",
+            "extendedKeyUsage=serverAuth",
             "-addext",
             "subjectAltName=DNS:localhost",
         ])

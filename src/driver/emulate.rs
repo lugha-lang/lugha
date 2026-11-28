@@ -43,6 +43,7 @@ impl Runner {
 pub(super) fn runner(target: Target) -> Result<Runner, String> {
     let machine = Machine {
         arch: Target::native().arch(),
+        mac: cfg!(target_os = "macos"),
         prefix_set: std::env::var_os("QEMU_LD_PREFIX").is_some(),
         has: &|name| on_path(name),
         is_dir: &|path| path.is_dir(),
@@ -54,6 +55,8 @@ pub(super) fn runner(target: Target) -> Result<Runner, String> {
 struct Machine<'a> {
     /// This machine's CPU.
     arch: Arch,
+    /// Whether this machine is a Mac, which runs only its own builds.
+    mac: bool,
     /// Whether `QEMU_LD_PREFIX` is set, which then always wins.
     prefix_set: bool,
     /// Whether a program of this name is on `PATH`.
@@ -62,27 +65,45 @@ struct Machine<'a> {
     is_dir: &'a dyn Fn(&Path) -> bool,
 }
 
+/// Why a Windows or Android build doesn't run here.
+fn elsewhere(target: Target) -> String {
+    if target.is_windows() {
+        format!(
+            "a program built for {} runs only on Windows: build it with `lughac build`",
+            target.triple()
+        )
+    } else {
+        format!(
+            "a program built for {} runs only on Android: build it with `lughac build`, then run it with `adb shell`",
+            target.triple()
+        )
+    }
+}
+
 /// [`runner`] on `machine`.
 fn choose(target: Target, machine: &Machine) -> Result<Runner, String> {
+    // A Mac runs its own builds directly, and nothing else: no qemu-user
+    // there, nor Linux's kernel for an ELF.
+    if machine.mac {
+        return match target {
+            Target::Aarch64MacOs => Ok(Runner::default()),
+            t if t.is_windows() || t.is_android() => Err(elsewhere(t)),
+            t => Err(format!(
+                "a program built for {} runs only on Linux: build it with `lughac build`",
+                t.triple()
+            )),
+        };
+    }
     if target == Target::Aarch64MacOs {
         return Err(format!(
             "a program built for {} runs only on a Mac: build it with `lughac build`",
             target.triple()
         ));
     }
-    if target.is_windows() {
-        return Err(format!(
-            "a program built for {} runs only on Windows: build it with `lughac build`",
-            target.triple()
-        ));
-    }
     // Before the CPU check: an x86-64 Android build would otherwise start
     // here, on a Linux without Android's C library.
-    if target.is_android() {
-        return Err(format!(
-            "a program built for {} runs only on Android: build it with `lughac build`, then run it with `adb shell`",
-            target.triple()
-        ));
+    if target.is_windows() || target.is_android() {
+        return Err(elsewhere(target));
     }
     let arch = target.arch();
     if arch == machine.arch {
@@ -145,6 +166,7 @@ mod tests {
         let is_dir = move |path: &Path| cross_libc && path == Path::new("/usr/aarch64-linux-gnu");
         let machine = Machine {
             arch: Arch::X86_64,
+            mac: false,
             prefix_set,
             has: &has,
             is_dir: &is_dir,
@@ -175,6 +197,7 @@ mod tests {
         let is_dir = |_: &Path| true;
         let machine = Machine {
             arch,
+            mac: false,
             prefix_set: false,
             has: &has,
             is_dir: &is_dir,
@@ -191,6 +214,38 @@ mod tests {
         }
         let arm = on(Arch::Aarch64, Target::Aarch64LinuxMusl, false).unwrap();
         assert_eq!(args(&arm), ["/t/prog"]);
+    }
+
+    #[test]
+    fn a_mac_runs_its_own_builds_and_nothing_else() {
+        let (has, is_dir) = (|_: &str| true, |_: &Path| true);
+        let mac = Machine {
+            arch: Arch::Aarch64,
+            mac: true,
+            prefix_set: false,
+            has: &has,
+            is_dir: &is_dir,
+        };
+        let runner = choose(Target::Aarch64MacOs, &mac).unwrap();
+        assert_eq!(args(&runner), ["/t/prog"]);
+        for linux in [
+            Target::Aarch64Linux,
+            Target::Aarch64LinuxMusl,
+            Target::X86_64Linux,
+        ] {
+            let refused = choose(linux, &mac).unwrap_err();
+            assert!(refused.contains("runs only on Linux"), "{refused}");
+        }
+        assert!(
+            choose(Target::Aarch64Windows, &mac)
+                .unwrap_err()
+                .contains("only on Windows")
+        );
+        assert!(
+            choose(Target::Aarch64Android, &mac)
+                .unwrap_err()
+                .contains("only on Android")
+        );
     }
 
     #[test]

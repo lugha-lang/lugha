@@ -30,6 +30,13 @@ int os_sync_wait_on_address(void *addr, uint64_t value, size_t size, uint32_t fl
 int os_sync_wake_by_address_any(void *addr, size_t size, uint32_t flags);
 int os_sync_wake_by_address_all(void *addr, size_t size, uint32_t flags);
 
+/* Runs `fn(arg)` as the calling thread exits, while its thread-locals
+ * still live: macOS frees them before the destructors of keys made later,
+ * so such a destructor would find the thread's worker already freed.
+ * libSystem's, the hook C++ `thread_local` destructors run through. */
+void _tlv_atexit(void (*fn)(void *), void *arg);
+#define OS_THREAD_AT_EXIT(fn, arg) _tlv_atexit((fn), (arg))
+
 /* The clock deadlines and sleeps are measured on: macOS's
  * `CLOCK_MONOTONIC` keeps counting while the Mac sleeps, its
  * `CLOCK_UPTIME_RAW` stops, as Linux's `CLOCK_MONOTONIC` does. */

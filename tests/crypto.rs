@@ -230,6 +230,8 @@ fun main(console: Console, entropy: Entropy) {
     );
 }
 
+// Reads the program's memory from Linux's `/proc/self/status`.
+#[cfg(target_os = "linux")]
 #[test]
 fn abandoned_hashers_are_freed() {
     // Each hasher holds an OpenSSL context; without freeing it with the

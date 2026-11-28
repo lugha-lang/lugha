@@ -238,6 +238,8 @@ fn test_runs_arm_tests_under_qemu() {
     assert!(stdout.contains("1 passed, 1 failed"), "{stdout}");
 }
 
+// Linux only: a Mac never runs a Linux build, qemu or not.
+#[cfg(target_os = "linux")]
 #[test]
 fn run_without_qemu_says_what_to_install() {
     let t = project("fun main(console: Console) {\n    console.println(\"hi\");\n}\n");

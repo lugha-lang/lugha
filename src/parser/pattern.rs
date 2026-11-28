@@ -268,16 +268,26 @@ mod tests {
             ),
             "(match s (=> (.Some (.Circle r)) (guard (> r 1.0)) r) (=> (.Rect _ (.Some 1)) 0.0) (=> (.Some \"x\") 1.0) (=> (.Some -2) 2.0) (=> _ 3.0))"
         );
-        let deep = format!(
-            "fun t() {{ match x {{ {}y{} => 1 }} }}",
-            ".S(".repeat(300),
-            ")".repeat(300)
-        );
-        assert!(
-            errors(&deep).iter().any(|(code, _)| *code == "E0206"),
-            "{:?}",
-            errors(&deep)
-        );
+        // On a thread of `lughac`'s main thread's size (8 MiB): a test
+        // thread's 2 MiB is too close to the nesting limit's depth.
+        let deep = || {
+            let deep = format!(
+                "fun t() {{ match x {{ {}y{} => 1 }} }}",
+                ".S(".repeat(300),
+                ")".repeat(300)
+            );
+            assert!(
+                errors(&deep).iter().any(|(code, _)| *code == "E0206"),
+                "{:?}",
+                errors(&deep)
+            );
+        };
+        std::thread::Builder::new()
+            .stack_size(8 << 20)
+            .spawn(deep)
+            .expect("a thread starts")
+            .join()
+            .expect("no overflow");
     }
 
     #[test]

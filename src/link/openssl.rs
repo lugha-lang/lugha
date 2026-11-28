@@ -68,6 +68,22 @@ pub fn find(target: &str, env: &dyn Fn(&str) -> Option<OsString>) -> Result<Opti
     Ok(Some(Folder(root)))
 }
 
+/// Where Homebrew keeps OpenSSL 3 on a Mac (Apple Silicon's prefix, then
+/// Intel's), off the compiler's default paths: a Mac has no OpenSSL of its
+/// own for programs to link.
+pub const HOMEBREW: [&str; 2] = ["/opt/homebrew/opt/openssl@3", "/usr/local/opt/openssl@3"];
+
+/// The first of `places` holding OpenSSL's headers and static libraries,
+/// checked as paths (nothing is run to find them).
+pub fn first_at(places: &[&str]) -> Option<Folder> {
+    places.iter().map(PathBuf::from).find_map(|root| {
+        NEEDED
+            .iter()
+            .all(|file| root.join(file).is_file())
+            .then_some(Folder(root))
+    })
+}
+
 impl Folder {
     /// The folder itself, for messages.
     pub fn path(&self) -> &Path {
@@ -129,6 +145,19 @@ mod tests {
             // Best effort: a leftover temp folder is harmless.
             let _ = std::fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[test]
+    fn homebrews_places_are_checked_in_order_by_path() {
+        let partial = Temp::with(&["include/openssl/ssl.h", "lib/libssl.a"]);
+        let whole = Temp::with(&NEEDED);
+        let places = [
+            partial.0.to_str().unwrap(),
+            "/no/such/openssl",
+            whole.0.to_str().unwrap(),
+        ];
+        assert_eq!(first_at(&places), Some(Folder(whole.0.clone())));
+        assert_eq!(first_at(&places[..2]), None);
     }
 
     fn env_naming(value: &Path) -> impl Fn(&str) -> Option<OsString> {
