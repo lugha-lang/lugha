@@ -5,6 +5,9 @@
 //! caught by Lugha functions' entry check, which C has not: see the
 //! overflow programs under `tests/programs/`.
 
+// Unix only: the harness drives the runtime with POSIX threads, built by the system `cc`; Windows' runtime is tested through whole programs.
+#![cfg(unix)]
+
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::OnceLock;

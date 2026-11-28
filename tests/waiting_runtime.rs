@@ -3,6 +3,9 @@
 //! own functions. On one thread a waker never meets a task still parking;
 //! these cases build that moment by hand.
 
+// Unix only: the harness drives the runtime with POSIX threads, built by the system `cc`; Windows' runtime is tested through whole programs.
+#![cfg(unix)]
+
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::OnceLock;

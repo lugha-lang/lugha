@@ -4,6 +4,9 @@
 //! so most frees are of another worker's blocks. Built plainly and with
 //! ThreadSanitizer.
 
+// Unix only: the harness drives the runtime with POSIX threads, built by the system `cc`; Windows' runtime is tested through whole programs.
+#![cfg(unix)]
+
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::OnceLock;

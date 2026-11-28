@@ -71,7 +71,14 @@ pub(super) fn not_found(
     beside: Option<&[String]>,
     package: Option<&str>,
 ) -> Diagnostic {
-    let mut help = format!("there is no file `{}`", file.display());
+    // With `/` on Windows too, as a module path spells it; elsewhere a
+    // backslash is part of a name.
+    let shown = if cfg!(windows) {
+        file.to_string_lossy().replace('\\', "/")
+    } else {
+        file.display().to_string()
+    };
+    let mut help = format!("there is no file `{shown}`");
     // A package's modules import each other without its name: `import
     // glow.array;` inside `glow` asks for `glow.glow.array`.
     if let (Some(own), [first, second, rest @ ..]) = (package, path)

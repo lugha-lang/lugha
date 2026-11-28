@@ -1,0 +1,6 @@
+# On Windows lughac links LLVM statically from LLVM's own archive, which is
+# built against the static C runtime: lughac uses it too, or the two
+# runtimes' separate heaps crash LLVM. It also leaves lughac.exe needing no
+# Visual C++ runtime installed.
+[target.'cfg(all(windows, target_env = "msvc"))']
+rustflags = ["-C", "target-feature=+crt-static"]

@@ -2,6 +2,9 @@
 //! parallel, every concurrency program behaves with four workers, and the
 //! runtime's scheduling is clean under ThreadSanitizer.
 
+// Unix only: the harness drives the runtime with POSIX threads, built by the system `cc`; Windows' runtime is tested through whole programs.
+#![cfg(unix)]
+
 // Only the runner's discovery is used here: it runs each program itself,
 // several times over one build, so the rest of the shared runner goes unused.
 #[allow(dead_code, unused_imports)]

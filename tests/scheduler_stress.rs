@@ -4,6 +4,9 @@
 //! may not starve beside a busy task, and a task made ready as every worker
 //! parks still runs.
 
+// Unix only: the harness drives the runtime with POSIX threads, built by the system `cc`; Windows' runtime is tested through whole programs.
+#![cfg(unix)]
+
 #[path = "common/c_harness.rs"]
 mod c_harness;
 

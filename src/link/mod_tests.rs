@@ -209,7 +209,8 @@ fn runtime_files(dir: &std::path::Path, base: &std::path::Path, out: &mut Vec<St
             runtime_files(&path, base, out);
         } else if path.extension().is_some_and(|e| e == "c") {
             let rel = path.strip_prefix(base).expect("under runtime/");
-            out.push(rel.to_string_lossy().into_owned());
+            // Named as the parts table names them, with `/` on every system.
+            out.push(rel.to_string_lossy().replace('\\', "/"));
         }
     }
 }

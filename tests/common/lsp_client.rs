@@ -36,8 +36,20 @@ impl Temp {
         self.0.join(name)
     }
 
+    /// The `file:` URI of `name` here, as lughac writes it: on Windows in
+    /// VS Code's form, `file:///c%3A/Users/…`.
     pub fn uri(&self, name: &str) -> String {
-        format!("file://{}", self.path(name).display())
+        let path = self.path(name).display().to_string();
+        if cfg!(windows) {
+            let path = path.replace('\\', "/");
+            format!(
+                "file:///{}%3A{}",
+                path[..1].to_ascii_lowercase(),
+                &path[2..]
+            )
+        } else {
+            format!("file://{path}")
+        }
     }
 }
 

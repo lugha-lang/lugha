@@ -5,6 +5,9 @@
 //! while its owner spawns needs a panic to unwind, so that one is a Lugha
 //! program.
 
+// Unix only: the harness drives the runtime with POSIX threads, built by the system `cc`; Windows' runtime is tested through whole programs.
+#![cfg(unix)]
+
 #[path = "common/c_harness.rs"]
 mod c_harness;
 

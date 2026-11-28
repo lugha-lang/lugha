@@ -392,12 +392,27 @@ pub(super) struct TempDir {
 
 impl TempDir {
     pub(super) fn new() -> io::Result<Self> {
+        TempDir::new_in(&std::env::temp_dir())
+    }
+
+    /// A fresh folder in `parent`, named for this process and a count.
+    fn new_in(parent: &Path) -> io::Result<Self> {
         static NEXT: AtomicUsize = AtomicUsize::new(0);
-        let n = NEXT.fetch_add(1, Ordering::Relaxed);
-        let path = std::env::temp_dir().join(format!("lughac-{}-{n}", std::process::id()));
-        // `create_dir`, not `create_dir_all`: fail rather than reuse a directory someone planted.
-        std::fs::create_dir(&path)?;
-        Ok(TempDir { path })
+        let pid = std::process::id();
+        let mut tries = 0;
+        loop {
+            let n = NEXT.fetch_add(1, Ordering::Relaxed);
+            let path = parent.join(format!("lughac-{pid}-{n}"));
+            // `create_dir`, not `create_dir_all`: never reuse a directory
+            // someone planted. One left by an earlier process with this id
+            // (Windows reuses ids quickly, and can't remove an executable
+            // still open) is passed over for the next name.
+            match std::fs::create_dir(&path) {
+                Ok(()) => return Ok(TempDir { path }),
+                Err(e) if e.kind() == io::ErrorKind::AlreadyExists && tries < 1000 => tries += 1,
+                Err(e) => return Err(e),
+            }
+        }
     }
 }
 
@@ -405,5 +420,32 @@ impl Drop for TempDir {
     fn drop(&mut self) {
         // Best effort: a leftover temp dir is harmless and must not hide the real result.
         let _ = std::fs::remove_dir_all(&self.path);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::TempDir;
+
+    #[test]
+    fn a_temp_dir_passes_over_names_already_taken() {
+        let parent = TempDir::new().expect("a temp dir");
+        let first = TempDir::new_in(&parent.path).expect("a temp dir");
+        let name = first
+            .path
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        // The next few names, taken as a leftover from an earlier process
+        // with this id would have taken them.
+        let (prefix, n) = name.rsplit_once('-').unwrap();
+        let n: usize = n.parse().unwrap();
+        for next in n + 1..n + 4 {
+            std::fs::create_dir(parent.path.join(format!("{prefix}-{next}"))).unwrap();
+        }
+        let fresh = TempDir::new_in(&parent.path).expect("a fresh name");
+        assert!(fresh.path.read_dir().unwrap().next().is_none());
+        assert_ne!(fresh.path, first.path);
     }
 }

@@ -27,7 +27,8 @@ struct Group {
 /// that isn't 0–255, an expectation file with no `.la`, an unreadable file,
 /// or no programs at all.
 pub fn discover(root: &Path) -> Result<Vec<Case>, Vec<Malformed>> {
-    let rel_name = |p: &Path| p.to_string_lossy().into_owned();
+    // Named with `/` on every system, as the known lists spell them.
+    let rel_name = |p: &Path| p.to_string_lossy().replace('\\', "/");
     let mut files = Vec::new();
     if let Err(e) = walk(root, root, &mut files) {
         let reason = format!("cannot read {}: {e}", root.display());
