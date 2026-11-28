@@ -304,6 +304,8 @@ mod tests {
         assert_eq!(cc.command().get_envs().count(), 0);
     }
 
+    // Built from bytes that aren't UTF-8, which only Unix's names allow.
+    #[cfg(unix)]
     #[test]
     fn a_lugha_cc_that_isnt_utf8_is_refused() {
         use std::os::unix::ffi::OsStrExt;

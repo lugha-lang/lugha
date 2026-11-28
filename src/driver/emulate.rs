@@ -6,7 +6,6 @@
 //! process lockdown doesn't apply: emulated runs are for testing.
 
 use std::ffi::OsString;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -44,6 +43,7 @@ pub(super) fn runner(target: Target) -> Result<Runner, String> {
     let machine = Machine {
         arch: Target::native().arch(),
         mac: cfg!(target_os = "macos"),
+        windows: cfg!(windows),
         prefix_set: std::env::var_os("QEMU_LD_PREFIX").is_some(),
         has: &|name| on_path(name),
         is_dir: &|path| path.is_dir(),
@@ -57,6 +57,9 @@ struct Machine<'a> {
     arch: Arch,
     /// Whether this machine is a Mac, which runs only its own builds.
     mac: bool,
+    /// Whether this machine is a Windows PC, which runs only its own
+    /// CPU's Windows builds.
+    windows: bool,
     /// Whether `QEMU_LD_PREFIX` is set, which then always wins.
     prefix_set: bool,
     /// Whether a program of this name is on `PATH`.
@@ -88,6 +91,31 @@ fn choose(target: Target, machine: &Machine) -> Result<Runner, String> {
         return match target {
             Target::Aarch64MacOs => Ok(Runner::default()),
             t if t.is_windows() || t.is_android() => Err(elsewhere(t)),
+            t => Err(format!(
+                "a program built for {} runs only on Linux: build it with `lughac build`",
+                t.triple()
+            )),
+        };
+    }
+    // Windows runs its own CPU's builds directly, and nothing else: no
+    // qemu-user there, and an x86-64 build isn't left to an ARM64 PC's own
+    // emulation, so one rule holds everywhere.
+    if machine.windows {
+        return match target {
+            t if t.is_windows() && t.arch() == machine.arch => Ok(Runner::default()),
+            t if t.is_windows() => Err(format!(
+                "a program built for {} runs only on {} Windows: build it with `lughac build`",
+                t.triple(),
+                match t.arch() {
+                    Arch::X86_64 => "x86-64",
+                    Arch::Aarch64 => "ARM64",
+                }
+            )),
+            Target::Aarch64MacOs => Err(format!(
+                "a program built for {} runs only on a Mac: build it with `lughac build`",
+                target.triple()
+            )),
+            t if t.is_android() => Err(elsewhere(t)),
             t => Err(format!(
                 "a program built for {} runs only on Linux: build it with `lughac build`",
                 t.triple()
@@ -150,9 +178,22 @@ fn on_path(name: &str) -> bool {
         return false;
     };
     std::env::split_paths(&path).any(|folder| {
-        std::fs::metadata(folder.join(name))
-            .is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+        std::fs::metadata(folder.join(name)).is_ok_and(|m| m.is_file() && executable(&m))
     })
+}
+
+/// Whether a file's permissions let it run: any execute bit on Unix.
+#[cfg(unix)]
+fn executable(m: &std::fs::Metadata) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    m.permissions().mode() & 0o111 != 0
+}
+
+/// Whether a file's permissions let it run: Windows has no execute bit,
+/// and qemu, the one program looked for, is never run there.
+#[cfg(not(unix))]
+fn executable(_: &std::fs::Metadata) -> bool {
+    true
 }
 
 #[cfg(test)]
@@ -167,6 +208,7 @@ mod tests {
         let machine = Machine {
             arch: Arch::X86_64,
             mac: false,
+            windows: false,
             prefix_set,
             has: &has,
             is_dir: &is_dir,
@@ -198,6 +240,7 @@ mod tests {
         let machine = Machine {
             arch,
             mac: false,
+            windows: false,
             prefix_set: false,
             has: &has,
             is_dir: &is_dir,
@@ -222,6 +265,7 @@ mod tests {
         let mac = Machine {
             arch: Arch::Aarch64,
             mac: true,
+            windows: false,
             prefix_set: false,
             has: &has,
             is_dir: &is_dir,
@@ -246,6 +290,37 @@ mod tests {
                 .unwrap_err()
                 .contains("only on Android")
         );
+    }
+
+    #[test]
+    fn windows_runs_its_own_cpus_builds_and_nothing_else() {
+        let (has, is_dir) = (|_: &str| true, |_: &Path| true);
+        for (arch, own, other) in [
+            (Arch::X86_64, Target::X86_64Windows, Target::Aarch64Windows),
+            (Arch::Aarch64, Target::Aarch64Windows, Target::X86_64Windows),
+        ] {
+            let pc = Machine {
+                arch,
+                mac: false,
+                windows: true,
+                prefix_set: false,
+                has: &has,
+                is_dir: &is_dir,
+            };
+            let runner = choose(own, &pc).unwrap();
+            assert_eq!(args(&runner), ["/t/prog"]);
+            let refused = choose(other, &pc).unwrap_err();
+            assert!(refused.contains("runs only on"), "{refused}");
+            assert!(refused.contains(other.triple()), "{refused}");
+            for linux in [Target::X86_64Linux, Target::Aarch64LinuxMusl] {
+                let refused = choose(linux, &pc).unwrap_err();
+                assert!(refused.contains("runs only on Linux"), "{refused}");
+            }
+            let mac = choose(Target::Aarch64MacOs, &pc).unwrap_err();
+            assert!(mac.contains("only on a Mac"), "{mac}");
+            let android = choose(Target::X86_64Android, &pc).unwrap_err();
+            assert!(android.contains("only on Android"), "{android}");
+        }
     }
 
     #[test]

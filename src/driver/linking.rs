@@ -123,13 +123,13 @@ fn build_with(
     let tls = std_import(&front.modules, "tls", &["tls", "http"]);
     let crypto = std_import(&front.modules, "crypto", &["crypto"]);
     let openssl = link::foreign_refusals(
-        (target.triple(), target.is_native()),
+        (target.triple(), target.uses_system_cc()),
         &front.links,
         (tls, crypto),
         &|name| std::env::var_os(name),
     )
     .map_err(|refused| Failure::Program(front.source.clone(), refused))?;
-    let cc = link::compiler::Compiler::for_target(target.triple(), target.is_native())
+    let cc = link::compiler::Compiler::for_target(target.triple(), target.uses_system_cc())
         .map_err(|e| internal(&front.source, e.to_string()))?;
     let mut plan = link::Plan::new(&front.links, &mut link::pkg_config::run)
         .map_err(|e| Failure::Program(front.source.clone(), vec![e.diagnostic()]))?;

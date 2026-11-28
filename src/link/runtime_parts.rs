@@ -64,10 +64,12 @@ pub enum System {
 }
 
 impl System {
-    /// The system lughac runs on: Linux, or macOS on a Mac.
+    /// The system lughac runs on: Linux, macOS on a Mac, or Windows.
     pub fn host() -> System {
         if cfg!(target_os = "macos") {
             System::MacOs
+        } else if cfg!(windows) {
+            System::Windows
         } else {
             System::Linux
         }
@@ -447,6 +449,8 @@ mod tests {
     fn the_host_is_the_system_lughac_was_built_for() {
         let expected = if cfg!(target_os = "macos") {
             System::MacOs
+        } else if cfg!(windows) {
+            System::Windows
         } else {
             System::Linux
         };

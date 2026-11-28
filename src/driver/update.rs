@@ -21,11 +21,16 @@ pub(super) fn env(mode: Mode) -> LoadEnv {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
     // Resolved as the current folder is, so a home reached through a
     // symlink (a Mac's `/var` is `/private/var`) still stops the lookup;
-    // one that can't be resolved is compared as given.
-    let home = std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .filter(|h| h.is_absolute())
-        .map(|h| std::fs::canonicalize(&h).unwrap_or(h));
+    // one that can't be resolved is compared as given. Not on Windows,
+    // where a resolved path is spelled `\\?\C:\…` and would never equal
+    // the current folder's `C:\…`.
+    let home = cache::home(|name| std::env::var_os(name)).map(|h| {
+        if cfg!(windows) {
+            h
+        } else {
+            std::fs::canonicalize(&h).unwrap_or(h)
+        }
+    });
     LoadEnv {
         fetcher: Fetcher::new(Box::new(SystemGit), root, mode),
         home,

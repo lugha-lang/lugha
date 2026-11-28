@@ -5,7 +5,6 @@
 //! source needed to render them.
 
 use std::io;
-use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -309,12 +308,27 @@ pub(super) fn run(
             format!("cannot run the compiled program: {e}"),
         )
     })?;
-    Ok(match (status.code(), status.signal()) {
+    Ok(exit_code(status))
+}
+
+/// A finished program's exit code as a shell reports it: its own, or
+/// 128 + N if signal N killed it.
+#[cfg(unix)]
+fn exit_code(status: std::process::ExitStatus) -> u8 {
+    use std::os::unix::process::ExitStatusExt;
+    match (status.code(), status.signal()) {
         // Exit codes are already 0–255 on Unix; truncation is a no-op.
         (Some(code), _) => code as u8,
         (None, Some(signal)) => 128u8.wrapping_add(signal as u8),
         (None, None) => 1,
-    })
+    }
+}
+
+/// A finished program's exit code: Windows has no signals, and its codes
+/// are 32 bits wide, of which the low 8 are kept, as a shell's `$?` does.
+#[cfg(not(unix))]
+fn exit_code(status: std::process::ExitStatus) -> u8 {
+    status.code().map_or(1, |code| code as u8)
 }
 
 /// The source name and text codegen needs for panic locations.

@@ -39,11 +39,22 @@ pub use self::runtime_symbols::RUNTIME_SYMBOLS;
 ///
 /// # Errors
 ///
-/// [`LinkError::CcNotFound`] if there is no C compiler (`cc` or `$LUGHA_CC`), [`LinkError::Io`] if it
+/// [`LinkError::CcNotFound`] if there is no C compiler (`cc`, zig on Windows, or `$LUGHA_CC`), [`LinkError::Io`] if it
 /// can't be started or the runtime can't be written to the temp dir,
 /// [`LinkError::Failed`] with `cc`'s stderr if it fails.
 pub fn link(objects: &[&Path], output: &Path) -> Result<(), LinkError> {
-    let cc = compiler::Compiler::from_env()?;
+    // Windows has no `cc`: its own builds go through zig, as elsewhere.
+    let cc = if cfg!(windows) {
+        let arm = cfg!(target_arch = "aarch64");
+        let triple = if arm {
+            "aarch64-pc-windows-gnu"
+        } else {
+            "x86_64-pc-windows-gnu"
+        };
+        compiler::Compiler::for_target(triple, false)?
+    } else {
+        compiler::Compiler::from_env()?
+    };
     // A native link: the runtime of the system lughac runs on.
     link_with(
         objects,

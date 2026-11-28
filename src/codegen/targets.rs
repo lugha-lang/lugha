@@ -95,6 +95,15 @@ impl Target {
             return Target::Aarch64MacOs;
         }
         let arm = cfg!(target_arch = "aarch64");
+        // lughac on Windows: that CPU's MinGW build, whatever C runtime
+        // lughac itself was built with.
+        if cfg!(windows) {
+            return if arm {
+                Target::Aarch64Windows
+            } else {
+                Target::X86_64Windows
+            };
+        }
         match (arm, cfg!(target_env = "musl")) {
             (false, false) => Target::X86_64Linux,
             (true, false) => Target::Aarch64Linux,
@@ -115,10 +124,17 @@ impl Target {
         matches!(self, Target::Aarch64Android | Target::X86_64Android)
     }
 
-    /// Whether this is the machine lughac runs on, built for with `cc`;
-    /// any other target is foreign, built for with zig.
+    /// Whether this is the machine lughac runs on, which `run` and `test`
+    /// start directly.
     pub fn is_native(self) -> bool {
         self == Target::native()
+    }
+
+    /// Whether this machine's own `cc` (and OpenSSL) builds for this
+    /// target: the native target, but not Windows', which has no `cc` and
+    /// is built through zig as on any other machine.
+    pub fn uses_system_cc(self) -> bool {
+        self.is_native() && !self.is_windows()
     }
 }
 
@@ -188,6 +204,16 @@ mod tests {
             "arm64-apple-macosx14.4.0"
         );
         assert_eq!(Target::Aarch64MacOs.triple(), "aarch64-apple-darwin");
+    }
+
+    #[test]
+    fn windows_builds_never_use_the_system_cc() {
+        for target in [Target::X86_64Windows, Target::Aarch64Windows] {
+            assert!(!target.uses_system_cc());
+        }
+        let native = Target::native();
+        assert_eq!(native.uses_system_cc(), !cfg!(windows));
+        assert_eq!(native.is_windows(), cfg!(windows));
     }
 
     #[test]

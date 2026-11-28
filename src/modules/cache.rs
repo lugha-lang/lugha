@@ -8,14 +8,37 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// The cache's root: `$LUGHA_CACHE`, else `$XDG_CACHE_HOME/lugha`, else
-/// `$HOME/.cache/lugha`, read through `var`. A value that isn't an absolute
-/// path is skipped, so a stray relative setting can't scatter packages
-/// into whatever folder lughac runs in.
+/// `$HOME/.cache/lugha`; on Windows `$LUGHA_CACHE`, else
+/// `%LOCALAPPDATA%\lugha`, where Windows tools keep caches. Read through
+/// `var`. A value that isn't an absolute path is skipped, so a stray
+/// relative setting can't scatter packages into whatever folder lughac
+/// runs in.
 pub fn root(var: impl Fn(&str) -> Option<OsString>) -> Option<PathBuf> {
+    root_on(var, cfg!(windows))
+}
+
+/// [`root`], on Windows or not.
+fn root_on(var: impl Fn(&str) -> Option<OsString>, windows: bool) -> Option<PathBuf> {
     let absolute = |name: &str| var(name).map(PathBuf::from).filter(|p| p.is_absolute());
-    absolute("LUGHA_CACHE")
-        .or_else(|| absolute("XDG_CACHE_HOME").map(|p| p.join("lugha")))
+    let own = absolute("LUGHA_CACHE");
+    if windows {
+        return own.or_else(|| absolute("LOCALAPPDATA").map(|p| p.join("lugha")));
+    }
+    own.or_else(|| absolute("XDG_CACHE_HOME").map(|p| p.join("lugha")))
         .or_else(|| absolute("HOME").map(|p| p.join(".cache").join("lugha")))
+}
+
+/// The user's home folder, read through `var`: `$HOME`, else on Windows
+/// `%USERPROFILE%`, which Windows sets where Unix sets `HOME`. Only an
+/// absolute path counts.
+pub fn home(var: impl Fn(&str) -> Option<OsString>) -> Option<PathBuf> {
+    home_on(var, cfg!(windows))
+}
+
+/// [`home`], on Windows or not.
+fn home_on(var: impl Fn(&str) -> Option<OsString>, windows: bool) -> Option<PathBuf> {
+    let absolute = |name: &str| var(name).map(PathBuf::from).filter(|p| p.is_absolute());
+    absolute("HOME").or_else(|| windows.then(|| absolute("USERPROFILE")).flatten())
 }
 
 /// `url` as one folder name: ASCII letters, digits, `.` and `-` are kept,
@@ -90,10 +113,69 @@ pub fn install(from: &Path, to: &Path) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{escape, folder, is_commit, root};
+    use super::{escape, folder, home_on, is_commit, root, root_on};
     use std::ffi::OsString;
     use std::path::{Path, PathBuf};
 
+    /// An absolute path on this machine: `/<name>`, or `C:\\<name>` on
+    /// Windows, where a path needs a drive to be absolute.
+    fn abs(name: &str) -> String {
+        if cfg!(windows) {
+            format!("C:\\{name}")
+        } else {
+            format!("/{name}")
+        }
+    }
+
+    fn vars(pairs: Vec<(&'static str, String)>) -> impl Fn(&str) -> Option<OsString> {
+        move |name: &str| {
+            pairs
+                .iter()
+                .find(|(k, _)| *k == name)
+                .map(|(_, v)| OsString::from(v))
+        }
+    }
+
+    #[test]
+    fn on_windows_the_root_is_lugha_cache_else_local_app_data() {
+        let (c, l, x) = (abs("c"), abs("l"), abs("x"));
+        let all = vec![
+            ("LUGHA_CACHE", c.clone()),
+            ("LOCALAPPDATA", l.clone()),
+            ("XDG_CACHE_HOME", x.clone()),
+        ];
+        assert_eq!(root_on(vars(all), true), Some(PathBuf::from(&c)));
+        let local = vec![("LOCALAPPDATA", l.clone()), ("XDG_CACHE_HOME", x.clone())];
+        assert_eq!(
+            root_on(vars(local.clone()), true),
+            Some(PathBuf::from(&l).join("lugha"))
+        );
+        // Elsewhere LOCALAPPDATA means nothing.
+        assert_eq!(
+            root_on(vars(local), false),
+            Some(PathBuf::from(&x).join("lugha"))
+        );
+        assert_eq!(
+            root_on(vars(vec![("LOCALAPPDATA", "l".into())]), true),
+            None
+        );
+    }
+
+    #[test]
+    fn the_home_is_home_else_userprofile_on_windows() {
+        let (h, u) = (abs("h"), abs("u"));
+        let both = vec![("HOME", h.clone()), ("USERPROFILE", u.clone())];
+        assert_eq!(home_on(vars(both), true), Some(PathBuf::from(&h)));
+        let profile = vec![("USERPROFILE", u.clone())];
+        assert_eq!(
+            home_on(vars(profile.clone()), true),
+            Some(PathBuf::from(&u))
+        );
+        assert_eq!(home_on(vars(profile), false), None);
+        assert_eq!(home_on(vars(vec![("HOME", "h".into())]), false), None);
+    }
+
+    #[cfg(unix)]
     #[test]
     fn the_root_comes_from_the_first_absolute_variable() {
         let env = |pairs: &'static [(&'static str, &'static str)]| {
