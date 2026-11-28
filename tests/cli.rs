@@ -1,7 +1,6 @@
 //! The `lughac` binary end to end: commands, emit modes,
 //! diagnostics formats and exit codes.
 
-use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::process::Command;
 
@@ -161,8 +160,11 @@ fn internal_errors_have_no_code_or_span() {
     assert_eq!(dir.entries(), ["ok.la"]);
 }
 
+// Unix only: Windows has no signals.
+#[cfg(unix)]
 #[test]
 fn signals_are_not_exit_codes() {
+    use std::os::unix::process::ExitStatusExt;
     // Sanity check of the mapping used above: the program itself dies by SIGABRT (6).
     let dir = TempDir::with(&[("abort.la", b"extern fun abort();\nfun main() { abort(); }")]);
     assert_eq!(

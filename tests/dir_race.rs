@@ -3,6 +3,9 @@
 //! that folder for a symbolic link to a folder outside. The kernel checks
 //! every step of every lookup, so the program never reads the outside file.
 
+// Unix only: the race swaps a folder for a symbolic link, which Windows lets only administrators make.
+#![cfg(unix)]
+
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Arc;

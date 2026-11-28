@@ -1,7 +1,6 @@
 //! Codegen and linking end to end through the library: real
 //! executables are built, run, and judged by their exit status.
 
-use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -137,13 +136,27 @@ fn the_default_cpu_is_baseline_x86_64_and_cpu_levels_add_instructions() {
     assert!(has_popcnt(&v2), "x86-64-v2 counts bits with popcnt");
 }
 
+/// The signal that ended a program: none on Windows, which has none.
+fn signal(status: &ExitStatus) -> Option<i32> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt;
+        status.signal()
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = status;
+        None
+    }
+}
+
 /// Runs `src` at -O0 and -O2, asserts both agree, and returns the status.
 fn run(src: &str) -> ExitStatus {
     let o0 = build_and_run(src, OptLevel::O0);
     let o2 = build_and_run(src, OptLevel::O2);
     assert_eq!(
-        (o0.code(), o0.signal()),
-        (o2.code(), o2.signal()),
+        (o0.code(), signal(&o0)),
+        (o2.code(), signal(&o2)),
         "{src}: -O0 vs -O2"
     );
     o0
@@ -233,7 +246,7 @@ fn run_programs_agree_at_o0_and_o2() {
                     .expect("integer");
                 // `run` asserts -O0 and -O2 agree; a trap shows as 128 + signal, as in `lughac run`.
                 let status = run(&src);
-                let code = status.code().or(status.signal().map(|s| 128 + s));
+                let code = status.code().or(signal(&status).map(|s| 128 + s));
                 assert_eq!(code, Some(expected), "{}", path.display());
                 checked += 1;
             }

@@ -61,6 +61,8 @@ fn rejected(out: &Output) -> String {
     text(&out.stderr)
 }
 
+// Unix only: Windows lets only administrators make symbolic links.
+#[cfg(unix)]
 #[test]
 fn a_symlink_leading_out_of_the_package_is_e0447() {
     let t = Temp::with(&[
@@ -76,6 +78,8 @@ fn a_symlink_leading_out_of_the_package_is_e0447() {
     assert!(err.contains("outside"), "{err}");
 }
 
+// Unix only: Windows lets only administrators make symbolic links.
+#[cfg(unix)]
 #[test]
 fn a_symlink_inside_the_package_is_followed() {
     let t = Temp::with(&[

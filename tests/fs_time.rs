@@ -1,6 +1,9 @@
 //! `Dir.rename`, `Dir.set_mode`, `Console.flush` and the clocks end to end,
 //! through Lugha programs in temp folders.
 
+// Unix only: it checks Unix permission bits and devices.
+#![cfg(unix)]
+
 use std::io::Read;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};

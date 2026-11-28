@@ -132,6 +132,8 @@ fn the_lookup_never_reads_above_home() {
     assert!(text(&run.stderr).contains("E0312"), "{}", text(&run.stderr));
 }
 
+// Unix only: Windows lets only administrators make symbolic links.
+#[cfg(unix)]
 #[test]
 fn a_home_reached_through_a_symlink_still_stops_the_lookup() {
     // As a Mac's temp folders are: `/var` is a link to `/private/var`.

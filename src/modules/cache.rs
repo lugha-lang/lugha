@@ -113,7 +113,7 @@ pub fn install(from: &Path, to: &Path) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{escape, folder, home_on, is_commit, root, root_on};
+    use super::{escape, folder, home_on, is_commit, root_on};
     use std::ffi::OsString;
     use std::path::{Path, PathBuf};
 
@@ -191,16 +191,19 @@ mod tests {
             ("XDG_CACHE_HOME", "/x"),
             ("HOME", "/h"),
         ];
-        assert_eq!(root(env(&ALL)), Some(PathBuf::from("/c")));
+        assert_eq!(root_on(env(&ALL), false), Some(PathBuf::from("/c")));
         assert_eq!(
-            root(env(&[("LUGHA_CACHE", "rel"), ("XDG_CACHE_HOME", "/x")])),
+            root_on(
+                env(&[("LUGHA_CACHE", "rel"), ("XDG_CACHE_HOME", "/x")]),
+                false
+            ),
             Some(PathBuf::from("/x/lugha"))
         );
         assert_eq!(
-            root(env(&[("HOME", "/h")])),
+            root_on(env(&[("HOME", "/h")]), false),
             Some(PathBuf::from("/h/.cache/lugha"))
         );
-        assert_eq!(root(env(&[("HOME", "h")])), None);
+        assert_eq!(root_on(env(&[("HOME", "h")]), false), None);
     }
 
     #[test]

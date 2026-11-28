@@ -2,6 +2,9 @@
 //! repository made with the system `git`, fetched into a private cache,
 //! locked, built `--offline`, a moved tag caught, and `lughac update`.
 
+// Unix only: its repositories hold symbolic links, which Windows lets only administrators make.
+#![cfg(unix)]
+
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicUsize, Ordering};

@@ -4,6 +4,9 @@
 //! static library each test builds with `cc` and `ar`, and a fake
 //! `pkg-config` named by `$PKG_CONFIG`.
 
+// Unix only: `cc`, `ar` and the fake `pkg-config` are run as on Unix, the fake a shell script.
+#![cfg(unix)]
+
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};

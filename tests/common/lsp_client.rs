@@ -62,6 +62,24 @@ pub struct Server {
 // that a hang fails the test instead of the suite.
 pub const WAIT: Duration = Duration::from_secs(20);
 
+/// A `git` in `bin` that marks `marker` and fails, so a test sees whether
+/// the server ran git. A shell script, so Unix only: on Windows the real
+/// git (if any) is found, and a test of the marker passes trivially.
+fn fake_git(bin: &std::path::Path, marker: &std::path::Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let git = bin.join("git");
+        let script = format!("#!/bin/sh\ntouch '{}'\nexit 1\n", marker.display());
+        std::fs::write(&git, script).unwrap();
+        std::fs::set_permissions(&git, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (bin, marker);
+    }
+}
+
 impl Server {
     /// Starts the server in `cwd` with `$HOME` and the git cache inside it,
     /// `fake_git` first on `PATH`, and initializes it with `options`.
@@ -73,21 +91,12 @@ impl Server {
     pub fn start_with(t: &Temp, options: Value, capabilities: Value) -> Server {
         let bin = t.path(".bin");
         std::fs::create_dir_all(&bin).unwrap();
-        let marker = t.path(".git-ran");
-        let git = bin.join("git");
-        std::fs::write(
-            &git,
-            format!("#!/bin/sh\ntouch '{}'\nexit 1\n", marker.display()),
-        )
-        .unwrap();
-        let mut perms = std::fs::metadata(&git).unwrap().permissions();
-        std::os::unix::fs::PermissionsExt::set_mode(&mut perms, 0o755);
-        std::fs::set_permissions(&git, perms).unwrap();
-        let path = format!(
-            "{}:{}",
-            bin.display(),
-            std::env::var("PATH").unwrap_or_default()
-        );
+        fake_git(&bin, &t.path(".git-ran"));
+        let mut folders = vec![bin];
+        folders.extend(std::env::split_paths(
+            &std::env::var_os("PATH").unwrap_or_default(),
+        ));
+        let path = std::env::join_paths(folders).expect("PATH's folders join");
         let mut child = Command::new(env!("CARGO_BIN_EXE_lughac"))
             .arg("lsp")
             .current_dir(&t.0)

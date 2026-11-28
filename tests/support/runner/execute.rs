@@ -1,7 +1,6 @@
 //! Runs `lughac` (or any command) with a timeout and captures its output.
 
 use std::io::Read;
-use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::thread;
@@ -61,8 +60,9 @@ pub fn run_with_stdin(mut cmd: Command, timeout: Duration, stdin: Option<&[u8]>)
     };
     cmd.stdin(input)
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .process_group(0);
+        .stderr(Stdio::piped());
+    #[cfg(unix)]
+    std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
     let mut child = match cmd.spawn() {
         Ok(child) => child,
         Err(e) => return Outcome::SpawnFailed(e.to_string()),
@@ -99,8 +99,11 @@ pub fn run_with_stdin(mut cmd: Command, timeout: Duration, stdin: Option<&[u8]>)
     };
     let Some(status) = status else {
         // std can only signal the direct child; `kill` reaches the whole group.
-        let group = format!("-{}", child.id());
-        let _ = Command::new("kill").args(["-KILL", "--", &group]).status();
+        #[cfg(unix)]
+        {
+            let group = format!("-{}", child.id());
+            let _ = Command::new("kill").args(["-KILL", "--", &group]).status();
+        }
         let _ = child.kill();
         let _ = child.wait();
         return Outcome::TimedOut(timeout);

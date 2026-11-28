@@ -2,6 +2,9 @@
 //! through `lughac` with `$LUGHA_CACHE` in a temporary folder and a `cc`
 //! on `PATH` that logs each call and runs the real one.
 
+// Unix only: the `cc` it puts on `PATH` is a shell script.
+#![cfg(unix)]
+
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::process::{Command, Output};

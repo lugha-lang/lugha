@@ -7,6 +7,9 @@
 //! `qemu-aarch64` for ARM) the building tests print a note and pass, as on
 //! a machine that can't build for musl, unless `LUGHA_CROSS_TESTS=required`.
 
+// Unix only: musl builds run here natively or under qemu, and the fake zig is a shell script.
+#![cfg(unix)]
+
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicUsize, Ordering};
