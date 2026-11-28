@@ -1,6 +1,9 @@
 # On Windows lughac links LLVM statically from LLVM's own archive, which is
 # built against the static C runtime: lughac uses it too, or the two
 # runtimes' separate heaps crash LLVM. It also leaves lughac.exe needing no
-# Visual C++ runtime installed.
+# Visual C++ runtime installed. Build with `--target` (or
+# CARGO_BUILD_TARGET) naming the MSVC triple, so these flags reach lughac
+# only: llvm-sys's build script, built with them, would link Windows' own
+# libraries as static ones, which don't exist.
 [target.'cfg(all(windows, target_env = "msvc"))']
 rustflags = ["-C", "target-feature=+crt-static"]

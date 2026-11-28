@@ -499,6 +499,7 @@ jobs:
             llvm: x86_64-pc-windows-msvc
             vcpkg: x64-windows-static
             openssl: openssl-win
+            rust: x86_64-pc-windows-msvc
             openssl_var: LUGHA_OPENSSL_X86_64_PC_WINDOWS_GNU
             zig: zig-x86_64-windows-0.17.1
             zig_sha256: b03f477a1943673e02aca0f570e8030dffd536ce1f45cbc4d3326ec31159562e
@@ -507,6 +508,7 @@ jobs:
             llvm: aarch64-pc-windows-msvc
             vcpkg: arm64-windows-static
             openssl: openssl-win-arm64
+            rust: aarch64-pc-windows-msvc
             openssl_var: LUGHA_OPENSSL_AARCH64_PC_WINDOWS_GNU
             zig: zig-aarch64-windows-0.17.1
             zig_sha256: 4789895bdb1e312a2ea73b2a7c0a0cc8d2ab62ba6976e834a7c54cf443377c15
@@ -517,6 +519,11 @@ jobs:
     env:
       LUGHA_CROSS_TESTS: ""
       LLVM: clang+llvm-21.1.8-${{ matrix.llvm }}
+      # Named, so the static C runtime (.cargo/config.toml) reaches lughac
+      # only, not llvm-sys's build script, which would then ask for
+      # Windows' own libraries as static ones.
+      CARGO_BUILD_TARGET: ${{ matrix.rust }}
+      LLVM_SYS_211_PREFIX: C:/llvm-21
     steps:
       - name: Keep line ends as committed
         # The tests compare output byte for byte with files holding `\n`.
