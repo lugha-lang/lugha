@@ -3,6 +3,10 @@
 //! value, and every call in a pinned scope, runs on the right thread while
 //! tasks yield, sleep, wait on channels and call actors in between.
 
+// Unix only: the C side names threads with POSIX calls (`pthread_self`,
+// `gettid`).
+#![cfg(unix)]
+
 use std::path::PathBuf;
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicUsize, Ordering};

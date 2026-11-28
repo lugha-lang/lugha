@@ -4,7 +4,7 @@
 //! main files through the `lugha.entries` setting or through a main file
 //! the server has already checked that loaded it.
 
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use super::documents::normalize;
 use crate::lexer::{self, token::TokenKind};
@@ -122,7 +122,12 @@ pub(super) fn plan(
 }
 
 fn invalid(entry: &str, folder: &Path, exists: impl Fn(&Path) -> bool) -> Option<&'static str> {
-    if Path::new(entry).is_absolute() {
+    let path = Path::new(entry);
+    // Windows' `\x.la` and `C:x.la` aren't absolute, but aren't relative
+    // to the folder either.
+    let anchored =
+        path.has_root() || matches!(path.components().next(), Some(Component::Prefix(_)));
+    if path.is_absolute() || anchored {
         return Some("not a relative path");
     }
     let resolved = normalize(&folder.join(entry));

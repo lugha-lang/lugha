@@ -39,8 +39,9 @@ fn lughac(cwd: &Path, home: &Path, args: &[&str]) -> Output {
         .expect("lughac runs")
 }
 
+/// The output, with paths spelled with `/` as Windows spells them with `\`.
 fn text(bytes: &[u8]) -> String {
-    String::from_utf8_lossy(bytes).into_owned()
+    String::from_utf8_lossy(bytes).replace('\\', "/")
 }
 
 fn files(dir: &Path) -> Vec<String> {

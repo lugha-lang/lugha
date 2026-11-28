@@ -53,6 +53,8 @@ fun main({params}) {{
     )
 }
 
+// Unix only: it starts Unix's `sleep`.
+#[cfg(unix)]
 #[test]
 fn other_tasks_run_while_a_started_program_is_waited_for() {
     let source = ticking(
@@ -110,6 +112,8 @@ fn other_tasks_run_while_input_is_awaited() {
     assert_eq!(text(&out.stdout), "tick 0\ntick 1\ntick 2\ngot hello\n");
 }
 
+// Unix only: a FIFO made by `mkfifo`.
+#[cfg(unix)]
 #[test]
 fn other_tasks_run_while_a_fifo_is_opened_and_read() {
     let source = ticking(
@@ -230,6 +234,8 @@ fn one_helper_still_serves_every_task() {
     assert_eq!(text(&out.stdout), "done true\n");
 }
 
+// Unix only: a folder as stdin, which Windows won't open as a file.
+#[cfg(unix)]
 #[test]
 fn a_failed_read_of_stdin_is_an_error_not_the_end_of_input() {
     let source = "fun main(console: Console) {

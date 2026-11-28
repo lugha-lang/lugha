@@ -89,6 +89,9 @@ fun the_real_world(fs: Fs, proc: Proc) {
 fun main() {}
 "#;
 
+// Unix only for now: on Windows a program holding `Dir` without `Fs` runs at
+// Low integrity, which can't write even its own folder.
+#[cfg(unix)]
 #[test]
 fn plain_tests_get_stand_ins_and_integration_tests_wait_for_the_flag() {
     let t = Temp::with(&[("t.la", TESTS)]);
@@ -122,6 +125,9 @@ fn plain_tests_get_stand_ins_and_integration_tests_wait_for_the_flag() {
     assert!(!t.0.join("note.txt").exists());
 }
 
+// Unix only for now: on Windows a program holding `Dir` without `Fs` runs at
+// Low integrity, which can't write even its own folder.
+#[cfg(unix)]
 #[test]
 fn each_test_gets_its_own_folder_removed_afterwards_even_on_failure() {
     let src = "@test\n\
@@ -151,6 +157,9 @@ fn each_test_gets_its_own_folder_removed_afterwards_even_on_failure() {
     assert!(!Path::new(&folder).exists(), "{folder} was left behind");
 }
 
+// Unix only: it links with `ln -s`; Windows' confinement has its own cases
+// under `tests/windows/confined/`.
+#[cfg(unix)]
 #[test]
 fn a_test_folder_is_confined_by_the_kernel_even_against_its_own_links() {
     let src = "@test(integration)\n\

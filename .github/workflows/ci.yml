@@ -597,6 +597,19 @@ jobs:
           LLVM_SYS_211_PREFIX: C:/llvm-21
         run: cargo clippy --all-targets --keep-going -- -D warnings
 
+      - name: "Probe: a cycle program with tombstones"
+        continue-on-error: true
+        run: |
+          cargo build -q
+          L=target/$CARGO_BUILD_TARGET/debug/lughac.exe
+          for env in "" LUGHA_RC_POISON=1 "LUGHA_RC_POISON=1 LUGHA_WORKERS=1"; do
+            echo "== $env"
+            start=$(date +%s)
+            env $env LUGHA_WORKERS=${LUGHA_WORKERS:-1} timeout 60 $L run tests/programs/runtime/cycles/two_boxes.la; echo "exit $? after $(( $(date +%s) - start ))s"
+          done
+          $L build tests/programs/runtime/cycles/two_boxes.la -o two.exe
+          for n in 1 2 3; do start=$(date +%s); LUGHA_RC_POISON=1 timeout 60 ./two.exe; echo "built: exit $? after $(( $(date +%s) - start ))s"; done
+
       - name: Tests
         # Every test, the program suite among them.
         env:

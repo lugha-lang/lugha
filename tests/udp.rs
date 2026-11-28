@@ -180,6 +180,9 @@ fn shared_sockets_hear_a_multicast_group_until_they_leave() {
     );
 }
 
+// Unix only: it finds loopback by its Unix name; tests/windows/interfaces.la
+// finds Windows' by its address.
+#[cfg(unix)]
 #[test]
 fn interfaces_include_loopback() {
     // Linux names the loopback interface `lo`, a Mac `lo0`.

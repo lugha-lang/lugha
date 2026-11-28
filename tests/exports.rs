@@ -45,6 +45,7 @@ fn lughac(dir: &Path, args: &[&str]) -> Output {
         .expect("lughac runs")
 }
 
+#[cfg(unix)]
 /// Builds `lib` as `libwords.so` (its header `lib.h`) and `host` (C,
 /// including the header) against it, and runs the host.
 fn run(lib: &str, host: &str) -> Output {
@@ -69,6 +70,7 @@ fn run(lib: &str, host: &str) -> Output {
         .expect("the host runs")
 }
 
+#[cfg(unix)]
 /// Runs `lib` and `host`, which must exit 0 printing exactly `want`.
 fn prints(lib: &str, host: &str, want: &str) {
     let out = run(lib, host);
@@ -127,6 +129,9 @@ int main(void) {
 }
 "#;
 
+// Unix only: the host is built by the system `cc` with POSIX threads and an
+// rpath; Windows' DLLs are called in `a_windows_dll_is_called_as_on_linux`.
+#[cfg(unix)]
 #[test]
 fn c_calls_each_kind_of_export_through_the_header() {
     prints(
@@ -136,6 +141,9 @@ fn c_calls_each_kind_of_export_through_the_header() {
     );
 }
 
+// Unix only: the host is built by the system `cc` with POSIX threads and an
+// rpath; Windows' DLLs are called in `a_windows_dll_is_called_as_on_linux`.
+#[cfg(unix)]
 #[test]
 fn an_export_runs_as_a_task_and_may_wait() {
     let lib = r#"
@@ -192,6 +200,9 @@ int main(void) {
     prints(lib, host, "1025\nevery call answered\n");
 }
 
+// Unix only: the host is built by the system `cc` with POSIX threads and an
+// rpath; Windows' DLLs are called in `a_windows_dll_is_called_as_on_linux`.
+#[cfg(unix)]
 #[test]
 fn a_panic_in_an_export_ends_the_host_with_101() {
     let lib = r#"
@@ -224,6 +235,9 @@ extern fun with_nul(): string = "a\0b";
     );
 }
 
+// Unix only: the host is built by the system `cc` with POSIX threads and an
+// rpath; Windows' DLLs are called in `a_windows_dll_is_called_as_on_linux`.
+#[cfg(unix)]
 #[test]
 fn only_the_exports_are_visible() {
     let t = Temp::new();

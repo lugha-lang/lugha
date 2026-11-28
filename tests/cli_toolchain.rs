@@ -43,7 +43,8 @@ fn programs_link_no_collector() {
     let out = lughac(&dir.0, &["build", "arith.la"]);
     assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
     // A shared library the program needs is named in its dynamic section.
-    let binary = std::fs::read(dir.0.join("arith")).expect("built");
+    let name = format!("arith{}", std::env::consts::EXE_SUFFIX);
+    let binary = std::fs::read(dir.0.join(name)).expect("built");
     assert!(
         !binary.windows(8).any(|w| w == b"libgc.so"),
         "the program links libgc.so"

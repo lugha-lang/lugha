@@ -3,6 +3,10 @@
 //! case reads `LUGHA_LOCKDOWN=report` first and skips what this kernel
 //! can't apply (seccomp, or Landlock before Linux 5.13).
 
+// Unix only: the cases start `sh` and read Linux's and macOS's limits;
+// Windows' lockdown is checked by its own cases under `tests/windows/`.
+#![cfg(unix)]
+
 use std::path::PathBuf;
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicUsize, Ordering};

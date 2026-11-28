@@ -478,7 +478,8 @@ fn a_diagnostic_names_its_file_by_its_path_as_build_does() {
         ),
     ]);
     let out = lughac(&t.0, &["test", "--json", "--diagnostics=json", "."]);
-    let stderr = text(&out.stderr);
+    // Windows spells the paths with `\`, escaped in JSON.
+    let stderr = text(&out.stderr).replace(r"\\", "/");
     assert!(stderr.contains(r#""file":"src/main.la""#), "{stderr}");
     assert!(stderr.contains(r#""file":"test/a_test.la""#), "{stderr}");
     assert!(!stderr.contains(r#""file":"main.la""#), "{stderr}");

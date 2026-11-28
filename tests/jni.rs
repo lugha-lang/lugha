@@ -5,6 +5,9 @@
 //! fetches Kotlin's); without them they print a note and pass, unless
 //! `LUGHA_CROSS_TESTS=required`.
 
+// Unix only: the JVM loads the library by its Unix name, `libwords.so`.
+#![cfg(unix)]
+
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicUsize, Ordering};

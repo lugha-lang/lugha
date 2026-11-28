@@ -173,6 +173,8 @@ fn every_windows_case_builds_and_runs_under_wine() {
     assert!(failed.is_empty(), "{}", failed.join("\n\n"));
 }
 
+// Not on Windows, which runs its own builds.
+#[cfg(unix)]
 #[test]
 fn run_and_test_refuse_a_windows_target() {
     let hello = "tests/windows/hello.la";

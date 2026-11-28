@@ -4,6 +4,9 @@
 //! cancelled the same way at its next pause; one that never pauses ends at
 //! the second.
 
+// Unix only: Ctrl-C is sent as SIGINT with `kill`; Windows has no signals.
+#![cfg(unix)]
+
 #[path = "common/cli.rs"]
 mod cli;
 

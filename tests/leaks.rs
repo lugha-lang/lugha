@@ -9,8 +9,8 @@ mod support;
 use std::path::Path;
 
 use support::runner::{
-    Case, DEFAULT_TIMEOUT, Mismatch, Mode, Outcome, compare, discover, format_malformed,
-    format_report, run_case,
+    Case, DEFAULT_TIMEOUT, Mismatch, Mode, Outcome, compare, discover, each_case, format_malformed,
+    format_report, known_here, run_case,
 };
 
 /// Programs that end with objects still live, and why: each a known gap,
@@ -61,23 +61,24 @@ fn programs_free_everything_they_make() {
         Ok(cases) => cases,
         Err(malformed) => panic!("\n{}", format_malformed(&malformed)),
     };
+    let known = known_here(workdir);
     let cases: Vec<Case> = cases
         .into_iter()
         .filter(|case| matches!(case.mode, Mode::Run { .. }))
         .filter(|case| !KNOWN.iter().any(|(name, _)| case.name == *name))
+        .filter(|case| !known.contains(&case.name))
         .map(counted)
         .collect();
-    let failures: Vec<_> = cases
-        .iter()
-        .map(|case| {
-            let outcome = run_case(lughac, workdir, case, DEFAULT_TIMEOUT);
-            let (outcome, report) = split_report(outcome);
-            let mut mismatches = compare(case, &outcome);
-            mismatches.extend(leaks(case, report.as_deref()));
-            (case.name.clone(), mismatches)
-        })
-        .filter(|(_, mismatches)| !mismatches.is_empty())
-        .collect();
+    let failures: Vec<_> = each_case(&cases, |case| {
+        let outcome = run_case(lughac, workdir, case, DEFAULT_TIMEOUT);
+        let (outcome, report) = split_report(outcome);
+        let mut mismatches = compare(case, &outcome);
+        mismatches.extend(leaks(case, report.as_deref()));
+        (case.name.clone(), mismatches)
+    })
+    .into_iter()
+    .filter(|(_, mismatches)| !mismatches.is_empty())
+    .collect();
     if !failures.is_empty() {
         panic!("\n{}", format_report(&failures, cases.len()));
     }

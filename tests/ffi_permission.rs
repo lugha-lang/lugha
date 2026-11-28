@@ -307,7 +307,12 @@ fn the_lock_records_who_runs_c_and_update_says_when_that_grows() {
         git(&repo, &["tag", tag]);
     };
     release("public fun size(): i64 = 1;\n", "v1.0.0");
-    let url = format!("file://{}", repo.display());
+    // Windows' `C:\x` is the URL `file:///C:/x`.
+    let path = repo.display().to_string().replace('\\', "/");
+    let url = format!(
+        "file://{}{path}",
+        if path.starts_with('/') { "" } else { "/" }
+    );
     t.app(
         &format!("geo = {{ git = \"{url}\", version = \"1\", allow = [\"ffi\"] }}\n"),
         "import geo;",

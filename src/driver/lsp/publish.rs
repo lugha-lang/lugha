@@ -227,6 +227,8 @@ mod tests {
         assert_eq!(href.as_deref(), Some("lugha-explain:E0403.md"));
         assert_eq!(d.source.as_deref(), Some("lughac"));
         let related = d.related_information.unwrap();
+        // `/w` is a full path only on Unix: Windows' paths start at a drive.
+        #[cfg(unix)]
         assert_eq!(related[0].location.uri.as_str(), "file:///w/main.la");
         assert_eq!(related[0].message, "here");
     }

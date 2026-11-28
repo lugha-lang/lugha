@@ -99,10 +99,11 @@ fn errors_in_a_module_name_its_file() {
         .file("shapes/circle.la", "fun area( {}\n");
     let human = lughac(f.path(), &["check", "main.la"]);
     assert_eq!(human.status.code(), Some(1));
-    let stderr = text(&human.stderr);
+    // Windows spells the paths with `\` (escaped in JSON).
+    let stderr = text(&human.stderr).replace('\\', "/");
     assert!(stderr.contains("--> shapes/circle.la:1:11"), "{stderr}");
     let json = lughac(f.path(), &["check", "--diagnostics=json", "main.la"]);
-    let line = text(&json.stderr);
+    let line = text(&json.stderr).replace(r"\\", "/");
     assert!(
         line.contains(
             r#""file":"shapes/circle.la","span":{"start":{"line":1,"col":11,"offset":10}"#

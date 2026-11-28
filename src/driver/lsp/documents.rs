@@ -103,7 +103,8 @@ fn uri_to_path_on(uri: &str, windows: bool) -> Option<PathBuf> {
 
 /// The `file:` URI of an absolute `path`, percent-encoding all but the
 /// characters VS Code itself leaves as they are; on Windows in VS Code's
-/// own form, `C:\a\x.la` → `file:///c%3A/a/x.la`.
+/// own form, `C:\a\x.la` → `file:///c%3A/a/x.la` (`\\?\C:\a\x.la`, a
+/// canonical path's spelling, too).
 pub(super) fn path_to_uri(path: &Path) -> String {
     path_to_uri_on(&path.to_string_lossy(), cfg!(windows))
 }
@@ -111,6 +112,10 @@ pub(super) fn path_to_uri(path: &Path) -> String {
 /// [`path_to_uri`] of the path spelled `text`, on Windows or not.
 fn path_to_uri_on(text: &str, windows: bool) -> String {
     let mut uri = String::from("file://");
+    let text = match text.strip_prefix(r"\\?\") {
+        Some(drive_path) if windows && drive_path.as_bytes().get(1) == Some(&b':') => drive_path,
+        _ => text,
+    };
     let text = if windows && text.as_bytes().get(1) == Some(&b':') {
         format!("/{}{}", text[..1].to_ascii_lowercase(), &text[1..]).replace('\\', "/")
     } else {
@@ -132,29 +137,27 @@ mod tests {
 
     #[test]
     fn uris_round_trip_through_paths() {
-        let path = Path::new("/home/me/my proj/é.la");
-        let uri = path_to_uri(path);
+        let to_path = |uri| uri_to_path_on(uri, false).unwrap();
+        let uri = path_to_uri_on("/home/me/my proj/é.la", false);
         assert_eq!(uri, "file:///home/me/my%20proj/%C3%A9.la");
-        assert_eq!(uri_to_path(&uri).unwrap(), path);
-        assert_eq!(
-            uri_to_path("file://localhost/x.la").unwrap(),
-            Path::new("/x.la")
-        );
-        assert_eq!(
-            uri_to_path("file:///a/../b.la").unwrap(),
-            Path::new("/b.la")
-        );
+        assert_eq!(to_path(&uri), Path::new("/home/me/my proj/é.la"));
+        assert_eq!(to_path("file://localhost/x.la"), Path::new("/x.la"));
+        assert_eq!(to_path("file:///a/../b.la"), Path::new("/b.la"));
     }
 
     #[test]
     fn windows_uris_name_a_drive_as_vs_code_writes_them() {
         let uri = path_to_uri_on("C:\\Users\\me\\my proj\\x.la", true);
         assert_eq!(uri, "file:///c%3A/Users/me/my%20proj/x.la");
+        let canonical = path_to_uri_on("\\\\?\\C:\\Users\\me\\my proj\\x.la", true);
+        assert_eq!(canonical, uri);
         for written in [uri.as_str(), "file:///C:/Users/me/my%20proj/x.la"] {
             let path = uri_to_path_on(written, true).unwrap();
             assert_eq!(path.to_string_lossy(), "C:\\Users\\me\\my proj\\x.la");
         }
         assert_eq!(uri_to_path_on("file:///home/x.la", true), None);
+        // Elsewhere a drive is only a folder's name.
+        #[cfg(unix)]
         assert_eq!(
             uri_to_path_on("file:///c%3A/x.la", false).unwrap(),
             Path::new("/c:/x.la")

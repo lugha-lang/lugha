@@ -72,14 +72,15 @@ fn text(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()
 }
 
+// `long long`, not `long`, for an `i64`: `long` is 32 bits on Windows.
 const SIDE: &str = "#include <stddef.h>\n\
     #include <string.h>\n\
     static char buf[32];\n\
     const char *greeting(void) { strcpy(buf, \"hello\"); return buf; }\n\
     void scribble(void) { strcpy(buf, \"XXXXX\"); }\n\
-    const char *maybe_name(long i) { return i == 0 ? NULL : \"ada\"; }\n\
+    const char *maybe_name(long long i) { return i == 0 ? NULL : \"ada\"; }\n\
     const char *raw_bytes(void) { return \"Hi\\xFF!\\xE2\\x82\"; }\n\
-    long text_len(const char *s) { return s == NULL ? -1 : (long)strlen(s); }\n\
+    long long text_len(const char *s) { return s == NULL ? -1 : (long long)strlen(s); }\n\
     const char *null_text(void) { return NULL; }\n\
     void each_word(void (*f)(const char *, void *), void *d) { f(\"alpha\", d); f(\"\\xCE\\xB2\" \"eta\", d); }\n\
     void maybe_word(void (*f)(const char *, void *), void *d) { f(NULL, d); f(\"x\", d); }\n";

@@ -24,7 +24,9 @@ fn build_writes_the_file_stem_or_dash_o() {
             .code(),
         Some(0)
     );
-    assert_eq!(dir.entries(), ["arith", "arith.la", "out"]);
+    // Windows' executables end in `.exe`; one named with `-o` is as named.
+    let built = format!("arith{}", std::env::consts::EXE_SUFFIX);
+    assert_eq!(dir.entries(), [built.as_str(), "arith.la", "out"]);
 }
 
 #[test]
@@ -38,11 +40,14 @@ fn run_passes_the_exit_code_through() {
         lughac(&dir.0, &["run", "-O2", "arith.la"]).status.code(),
         Some(14)
     );
-    // 128 + SIGABRT, as a shell would report it.
-    assert_eq!(
-        lughac(&dir.0, &["run", "abort.la"]).status.code(),
-        Some(134)
-    );
+    let aborted = lughac(&dir.0, &["run", "abort.la"]).status.code();
+    // 128 + SIGABRT, as a shell would report it; Windows has no signals, so
+    // there the program's own failing code.
+    if cfg!(unix) {
+        assert_eq!(aborted, Some(134));
+    } else {
+        assert!(aborted.is_some_and(|code| code != 0), "{aborted:?}");
+    }
     assert_eq!(
         dir.entries(),
         ["abort.la", "arith.la"],

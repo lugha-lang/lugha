@@ -206,9 +206,11 @@ mod tests {
         }
     }
 
+    /// The arguments as text, paths spelled with `/` as Windows' joins
+    /// would spell them with `\`.
     fn strings(args: &[OsString]) -> Vec<String> {
         args.iter()
-            .map(|a| a.to_string_lossy().into_owned())
+            .map(|a| a.to_string_lossy().replace('\\', "/"))
             .collect()
     }
 

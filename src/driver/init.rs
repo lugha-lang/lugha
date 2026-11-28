@@ -92,8 +92,13 @@ fn create(request: &Request, stdout: &mut dyn Write) -> Result<(), InitError> {
         files.push(("test/greeting_test.la".to_string(), program_test(&name)));
         files.push((".gitignore".to_string(), gitignore("main")));
     }
+    // Joined a part at a time, so Windows spells the whole path with `\`.
+    let under = |rel: &str| {
+        rel.split('/')
+            .fold(folder.to_path_buf(), |p, part| p.join(part))
+    };
     for (rel, text) in &files {
-        let path = folder.join(rel);
+        let path = under(rel);
         let shown = path.display().to_string();
         let io = |source| InitError::Io {
             path: shown.clone(),
@@ -126,9 +131,9 @@ fn create(request: &Request, stdout: &mut dyn Write) -> Result<(), InitError> {
         let _ = writeln!(stdout, "{line}");
     }
     let (what, file) = if request.lib {
-        ("run the example with", folder.join("examples/hello.la"))
+        ("run the example with", under("examples/hello.la"))
     } else {
-        ("run it with", folder.join("src/main.la"))
+        ("run it with", under("src/main.la"))
     };
     // `driver::run`'s writer keeps a failed write here too.
     let _ = writeln!(stdout, "{what}: lughac run {}", file.display());

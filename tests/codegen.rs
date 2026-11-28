@@ -173,8 +173,9 @@ fn milestone_1_program_exits_with_14() {
 
 #[test]
 fn division_truncates_and_remainder_takes_the_dividends_sign() {
-    // -3 as the low 8 bits of an exit status is 253.
-    assert_eq!(exit_code("-7 / 2"), Some(253));
+    // -3 as the low 8 bits of an exit status is 253; Windows keeps all 32.
+    let minus_three = if cfg!(unix) { 253 } else { -3 };
+    assert_eq!(exit_code("-7 / 2"), Some(minus_three));
     assert_eq!(exit_code("7 % -3"), Some(1));
     assert_eq!(exit_code("-(3 - 10)"), Some(7));
 }
@@ -237,7 +238,8 @@ fn run_programs_agree_at_o0_and_o2() {
         for entry in std::fs::read_dir(root.join(dir)).expect("program dir exists") {
             let path = entry.expect("entry").path();
             let exit = path.with_extension("exit");
-            if path.extension().is_some_and(|e| e == "la") && exit.exists() {
+            let case = format!("{dir}/{}", path.file_name().unwrap().to_string_lossy());
+            if path.extension().is_some_and(|e| e == "la") && exit.exists() && !known(&case) {
                 let src = std::fs::read_to_string(&path).expect("program is UTF-8");
                 let expected: i32 = std::fs::read_to_string(&exit)
                     .expect(".exit")
@@ -255,11 +257,27 @@ fn run_programs_agree_at_o0_and_o2() {
     assert!(checked >= 25, "only {checked} run programs found");
 }
 
+/// Whether `case` is expected to fail on this system: on Windows, a case
+/// in `tests/windows/known.txt`.
+fn known(case: &str) -> bool {
+    cfg!(windows)
+        && std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/windows/known.txt"
+        ))
+        .expect("known.txt")
+        .lines()
+        .any(|line| line.split(" — ").next() == Some(case))
+}
+
 #[test]
 fn let_initialiser_reads_the_outer_binding() {
     assert_eq!(exit_code("let x: i32 = 2; let x = x + 1; x"), Some(3));
 }
 
+// Unix only: Windows has no system `cc`; its runtime is compiled by zig in
+// every build.
+#[cfg(unix)]
 #[test]
 fn runtime_compiles_without_warnings() {
     let dir = TempDir::new();

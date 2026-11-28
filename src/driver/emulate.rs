@@ -151,7 +151,8 @@ fn choose(target: Target, machine: &Machine) -> Result<Runner, String> {
     // A static musl executable needs nothing; a glibc one needs that CPU's
     // C library, which Debian and Ubuntu's cross packages put here.
     if !triple.ends_with("-musl") && !machine.prefix_set {
-        let folder = PathBuf::from("/usr").join(gnu);
+        // A Linux path, spelled as one wherever the code is built.
+        let folder = PathBuf::from(format!("/usr/{gnu}"));
         if !(machine.is_dir)(&folder) {
             let cpu = match arch {
                 Arch::X86_64 => ("an x86-64", "libc6-amd64-cross"),

@@ -159,7 +159,8 @@ fn a_package_cant_reach_the_program_using_it() {
     ]);
     let err = rejected(&lughac(&t.path("app"), &["check", "main.la"]));
     assert!(err.contains("error[E0447]"), "{err}");
-    assert!(err.contains("lib/words.la"), "{err}");
+    // Windows spells the path with `\`.
+    assert!(err.replace('\\', "/").contains("lib/words.la"), "{err}");
 }
 
 #[test]

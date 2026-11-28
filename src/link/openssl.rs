@@ -229,16 +229,25 @@ mod tests {
     #[test]
     fn a_folder_gives_its_headers_and_static_libraries_by_path() {
         let f = Folder(PathBuf::from("/o"));
-        assert_eq!(f.include(), OsString::from("-I/o/include"));
+        // Paths spelled with `/`, as Windows' joins would spell them with `\`.
+        let text = |args: Vec<OsString>| -> Vec<String> {
+            args.iter()
+                .map(|a| a.to_string_lossy().replace('\\', "/"))
+                .collect()
+        };
+        assert_eq!(text(vec![f.include()]), ["-I/o/include"]);
         assert_eq!(
-            link_args(Some(&f), true, false),
+            text(link_args(Some(&f), true, false)),
             ["/o/lib/libssl.a", "/o/lib/libcrypto.a"]
         );
         assert_eq!(
-            link_args(Some(&f), true, true),
+            text(link_args(Some(&f), true, true)),
             ["/o/lib/libssl.a", "/o/lib/libcrypto.a"]
         );
-        assert_eq!(link_args(Some(&f), false, true), ["/o/lib/libcrypto.a"]);
+        assert_eq!(
+            text(link_args(Some(&f), false, true)),
+            ["/o/lib/libcrypto.a"]
+        );
         assert!(link_args(Some(&f), false, false).is_empty());
     }
 

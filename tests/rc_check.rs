@@ -11,7 +11,8 @@ use std::process::{Command, Output};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use support::runner::{
-    Case, DEFAULT_TIMEOUT, Mode, compare, discover, format_malformed, format_report, run_case,
+    Case, DEFAULT_TIMEOUT, Mode, compare, discover, each_case, format_malformed, format_report,
+    run_case,
 };
 
 const CHECK: (&str, &str) = ("LUGHA_RC_CHECK", "1");
@@ -34,14 +35,13 @@ fn concurrency_programs_pass_the_owner_check() {
             case
         })
         .collect();
-    let failures: Vec<_> = cases
-        .iter()
-        .map(|case| {
-            let outcome = run_case(lughac, workdir, case, DEFAULT_TIMEOUT);
-            (case.name.clone(), compare(case, &outcome))
-        })
-        .filter(|(_, mismatches)| !mismatches.is_empty())
-        .collect();
+    let failures: Vec<_> = each_case(&cases, |case| {
+        let outcome = run_case(lughac, workdir, case, DEFAULT_TIMEOUT);
+        (case.name.clone(), compare(case, &outcome))
+    })
+    .into_iter()
+    .filter(|(_, mismatches)| !mismatches.is_empty())
+    .collect();
     if !failures.is_empty() {
         panic!("\n{}", format_report(&failures, cases.len()));
     }

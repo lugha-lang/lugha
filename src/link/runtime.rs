@@ -80,14 +80,30 @@ impl RuntimeFile {
     /// Writes the runtime for `system`, with TLS's part when `tls` and
     /// crypto's when `crypto`.
     pub(super) fn write(tls: bool, crypto: bool, system: super::System) -> io::Result<Self> {
+        Self::write_in(&std::env::temp_dir(), tls, crypto, system)
+    }
+
+    /// [`RuntimeFile::write`] in `folder`.
+    fn write_in(folder: &Path, tls: bool, crypto: bool, system: super::System) -> io::Result<Self> {
         static NEXT: AtomicUsize = AtomicUsize::new(0);
-        let n = NEXT.fetch_add(1, Ordering::Relaxed);
-        let path = std::env::temp_dir().join(format!("lughac-rt-{}-{n}.c", std::process::id()));
-        // create_new: fail rather than reuse a file someone planted under that name.
-        let mut file = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&path)?;
+        let pid = std::process::id();
+        let mut tries = 0;
+        let (path, mut file) = loop {
+            let n = NEXT.fetch_add(1, Ordering::Relaxed);
+            let path = folder.join(format!("lughac-rt-{pid}-{n}.c"));
+            // create_new: never reuse a file someone planted under that name.
+            // One left by an earlier process with this id (Windows reuses ids
+            // quickly) is passed over for the next name.
+            match std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)
+            {
+                Ok(file) => break (path, file),
+                Err(e) if e.kind() == io::ErrorKind::AlreadyExists && tries < 1000 => tries += 1,
+                Err(e) => return Err(e),
+            }
+        };
         io::Write::write_all(&mut file, super::runtime_source(system).as_bytes())?;
         if tls {
             io::Write::write_all(&mut file, TLS_SOURCE.as_bytes())?;
@@ -248,6 +264,26 @@ mod tests {
         assert!(tls.contains("tls_trust_verify") && tls.contains("#define OS_TLS_TRUST 0"));
         let crypto = read(false, true);
         assert!(crypto.contains("#include <openssl/hpke.h>") && !crypto.contains("openssl/ssl.h"));
+    }
+
+    #[test]
+    fn the_runtime_file_passes_over_names_already_taken() {
+        let folder = std::env::temp_dir().join(format!("lughac-rt-test-{}", std::process::id()));
+        std::fs::create_dir_all(&folder).unwrap();
+        let system = super::super::System::Linux;
+        let first = RuntimeFile::write_in(&folder, false, false, system).unwrap();
+        let name = first.0.file_stem().unwrap().to_string_lossy().into_owned();
+        let (prefix, n) = name.rsplit_once('-').unwrap();
+        let n: usize = n.parse().unwrap();
+        // The next few names, as a leftover from an earlier process with
+        // this id would have taken them.
+        for next in n + 1..n + 4 {
+            std::fs::write(folder.join(format!("{prefix}-{next}.c")), "").unwrap();
+        }
+        let fresh = RuntimeFile::write_in(&folder, false, false, system).unwrap();
+        assert!(!std::fs::read_to_string(&fresh.0).unwrap().is_empty());
+        drop((first, fresh));
+        std::fs::remove_dir_all(&folder).unwrap();
     }
 
     #[test]
