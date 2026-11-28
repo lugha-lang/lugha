@@ -487,10 +487,14 @@ jobs:
             runner: windows-latest
             llvm: x86_64-pc-windows-msvc
             vcpkg: x64-windows-static
+            zig: zig-x86_64-windows-0.17.1
+            zig_sha256: b03f477a1943673e02aca0f570e8030dffd536ce1f45cbc4d3326ec31159562e
           - cpu: ARM64
             runner: windows-11-arm
             llvm: aarch64-pc-windows-msvc
             vcpkg: arm64-windows-static
+            zig: zig-aarch64-windows-0.17.1
+            zig_sha256: 4789895bdb1e312a2ea73b2a7c0a0cc8d2ab62ba6976e834a7c54cf443377c15
     runs-on: ${{ matrix.runner }}
     defaults:
       run:
@@ -509,7 +513,7 @@ jobs:
         id: llvm
         with:
           path: C:/llvm-21
-          key: ${{ env.LLVM }}-libxml2
+          key: ${{ env.LLVM }}-libxml2-2
 
       - name: Install LLVM 21
         # Only what linking needs: llvm-config, the headers, the libraries.
@@ -520,8 +524,9 @@ jobs:
           mkdir -p /c/llvm-21
           tar -xJf llvm.tar.xz -C /c/llvm-21 --strip-components=1 --wildcards "$LLVM/bin/llvm-config.exe" "$LLVM/include/*" "$LLVM/lib/*.lib"
           rm llvm.tar.xz
-          # LLVM's archive names libxml2s.lib among its system libraries
-          # but doesn't ship it: libxml2 itself, no optional parts, static.
+          # LLVM's archive names libxml2s.lib (xml2s.lib on ARM64) among its
+          # system libraries but doesn't ship it: libxml2 itself, no
+          # optional parts, static, under both names.
           if [ -z "$VCPKG_INSTALLATION_ROOT" ]; then
             git clone -q https://github.com/microsoft/vcpkg /c/vcpkg
             /c/vcpkg/bootstrap-vcpkg.bat -disableMetrics
@@ -530,6 +535,7 @@ jobs:
           "$VCPKG_INSTALLATION_ROOT/vcpkg" install "libxml2[core]:${{ matrix.vcpkg }}"
           ls "$VCPKG_INSTALLATION_ROOT/installed/${{ matrix.vcpkg }}/lib"
           cp "$VCPKG_INSTALLATION_ROOT/installed/${{ matrix.vcpkg }}/lib/libxml2.lib" /c/llvm-21/lib/libxml2s.lib
+          cp /c/llvm-21/lib/libxml2s.lib /c/llvm-21/lib/xml2s.lib
 
       - name: Install Rust
         run: rustup toolchain install
@@ -538,15 +544,34 @@ jobs:
         with:
           key: ${{ matrix.cpu }}
 
-      - name: What LLVM links (probe only)
+      - name: Install zig
+        # Windows' own programs are built through `zig cc`. The archive is
+        # checked against the SHA-256 ziglang.org publishes.
         run: |
-          /c/llvm-21/bin/llvm-config.exe --version --link-static --system-libs --libdir
-          ls /c/llvm-21/lib | head -50
+          curl -sSfL -o zig.zip "https://ziglang.org/download/0.17.1/${{ matrix.zig }}.zip"
+          echo "${{ matrix.zig_sha256 }}  zig.zip" | sha256sum -c -
+          unzip -q zig.zip -d /c/
+          rm zig.zip
+          echo "C:\\${{ matrix.zig }}" >> "$GITHUB_PATH"
 
-      - name: Build
+      - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        with:
+          tool: ${{ env.NEXTEST }}
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Lint
+        continue-on-error: true
         env:
           LLVM_SYS_211_PREFIX: C:/llvm-21
-        run: cargo build
+        run: cargo clippy --all-targets --keep-going -- -D warnings
+
+      - name: Tests
+        # Every test, the program suite among them.
+        env:
+          LLVM_SYS_211_PREFIX: C:/llvm-21
+        run: cargo-nextest nextest run --profile ci --no-fail-fast
 
   windows:
     name: Windows (${{ matrix.cpu }})
