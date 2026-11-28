@@ -145,6 +145,8 @@ fn other_tasks_run_while_a_fifo_is_opened_and_read() {
     assert_eq!(text(&out.stdout), "tick 0\ntick 1\ntick 2\nread 4\n");
 }
 
+// Unix only: it starts Unix's `sleep`.
+#[cfg(unix)]
 #[test]
 fn a_task_waiting_on_a_helper_is_cancelled_at_its_deadline() {
     let source = "fun main(console: Console, proc: Proc) {

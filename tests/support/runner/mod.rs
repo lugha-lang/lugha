@@ -22,8 +22,10 @@ pub use discover::discover;
 pub use execute::run_case;
 pub use report::{compare, format_malformed, format_report};
 
-/// How long one program may run before it is killed.
-pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
+/// How long one program may take, built and run, before it is killed: on
+/// Windows, where linking and starting a program is slow and a sweep runs
+/// a case per CPU, longer.
+pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(if cfg!(windows) { 60 } else { 10 });
 
 /// The cases expected to fail where the tests run: on Windows, those
 /// `tests/windows/known.txt` names (`<case> — <reason>` lines); elsewhere

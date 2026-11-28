@@ -45,6 +45,7 @@ fn text(bytes: &[u8]) -> String {
 }
 
 /// Plain tests with each stand-in, and one integration test.
+#[cfg(unix)]
 const TESTS: &str = r#"import std.time;
 
 fun stamp(clock: Clock): string {

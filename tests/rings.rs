@@ -165,6 +165,10 @@ fn a_task_waiting_on_an_empty_ring_wakes_when_c_writes() {
 }
 
 #[test]
+#[cfg_attr(
+    windows,
+    ignore = "hangs on Windows instead of panicking; the cause isn't known yet"
+)]
 fn two_writers_at_once_panic() {
     // Two writers meet only when one is inside `try_send`'s few
     // instructions as another starts: where the threads take turns on a

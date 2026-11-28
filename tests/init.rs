@@ -52,7 +52,7 @@ fn files(dir: &Path) -> Vec<String> {
                 walk(root, &path, out);
             } else {
                 let rel = path.strip_prefix(root).expect("inside root");
-                out.push(rel.to_string_lossy().into_owned());
+                out.push(rel.to_string_lossy().replace('\\', "/"));
             }
         }
     }

@@ -31,6 +31,9 @@ fn case_command(lughac: &Path, workdir: &Path, case: &Case) -> (Command, Option<
         Some(dir) => cmd.arg(subcommand).arg(&case.path).current_dir(dir.path()),
         None => {
             let arg = case.path.strip_prefix(workdir).unwrap_or(&case.path);
+            // Written with `/` on every system, as the expected diagnostics
+            // name it; Windows takes either separator.
+            let arg = arg.to_string_lossy().replace('\\', "/");
             cmd.arg(subcommand).arg(arg).current_dir(workdir)
         }
     };
